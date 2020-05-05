@@ -1,7 +1,7 @@
 /*
  * FilesServerOperations.java
  *
- * Copyright (C) 2009-12 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -31,12 +31,6 @@ public interface FilesServerOperations
    void isTextFile(String path,
                    ServerRequestCallback<Boolean> requestCallback);
    
-   void isGitDirectory(String path,
-                       ServerRequestCallback<Boolean> requestCallback);
-
-   void isPackageDirectory(String path,
-                           ServerRequestCallback<Boolean> requestCallback);
-
    void getFileContents(String path,
                         String encoding,
                         ServerRequestCallback<String> requestCallback);
@@ -44,7 +38,6 @@ public interface FilesServerOperations
    // get a file listing
    void listFiles(FileSystemItem directory,
                   boolean monitor,
-                  boolean showHidden,
                   ServerRequestCallback<DirectoryListing> requestCallback);
 
    void listAllFiles(String path,
@@ -91,11 +84,11 @@ public interface FilesServerOperations
                            FileSystemItem parentDirectory,
                            ArrayList<String> filenames);
    
-   void writeConfigJSON(String relativePath,
+   void writeJSON(String path,
                   JavaScriptObject object,
                   ServerRequestCallback<Boolean> requestCallback);
    
-   void readConfigJSON(String relativePath,
+   void readJSON(String path,
                  boolean logErrorIfNotFound,
                  ServerRequestCallback<JavaScriptObject> requestCallback);
 }

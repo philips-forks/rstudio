@@ -1,7 +1,7 @@
 /*
  * RSessionContext.hpp
  *
- * Copyright (C) 2009-15 by RStudio, PBC
+ * Copyright (C) 2009-15 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -24,19 +24,13 @@
 
 #include <boost/function.hpp>
 
-#define kProjectNone               "none"
-#define kUserIdLen                 5
-#define kProjectIdLen              8
-#define kProjectNoneId             "cfc78a31"
-#define kJupyterLabId              "21f2ed72"
-#define kJupyterNotebookId         "2cb256d2"
-#define kWorkspacesId              "3c286bd3"
-#define kVSCodeId                  "3c9ab5a7"
+#include <core/system/UserObfuscation.hpp>
 
-#define kWorkbenchRStudio          "RStudio"
-#define kWorkbenchJupyterLab       "JupyterLab"
-#define kWorkbenchJupyterNotebook  "Jupyter Notebook"
-#define kWorkbenchVSCode           "VS Code"
+#define kProjectNone   "none"
+#define kUserIdLen      5
+#define kProjectIdLen   8
+#define kProjectNoneId "cfc78a31"
+#define kWorkspacesId  "3c286bd3"
 
 #ifdef _WIN32
 typedef unsigned int uid_t;
@@ -61,8 +55,30 @@ enum SessionScopeState
    ScopeMissingProject,
 };
 
-void setMinUid(uid_t minUid);
-std::string obfuscatedUserId(uid_t uid);
+inline std::string obfuscatedUserId(uid_t uid)
+{
+   std::ostringstream ustr;
+   ustr << std::setw(kUserIdLen) << std::setfill('0') << std::hex
+        << OBFUSCATE_USER_ID(uid);
+   return ustr.str();
+}
+
+inline uid_t deobfuscatedUserId(const std::string& userId)
+{
+   // shortcut if user ID is not known
+   if (userId.empty())
+      return 0;
+
+   // attempt to parse user id
+   long uid = strtol(userId.c_str(), NULL, 16);
+
+   // collapse all error cases
+   if (uid == LONG_MAX || uid == LONG_MIN)
+      uid = 0;
+   else if (uid != 0)
+      uid = DEOBFUSCATE_USER_ID(uid);
+   return uid;
+}
 
 class ProjectId
 {
@@ -152,11 +168,6 @@ public:
 
    static SessionScope projectNone(const std::string& id);
 
-   static SessionScope jupyterLabSession(const std::string& id);
-   static SessionScope jupyterNotebookSession(const std::string& id);
-
-   static SessionScope vscodeSession(const std::string& id);
-
    SessionScope()
    {
    }
@@ -164,13 +175,6 @@ public:
    bool isProjectNone() const;
 
    bool isWorkspaces() const;
-
-   bool isJupyter() const;
-   bool isJupyterLab() const;
-   bool isJupyterNotebook() const;
-   bool isVSCode() const;
-
-   std::string workbench() const;
 
    const std::string project() const { return project_.asString(); }
 
@@ -216,8 +220,7 @@ std::string createSessionUrl(const std::string& hostPageUrl,
 void parseSessionUrl(const std::string& url,
                      SessionScope* pScope,
                      std::string* pUrlPrefix,
-                     std::string* pUrlWithoutPrefix,
-                     std::string* pBaseUrl = nullptr);
+                     std::string* pUrlWithoutPrefix);
 
 
 struct SessionContext

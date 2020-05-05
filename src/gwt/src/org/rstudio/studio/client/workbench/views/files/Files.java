@@ -1,7 +1,7 @@
 /*
  * Files.java
  *
- * Copyright (C) 2009-20 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -26,7 +26,6 @@ import org.rstudio.core.client.StringUtil;
 import org.rstudio.core.client.cellview.ColumnSortInfo;
 import org.rstudio.core.client.command.CommandBinder;
 import org.rstudio.core.client.command.Handler;
-import org.rstudio.core.client.dom.DomUtils;
 import org.rstudio.core.client.files.FileSystemItem;
 import org.rstudio.core.client.js.JsObject;
 import org.rstudio.core.client.widget.*;
@@ -37,7 +36,6 @@ import org.rstudio.studio.client.common.fileexport.FileExport;
 import org.rstudio.studio.client.common.filetypes.FileTypeRegistry;
 import org.rstudio.studio.client.common.filetypes.events.OpenFileInBrowserEvent;
 import org.rstudio.studio.client.common.filetypes.events.OpenFileInBrowserHandler;
-import org.rstudio.studio.client.common.filetypes.events.RenameSourceFileEvent;
 import org.rstudio.studio.client.server.*;
 import org.rstudio.studio.client.workbench.WorkbenchContext;
 import org.rstudio.studio.client.workbench.WorkbenchView;
@@ -49,7 +47,6 @@ import org.rstudio.studio.client.workbench.model.Session;
 import org.rstudio.studio.client.workbench.model.SessionInfo;
 import org.rstudio.studio.client.workbench.model.helper.JSObjectStateValue;
 import org.rstudio.studio.client.workbench.model.helper.StringStateValue;
-import org.rstudio.studio.client.workbench.prefs.model.UserPrefs;
 import org.rstudio.studio.client.workbench.views.BasePresenter;
 import org.rstudio.studio.client.workbench.views.environment.dataimport.DataImportPresenter;
 import org.rstudio.studio.client.workbench.views.files.events.*;
@@ -58,7 +55,6 @@ import org.rstudio.studio.client.workbench.views.files.model.FileChange;
 import org.rstudio.studio.client.workbench.views.files.model.FilesServerOperations;
 import org.rstudio.studio.client.workbench.views.files.model.PendingFileUpload;
 import org.rstudio.studio.client.workbench.views.source.events.SourcePathChangedEvent;
-import org.rstudio.studio.client.workbench.views.terminal.events.CreateNewTerminalEvent;
 
 import java.util.ArrayList;
 
@@ -66,10 +62,10 @@ public class Files
       extends BasePresenter
       implements FileChangeHandler, 
                  OpenFileInBrowserHandler,
-                 DirectoryNavigateHandler,
-                 RenameSourceFileEvent.Handler
+                 DirectoryNavigateHandler
 {
    interface Binder extends CommandBinder<Commands, Files> {}
+
  
    public interface Display extends WorkbenchView
    {   
@@ -118,9 +114,7 @@ public class Files
                      String targetURL,
                      FileSystemItem targetDirectory, 
                      RemoteFileSystemContext fileSystemContext,
-                     Operation beginOperation,
-                     OperationWithInput<PendingFileUpload> completedOperation,
-                     Operation failedOperation);
+                     OperationWithInput<PendingFileUpload> completedOperation);
 
 
       void showHtmlFileChoice(FileSystemItem file, 
@@ -130,8 +124,6 @@ public class Files
       void showDataImportFileChoice(FileSystemItem file, 
                                     Command onView, 
                                     Command onImport);
-
-      void bringToFront();
    }
 
    @Inject
@@ -145,14 +137,13 @@ public class Files
                 Provider<FilesCopy> pFilesCopy,
                 Provider<FilesUpload> pFilesUpload,
                 Provider<FileExport> pFileExport,
-                Provider<UserPrefs> pPrefs,
                 FileTypeRegistry fileTypeRegistry,
                 ConsoleDispatcher consoleDispatcher,
                 WorkbenchContext workbenchContext,
                 DataImportPresenter dataImportPresenter)
    {
       super(view);
-      view_ = view;
+      view_ = view ;
       view_.setObserver(new DisplayObserver());
       fileTypeRegistry_ = fileTypeRegistry;
       consoleDispatcher_ = consoleDispatcher;
@@ -161,19 +152,17 @@ public class Files
       eventBus_ = eventBus;
       server_ = server;
       fileSystemContext_ = fileSystemContext;
-      globalDisplay_ = globalDisplay;
+      globalDisplay_ = globalDisplay ;
       session_ = session;
       pFilesCopy_ = pFilesCopy;
       pFilesUpload_ = pFilesUpload;
       pFileExport_ = pFileExport;
-      pPrefs_ = pPrefs;
       dataImportPresenter_ = dataImportPresenter;
 
       ((Binder)GWT.create(Binder.class)).bind(commands, this);
 
       
       eventBus_.addHandler(FileChangeEvent.TYPE, this);
-      eventBus_.addHandler(RenameSourceFileEvent.TYPE, this);
 
       initSession();
    }
@@ -278,19 +267,13 @@ public class Files
                return null;
          }
       };
-      
-      // register handler for show hidden file state change
-      pPrefs_.get().showHiddenFiles().addValueChangeHandler(show ->
-      {
-         // refresh when pref value changes to show/hide hidden files
-         onRefreshFiles();
-      });
    }
+   
    
 
    public Display getDisplay()
    {
-      return view_;
+      return view_ ;
    }
    
    // observer for display
@@ -325,7 +308,7 @@ public class Files
       {
          columnSortOrder_ = sortOrder;
       }
-   }
+   };
     
 
    @Handler
@@ -394,14 +377,10 @@ public class Files
          return;
       }
 
-      FileSystemItem initialFile = selectedFiles.get(0);
-      if (initialFile.isDirectory())
-         initialFile = initialFile.getParentPath();
-      
       view_.showFilePicker(
                         "Choose Destination", 
                         fileSystemContext_,
-                        initialFile,
+                        selectedFiles.get(0),
                         new ProgressOperationWithInput<FileSystemItem>() {
 
          public void execute(FileSystemItem targetFile,
@@ -418,7 +397,7 @@ public class Files
             
             server_.copyFile(selectedFiles.get(0),
                  targetFile,
-                 true,
+                 false,
                  new VoidServerRequestCallback(progress) {
                      @Override
                      protected void onSuccess()
@@ -439,11 +418,11 @@ public class Files
       
       // validation: some selection exists
       if  (selectedFiles.size() == 0)
-         return;
+         return ;
 
       // validation -- not prohibited move of public folder
       if (!validateNotRestrictedFolder(selectedFiles, "moved"))
-         return;
+         return ;
       
       view_.showFolderPicker(
                         "Choose Folder", 
@@ -465,11 +444,11 @@ public class Files
                FileSystemItem file = selectedFiles.get(i);
                FileSystemItem fileParent = file.getParentPath();
                
-               if (file.getPath() == targetDir.getPath() ||
-                   fileParent.getPath() == targetDir.getPath())
+               if (file.getPath().equals(targetDir.getPath()) ||
+                   fileParent.getPath().equals(targetDir.getPath()))
                {
                   progress.onError("Invalid target folder");
-                  return;
+                  return ;
                } 
             }
             
@@ -502,7 +481,7 @@ public class Files
       
       // validation: some selection exists
       if  (selectedFiles.size() == 0)
-         return;
+         return ;
       
       // validation: no more than one file selected
       if  (selectedFiles.size() > 1)
@@ -510,16 +489,65 @@ public class Files
          globalDisplay_.showErrorMessage(
                            "Invalid Selection", 
                            "Please select only one file to rename");
-         return;
+         return ;
       }
       
       // validation -- not prohibited move of public folder
       if (!validateNotRestrictedFolder(selectedFiles, "renamed"))
-         return;
+         return ;
       
-      // perform the rename
+      // prompt for new file name then execute the rename
       final FileSystemItem file = selectedFiles.get(0);
-      renameFile(file);
+      globalDisplay_.promptForText("Rename File",
+                                   "Please enter the new file name:",
+                                   file.getName(),
+                                   0,
+                                   file.getStem().length(),
+                                   null,
+                                   new ProgressOperationWithInput<String>() {
+
+                                      public void execute(String input,
+                             final ProgressIndicator progress)
+         {
+            progress.onProgress("Renaming file...");
+
+            String path = file.getParentPath().completePath(input);
+            final FileSystemItem target =
+               file.isDirectory() ?
+                  FileSystemItem.createDir(path) :
+                  FileSystemItem.createFile(path);
+              
+            // clear selection
+            view_.selectNone();
+            
+            // premptively rename in the UI then fallback to refreshing
+            // the view if there is an error
+            view_.renameFile(file, target);
+            
+            // execute on the server
+            server_.renameFile(file, 
+                               target, 
+                               new VoidServerRequestCallback(progress) {
+                                 @Override
+                                 protected void onSuccess()
+                                 {
+                                    // if we were successful, let editor know
+                                    if (!file.isDirectory())
+                                    {
+                                       eventBus_.fireEvent(
+                                             new SourcePathChangedEvent(
+                                                   file.getPath(), 
+                                                   target.getPath()));
+                                    }
+                                 }
+                                 @Override
+                                 protected void onFailure()
+                                 {
+                                    onRefreshFiles();
+                                 }
+                              });        
+         }                                
+      }); 
    }
    
    @Handler
@@ -530,11 +558,11 @@ public class Files
       
       // validation: some selection exists
       if  (selectedFiles.size() == 0)
-         return;
+         return ;
       
       // validation -- not prohibited move of public folder
       if (!validateNotRestrictedFolder(selectedFiles, "deleted"))
-         return;
+         return ;
       
       // confirm delete then execute it
       globalDisplay_.showYesNoMessage(
@@ -581,28 +609,18 @@ public class Files
       view_.bringToFront();
       navigateToDirectory(workbenchContext_.getCurrentWorkingDir());
    }
-
-   void onCopyFilesPaneCurrentDirectory()
-   {
-      DomUtils.copyCodeToClipboard(currentPath_.getPath());
-   }
-
+   
    @Handler
    void onSetAsWorkingDir()
    {
       consoleDispatcher_.executeSetWd(currentPath_, true);
    }
-
-   @Handler
-   void onOpenNewTerminalAtFilePaneLocation()
-   {
-      eventBus_.fireEvent(new CreateNewTerminalEvent(currentPath_));
-   }
-
+   
    void onSetWorkingDirToFilesPane()
    {
       onSetAsWorkingDir();
    }
+   
 
    @Handler
    void onShowFolder()
@@ -618,6 +636,7 @@ public class Files
    public void onOpenFileInBrowser(OpenFileInBrowserEvent event)
    {
       showFileInBrowser(event.getFile());
+     
    }
    
    public void onDirectoryNavigate(DirectoryNavigateEvent event)
@@ -627,12 +646,6 @@ public class Files
          view_.bringToFront();
    }
   
-   @Override
-   public void onRenameSourceFile(RenameSourceFileEvent event)
-   {
-      renameFile(FileSystemItem.createFile(event.getPath()));
-   }
-
    private void navigateToDirectory(FileSystemItem directoryEntry)
    {
       hasNavigatedToDirectory_ = true;
@@ -640,6 +653,7 @@ public class Files
       view_.listDirectory(currentPath_, currentPathFilesDS_);
       session_.persistClientState();
    }
+   
 
    private void navigateToFile(final FileSystemItem file)
    {
@@ -714,73 +728,6 @@ public class Files
       }
    }
    
-   private void renameFile(FileSystemItem file)
-   {
-      // guard for reentrancy
-      if (renaming_)
-         return;
-      renaming_ = true;
-
-      // prompt for new file name then execute the rename
-      globalDisplay_.promptForText("Rename File",
-                                   "Please enter the new file name:",
-                                   file.getName(),
-                                   0,
-                                   file.getStem().length(),
-                                   null,
-                                   new ProgressOperationWithInput<String>() {
-        public void execute(String input,
-                            final ProgressIndicator progress)
-        {
-            // no longer waiting fo user to rename
-            renaming_ = false;
-            
-            progress.onProgress("Renaming file...");
-
-            String path = file.getParentPath().completePath(input);
-            final FileSystemItem target =
-               file.isDirectory() ?
-                  FileSystemItem.createDir(path) :
-                  FileSystemItem.create(path, false, file.getLength(), file.getLastModifiedNative());
-              
-            // clear selection
-            view_.selectNone();
-            
-            // pre-emptively rename in the UI then fallback to refreshing
-            // the view if there is an error
-            view_.renameFile(file, target);
-            
-            // execute on the server
-            server_.renameFile(file, 
-                               target, 
-                               new VoidServerRequestCallback(progress) {
-                                 @Override
-                                 protected void onSuccess()
-                                 {
-                                    // if we were successful, let editor know
-                                    if (!file.isDirectory())
-                                    {
-                                       eventBus_.fireEvent(
-                                             new SourcePathChangedEvent(
-                                                   file.getPath(), 
-                                                   target.getPath()));
-                                    }
-                                 }
-                                 @Override
-                                 protected void onFailure()
-                                 {
-                                    onRefreshFiles();
-                                 }
-                              });        
-         }                                
-      }, 
-      () -> 
-      {
-         // clear rename flag when operation is canceled
-         renaming_ = false;
-      }); 
-   }
-   
    // data source for listing files on the current path which can 
    // be passed to the files view
    ServerDataSource<DirectoryListing> currentPathFilesDS_ = 
@@ -789,21 +736,18 @@ public class Files
          public void requestData(
                ServerRequestCallback<DirectoryListing> requestCallback)
          {
-            
-            server_.listFiles(currentPath_, 
-                  true, // pass true to enable monitoring for all calls to list_files
-                  pPrefs_.get().showHiddenFiles().getValue(), // respect user pref for showing hidden
-                  requestCallback);
+            // pass true to enable monitoring for all calls to list_files
+            server_.listFiles(currentPath_, true, requestCallback);
          }
       };
 
-   private final Display view_;
+   private final Display view_ ;
    private final FileTypeRegistry fileTypeRegistry_;
    private final ConsoleDispatcher consoleDispatcher_;
    private final WorkbenchContext workbenchContext_;
    private final FilesServerOperations server_;
    private final EventBus eventBus_;
-   private final GlobalDisplay globalDisplay_;
+   private final GlobalDisplay globalDisplay_ ;
    private final RemoteFileSystemContext fileSystemContext_;
    private final Session session_;
    private FileSystemItem currentPath_ = FileSystemItem.home();
@@ -811,11 +755,9 @@ public class Files
    private final Provider<FilesCopy> pFilesCopy_;
    private final Provider<FilesUpload> pFilesUpload_;
    private final Provider<FileExport> pFileExport_;
-   private final Provider<UserPrefs> pPrefs_;
    private static final String MODULE_FILES = "files-pane";
    private static final String KEY_PATH = "path";
    private static final String KEY_SORT_ORDER = "sortOrder";
    private JsArray<ColumnSortInfo> columnSortOrder_ = null;
    private DataImportPresenter dataImportPresenter_;
-   private boolean renaming_ = false;
 }

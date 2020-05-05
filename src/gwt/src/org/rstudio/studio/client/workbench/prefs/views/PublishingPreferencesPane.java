@@ -1,7 +1,7 @@
 /*
  * PublishingPreferencesPane.java
  *
- * Copyright (C) 2009-20 by RStudio, PBC
+ * Copyright (C) 2009-14 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -32,25 +32,23 @@ import com.google.inject.Inject;
 import org.rstudio.core.client.CommandWithArg;
 import org.rstudio.core.client.ElementIds;
 import org.rstudio.core.client.prefs.PreferencesDialogBaseResources;
-import org.rstudio.core.client.prefs.RestartRequirement;
 import org.rstudio.core.client.resources.ImageResource2x;
-import org.rstudio.core.client.widget.FileChooserTextBox;
 import org.rstudio.core.client.widget.Operation;
 import org.rstudio.core.client.widget.OperationWithInput;
 import org.rstudio.core.client.widget.ThemedButton;
 import org.rstudio.studio.client.common.GlobalDisplay;
-import org.rstudio.studio.client.common.HelpLink;
 import org.rstudio.studio.client.common.dependencies.DependencyManager;
 import org.rstudio.studio.client.rsconnect.RSConnect;
 import org.rstudio.studio.client.rsconnect.model.RSConnectAccount;
 import org.rstudio.studio.client.rsconnect.model.RSConnectServerOperations;
 import org.rstudio.studio.client.rsconnect.ui.RSAccountConnector;
 import org.rstudio.studio.client.rsconnect.ui.RSConnectAccountList;
+import org.rstudio.studio.client.server.Int;
 import org.rstudio.studio.client.server.ServerError;
 import org.rstudio.studio.client.server.ServerRequestCallback;
 import org.rstudio.studio.client.server.Void;
-import org.rstudio.studio.client.workbench.prefs.model.UserPrefs;
-import org.rstudio.studio.client.workbench.prefs.model.UserState;
+import org.rstudio.studio.client.workbench.prefs.model.RPrefs;
+import org.rstudio.studio.client.workbench.prefs.model.UIPrefs;
 
 public class PublishingPreferencesPane extends PreferencesPane
 {
@@ -58,24 +56,25 @@ public class PublishingPreferencesPane extends PreferencesPane
    public PublishingPreferencesPane(GlobalDisplay globalDisplay,
                                     RSConnectServerOperations server,
                                     RSAccountConnector connector,
-                                    UserPrefs prefs,
-                                    UserState state,
+                                    UIPrefs prefs,
                                     DependencyManager deps)
    {
       reloadRequired_ = false;
       display_ = globalDisplay;
-      userPrefs_ = prefs;
-      userState_ = state;
+      uiPrefs_ = prefs;
       server_ = server;
       connector_ = connector;
       deps_ = deps;
       
       VerticalPanel accountPanel = new VerticalPanel();
+      Label accountLabel = headerLabel("Publishing Accounts");
       HorizontalPanel hpanel = new HorizontalPanel();
       
-      String accountListLabel = "Publishing Accounts";
-      accountList_ = new RSConnectAccountList(server, globalDisplay, true, true, accountListLabel);
-      accountList_.setHeight("150px");
+      accountPanel.add(accountLabel);
+      
+      accountList_ = new RSConnectAccountList(server, globalDisplay, true, 
+            true);
+      accountList_.setHeight("200px");
       accountList_.setWidth("300px");
       accountList_.getElement().getStyle().setMarginBottom(15, Unit.PX);
       accountList_.getElement().getStyle().setMarginLeft(3, Unit.PX);
@@ -147,8 +146,6 @@ public class PublishingPreferencesPane extends PreferencesPane
       
       setButtonEnabledState();
 
-      Label accountLabel = headerLabel(accountListLabel);
-      accountPanel.add(accountLabel);
       accountPanel.add(hpanel);
       add(accountPanel);
       
@@ -190,15 +187,14 @@ public class PublishingPreferencesPane extends PreferencesPane
       add(missingPkgPanel);
       
       final CheckBox chkEnableRSConnect = checkboxPref("Enable publishing to RStudio Connect",
-            userState_.enableRsconnectPublishUi());
+            uiPrefs_.enableRStudioConnect());
       final HorizontalPanel rsconnectPanel = checkBoxWithHelp(chkEnableRSConnect, 
-                                                        "rstudio_connect",
-                                                        "Information about RStudio Connect");
+                                                        "rstudio_connect");
       lessSpaced(rsconnectPanel);
       
       add(headerLabel("Settings"));
-      CheckBox chkEnablePublishing = checkboxPref("Enable publishing documents, apps, and APIs", 
-            userState_.showPublishUi());
+      CheckBox chkEnablePublishing = checkboxPref("Enable publishing documents and apps", 
+            uiPrefs_.showPublishUi());
       chkEnablePublishing.addValueChangeHandler(new ValueChangeHandler<Boolean>(){
          @Override
          public void onValueChange(ValueChangeEvent<Boolean> event)
@@ -214,34 +210,14 @@ public class PublishingPreferencesPane extends PreferencesPane
          add(rsconnectPanel);
       
       add(checkboxPref("Show diagnostic information when publishing",
-            userPrefs_.showPublishDiagnostics()));
+            uiPrefs_.showPublishDiagnostics()));
       
-      add(spacedBefore(headerLabel("SSL Certificates")));
-
-      add(checkboxPref("Check SSL certificates when publishing",
-            userPrefs_.publishCheckCertificates()));
-      
-      CheckBox useCaBundle = checkboxPref("Use custom CA bundle",
-            userPrefs_.usePublishCaBundle());
-      useCaBundle.addValueChangeHandler(
-            val -> caBundlePath_.setVisible(val.getValue()));
-      add(useCaBundle);
-
-      caBundlePath_ = new FileChooserTextBox(
-         "", "(none)", ElementIds.TextBoxButtonId.CA_BUNDLE, false, null, null);
-      caBundlePath_.setText(userPrefs_.publishCaBundle().getValue());
-      caBundlePath_.setVisible(userPrefs_.usePublishCaBundle().getValue());
-      add(caBundlePath_);
-
-      add(spacedBefore(new HelpLink("Troubleshooting Deployments", 
-            "troubleshooting_deployments")));
-      
-      server_.hasOrphanedAccounts(new ServerRequestCallback<Double>()
+      server_.hasOrphanedAccounts(new ServerRequestCallback<Int>()
       {
          @Override
-         public void onResponseReceived(Double numOrphans)
+         public void onResponseReceived(Int numOrphans)
          {
-            missingPkgPanel.setVisible(numOrphans > 0);
+            missingPkgPanel.setVisible(numOrphans.getValue() > 0);
          }
 
          @Override
@@ -256,21 +232,16 @@ public class PublishingPreferencesPane extends PreferencesPane
    }
 
    @Override
-   protected void initialize(UserPrefs rPrefs)
+   protected void initialize(RPrefs rPrefs)
    {
    }
 
    @Override
-   public RestartRequirement onApply(UserPrefs rPrefs)
+   public boolean onApply(RPrefs rPrefs)
    {
-      RestartRequirement restartRequirement = super.onApply(rPrefs);
+      boolean reload = super.onApply(rPrefs);
 
-      if (reloadRequired_)
-         restartRequirement.setUiReloadRequired(true);
-
-      userPrefs_.publishCaBundle().setGlobalValue(caBundlePath_.getText());
-
-      return restartRequirement;
+      return reload || reloadRequired_;
    }
 
    
@@ -410,8 +381,7 @@ public class PublishingPreferencesPane extends PreferencesPane
    }
    
    private final GlobalDisplay display_;
-   private final UserPrefs userPrefs_;
-   private final UserState userState_;
+   private final UIPrefs uiPrefs_;
    private final RSConnectServerOperations server_;
    private final RSAccountConnector connector_;
    private final DependencyManager deps_;
@@ -420,7 +390,6 @@ public class PublishingPreferencesPane extends PreferencesPane
    private ThemedButton connectButton_;
    private ThemedButton disconnectButton_;
    private ThemedButton reconnectButton_;
-   private FileChooserTextBox caBundlePath_;
    private boolean reloadRequired_;
 }
 

@@ -1,7 +1,7 @@
 /*
  * RSConnectPublishSource.java
  *
- * Copyright (C) 2009-18 by RStudio, PBC
+ * Copyright (C) 2009-15 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -23,16 +23,16 @@ import com.google.gwt.core.client.JavaScriptObject;
 
 public class RSConnectPublishSource
 {
-   // invoked when publishing Shiny applications or Plumber APIs
-   public RSConnectPublishSource(String sourceDir, String sourceFile, boolean isAPI)
+   // invoked when publishing Shiny applications
+   public RSConnectPublishSource(String sourceDir, String sourceFile)
    {
       sourceFile_ = sourceDir;
       deployFile_ = sourceFile;
       isSelfContained_ = false;
       description_ = null;
       deployDir_ = sourceDir;
-      contentCategory_ = isAPI ? RSConnect.CONTENT_CATEGORY_API : null;
-      isShiny_ = !isAPI;
+      contentCategory_ = null;
+      isShiny_ = true;
       websiteDir_ = null;
       isStatic_ = false;
       isSingleFileShiny_ = sourceDir != sourceFile;
@@ -42,12 +42,12 @@ public class RSConnectPublishSource
          boolean isSelfContained, boolean isStatic, boolean isShiny, 
          String description, int type)
    {
-      this(sourceFile, sourceFile, websiteDir, null, isSelfContained, isStatic, 
+      this(sourceFile, sourceFile, websiteDir, isSelfContained, isStatic, 
             isShiny, description, type);
    }
    
    public RSConnectPublishSource(String sourceFile, String outputFile, 
-         String websiteDir, String websiteOutputDir, boolean isSelfContained, boolean isStatic, 
+         String websiteDir, boolean isSelfContained, boolean isStatic, 
          boolean isShiny, String description, int type)
    {
       deployFile_ = outputFile;
@@ -74,10 +74,7 @@ public class RSConnectPublishSource
       }
       contentCategory_ = category;
 
-      if (type == RSConnect.CONTENT_TYPE_WEBSITE && isStatic && !StringUtil.isNullOrEmpty(websiteOutputDir))
-         deployDir_ = FileSystemItem.createFile(websiteOutputDir).getPath();
-      else
-         deployDir_ = FileSystemItem.createFile(outputFile).getParentPathString();
+      deployDir_ = FileSystemItem.createFile(outputFile).getParentPathString();
    }
    
    public RSConnectPublishSource(RenderedDocPreview preview, 
@@ -138,9 +135,7 @@ public class RSConnectPublishSource
    public boolean isDocument()
    {
       return isSourceExt("rmd") || isSourceExt("md") || isSourceExt("html") ||
-             isSourceExt("htm") || isSourceExt("rpres") || isSourceExt("pdf") ||
-             isSourceExt("docx") || isSourceExt("odt") || isSourceExt("rtf") ||
-             isSourceExt("pptx");
+             isSourceExt("htm") || isSourceExt("rpres");
    }
    
    public String getDeployKey()
@@ -212,7 +207,6 @@ public class RSConnectPublishSource
                getSourceFile() : "");
       obj.setString("content_category", StringUtil.notNull(
             getContentCategory()));
-      obj.setString("website_dir", StringUtil.notNull(getWebsiteDir()));
       return obj.cast();
    }
    

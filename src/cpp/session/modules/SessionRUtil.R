@@ -1,7 +1,7 @@
 #
 # SessionRUtil.R
 #
-# Copyright (C) 2009-17 by RStudio, PBC
+# Copyright (C) 2009-17 by RStudio, Inc.
 #
 # Unless you have received this program directly from RStudio pursuant
 # to the terms of a commercial license agreement with RStudio, then
@@ -16,35 +16,4 @@
 .rs.addFunction("isNullExternalPointer", function(object)
 {
    .Call("rs_isNullExternalPointer", object, PACKAGE = "(embedding)")
-})
-
-.rs.addFunction("readIniFile", function(filePath)
-{
-   as.list(.Call("rs_readIniFile", filePath))
-})
-
-.rs.addFunction("runAsyncRProcess", function(
-   code,
-   workingDir  = getwd(),
-   onStarted   = function() {},
-   onContinue  = function() {},
-   onStdout    = function(output) {},
-   onStderr    = function(output) {},
-   onCompleted = function(exitStatus) {})
-{
-   callbacks <- list(
-      started   = onStarted,
-      continue  = onContinue,
-      stdout    = onStdout,
-      stderr    = onStderr,
-      completed = onCompleted
-   )
-   
-   .Call(
-      "rs_runAsyncRProcess",
-      as.character(code),
-      normalizePath(workingDir, mustWork = TRUE),
-      as.list(callbacks),
-      PACKAGE = "(embedding)"
-   )
 })

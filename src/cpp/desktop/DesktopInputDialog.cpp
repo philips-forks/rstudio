@@ -1,7 +1,7 @@
 /*
  * DesktopInputDialog.cpp
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -22,8 +22,7 @@
 InputDialog::InputDialog(QWidget *parent) :
     QDialog(parent),
     ui(new Ui::InputDialog()),
-    pOK_(nullptr),
-    required_(true)
+    pOK_(NULL)
 {
    ui->setupUi(this);
    setWindowFlags(Qt::Dialog | Qt::MSWindowsFixedSizeDialogHint);
@@ -50,7 +49,6 @@ QString InputDialog::caption()
 void InputDialog::setCaption(const QString& caption)
 {
    ui->label->setText(caption);
-   ui->lineEdit->setAccessibleName(caption);
 }
 
 QString InputDialog::textValue()
@@ -90,11 +88,6 @@ void InputDialog::setNumbersOnly(bool numbersOnly)
       ui->lineEdit->setInputMask(QString());
 }
 
-void InputDialog::setRequired(bool required)
-{
-   required_ = required;
-}
-
 void InputDialog::setExtraOptionPrompt(const QString& prompt)
 {
    ui->extraOption->setVisible(!prompt.isEmpty());
@@ -113,14 +106,13 @@ bool InputDialog::extraOption()
 
 void InputDialog::done(int r)
 {
-   if (QDialog::Accepted == r && required_) // ok was pressed
+   if (QDialog::Accepted == r) // ok was pressed
    {
       if (ui->lineEdit->text().size() == 0)
       {
          rstudio::desktop::showWarning(this,
                      QString::fromUtf8("Error"),
-                     QString::fromUtf8("You must enter a value."),
-                     QString());
+                     QString::fromUtf8("You must enter a value."));
          return;
        }
    }

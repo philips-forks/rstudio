@@ -1,7 +1,7 @@
 /*
  * JsUtil.java
  *
- * Copyright (C) 2009-12 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -20,10 +20,8 @@ import com.google.gwt.core.client.JsArrayBoolean;
 import com.google.gwt.core.client.JsArrayInteger;
 import com.google.gwt.core.client.JsArrayString;
 
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Iterator;
-import java.util.List;
 
 public class JsUtil
 {
@@ -108,7 +106,7 @@ public class JsUtil
                @Override
                public boolean hasNext()
                {
-                  return index_ >= 0;
+                  return index_ > 0;
                }
 
                @Override
@@ -141,7 +139,7 @@ public class JsUtil
       {
          for (int i=0; i<a.length(); i++)
          {
-            if (a.get(i) != b.get(i))
+            if (!a.get(i).equals(b.get(i)))
                return false; 
          }
          
@@ -227,12 +225,4 @@ public class JsUtil
      }
      return s;
   }-*/;
-   
-   public static List<String> toList(JsArrayString array)
-   {
-      List<String> list = new ArrayList<String>();
-      for (int i = 0, n = array.length(); i < n; i++)
-         list.add(array.get(i));
-      return list;
-   }
 }

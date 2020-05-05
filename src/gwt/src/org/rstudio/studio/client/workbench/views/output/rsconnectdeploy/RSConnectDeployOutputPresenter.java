@@ -1,7 +1,7 @@
 /*
  * RSConnectDeployOutputPresenter.java
  *
- * Copyright (C) 2009-14 by RStudio, PBC
+ * Copyright (C) 2009-14 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -22,7 +22,6 @@ import org.rstudio.core.client.StringUtil;
 import org.rstudio.studio.client.application.events.EventBus;
 import org.rstudio.studio.client.application.events.RestartStatusEvent;
 import org.rstudio.studio.client.common.GlobalDisplay;
-import org.rstudio.studio.client.rsconnect.events.RSConnectDeploymentCancelledEvent;
 import org.rstudio.studio.client.rsconnect.events.RSConnectDeploymentCompletedEvent;
 import org.rstudio.studio.client.rsconnect.events.RSConnectDeploymentOutputEvent;
 import org.rstudio.studio.client.rsconnect.events.RSConnectDeploymentStartedEvent;
@@ -45,10 +44,7 @@ public class RSConnectDeployOutputPresenter extends BusyPresenter
       super(outputFactory.create("Deploy", ""));
       view_ = (CompileOutputPaneDisplay) getView();
       view_.setHasLogs(false);
-      view_.setCanStop(true);
-      view_.stopButton().addClickHandler(evt -> {
-         events.fireEvent(new RSConnectDeploymentCancelledEvent());
-      });
+      view_.setCanStop(false);
       events_ = events;
    }
    

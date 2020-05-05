@@ -1,7 +1,7 @@
 /*
  * NewProjectResources.java
  *
- * Copyright (C) 2009-12 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -68,12 +68,6 @@ public interface NewProjectResources extends ClientBundle
 
    @Source("svnIconLarge_2x.png")
    ImageResource svnIconLarge2x();
-   
-   @Source("plumberAppIcon_2x.png")
-   ImageResource plumberAppIcon2x();
-
-   @Source("plumberAppIconLarge_2x.png")
-   ImageResource plumberAppIconLarge2x();
    
    static interface Styles extends CssResource
    {

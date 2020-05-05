@@ -1,7 +1,7 @@
 /*
  * WorkbenchContext.java
  *
- * Copyright (C) 2009-20 by RStudio, PBC
+ * Copyright (C) 2009-17 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -25,7 +25,6 @@ import org.rstudio.studio.client.workbench.events.BusyEvent;
 import org.rstudio.studio.client.workbench.events.BusyHandler;
 import org.rstudio.studio.client.workbench.model.Session;
 import org.rstudio.studio.client.workbench.model.SessionInfo;
-import org.rstudio.studio.client.workbench.prefs.model.UserPrefs;
 import org.rstudio.studio.client.workbench.views.console.events.WorkingDirChangedEvent;
 import org.rstudio.studio.client.workbench.views.console.events.WorkingDirChangedHandler;
 import org.rstudio.studio.client.workbench.views.vcs.git.model.GitState;
@@ -41,11 +40,10 @@ public class WorkbenchContext
 
    @Inject
    public WorkbenchContext(Session session, EventBus eventBus,
-         Provider<GitState> pGitState, Provider<UserPrefs> pUserPrefs)
+         Provider<GitState> pGitState)
    {
       session_ = session;
       pGitState_ = pGitState;
-      pUserPrefs_ = pUserPrefs;
       
       // track current working dir
       currentWorkingDir_ = FileSystemItem.home();
@@ -56,7 +54,7 @@ public class WorkbenchContext
          public void onWorkingDirChanged(WorkingDirChangedEvent event)
          {
             currentWorkingDir_ = FileSystemItem.createDir(event.getPath());
-            defaultFileDialogDir_ = FileSystemItem.createDir(event.getPath());
+            defaultFileDialogDir_ = FileSystemItem.createDir(event.getPath());;
          }      
       }); 
       
@@ -66,7 +64,7 @@ public class WorkbenchContext
          {
             isServerBusy_ = event.isBusy();
             
-            if (Desktop.hasDesktopFrame())
+            if (Desktop.isDesktop())
                Desktop.getFrame().setBusy(isServerBusy_);
          } 
       });
@@ -145,14 +143,14 @@ public class WorkbenchContext
       SessionInfo sessionInfo = session_.getSessionInfo();
       if (sessionInfo != null)
       {
-         FileSystemItem rEnvDir;
+         FileSystemItem rEnvDir = null;
 
          if (getActiveProjectDir() != null)
          {
             rEnvDir = FileSystemItem.createDir(
                                         sessionInfo.getProjectUserDataDir());
          }
-         else if (sessionInfo.getMode() == SessionInfo.DESKTOP_MODE)
+         else if (sessionInfo.getMode().equals(SessionInfo.DESKTOP_MODE))
          {
             rEnvDir = currentWorkingDir_;
          }
@@ -231,11 +229,7 @@ public class WorkbenchContext
       FileSystemItem projDir = getActiveProjectDir();
       if (projDir != null)
       {
-         String title;
-         if (pUserPrefs_.get().fullProjectPathInWindowTitle().getValue())
-            title = projDir.getPath();
-         else
-            title = projDir.getName();
+         String title = projDir.getPath();
          BranchesInfo branchInfo = pGitState_.get().getBranchInfo();
          if (branchInfo != null)
          {
@@ -247,12 +241,7 @@ public class WorkbenchContext
       }
       return null;
    }
-
-   public String getUserIdentity()
-   {
-      return session_.getSessionInfo().getUserIdentity();
-   }
-
+   
    private boolean isServerBusy_ = false;
    private boolean isRestartInProgress_ = false;
    private boolean isBuildInProgress_ = false;
@@ -262,7 +251,6 @@ public class WorkbenchContext
    private FileSystemItem activeProjectDir_ = null;
    private final Session session_; 
    private final Provider<GitState> pGitState_;
-   private final Provider<UserPrefs> pUserPrefs_;
    private RVersionsInfo rVersionsInfo_ = null;
    
 }

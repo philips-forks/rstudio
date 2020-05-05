@@ -1,7 +1,7 @@
 /*
  * RStudioThemedFrame.java
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-17 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -15,80 +15,50 @@
 
 package org.rstudio.core.client.widget;
 
-import org.rstudio.core.client.BrowseCap;
+import org.rstudio.core.client.theme.ThemeColors;
 import org.rstudio.studio.client.RStudioGinjector;
 import org.rstudio.studio.client.application.events.EventBus;
 import org.rstudio.studio.client.application.events.ThemeChangedEvent;
 import org.rstudio.studio.client.application.ui.RStudioThemes;
 
-import com.google.gwt.core.client.GWT;
 import com.google.gwt.dom.client.BodyElement;
 import com.google.gwt.dom.client.Document;
 import com.google.gwt.dom.client.LinkElement;
 import com.google.gwt.dom.client.StyleElement;
 import com.google.gwt.event.dom.client.LoadEvent;
 import com.google.gwt.event.dom.client.LoadHandler;
-import com.google.gwt.resources.client.ClientBundle;
-import com.google.gwt.resources.client.CssResource;
 import com.google.inject.Inject;
 
 public class RStudioThemedFrame extends RStudioFrame
                                 implements ThemeChangedEvent.Handler
 {
-   public RStudioThemedFrame(String title)
+   public RStudioThemedFrame()
    {
-      this(title, null, null, null, false);
+      this(null, null, null, false);
    }
 
    public RStudioThemedFrame(
-      String title,
       String url,
       String customStyle,
       String urlStyle,
       boolean removeBodyStyle)
    {
-      this(title,
-           url,
-           customStyle,
-           urlStyle,
-           removeBodyStyle,
-           true);
+      this(url, false, null, customStyle, urlStyle, removeBodyStyle);
    }
 
    public RStudioThemedFrame(
-      String title,
-      String url,
-      String customStyle,
-      String urlStyle,
-      boolean removeBodyStyle,
-      boolean enableThemes)
-   {
-      this(title,
-           url,
-           false,
-           null,
-           customStyle,
-           urlStyle,
-           removeBodyStyle,
-           enableThemes);
-   }
-
-   public RStudioThemedFrame(
-      String title,
       String url,
       boolean sandbox,
       String sandboxAllow,
       String customStyle,
       String urlStyle,
-      boolean removeBodyStyle,
-      boolean enableThemes)
+      boolean removeBodyStyle)
    {
-      super(title, url, sandbox, sandboxAllow);
+      super(url, sandbox, sandboxAllow);
       
       customStyle_ = customStyle;
       urlStyle_ = urlStyle;
       removeBodyStyle_ = removeBodyStyle;
-      enableThemes_ = enableThemes;
       
       RStudioGinjector.INSTANCE.injectMembers(this);
 
@@ -114,13 +84,32 @@ public class RStudioThemedFrame extends RStudioFrame
       if (getWindow() != null && getWindow().getDocument() != null)
       {
          Document document = getWindow().getDocument();
-         if (!isEligibleForCustomStyles(document))
-            return;
          
-         if (customStyle == null)
-            customStyle = "";
+         if (customStyle == null) customStyle = "";
          
-         customStyle += RES.styles().getText();
+         customStyle += "\n" +
+         ".rstudio-themes-flat.rstudio-themes-dark.rstudio-themes-scrollbars::-webkit-scrollbar,\n" +
+         ".rstudio-themes-flat.rstudio-themes-dark.rstudio-themes-scrollbars ::-webkit-scrollbar {\n" +
+         "   background: #FFF;\n" +
+         "}\n" +
+         "\n" +
+         ".rstudio-themes-flat.rstudio-themes-dark.rstudio-themes-scrollbars::-webkit-scrollbar-thumb,\n" +
+         ".rstudio-themes-flat.rstudio-themes-dark.rstudio-themes-scrollbars ::-webkit-scrollbar-thumb {\n" +
+         "   -webkit-border-radius: 10px;\n" +
+         "   background: " + ThemeColors.darkGreyBackground + ";\n" +
+         "}\n" +
+         "\n" +
+         ".rstudio-themes-flat.rstudio-themes-dark.rstudio-themes-scrollbars::-webkit-scrollbar-track,\n" + 
+         ".rstudio-themes-flat.rstudio-themes-dark.rstudio-themes-scrollbars ::-webkit-scrollbar-track,\n" + 
+         ".rstudio-themes-flat.rstudio-themes-dark.rstudio-themes-scrollbars::-webkit-scrollbar-corner,\n" +
+         ".rstudio-themes-flat.rstudio-themes-dark.rstudio-themes-scrollbars ::-webkit-scrollbar-corner {\n" +
+         "   background: " + ThemeColors.darkGreyMostInactiveBackground + ";\n" +
+         "}\n" + 
+         ".rstudio-themes-flat.rstudio-themes-dark.rstudio-themes-scrollbars::-webkit-scrollbar-thumb,\n" +
+         ".rstudio-themes-flat.rstudio-themes-dark.rstudio-themes-scrollbars ::-webkit-scrollbar-thumb{\n" +
+         "   border: solid 3px " + ThemeColors.darkGreyMostInactiveBackground + ";" +
+         "}\n";
+         
          StyleElement style = document.createStyleElement();
          style.setInnerHTML(customStyle);
          document.getHead().appendChild(style);
@@ -140,15 +129,10 @@ public class RStudioThemedFrame extends RStudioFrame
             if (removeBodyStyle) body.removeAttribute("style");
             
             RStudioThemes.initializeThemes(
-               RStudioGinjector.INSTANCE.getUserPrefs(),
-               RStudioGinjector.INSTANCE.getUserState(),
-               document, document.getBody());
+              RStudioGinjector.INSTANCE.getUIPrefs(),
+              document, document.getBody());
             
             body.addClassName("ace_editor_theme");
-            
-            // Add OS tag to the frame so that it can apply OS-specific CSS if
-            // needed.
-            body.addClassName(BrowseCap.operatingSystem());
          }
       }
    }
@@ -158,8 +142,6 @@ public class RStudioThemedFrame extends RStudioFrame
       final String urlStyle,
       final boolean removeBodyStyle)
    {
-      if (!enableThemes_) return;
-
       addThemesStyle(customStyle, urlStyle, removeBodyStyle);
       
       this.addLoadHandler(new LoadHandler()
@@ -171,35 +153,9 @@ public class RStudioThemedFrame extends RStudioFrame
          }
       });
    }
-   
-   private static final native boolean isEligibleForCustomStyles(Document document)
-   /*-{
-      var articles = document.getElementsByTagName("article");
-      return articles.length === 0;
-   }-*/;
-   
-   // Resources ----
-   public interface Resources extends ClientBundle
-   {
-      @Source("RStudioThemedFrame.css")
-      Styles styles();
-   }
 
-   public interface Styles extends CssResource
-   {
-   }
-
-   private static Resources RES = GWT.create(Resources.class);
-   static
-   {
-      RES.styles().ensureInjected();
-   }
-
-   // Private members ----
-   
    private EventBus events_;
    private String customStyle_;
    private String urlStyle_;
    private boolean removeBodyStyle_;
-   private boolean enableThemes_;
 }

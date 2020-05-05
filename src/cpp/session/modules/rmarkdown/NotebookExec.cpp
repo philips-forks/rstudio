@@ -1,7 +1,7 @@
 /*
  * NotebookExec.cpp
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-16 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -24,19 +24,19 @@
 #include "NotebookWorkingDir.hpp"
 #include "NotebookConditions.hpp"
 
-#include <shared_core/Error.hpp>
+#include <boost/foreach.hpp>
+
 #include <core/text/CsvParser.hpp>
 #include <core/FileSerializer.hpp>
 
 #include <r/ROptions.hpp>
 
 #include <session/SessionModuleContext.hpp>
+#include <session/SessionUserSettings.hpp>
 
 #include <iostream>
 
 using namespace rstudio::core;
-
-#define kRStudioNotebookExecuting ("rstudio.notebook.executing")
 
 namespace rstudio {
 namespace session {
@@ -61,29 +61,6 @@ FilePath getNextOutputFile(const std::string& docId, const std::string& chunkId,
 
 } // anonymous namespace
 
-core::Error copyLibDirForOutput(const core::FilePath& file,
-   const std::string& docId, const std::string& nbCtxId)
-{
-   Error error = Success();
-
-   FilePath fileLib = file.getParent().completePath(kChunkLibDir);
-   if (fileLib.exists())
-   {
-      std::string docPath;
-      source_database::getPath(docId, &docPath);
-      error = mergeLib(fileLib, chunkCacheFolder(docPath, docId, nbCtxId)
-         .completePath(kChunkLibDir));
-      if (error)
-         LOG_ERROR(error);
-
-      error = fileLib.remove();
-      if (error)
-         LOG_ERROR(error);
-   }
-
-   return error;
-}
-
 ChunkExecContext::ChunkExecContext(const std::string& docId, 
       const std::string& chunkId, const std::string& nbCtxId, 
       ExecScope execScope, const core::FilePath& workingDir, 
@@ -96,7 +73,6 @@ ChunkExecContext::ChunkExecContext(const std::string& docId,
    pixelWidth_(pixelWidth),
    charWidth_(charWidth),
    prevCharWidth_(0),
-   lastOutputType_(kChunkConsoleInput),
    execScope_(execScope),
    hasOutput_(false),
    hasErrors_(false)
@@ -194,7 +170,7 @@ void ChunkExecContext::connect()
 
    error = pHtmlCapture->connectHtmlCapture(
             outputPath_,
-            outputPath_.getParent().completePath(kChunkLibDir),
+            outputPath_.parent().complete(kChunkLibDir),
             options_.chunkOptions());
    if (error)
       LOG_ERROR(error);
@@ -215,9 +191,6 @@ void ChunkExecContext::connect()
       if (error)
          LOG_ERROR(error);
    }
-
-   // broadcast that we're executing in a Notebook
-   r::options::setOption(kRStudioNotebookExecuting, true);
    
    // reset width
    prevCharWidth_ = r::options::getOptionWidth();
@@ -279,7 +252,7 @@ bool ChunkExecContext::onCondition(Condition condition,
    }
 
    // give each capturing module a chance to handle the condition
-   for (boost::shared_ptr<NotebookCapture> pCapture : captures_)
+   BOOST_FOREACH(boost::shared_ptr<NotebookCapture> pCapture, captures_)
    {
       if (pCapture->onCondition(condition, message))
          return true;
@@ -318,7 +291,7 @@ void ChunkExecContext::onFileOutput(const FilePath& file,
 
    // preserve original extension; some output types, such as plots, don't
    // have a canonical extension
-   target = target.getParent().completePath(target.getStem() + file.getExtension());
+   target = target.parent().complete(target.stem() + file.extension());
 
    Error error = file.move(target);
    if (error)
@@ -329,20 +302,34 @@ void ChunkExecContext::onFileOutput(const FilePath& file,
 
    // check to see if the file has an accompanying library folder; if so, move
    // it to the global library folder
-   copyLibDirForOutput(file, docId_, nbCtxId_);
+   FilePath fileLib = file.parent().complete(kChunkLibDir);
+   if (fileLib.exists())
+   {
+      std::string docPath;
+      source_database::getPath(docId_, &docPath);
+      error = mergeLib(fileLib, chunkCacheFolder(docPath, docId_, nbCtxId_)
+                                   .complete(kChunkLibDir));
+      if (error)
+         LOG_ERROR(error);
+      error = fileLib.remove();
+      if (error)
+         LOG_ERROR(error);
+   }
 
    // if output sidecar file was provided, write it out
-   if (!sidecar.isEmpty())
+   if (!sidecar.empty())
    {
-      sidecar.move(target.getParent().completePath(
-               target.getStem() + sidecar.getExtension()));
+      sidecar.move(target.parent().complete(
+               target.stem() + sidecar.extension()));
    }
 
    // serialize metadata if provided
-   if (!metadata.isNull())
+   if (!metadata.is_null())
    {
-      error = writeStringToFile(target.getParent().completePath(
-               target.getStem() + ".metadata"), metadata.write());
+      std::ostringstream oss;
+      json::write(metadata, oss);
+      error = writeStringToFile(target.parent().complete(
+               target.stem() + ".metadata"), oss.str());
    }
 
    enqueueChunkOutput(docId_, chunkId_, nbCtxId_, ordinal, outputType, target,
@@ -361,14 +348,14 @@ void ChunkExecContext::onError(const core::json::Object& err)
    unsigned ordinal;
    FilePath target = getNextOutputFile(docId_, chunkId_, nbCtxId_, 
          ChunkOutputError, &ordinal);
-   std::shared_ptr<std::ostream> pOfs;
-   Error error = target.openForWrite(pOfs, true);
+   boost::shared_ptr<std::ostream> pOfs;
+   Error error = target.open_w(&pOfs, true);
    if (error)
    {
       LOG_ERROR(error);
       return;
    }
-   err.write(*pOfs);
+   json::write(err, *pOfs);
    
    pOfs->flush();
    pOfs.reset();
@@ -381,6 +368,9 @@ void ChunkExecContext::onError(const core::json::Object& err)
 void ChunkExecContext::onConsoleText(int type, const std::string& output, 
       bool truncate)
 {
+   if (output.empty())
+      return;
+
    // if we haven't received any actual output yet, don't push input into the
    // file yet
    if (type == kChunkConsoleInput && !hasOutput_) 
@@ -388,11 +378,6 @@ void ChunkExecContext::onConsoleText(int type, const std::string& output,
       pendingInput_.append(output + "\n");
       return;
    }
-
-   // blank lines aren't permitted following output, only input
-   if (lastOutputType_ != kChunkConsoleInput && type == kChunkConsoleInput && output.empty())
-      return;
-   lastOutputType_ = type;
 
    // set up folder to receive output if necessary
    initializeOutput();
@@ -426,9 +411,7 @@ void ChunkExecContext::onConsoleText(int type, const std::string& output,
       LOG_ERROR(error);
    }
 
-   // if we got some real output, fire event for it
-   if (!output.empty())
-      events().onChunkConsoleOutput(docId_, chunkId_, type, output);
+   events().onChunkConsoleOutput(docId_, chunkId_, type, output);
 }
 
 void ChunkExecContext::disconnect()
@@ -436,7 +419,7 @@ void ChunkExecContext::disconnect()
    Error error;
 
    // clean up capturing modules (includes plots, errors, and HTML widgets)
-   for (boost::shared_ptr<NotebookCapture> pCapture : captures_)
+   BOOST_FOREACH(boost::shared_ptr<NotebookCapture> pCapture, captures_)
    {
       pCapture->disconnect();
    }
@@ -445,9 +428,6 @@ void ChunkExecContext::disconnect()
    error = outputPath_.removeIfExists();
    if (error)
       LOG_ERROR(error);
-
-   // broadcast that we're done with notebook execution
-   r::options::setOption(kRStudioNotebookExecuting, false);
 
    // restore width value
    r::options::setOptionWidth(prevCharWidth_);
@@ -461,7 +441,7 @@ void ChunkExecContext::disconnect()
    }
 
    // unhook all our event handlers
-   for (const RSTUDIO_BOOST_CONNECTION& connection : connections_)
+   BOOST_FOREACH(const boost::signals::connection connection, connections_) 
    {
       connection.disconnect();
    }
@@ -519,7 +499,7 @@ ExecScope ChunkExecContext::execScope()
 void ChunkExecContext::onExprComplete()
 {
    // notify capturing submodules
-   for (boost::shared_ptr<NotebookCapture> pCapture : captures_)
+   BOOST_FOREACH(boost::shared_ptr<NotebookCapture> pCapture, captures_)
    {
       pCapture->onExprComplete();
    }

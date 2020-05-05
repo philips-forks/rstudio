@@ -1,7 +1,7 @@
 /*
  * ObjectBrowser.java
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-17 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -15,23 +15,23 @@
 
 package org.rstudio.studio.client.workbench.views.connections.ui;
 
-import org.rstudio.core.client.StringUtil;
-import org.rstudio.core.client.dom.DomUtils;
+import java.util.HashSet;
+import java.util.Set;
+
 import org.rstudio.core.client.widget.SimplePanelWithProgress;
-import org.rstudio.studio.client.common.Value;
 import org.rstudio.studio.client.workbench.views.connections.model.Connection;
+import org.rstudio.studio.client.workbench.views.connections.model.DatabaseObject;
 
 import com.google.gwt.core.client.GWT;
-import com.google.gwt.core.client.Scheduler;
-import com.google.gwt.dom.client.Element;
 import com.google.gwt.dom.client.Style.BorderStyle;
-import com.google.gwt.event.shared.HandlerRegistration;
 import com.google.gwt.i18n.client.LocalizableResource.DefaultLocale;
 import com.google.gwt.resources.client.ImageResource;
 import com.google.gwt.resources.client.ImageResource.ImageOptions;
 import com.google.gwt.user.cellview.client.CellTree;
 import com.google.gwt.user.cellview.client.CellTree.CellTreeMessages;
-import com.google.gwt.user.client.Event;
+import com.google.gwt.user.cellview.client.TreeNode;
+import com.google.gwt.user.client.Command;
+import com.google.gwt.user.client.Timer;
 import com.google.gwt.user.client.ui.Composite;
 import com.google.gwt.user.client.ui.RequiresResize;
 import com.google.gwt.user.client.ui.ScrollPanel;
@@ -62,26 +62,86 @@ public class ObjectBrowser extends Composite implements RequiresResize
    
    public void update(Connection connection, String hint)
    { 
+      final Set<DatabaseObject> expandedNodes = new HashSet<DatabaseObject>();
+      
+      // if this update is for the currently visible connection in the model,
+      // cache the set of expanded nodes for replay
+      if (objects_ != null && connection == connection_)
+      {
+         TreeNode rootNode = objects_.getRootTreeNode();
+         if (!objects_.getRootTreeNode().isDestroyed())
+         {
+            for (int i = 0; i < rootNode.getChildCount(); i++)
+            {
+               if (rootNode.isChildOpen(i))
+               {
+                  DatabaseObject node = (DatabaseObject)rootNode.getChildValue(i);
+                  expandedNodes.add(node);
+               }
+            }
+         }
+      }
+      
       // create tables model and widget
       objectsModel_ = new ObjectBrowserModel();
       
+      // capture scroll position
+      final int scrollPosition = scrollPanel_.getVerticalScrollPosition();
+
       // show progress while updating the connection
       hostPanel_.showProgress(50, "Loading objects");
             
       // update the table then restore expanded nodes
       objectsModel_.update(
-         connection ,      // connection 
-         null,             // expanded nodes (none for refresh)
-         () -> 
-         {
-            // clear progress and show the object tree again
-            hostPanel_.setWidget(scrollPanel_);
-         }, null);
+         connection,      // connection 
+         expandedNodes,
+         new Command() {   // table update completed, expand nodes
+            @Override
+            public void execute()
+            {
+               // clear progress and show the object tree again
+               hostPanel_.setWidget(scrollPanel_);
+               
+               // restore expanded nodes
+               TreeNode rootNode = objects_.getRootTreeNode();
+               if (!rootNode.isDestroyed())
+               {
+                  for (int i = 0; i < rootNode.getChildCount(); i++)
+                  {
+                     final DatabaseObject nodeVal = 
+                           (DatabaseObject)(rootNode.getChildValue(i));
+                     for (DatabaseObject expanded: expandedNodes)
+                     {
+                        if (expanded.isEqualTo(nodeVal))
+                           rootNode.setChildOpen(i, true, false);
+                     }
+                  }
+               }
+            }
+         },
+         new Command() {   // node expansion completed, restore scroll position
+            @Override
+            public void execute()
+            {
+               // delay 100ms to allow expand animation to complete
+               new Timer() {
+
+                  @Override
+                  public void run()
+                  {
+                     scrollPanel_.setVerticalScrollPosition(scrollPosition); 
+                  }
+                  
+               }.schedule(100);
+              
+            }
+         });
 
       // create new widget
-      objects_ = new CellTree(objectsModel_, null, RES, MESSAGES, 512);
+      objects_ = new CellTree(objectsModel_, null, RES, MESSAGES);
       
       // create the top level list of objects
+      objects_.setDefaultNodeSize(Integer.MAX_VALUE);
       objects_.getElement().getStyle().setBorderStyle(BorderStyle.NONE);
       objects_.setWidth("100%");
       
@@ -91,6 +151,7 @@ public class ObjectBrowser extends Composite implements RequiresResize
       objectsWrapper_.add(objects_);
       
       scrollPanel_.setWidget(objectsWrapper_);
+      
       // cache connection
       connection_ = connection;
    }
@@ -98,48 +159,6 @@ public class ObjectBrowser extends Composite implements RequiresResize
    @Override
    public void onResize()
    {
-   }
-   
-   @Override
-   public void onAttach()
-   {
-      // this works around an issue in CellTree; it has a "Show more" link which
-      // displays when there are more than defaultNodeSize items, but clicking
-      // on it causes the hosting scroll panel to jump to the top. unfortunately
-      // neither this link nor its activation is visible, so listen for clicks
-      // on the link in the capture phase and scroll the user to the bottom when
-      // expansion is complete.
-      registration_ = Event.addNativePreviewHandler(event ->
-      {
-         // look only for click events
-         if (event.getTypeInt() != Event.ONMOUSEDOWN)
-            return;
-
-         // look only for those that are targeted at the Show More button
-         Element target = Element.as(event.getNativeEvent().getEventTarget());
-         if (!StringUtil.equals(target.getTagName().toLowerCase(), "a"))
-            return;
-         if (!target.getInnerText().equals("Show more"))
-            return;
-         
-         // if we got here, the user has clicked Show More, so scroll to the
-         // bottom when they're done
-         final Value<HandlerRegistration> registration = 
-               new Value<HandlerRegistration>(null);
-         registration.setValue(scrollPanel_.addScrollHandler(e -> 
-         {
-            scrollPanel_.scrollToBottom();
-            registration.getValue().removeHandler();
-         }));
-      });
-      super.onAttach();
-   }
-   
-   @Override
-   public void onDetach()
-   {
-      registration_.removeHandler();
-      super.onDetach();
    }
    
    public interface Resources extends CellTree.Resources {
@@ -171,8 +190,6 @@ public class ObjectBrowser extends Composite implements RequiresResize
          String fieldType();
          String tableViewDataset();
          String containerIcon();
-         String searchMatches();
-         String searchHidden();
       }
    }
    
@@ -190,47 +207,6 @@ public class ObjectBrowser extends Composite implements RequiresResize
      String emptyTree();
    }
    
-   public void setFilterText(String text)
-   {
-      objectsModel_.setFilterText(text);
-      
-      // defer execution of the matched element filter so the celltree can
-      // render
-      Scheduler.get().scheduleDeferred(() ->
-         hideUnmatchedElements(objects_.getElement()));
-   }
-   
-   /**
-    * Hides nodes in the hierarchy which contain objects that don't match the
-    * query. GWT's CellTree doesn't provide a way to temporarily remove nodes
-    * from the tree or hide them, so we work around this by labeling the values
-    * to be hidden, and then making pass through them here to hide elements
-    * that don't match using the DOM directly.
-    * @param ele Root element of the 
-    */
-   private void hideUnmatchedElements(Element ele)
-   {
-      // get all the rendered nodes in the CellTree
-      Element[] parents = DomUtils.getElementsByClassName(
-            ele, RES.cellTreeStyle().cellTreeItem());
-      for (int i = 0; i < parents.length; i++)
-      {
-         // see if this rendered node contains any matches for the search
-         Element[] matches = DomUtils.getElementsByClassName(parents[i], 
-               RES.cellTreeStyle().searchMatches());
-         if (matches.length == 0) 
-         {
-            // none of the child nodes has a match, so hide this parent
-            parents[i].addClassName(RES.cellTreeStyle().searchHidden());
-         }
-         else
-         {
-            // at least one child node hsa a match
-            parents[i].removeClassName(RES.cellTreeStyle().searchHidden());
-         }
-      }
-   }
-   
    private static final TableBrowserMessages MESSAGES 
                               = GWT.create(TableBrowserMessages.class);
    
@@ -239,7 +215,5 @@ public class ObjectBrowser extends Composite implements RequiresResize
    private CellTree objects_;
    private VerticalPanel objectsWrapper_;
    private ObjectBrowserModel objectsModel_;
-   @SuppressWarnings("unused")
    private Connection connection_;
-   private HandlerRegistration registration_;
 }

@@ -1,7 +1,7 @@
 /*
  * SessionBreakpoints.cpp
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -20,11 +20,12 @@
 #include <boost/bind.hpp>
 #include <boost/format.hpp>
 #include <boost/utility.hpp>
+#include <boost/foreach.hpp>
 
-#include <shared_core/Error.hpp>
+#include <core/Error.hpp>
 #include <core/Log.hpp>
 #include <core/Exec.hpp>
-#include <shared_core/FilePath.hpp>
+#include <core/FilePath.hpp>
 
 #include <core/json/JsonRpc.hpp>
 
@@ -37,6 +38,7 @@
 #include <r/RInternal.hpp>
 
 #include <session/SessionModuleContext.hpp>
+#include <session/SessionUserSettings.hpp>
 #include <session/projects/SessionProjects.hpp>
 
 using namespace rstudio::core;
@@ -67,7 +69,7 @@ public:
       // compute the first and last lines of the function in the original
       // source file.
       SEXP srcref = r::sexp::getAttrib(expr, "srcref");
-      if (srcref != nullptr && TYPEOF(srcref) != NILSXP)
+      if (srcref != NULL && TYPEOF(srcref) != NILSXP)
       {
          SEXP firstRef = VECTOR_ELT(srcref, 0);
          firstLine_ = INTEGER(firstRef)[0];
@@ -76,7 +78,7 @@ public:
       }
       // If the srcfile attribute is present, extract it
       SEXP srcfile = r::sexp::getAttrib(expr, "srcfile");
-      if (srcfile != nullptr && TYPEOF(srcfile) != NILSXP)
+      if (srcfile != NULL && TYPEOF(srcfile) != NILSXP)
       {
          SEXP file = r::sexp::findVar("filename", srcfile);
          r::sexp::extract(file, &srcfilename_);
@@ -158,7 +160,7 @@ boost::shared_ptr<ShinyFunction> findShinyFunction(std::string filename,
 {
    boost::shared_ptr<ShinyFunction> bestPsf;
    int bestSize = INT_MAX;
-   for (boost::shared_ptr<ShinyFunction> psf : s_shinyFunctions)
+   BOOST_FOREACH(boost::shared_ptr<ShinyFunction> psf, s_shinyFunctions)
    {
       if (psf->contains(filename, line) &&
           psf->getSize() < bestSize)
@@ -171,33 +173,20 @@ boost::shared_ptr<ShinyFunction> findShinyFunction(std::string filename,
    return bestPsf;
 }
 
-boost::shared_ptr<Breakpoint> breakpointFromJson(const json::Object& obj)
+boost::shared_ptr<Breakpoint> breakpointFromJson(json::Object& obj)
 {
-   int type = 0;
-   int lineNumber = 0;
-   int id = 0;
-   std::string path;
+   return boost::make_shared<Breakpoint>(obj["type"].get_int(),
+                                         obj["line_number"].get_int(),
+                                         obj["id"].get_int(),
+                                         obj["path"].get_str());
 
-   Error error = json::readObject(obj,
-                                  "type", type,
-                                  "line_number", lineNumber,
-                                  "id", id,
-                                  "path", path);
-   if (error)
-      LOG_ERROR(error);
-
-   return boost::make_shared<Breakpoint>(type, lineNumber, id, path);
 }
 
 std::vector<int> getShinyBreakpointLines(const ShinyFunction& sf)
 {
    std::vector<int> lines;
-   for (boost::shared_ptr<Breakpoint> pbp : s_breakpoints)
+   BOOST_FOREACH(boost::shared_ptr<Breakpoint> pbp, s_breakpoints)
    {
-      // silence gcc warning
-      if (pbp == nullptr)
-         continue;
-
       if (sf.contains(pbp->path, pbp->lineNumber) &&
           pbp->type == TYPE_TOPLEVEL)
          lines.push_back(pbp->lineNumber);
@@ -227,7 +216,7 @@ Error getFunctionState(const json::JsonRpcRequest& request,
                     module_context::resolveAliasedPath(fileName));
 
    // get the source refs and code for the function
-   SEXP srcRefs = nullptr;
+   SEXP srcRefs = NULL;
    Protect protect;
    std::string functionCode;
    error = r::exec::RFunction(".rs.getFunctionSourceRefs",
@@ -264,7 +253,7 @@ bool setBreakpoint(const std::string& functionName,
                    const std::string& packageName,
                    const json::Array& steps)
 {
-   SEXP env = nullptr;
+   SEXP env = NULL;
    Protect protect;
    Error error = r::exec::RFunction(".rs.getEnvironmentOfFunction",
                                     functionName,
@@ -373,7 +362,7 @@ void unregisterShinyFunction(SEXP ptr)
    // Extract the cached pointer
    ShinyFunction* psf = static_cast<ShinyFunction*>
          (r::sexp::getExternalPtrAddr(ptr));
-   if (psf == nullptr)
+   if (psf == NULL)
       return;
 
    // Look over each Shiny function we know about; if this was a function
@@ -404,7 +393,7 @@ void unregisterShinyFunction(SEXP ptr)
 //
 // Sets up a data structure and attaches it to the function as an EXTPTRSXP
 // attribute; unregistration is performed when R garbage-collects this pointer.
-SEXP rs_registerShinyFunction(SEXP params)
+void rs_registerShinyFunction(SEXP params)
 {
    Protect protect;
    SEXP expr = r::sexp::findVar("expr", params);
@@ -416,7 +405,7 @@ SEXP rs_registerShinyFunction(SEXP params)
    std::string objName;
    Error error = r::sexp::extract(name, &objName);
    if (error)
-      return R_NilValue;
+      return;
 
    boost::shared_ptr<ShinyFunction> psf =
             boost::make_shared<ShinyFunction>(expr, objName, where);
@@ -425,7 +414,7 @@ SEXP rs_registerShinyFunction(SEXP params)
    // a Shiny session starts. If we had other functions "running", they
    // likely simply haven't been GC'ed yet--forcefully clean them up.
    SEXP isShinyServer = r::sexp::getAttrib(fun, "shinyServerFunction");
-   if (isShinyServer != nullptr &&
+   if (isShinyServer != NULL &&
        TYPEOF(isShinyServer) != NILSXP)
    {
       s_shinyFunctions.clear();
@@ -453,8 +442,6 @@ SEXP rs_registerShinyFunction(SEXP params)
       // Copy the function into the Shiny object first
       r::exec::RFunction(".rs.setShinyBreakpoints", name, where, lines).call();
    }
-
-   return R_NilValue;
 }
 
 // Executes the contents of the given file under the debugger
@@ -472,7 +459,7 @@ SEXP rs_debugSourceFile(SEXP filename, SEXP encoding, SEXP local)
 
    // Find all the lines in the file that have breakpoints
    std::vector<int> lines;
-   for (boost::shared_ptr<Breakpoint> pbp : s_breakpoints)
+   BOOST_FOREACH(boost::shared_ptr<Breakpoint> pbp, s_breakpoints)
    {
       if (module_context::resolveAliasedPath(pbp->path) == filePath)
       {
@@ -505,9 +492,19 @@ SEXP rs_debugSourceFile(SEXP filename, SEXP encoding, SEXP local)
 
 Error initBreakpoints()
 {
-   // register .Call methods
-   RS_REGISTER_CALL_METHOD(rs_debugSourceFile);
-   RS_REGISTER_CALL_METHOD(rs_registerShinyFunction);
+   // Register rs_debugSourceFile; called from the console (as debugSource)
+   R_CallMethodDef debugSource;
+   debugSource.name = "rs_debugSourceFile";
+   debugSource.fun = (DL_FUNC)rs_debugSourceFile;
+   debugSource.numArgs = 3;
+   r::routines::addCallMethod(debugSource);
+
+   // Register rs_registerShinyFunction; called from registerShinyDebugHook
+   R_CallMethodDef registerShiny;
+   registerShiny.name = "rs_registerShinyFunction";
+   registerShiny.fun = (DL_FUNC)rs_registerShinyFunction;
+   registerShiny.numArgs = 1;
+   r::routines::addCallMethod(registerShiny);
 
    // Initializes the set of breakpoints the server knows about by populating
    // it from client state. This set is used for synchronous breakpoint
@@ -515,10 +512,10 @@ Error initBreakpoints()
    json::Value breakpointStateValue =
       r::session::clientState().getProjectPersistent("debug-breakpoints",
                                                      "debugBreakpointsState");
-   if (!breakpointStateValue.isNull() &&
+   if (!breakpointStateValue.is_null() &&
        json::isType<core::json::Object>(breakpointStateValue))
    {
-      json::Object breakpointState = breakpointStateValue.getObject();
+      json::Object breakpointState = breakpointStateValue.get_obj();
       
       // Protect against the breakpoint array being serialized as an
       // empty object
@@ -527,19 +524,19 @@ Error initBreakpoints()
       {
          Error error = json::errors::typeMismatch(
                   jsonBreakpointArray,
-                  json::Type::ARRAY,
+                  json::ArrayType,
                   ERROR_LOCATION);
          LOG_ERROR(error);
       }
       else
       {
-         json::Array breakpointArray = jsonBreakpointArray.getArray();
+         json::Array breakpointArray = jsonBreakpointArray.get_array();
          s_breakpoints.clear();
-         for (json::Value bp : breakpointArray)
+         BOOST_FOREACH(json::Value bp, breakpointArray)
          {
             if (json::isType<core::json::Object>(bp))
             {
-               s_breakpoints.push_back(breakpointFromJson(bp.getObject()));
+               s_breakpoints.push_back(breakpointFromJson(bp.get_obj()));
             }
          }
       }
@@ -557,10 +554,10 @@ Error updateBreakpoints(const json::JsonRpcRequest& request,
    if (error)
       return error;
 
-   for (json::Value bp : breakpointArr)
+   BOOST_FOREACH(json::Value bp, breakpointArr)
    {
       boost::shared_ptr<Breakpoint> breakpoint
-            (breakpointFromJson(bp.getObject()));
+            (breakpointFromJson(bp.get_obj()));
       std::vector<boost::shared_ptr<Breakpoint> >::iterator psbi =
             posOfBreakpointId(breakpoint->id);
 
@@ -603,7 +600,12 @@ Error removeAllBreakpoints(const json::JsonRpcRequest&,
 
 bool haveSrcrefAttribute()
 {
-   return true;
+   // check whether this is R 2.14 or greater
+   bool haveSrcref = false;
+   Error error = r::exec::evaluateString("getRversion() >= '2.14.0'", &haveSrcref);
+   if (error)
+      LOG_ERROR(error);
+   return haveSrcref;
 }
 
 bool haveAdvancedStepCommands()
@@ -634,7 +636,9 @@ Error initialize()
 }
 
 
-} // namespace breakpoints
+} // namepsace breakpoints
 } // namespace modules
 } // namespace session
 } // namespace rstudio
+
+

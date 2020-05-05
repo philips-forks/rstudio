@@ -1,7 +1,7 @@
 /*
  * Base64.cpp
  *
- * Copyright (C) 2009-12 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -13,17 +13,12 @@
  *
  */
 
-#include <string>
-#include <atomic>
-
 #include <core/Macros.hpp>
+#include <core/Error.hpp>
 #include <core/Log.hpp>
 #include <core/FileSerializer.hpp>
 
-#include <boost/algorithm/string.hpp>
 #include <boost/scoped_array.hpp>
-
-#include <shared_core/Error.hpp>
 
 namespace rstudio {
 namespace core {
@@ -176,7 +171,7 @@ private:
    {
       table_.resize(1 << CHAR_BIT, (Byte) -1);
       const Byte* pData = reinterpret_cast<const Byte*>(table.c_str());
-      for (Byte i = 0, n = (Byte) table.size(); i < n; ++i)
+      for (Byte i = 0, n = table.size(); i < n; ++i)
          table_[pData[i]] = i;
    }
    

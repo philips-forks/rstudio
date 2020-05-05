@@ -1,7 +1,7 @@
 /*
  * SignatureToolTipManager.java
  *
- * Copyright (C) 2009-18 by RStudio, PBC
+ * Copyright (C) 2009-15 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -14,7 +14,6 @@
  */
 package org.rstudio.studio.client.workbench.views.source.editors.text.r;
 
-import org.rstudio.core.client.CommandWithArg;
 import org.rstudio.core.client.Debug;
 import org.rstudio.core.client.HandlerRegistrations;
 import org.rstudio.core.client.Rectangle;
@@ -26,7 +25,7 @@ import org.rstudio.studio.client.application.events.EventBus;
 import org.rstudio.studio.client.common.codetools.CodeToolsServerOperations;
 import org.rstudio.studio.client.server.ServerError;
 import org.rstudio.studio.client.server.ServerRequestCallback;
-import org.rstudio.studio.client.workbench.prefs.model.UserPrefs;
+import org.rstudio.studio.client.workbench.prefs.model.UIPrefs;
 import org.rstudio.studio.client.workbench.views.console.events.ConsoleWriteInputEvent;
 import org.rstudio.studio.client.workbench.views.console.events.ConsoleWriteInputHandler;
 import org.rstudio.studio.client.workbench.views.source.editors.text.AceEditor;
@@ -34,9 +33,8 @@ import org.rstudio.studio.client.workbench.views.source.editors.text.DocDisplay;
 import org.rstudio.studio.client.workbench.views.source.editors.text.DocDisplay.AnchoredSelection;
 import org.rstudio.studio.client.workbench.views.source.editors.text.ace.AceEditorNative;
 import org.rstudio.studio.client.workbench.views.source.editors.text.ace.Position;
-import org.rstudio.studio.client.workbench.views.source.editors.text.ace.Renderer.ScreenCoordinates;
 import org.rstudio.studio.client.workbench.views.source.editors.text.ace.Token;
-import org.rstudio.studio.client.workbench.views.source.editors.text.ace.TokenIterator;
+import org.rstudio.studio.client.workbench.views.source.editors.text.ace.TokenCursor;
 import org.rstudio.studio.client.workbench.views.source.editors.text.events.CursorChangedEvent;
 import org.rstudio.studio.client.workbench.views.source.editors.text.events.CursorChangedHandler;
 
@@ -48,6 +46,7 @@ import com.google.gwt.event.dom.client.BlurHandler;
 import com.google.gwt.event.dom.client.FocusEvent;
 import com.google.gwt.event.dom.client.FocusHandler;
 import com.google.gwt.event.dom.client.KeyCodes;
+import com.google.gwt.event.logical.shared.AttachEvent;
 import com.google.gwt.event.shared.HandlerRegistration;
 import com.google.gwt.user.client.Event;
 import com.google.gwt.user.client.Event.NativePreviewEvent;
@@ -59,32 +58,6 @@ import com.google.inject.Inject;
 
 public class SignatureToolTipManager
 {
-   // Subclasses should override this for their own
-   // argument-retrieving behaviors
-   protected void getFunctionArguments(final String name,
-                                       final String source,
-                                       final String helpHandler,
-                                       final CommandWithArg<String> onReady)
-   {
-      server_.getArgs(name, source, helpHandler, new ServerRequestCallback<String>()
-      {
-         @Override
-         public void onResponseReceived(String response)
-         {
-            if (StringUtil.isNullOrEmpty(response))
-               return;
-            
-            onReady.execute(response);
-         }
-
-         @Override
-         public void onError(ServerError error)
-         {
-            Debug.logError(error);
-         }
-      });
-   }
-   
    public SignatureToolTipManager(DocDisplay docDisplay)
    {
       RStudioGinjector.INSTANCE.injectMembers(this);
@@ -98,12 +71,12 @@ public class SignatureToolTipManager
          public void run()
          {
             // Bail if we don't ever show tooltips
-            if (!userPrefs_.showFunctionSignatureTooltips().getGlobalValue())
+            if (!uiPrefs_.showSignatureTooltips().getGlobalValue())
                return;
             
             // Bail if this is a cursor-activated timer and we
             // don't want idle tooltips
-            if (coordinates_ == null && !userPrefs_.showHelpTooltipOnIdle().getGlobalValue())
+            if (coordinates_ == null && !uiPrefs_.showFunctionTooltipOnIdle().getGlobalValue())
                return;
             
             // Bail if the tooltip is already showing from a non-mouse event.
@@ -152,45 +125,55 @@ public class SignatureToolTipManager
          @Override
          public void onCursorChanged(final CursorChangedEvent event)
          {
-            if (!monitoring_)
-               return;
-            
+            beginMonitoring();
+               
             // Defer so that anchors can update
             Scheduler.get().scheduleDeferred(new Scheduler.ScheduledCommand()
             {
                @Override
                public void execute()
                {
-                  if (anchor_ == null || !toolTip_.isShowing())
-                     return;
-                  
-                  // re-request cursor position in case it's changed since the
-                  // last cursor change without signaling event handlers
-                  Position position = docDisplay_.getCursorPosition();
-                  
-                  if (anchor_.getRange().contains(position))
+                  // Check to see if the cursor has moved outside of the anchored region.
+                  if (anchor_ != null && toolTip_.isShowing())
                   {
-                     // Update the tooltip position if the cursor changes rows.
-                     if (tooltipPosition_ != null &&
-                           position.getRow() > tooltipPosition_.getRow())
+                     Position position = event.getPosition();
+                     if (anchor_.getRange().contains(position))
                      {
-                        // Allow tooltip to nudge right (but not left)
-                        int newColumn = Math.max(
-                              tooltipPosition_.getColumn(),
-                              position.getColumn());
-
-                        setTooltipPosition(Position.create(
-                              position.getRow(),
-                              newColumn));
+                        // Update the tooltip position if the cursor changes rows.
+                        if (position.getRow() > tooltipPosition_.getRow())
+                        {
+                           // Allow tooltip to nudge right (but not left)
+                           int newColumn = Math.max(
+                                 tooltipPosition_.getColumn(),
+                                 position.getColumn());
+                           
+                           setTooltipPosition(Position.create(
+                                 position.getRow(),
+                                 newColumn));
+                        }
                      }
-                  }
-                  else
-                  {
-                     detachAnchor();
-                     toolTip_.hide();
+                     else
+                     {
+                        anchor_ = null;
+                        toolTip_.hide();
+                     }
                   }
                }
             });
+         }
+      }));
+      
+      handlers_.add(toolTip_.addAttachHandler(new AttachEvent.Handler()
+      {
+         @Override
+         public void onAttachOrDetach(AttachEvent event)
+         {
+            if (!event.isAttached())
+            {
+               coordinates_ = null;
+               completionPosition_ = null;
+               anchor_ = null;
+            }
          }
       }));
       
@@ -199,18 +182,18 @@ public class SignatureToolTipManager
          @Override
          public void onConsoleWriteInput(ConsoleWriteInputEvent event)
          {
-            detachAnchor();
+            anchor_ = null;
             toolTip_.hide();
          }
       }));
    }
    
    @Inject
-   public void initialize(UserPrefs uiPrefs,
+   public void initialize(UIPrefs uiPrefs,
                           EventBus events,
                           CodeToolsServerOperations server)
    {
-      userPrefs_ = uiPrefs;
+      uiPrefs_ = uiPrefs;
       events_ = events;
       server_ = server;
    }
@@ -233,15 +216,10 @@ public class SignatureToolTipManager
             }
             else if (preview.getTypeInt() == Event.ONKEYDOWN)
             {
-               if (toolTip_.isShowing() && preview.getNativeEvent().getKeyCode() == KeyCodes.KEY_ESCAPE)
-               {
-                  toolTip_.hide();
-                  preview.cancel();
-                  return;
-               }
-               
                coordinates_ = null;
                ready_ = true;
+               if (preview.getNativeEvent().getKeyCode() == KeyCodes.KEY_ESCAPE)
+                  suppressed_ = true;
             }
          }
       });
@@ -268,7 +246,6 @@ public class SignatureToolTipManager
    
    private void endMonitoring()
    {
-      detachAnchor();
       detachPreviewHandler();
       monitor_.cancel();
       monitoring_ = false;
@@ -300,15 +277,25 @@ public class SignatureToolTipManager
                               final String source,
                               String helpHandler)
    {
-      if (!userPrefs_.showFunctionSignatureTooltips().getGlobalValue())
-         return;
-      
       if (isBoringFunction(name))
          return;
       
-      getFunctionArguments(name, source, helpHandler, (String response) ->
+      server_.getArgs(name, source, helpHandler, new ServerRequestCallback<String>()
       {
-         toolTip_.resolvePositionAndShow(name + response);
+         @Override
+         public void onResponseReceived(String response)
+         {
+            if (StringUtil.isNullOrEmpty(response))
+               return;
+            
+            toolTip_.resolvePositionAndShow(name + response);
+         }
+
+         @Override
+         public void onError(ServerError error)
+         {
+            Debug.logError(error);
+         }
       });
    }
    
@@ -317,37 +304,25 @@ public class SignatureToolTipManager
       return coordinates_ != null;
    }
    
-   private Position getLookupPosition()
+   Position getLookupPosition()
    {
       if (coordinates_ == null)
       {
-         return getLookupPositionCursor();
+         Position position = docDisplay_.getCursorPosition();
+         
+         // Nudge the cursor column if the cursor currently lies
+         // upon a closing paren.
+         if (docDisplay_.getCharacterAtCursor() == ')' &&
+             position.getColumn() != 0)
+         {
+            position = Position.create(
+                  position.getRow(),
+                  position.getColumn() - 1);
+         }
+         
+         return position;
       }
-      else
-      {
-         return getLookupPositionMouseCoordinates();
-      }
-   }
-   
-   private Position getLookupPositionCursor()
-   {
-      Position position = docDisplay_.getCursorPosition();
-
-      // Nudge the cursor column if the cursor currently lies
-      // upon a closing paren.
-      if (docDisplay_.getCharacterAtCursor() == ')' &&
-            position.getColumn() != 0)
-      {
-         position = Position.create(
-               position.getRow(),
-               position.getColumn() - 1);
-      }
-
-      return position;
-   }
-   
-   private Position getLookupPositionMouseCoordinates()
-   {
+      
       return docDisplay_.screenCoordinatesToDocumentPosition(
             coordinates_.getMouseX(),
             coordinates_.getMouseY());
@@ -355,9 +330,15 @@ public class SignatureToolTipManager
    
    // Sets an anchored range for a cursor currently lying
    // on an identifier before a '(' (a function call).
-   private void setAnchor(TokenIterator cursor)
+   private void setAnchor(TokenCursor cursor)
    {
-      TokenIterator endCursor = cursor.clone();
+      if (anchor_ != null)
+      {
+         anchor_.detach();
+         anchor_ = null;
+      }
+      
+      TokenCursor endCursor = cursor.cloneCursor();
       if (!endCursor.moveToNextToken())
          return;
       
@@ -369,12 +350,10 @@ public class SignatureToolTipManager
       if (!endCursor.fwdToMatchingToken())
          return;
       
-      Position endPos = endCursor.getCurrentTokenPosition();
-      TokenIterator startCursor = cursor.clone();
+      Position endPos = endCursor.currentPosition();
+      TokenCursor startCursor = cursor.cloneCursor();
       Token lookbehind = startCursor.peekBwd(1);
-      if (lookbehind != null && (
-            lookbehind.valueEquals("::") ||
-            lookbehind.valueEquals(":::")))
+      if (lookbehind.valueEquals("::") || lookbehind.valueEquals(":::"))
       {
          if (!startCursor.moveToPreviousToken())
             return;
@@ -383,16 +362,17 @@ public class SignatureToolTipManager
             return;
       }
       
-      Position startPos = startCursor.getCurrentTokenPosition();
-      
-      detachAnchor();
+      Position startPos = startCursor.currentPosition();
       anchor_ = docDisplay_.createAnchoredSelection(startPos, endPos);
    }
    
    public void resolveActiveFunctionAndDisplayToolTip()
    {
-      if (!userPrefs_.showFunctionSignatureTooltips().getGlobalValue())
+      if (suppressed_)
+      {
+         suppressed_ = false;
          return;
+      }
       
       if (docDisplay_.isPopupVisible())
          return;
@@ -412,10 +392,7 @@ public class SignatureToolTipManager
                coordinates_.getMouseY());
          
          AceEditorNative nativeEditor = AceEditorNative.getEditor(el);
-         if (nativeEditor == null)
-            return;
-         
-         if (nativeEditor != editor.getWidget().getEditor())
+         if (nativeEditor != null && nativeEditor != editor.getWidget().getEditor())
             return;
       }
       
@@ -425,9 +402,8 @@ public class SignatureToolTipManager
       if (isMouseEvent)
          toolTip_.hide();
       
-      TokenIterator cursor = docDisplay_.createTokenIterator();
-      Token token = cursor.moveToPosition(position, true);
-      if (token == null)
+      TokenCursor cursor = editor.getSession().getMode().getRCodeModel().getTokenCursor();
+      if (!cursor.moveToPosition(position, true))
          return;
       
       // If this is a cursor-idle event and the user has opted into
@@ -437,19 +413,16 @@ public class SignatureToolTipManager
       // rather than within a function). Note that on failure the cursor
       // position is not changed.
       if (!isMouseEvent &&
-          userPrefs_.showFunctionSignatureTooltips().getGlobalValue() &&
+          uiPrefs_.showFunctionTooltipOnIdle().getGlobalValue() &&
           !cursor.valueEquals("("))
       {
-         cursor.findTokenValueBwd("(", true);
+         cursor.findOpeningBracket("(", false);
       }
       
       Token lookahead = cursor.peekFwd(1);
-      if (lookahead != null)
-      {
-         if (lookahead.valueEquals("::") || lookahead.valueEquals(":::"))
-            if (!cursor.moveToNextToken())
-               return;
-      }
+      if (lookahead.valueEquals("::") || lookahead.valueEquals(":::"))
+         if (!cursor.moveToNextToken())
+            return;
       
       if (cursor.valueEquals("::") || cursor.valueEquals(":::"))
          if (!cursor.moveToNextToken())
@@ -459,90 +432,72 @@ public class SignatureToolTipManager
          if (!cursor.moveToPreviousToken())
             return;
       
-      // Now, double-check that the bounding box associated with
-      // the document row actually correspond to the mouse position.
-      // This is necessary as Ace will 'clamp' the screen row to
-      // actual positions available in the document.
-      if (isMouseDrivenEvent())
-      {
-         Position cursorPos = cursor.getCurrentTokenPosition();
-         ScreenCoordinates coordinates =
-               editor.documentPositionToScreenCoordinates(cursorPos);
-
-         int rowTop = coordinates.getPageY();
-         int rowBottom = coordinates.getPageY() +
-               editor.getWidget().getEditor().getRenderer().getLineHeight();
-
-         if (coordinates_.getMouseY() < rowTop ||
-             coordinates_.getMouseY() > rowBottom)
-         {
-            toolTip_.hide();
-            return;
-         }
-      }
-      
       // Cache the cursor position -- this should be the first
       // token prior to a '(', forming the active call.
       // If we already have an active tooltip for the current position,
       // then bail.
       if (toolTip_.isShowing() &&
-          cursor.getCurrentTokenPosition().isEqualTo(completionPosition_))
+          cursor.currentPosition().isEqualTo(completionPosition_))
       {
          return;
       }
-      completionPosition_ = cursor.getCurrentTokenPosition();
+      completionPosition_ = cursor.currentPosition();
       
       // Double check that we're in the correct spot for a function call.
       // The cursor should lie upon an identifier, and the next token should
       // be an opening paren.
-      Token currentToken = cursor.getCurrentToken();
-      if (currentToken == null)
+      if (!cursor.hasType("identifier"))
+         return;
+
+      if (!cursor.nextValue().equals("("))
          return;
       
-      if (!currentToken.hasType("identifier", "function"))
-         return;
-      
-      Token nextToken = cursor.peekFwd();
-      if (nextToken == null)
-         return;
-      
-      if (!nextToken.getValue().equals("("))
-         return;
-      
-      String callString = currentToken.getValue();
+      String callString = cursor.currentValue();
       if (isBoringFunction(callString))
          return;
       
       // If this is a namespaced function call, then append that context.
       Token lookbehind = cursor.peekBwd(1);
-      if (lookbehind != null && (
-            lookbehind.valueEquals("::") ||
-            lookbehind.valueEquals(":::")))
+      if (lookbehind.valueEquals("::") || lookbehind.valueEquals(":::"))
       {
          // Do-while loop just to allow 'break' for control flow
          do
          {
-            TokenIterator clone = cursor.clone();
+            TokenCursor clone = cursor.cloneCursor();
             if (!clone.moveToPreviousToken())
                break;
             if (!clone.moveToPreviousToken())
                break;
-            
-            if (!clone.getCurrentToken().hasType("identifier"))
+            if (!clone.hasType("identifier"))
                break;
-            
-            callString = clone.getCurrentToken().getValue() + "::" + callString;
+            callString = clone.currentValue() + "::" + callString;
          } while (false);
             
       }
       
       // Set anchor (so we can dismiss popup when cursor moves outside
       // of anchored region)
-      setAnchor(cursor.clone());
+      setAnchor(cursor.cloneCursor());
       
       final String fnString = callString;
-      getFunctionArguments(fnString, "", "", (String response) -> {
-         resolvePositionAndShow(fnString + response, position);
+      server_.getArgs(fnString, "", "", new ServerRequestCallback<String>() {
+         
+         @Override
+         public void onResponseReceived(String arguments)
+         {
+            if (StringUtil.isNullOrEmpty(arguments))
+               return;
+            
+            final String signature = fnString + arguments;
+              
+            resolvePositionAndShow(signature, position);
+         }
+
+         @Override
+         public void onError(ServerError error)
+         {
+            Debug.logError(error);
+         }
       });
    }
    
@@ -572,15 +527,6 @@ public class SignatureToolTipManager
       });
    }
    
-   private void detachAnchor()
-   {
-      if (anchor_ != null)
-      {
-         anchor_.detach();
-         anchor_ = null;
-      }
-   }
-   
    private final RCompletionToolTip toolTip_;
    private final DocDisplay docDisplay_;
    private final HandlerRegistrations handlers_;
@@ -588,6 +534,7 @@ public class SignatureToolTipManager
    
    private final Timer monitor_;
    private boolean monitoring_;
+   private boolean suppressed_;
    
    private HandlerRegistration preview_;
    private MouseCoordinates coordinates_;
@@ -596,7 +543,7 @@ public class SignatureToolTipManager
    private AnchoredSelection anchor_;
    private boolean ready_;
 
-   private UserPrefs userPrefs_;
+   private UIPrefs uiPrefs_;
    private EventBus events_;
    private CodeToolsServerOperations server_;
    

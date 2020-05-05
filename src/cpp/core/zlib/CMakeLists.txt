@@ -1,7 +1,7 @@
 #
 # CMakeLists.txt
 #
-# Copyright (C) 2009-19 by RStudio, PBC
+# Copyright (C) 2009-11 by RStudio, Inc.
 #
 # Unless you have received this program directly from RStudio pursuant
 # to the terms of a commercial license agreement with RStudio, then
@@ -28,12 +28,6 @@ include(CheckCSourceCompiles)
 
 # disable gcc visiblity attribute (not supported by some mingw versinos)
 set(EXTRA_COMPILE_DEFINITIONS "NO_VIZ")
-
-if(MSVC)
-  # disable noisy warnings; third-party code we try to avoid changing
-  # C4013: using undefined function (assumes extern returning int)
-  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /wd4013")
-endif()
 
 # add largefile support if we can
 check_type_size(off64_t OFF64_T)
@@ -100,11 +94,11 @@ string(REGEX REPLACE ".*#define[ \t]+ZLIB_VERSION[ \t]+\"([0-9A-Za-z.]+)\".*"
 
 # define library
 add_library(rstudio-core-zlib STATIC ${ZLIB_SRCS} ${ZLIB_PUBLIC_HDRS} ${ZLIB_PRIVATE_HDRS})
-define_source_file_names(rstudio-core-zlib)
 
 # set extra compile definitions
 set_property(TARGET rstudio-core-zlib
              PROPERTY COMPILE_DEFINITIONS ${EXTRA_COMPILE_DEFINITIONS})
 
 # link dependencies
-target_link_libraries(rstudio-core-zlib)
+target_link_libraries(rstudio-core-zlib
+)

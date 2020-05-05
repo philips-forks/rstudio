@@ -1,7 +1,7 @@
 /*
  * SessionRCompletions.cpp
  *
- * Copyright (C) 2009-2019 by RStudio, PBC
+ * Copyright (C) 2014 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -14,8 +14,6 @@
  */
 
 #include "SessionRCompletions.hpp"
-
-#include <gsl/gsl>
 
 #include <core/Exec.hpp>
 
@@ -63,27 +61,24 @@ char ends(char begins) {
 
 bool isBinaryOp(char character)
 {
-  switch(character) {
-    case '~':
-    case '!':
-    case '@':
-    case '$':
-    case '%':
-    case '^':
-    case '&':
-    case '-':
-    case '+':
-    case '*':
-    case '/':
-    case '=':
-    case '|':
-    case '<':
-    case '>':
-    case '?':
-    return true;
-    default:
-    return false;
-  }
+   return character == '~' ||
+         character == '!' ||
+         character == '@' ||
+         character == '$' ||
+         character == '%' ||
+         character == '^' ||
+         character == '&' ||
+         character == '*' ||
+         character == '-' ||
+         character == '+' ||
+         character == '*' ||
+         character == '/' ||
+         character == '=' ||
+         character == '|' ||
+         character == '<' ||
+         character == '>' ||
+         character == '?';
+
 }
 
 } // end anonymous namespace
@@ -94,8 +89,8 @@ std::string finishExpression(const std::string& expression)
 
    // If the last character of the expression is a binary op, then we
    // place a '.' after it
-   int n = gsl::narrow_cast<int>(expression.length());
-   if (n > 0 && isBinaryOp(expression[n - 1]))
+   int n = expression.length();
+   if (isBinaryOp(expression[n - 1]))
       result.append(".");
 
    std::vector<char> terminators;
@@ -184,13 +179,13 @@ SourceIndexCompletions getSourceIndexCompletions(const std::string& token)
 
    // TODO: wire up 'moreAvailable'
    modules::code_search::searchSource(token,
-                                      1000,
+                                      1E3,
                                       true,
                                       &items,
                                       &moreAvailable);
 
    SourceIndexCompletions srcCompletions;
-   for (const core::r_util::RSourceItem& item : items)
+   BOOST_FOREACH(const core::r_util::RSourceItem& item, items)
    {
       if (item.braceLevel() == 0)
       {
@@ -280,7 +275,7 @@ SEXP rs_scanFiles(SEXP pathSEXP,
    options.filter = boost::bind(subsequenceFilter,
                                 _1,
                                 pattern,
-                                gsl::narrow_cast<int>(path.length()),
+                                path.length(),
                                 maxCount,
                                 &paths,
                                 &count,
@@ -331,12 +326,12 @@ SEXP rs_getNAMESPACEImportedSymbols(SEXP documentIdSEXP)
    using namespace core::r_util;
    std::vector<std::string> pkgs;
    
-   for (const std::string& pkg : RSourceIndex::getImportedPackages())
+   BOOST_FOREACH(const std::string& pkg, RSourceIndex::getImportedPackages())
    {
       pkgs.push_back(pkg);
    }
    
-   for (const std::string& pkg :
+   BOOST_FOREACH(const std::string& pkg,
                  RSourceIndex::getImportFromDirectives() | boost::adaptors::map_keys)
    {
       pkgs.push_back(pkg);
@@ -346,7 +341,7 @@ SEXP rs_getNAMESPACEImportedSymbols(SEXP documentIdSEXP)
    Protect protect;
    r::sexp::ListBuilder builder(&protect);
    
-   for (const std::string& pkg : pkgs)
+   BOOST_FOREACH(const std::string& pkg, pkgs)
    {
       const PackageInformation& completions = RSourceIndex::getPackageInformation(pkg);
       r::sexp::ListBuilder child(&protect);
@@ -363,7 +358,7 @@ SEXP rs_getNAMESPACEImportedSymbols(SEXP documentIdSEXP)
          std::set<std::string>& directives =
                RSourceIndex::getImportFromDirectives()[pkg];
          
-         for (const std::string& item : directives)
+         BOOST_FOREACH(const std::string& item, directives)
          {
             std::vector<std::string>::const_iterator it =
                   std::find(completions.exports.begin(),
@@ -417,7 +412,6 @@ SEXP rs_getInferredCompletions(SEXP packagesSEXP)
       builder.add("exports", pkgInfo.exports);
       builder.add("types", pkgInfo.types);
       builder.add("functions", core::r_util::infoToFormalMap(pkgInfo.functionInfo));
-      builder.add("datasets", pkgInfo.datasets);
       parent.add(*it, builder);
    }
    
@@ -431,7 +425,7 @@ SEXP rs_listInferredPackages(SEXP documentIdSEXP)
          code_search::rSourceIndex().get(documentId);
 
    // NOTE: can occur when user edits file not in source index
-   if (index == nullptr)
+   if (index == NULL)
       return R_NilValue;
    
    std::vector<std::string> pkgs = index->getInferredPackages();
@@ -488,9 +482,9 @@ SEXP rs_listIndexedPackages()
    
    const std::vector<FilePath>& pkgPaths = libpaths::getInstalledPackages();
    pkgNames.reserve(pkgPaths.size());
-   for (const FilePath& pkgPath : pkgPaths)
+   BOOST_FOREACH(const FilePath& pkgPath, pkgPaths)
    {
-      pkgNames.push_back(pkgPath.getAbsolutePath());
+      pkgNames.push_back(pkgPath.absolutePath());
    }
    
    r::sexp::Protect protect;

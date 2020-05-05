@@ -1,7 +1,7 @@
 /*
  * SessionHttpConnectionImpl.hpp
  *
- * Copyright (C) 2009-12 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -25,16 +25,14 @@
 #include <boost/asio/placeholders.hpp>
 #include <boost/enable_shared_from_this.hpp>
 
-#include <shared_core/Error.hpp>
+#include <core/Error.hpp>
 #include <core/Log.hpp>
-#include <shared_core/SafeConvert.hpp>
+#include <core/SafeConvert.hpp>
 
 #include <core/http/Request.hpp>
 #include <core/http/Response.hpp>
 #include <core/http/RequestParser.hpp>
-#include <core/http/Socket.hpp>
 #include <core/http/SocketUtils.hpp>
-#include <core/http/StreamWriter.hpp>
 
 #include <core/json/JsonRpc.hpp>
 
@@ -52,16 +50,14 @@ class HttpConnectionImpl :
    boost::noncopyable
 {
 public:
-   typedef boost::function<void(boost::shared_ptr<HttpConnectionImpl<ProtocolType> >)> HeadersParsedHandler;
    typedef boost::function<void(
          boost::shared_ptr<HttpConnectionImpl<ProtocolType> >)> Handler;
 
 
 public:
    HttpConnectionImpl(boost::asio::io_service& ioService,
-                      const HeadersParsedHandler& headersParsed,
                       const Handler& handler)
-      : socket_(ioService), headersParsedHandler_(headersParsed), handler_(handler)
+      : socket_(ioService), handler_(handler)
    {
    }
 
@@ -79,30 +75,14 @@ public:
 
 public:
 
-   // request/response (used by Handler)
+   // request/resposne (used by Handler)
    virtual const core::http::Request& request() { return request_; }
 
    virtual void sendResponse(const core::http::Response &response)
    {
       try
       {
-         if (response.isStreamResponse())
-         {
-            boost::shared_ptr<core::http::StreamWriter<typename ProtocolType::socket> > pWriter(
-                     new core::http::StreamWriter<typename ProtocolType::socket>(
-                        socket_,
-                        response,
-                        boost::bind(&HttpConnectionImpl::onStreamComplete,
-                                    HttpConnectionImpl<ProtocolType>::shared_from_this()),
-                        boost::bind(&HttpConnectionImpl::handleError,
-                                    HttpConnectionImpl<ProtocolType>::shared_from_this(),
-                                    _1)));
-
-            pWriter->write();
-            return;
-         }
-
-         // write the non streaming response
+         // write the response
          boost::asio::write(socket_,
                             response.toBuffers(
                                   core::http::Header::connectionClose()));
@@ -149,25 +129,6 @@ public:
 
    // get the socket
    typename ProtocolType::socket& socket() { return socket_; }
-
-   virtual void setUploadHandler(const core::http::UriAsyncUploadHandlerFunction& uploadHandler)
-   {
-      auto me = HttpConnectionImpl<ProtocolType>::shared_from_this();
-      auto continuation = [=](core::http::Response* pResponse)
-      {
-         me->sendResponse(*pResponse);
-      };
-
-      // request_ guaranteed to stay alive with the duration of this object as continuation captures
-      // a shared pointer to this object
-      core::http::FormHandler formHandler = boost::bind(uploadHandler,
-                                                        boost::cref(request_),
-                                                        _1,
-                                                        _2,
-                                                        continuation);
-
-      requestParser_.setFormHandler(formHandler);
-   }
 
 
 private:
@@ -220,32 +181,12 @@ private:
                readSome();
             }
 
-            // headers parsed - body parsing has not yet begun
-            else if (status == core::http::RequestParser::headers_parsed)
-            {
-               headersParsedHandler_(HttpConnectionImpl<ProtocolType>::shared_from_this());
-
-               // establish request id
-               requestId_ = connection::rstudioRequestIdFromRequest(request_);
-
-               // we need to resume body parsing by recalling the parse
-               // method and providing the exact same buffer to continue
-               // from where we left off
-               handleRead(e, bytesTransferred);
-
-               return;
-            }
-
-            // form complete - do nothing since the form handler
-            // has been invoked by the request parser as appropriate
-            else if (status == core::http::RequestParser::form_complete)
-            {
-               return;
-            }
-
             // got valid request -- handle it
             else
             {
+               // establish request id
+               requestId_ = connection::rstudioRequestIdFromRequest(request_);
+
                // call handler
                handler_(HttpConnectionImpl<ProtocolType>::shared_from_this());
 
@@ -272,24 +213,12 @@ private:
       CATCH_UNEXPECTED_EXCEPTION
    }
 
-   void onStreamComplete()
-   {
-      close();
-   }
-
-   void handleError(const core::Error& error)
-   {
-      LOG_ERROR(error);
-      close();
-   }
-
 private:
    typename ProtocolType::socket socket_;
    boost::array<char, 8192> buffer_ ;
    core::http::RequestParser requestParser_ ;
    core::http::Request request_;
    std::string requestId_;
-   HeadersParsedHandler headersParsedHandler_;
    Handler handler_;
 };
 

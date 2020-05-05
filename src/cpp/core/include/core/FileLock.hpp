@@ -1,7 +1,7 @@
 /*
  * FileLock.hpp
  *
- * Copyright (C) 2009-12 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -27,14 +27,14 @@
 #include <boost/scoped_ptr.hpp>
 #include <boost/asio.hpp>
 
-#include <core/Log.hpp>
 #include <core/Settings.hpp>
-
-// env var to enable distributed locking mode
-#define kRStudioDistributedLockingEnabled "RSTUDIO_DISTRIBUTED_LOCKING_ENABLED"
 
 namespace rstudio {
 namespace core {
+
+namespace file_lock {
+void initialize();
+} // end namespace file_lock
 
 class Error;
 class FilePath;
@@ -46,8 +46,8 @@ public:
    enum LockType { LOCKTYPE_ADVISORY, LOCKTYPE_LINKBASED };
    
    // initialize (read configuration)
-   static void initialize();
-   static void initialize(FileLock::LockType fallbackLockType);
+   static void initialize(FilePath locksConfPath = FilePath());
+   static void initialize(const Settings& settings);
    
    // clean up
    static void cleanUp();
@@ -84,17 +84,14 @@ public:
 public:
    static void log(const std::string& message);
    
-   static boost::posix_time::seconds getTimeoutInterval() { return s_timeoutInterval; }
-   static void setTimeoutInterval(boost::posix_time::seconds interval) { s_timeoutInterval = interval; }
-
    // getters only: set through 'initialize' method
    static LockType getDefaultType() { return s_defaultType; }
+   static boost::posix_time::seconds getTimeoutInterval() { return s_timeoutInterval; }
    static boost::posix_time::seconds getRefreshRate() { return s_refreshRate; }
    static bool isLoggingEnabled() { return s_loggingEnabled; }
-   static bool isLoadBalanced() { return s_isLoadBalanced; }
    static bool isNoLockAvailable(const Error& error)
    {
-      return error == systemError(boost::system::errc::no_lock_available, ErrorLocation());
+      return error.code() == boost::system::errc::no_lock_available;
    }
    
 protected:
@@ -102,7 +99,6 @@ protected:
    static boost::posix_time::seconds s_timeoutInterval;
    static boost::posix_time::seconds s_refreshRate;
    static bool s_loggingEnabled;
-   static bool s_isLoadBalanced;
    static FilePath s_logFile;
 };
 

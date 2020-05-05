@@ -4,7 +4,7 @@
 cp /rstudio/vagrant/build.motd.tail /etc/motd
 
 # add repo for R 
-apt-key adv --keyserver keyserver.ubuntu.com --recv-keys 0x51716619e084dab9
+apt-key adv --keyserver keyserver.ubuntu.com --recv-keys E084DAB9
 echo "deb https://cran.rstudio.com/bin/linux/ubuntu trusty/" >> /etc/apt/sources.list
 
 # bring apt database up to date with R packages
@@ -24,14 +24,9 @@ apt-get install -y libssh2-1-dev
 apt-get install -y curl 
 apt-get install -y libcurl4-openssl-dev
 
-# install GNU debugger
+# install GNU debugger and a JDK
 apt-get install -y gdb
-
-# add ppa repository so we can install java 8 (not in any official repo for trusty)
-apt-get install -y software-properties-common python-software-properties
-add-apt-repository -y ppa:openjdk-r/ppa 
-apt-get update
-apt-get install -y openjdk-8-jdk
+apt-get install -y openjdk-7-jdk
 
 # create SSH key if needed
 if [ ! -f /rstudio/vagrant/vagrant_key_rsa ]; then

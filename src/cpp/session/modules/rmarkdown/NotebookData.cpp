@@ -1,7 +1,7 @@
 /*
  * NotebookData.cpp
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-16 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -19,6 +19,7 @@
 
 #include <iostream>
 
+#include <boost/foreach.hpp>
 #include <boost/format.hpp>
 
 #include <r/RExec.hpp>
@@ -62,7 +63,7 @@ void handleNotebookDataResReq(const http::Request& request,
    std::string resourcePath("pagedtable/");
    resourcePath.append(http::util::pathAfterPrefix(request, kNotebookDataResourceLocation));
 
-   core::FilePath pagedTableResource = options().rResourcesPath().completeChildPath(resourcePath);
+   core::FilePath pagedTableResource = options().rResourcesPath().childPath(resourcePath);
 
    pResponse->setCacheableFile(pagedTableResource, request);
 }
@@ -93,7 +94,7 @@ core::Error DataCapture::connectDataCapture(
               const json::Object& chunkOptions)
 {
    return r::exec::RFunction(".rs.initDataCapture",
-         string_utils::utf8ToSystem(outputFolder.getAbsolutePath()),
+         string_utils::utf8ToSystem(outputFolder.absolutePath()),
          chunkOptions).call();
 }
 

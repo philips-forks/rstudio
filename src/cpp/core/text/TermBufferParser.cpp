@@ -1,7 +1,7 @@
 /*
  * TermBufferParser.cpp
  *
- * Copyright (C) 2009-17 by RStudio, PBC
+ * Copyright (C) 2009-17 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -238,14 +238,14 @@ std::string stripSecondaryBuffer(const std::string& strInput, bool* pAltBufferAc
          break;
 
       case HAVE_QM:
-         if (isdigit(ch))
+         if (::isdigit(ch))
             parse.setNewState(HAVE_INT, i, ch);
          else
             parse.setNewState(NORMAL, i, ch);
          break;
 
       case HAVE_INT:
-         if (isdigit(ch))
+         if (::isdigit(ch))
             parse.continueState(i, ch);
          else
             parse.setNewState(HAVE_TERM, i, ch);

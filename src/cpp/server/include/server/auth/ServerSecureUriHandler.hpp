@@ -1,7 +1,7 @@
 /*
  * ServerSecureUriHandler.hpp
  *
- * Copyright (C) 2009-12 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -44,64 +44,26 @@ typedef boost::function<void(
                      boost::shared_ptr<core::http::AsyncConnection>)>
                                           SecureAsyncUriHandlerFunction;
 
-typedef boost::function<void(
-                           const std::string& username,
-                           const std::string& userIdentifier,
-                           const core::http::Request&,
-                           core::http::Response*)> SecureUriHandlerFunctionEx;
-
-typedef boost::function<void(
-                     const std::string& username,
-                     const std::string& userIdentifier,
-                     boost::shared_ptr<core::http::AsyncConnection>)>
-                                          SecureAsyncUriHandlerFunctionEx;
-
-typedef boost::function<bool(
-                     const std::string& username,
-                     const std::string& userIdentifier,
-                     boost::shared_ptr<core::http::AsyncConnection>,
-                     const std::string&,
-                     bool)> SecureAsyncUriUploadHandlerFunctionEx;
-
-typedef boost::variant<SecureAsyncUriHandlerFunctionEx,
-                       SecureAsyncUriUploadHandlerFunctionEx> SecureAsyncUriHandlerFunctionExVariant;
-
       
 core::http::UriHandlerFunction secureHttpHandler(
                                     SecureUriHandlerFunction handler,
-                                    bool authenticate = false,
-                                    bool requireUserListCookie = true);
+                                    bool authenticate = false);
 
 core::http::UriHandlerFunction secureJsonRpcHandler(
                                     SecureUriHandlerFunction handler);
-
-core::http::UriHandlerFunction secureJsonRpcHandlerEx(
-                                    SecureUriHandlerFunctionEx handler);
 
 core::http::UriHandlerFunction secureUploadHandler(
                                     SecureUriHandlerFunction handler);
 
 core::http::AsyncUriHandlerFunction secureAsyncHttpHandler(
                                     SecureAsyncUriHandlerFunction handler,
-                                    bool authenticate = false,
-                                    bool refreshAuthCookies = true,
-                                    bool requireUserListCookie = true);
-
-core::http::AsyncUriHandlerFunction secureAsyncHttpHandler(
-                                    SecureAsyncUriHandlerFunction handler,
-                                    core::http::AsyncUriHandlerFunction unauthorizedResponseFunction,
-                                    bool refreshAuthCookies,
-                                    bool requireUserListCookie);
+                                    bool authenticate = false);
 
 core::http::AsyncUriHandlerFunction secureAsyncJsonRpcHandler(
                                     SecureAsyncUriHandlerFunction handler);
 
-core::http::AsyncUriHandlerFunction secureAsyncJsonRpcHandlerEx(
-                                    SecureAsyncUriHandlerFunctionEx handler);
-
-core::http::AsyncUriUploadHandlerFunction secureAsyncUploadHandler(
-                                    SecureAsyncUriUploadHandlerFunctionEx handler);
-
+core::http::AsyncUriHandlerFunction secureAsyncUploadHandler(
+                                    SecureAsyncUriHandlerFunction handler);
 
 } // namespace auth
 } // namespace server

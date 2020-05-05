@@ -1,7 +1,7 @@
 /*
  * Prefs.java
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -15,7 +15,6 @@
 package org.rstudio.studio.client.workbench.prefs.model;
 
 import com.google.gwt.core.client.JavaScriptObject;
-import com.google.gwt.core.client.JsArray;
 import com.google.gwt.event.logical.shared.HasValueChangeHandlers;
 import com.google.gwt.event.logical.shared.ValueChangeEvent;
 import com.google.gwt.event.logical.shared.ValueChangeHandler;
@@ -24,7 +23,6 @@ import com.google.gwt.event.shared.HandlerManager;
 import com.google.gwt.event.shared.HandlerRegistration;
 import org.rstudio.core.client.CommandWithArg;
 import org.rstudio.core.client.js.JsObject;
-import org.rstudio.core.client.js.JsUtil;
 
 import java.util.HashMap;
 
@@ -52,9 +50,6 @@ public abstract class Prefs
       void setProjectValue(T value);
       void setProjectValue(T value, boolean fireEvents);
       
-      // generic set for any layer
-      void setValue(String layer, T value);
-      
       HandlerRegistration bind(CommandWithArg<T> handler);
    }
 
@@ -78,49 +73,20 @@ public abstract class Prefs
          handler.execute(getValue());
          return reg;
       }
-
-      public void setValue(String layerName, T value)
-      {
-         setValue(layerName, value, true);
-      }
-      
-      public void setValue(String layerName, T value, boolean fireEvents)
-      {
-         for (PrefLayer layer: JsUtil.asIterable(layers_))
-         {
-            if (layer.getName() == layerName)
-            {
-               setValue(layer.getValues(), value, fireEvents);
-               break;
-            }
-         }
-      }
       
       public T getValue()
       {
-         // Work backwards through all layers, starting with the most specific
-         // and working towards the most general.
-         for (PrefLayer layer: JsUtil.asReverseIterable(layers_))
-         {
-            if (layer.getValues().hasKey(name_))
-            {
-               return doGetValue(layer.getValues());
-            }
-         }
-         return defaultValue_;
+         if (projectRoot_.hasKey(name_))
+            return doGetValue(projectRoot_);
+         else
+            return getGlobalValue();
       }
 
       public T getGlobalValue()
       {
-         // Skip the project layer if it exists by starting at the user layer.
-         for (int i = userLayer(); i >= 0; i--)
-         {
-            if (layers_.get(i).getValues().hasKey(name_))
-            {
-               return doGetValue(layers_.get(i).getValues());
-            }
-         }
-         return defaultValue_;
+         if (!globalRoot_.hasKey(name_))
+            return defaultValue_;
+         return doGetValue(globalRoot_);
       }
 
       public abstract T doGetValue(JsObject root);
@@ -132,7 +98,7 @@ public abstract class Prefs
 
       public void setGlobalValue(T value, boolean fireEvents)
       {
-         setValue(layers_.get(userLayer()).getValues(), value, fireEvents);
+         setValue(globalRoot_, value, fireEvents);
       }
       
       public void setProjectValue(T value)
@@ -142,7 +108,7 @@ public abstract class Prefs
       
       public void setProjectValue(T value, boolean fireEvents)
       {
-         setValue(layers_.get(projectLayer()).getValues(), value, fireEvents);
+         setValue(projectRoot_, value, fireEvents);
       }
 
       protected abstract void doSetValue(JsObject root, String name, T value);
@@ -283,18 +249,11 @@ public abstract class Prefs
       }
    }
 
-   public Prefs(JsArray<PrefLayer> layers)
+   public Prefs(JsObject root, JsObject projectRoot)
    {
-      layers_ = layers;
+      globalRoot_ = root;
+      projectRoot_ = projectRoot;
    }
-   
-   public JsObject getUserLayer()
-   {
-      return layers_.get(userLayer()).getValues();
-   }
-   
-   public abstract int userLayer();
-   public abstract int projectLayer();
 
    @SuppressWarnings("unchecked")
    protected PrefValue<Boolean> bool(String name, boolean defaultValue)
@@ -368,14 +327,10 @@ public abstract class Prefs
       }
       return val;
    }
-   
-   // Meant to be called when the satellite window receives the sessionInfo.
-   protected void UpdatePrefs(JsArray<PrefLayer> layers)
-   {
-      layers_ = layers;
-   }
-   
-   private JsArray<PrefLayer> layers_;
+
+
+   private final JsObject globalRoot_;
+   private final JsObject projectRoot_;
    private final HashMap<String, PrefValue<?>> values_ =
          new HashMap<String, PrefValue<?>>();
 }

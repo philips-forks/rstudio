@@ -1,7 +1,7 @@
 /*
  * Socket.hpp
  *
- * Copyright (C) 2009-12 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -36,10 +36,6 @@ public:
 public:
    virtual void asyncReadSome(boost::asio::mutable_buffers_1 buffers,
                               Handler handler) = 0;
-
-   virtual void asyncWrite(
-                     const boost::asio::const_buffers_1& buffer,
-                     Handler Handler) = 0;
 
    virtual void asyncWrite(
                      const std::vector<boost::asio::const_buffer>& buffers,

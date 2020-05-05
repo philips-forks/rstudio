@@ -1,25 +1,19 @@
-# define package suffix
-set(RSTUDIO_PACKAGE_SUFFIX "-")
-
-# include overlay if it exists
-if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/CMakeOverlay.txt")
-   include(CMakeOverlay.txt)
-endif()
 
 # append our module directory to path
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake/modules")
 
 # install ssh-console batch file into msys_ssh directory (called by shortcut)
-if(NOT RSTUDIO_SESSION_WIN32)
+if(NOT RSTUDIO_SESSION_WIN64)
    install(PROGRAMS src/ssh-console.bat
            DESTINATION "${RSTUDIO_INSTALL_BIN}/msys_ssh")
 endif()
 
-set(CPACK_PACKAGE_FILE_NAME "${CPACK_PACKAGE_NAME}${RSTUDIO_PACKAGE_SUFFIX}${CPACK_PACKAGE_VERSION}")
+# cpack variables
+set(CPACK_PACKAGE_FILE_NAME "${CPACK_PACKAGE_NAME}-${CPACK_PACKAGE_VERSION}")
 if(NOT ${CMAKE_BUILD_TYPE} STREQUAL "Release")
    set(CPACK_PACKAGE_FILE_NAME "${CPACK_PACKAGE_FILE_NAME}-${CMAKE_BUILD_TYPE}")
 endif()
-set(CPACK_NSIS_INSTALLED_ICON_NAME "bin\\\\rstudio.exe")
+set(CPACK_NSIS_INSTALLED_ICON_NAME "bin\\rstudio.exe")
 set(CPACK_PACKAGE_INSTALL_REGISTRY_KEY "RStudio")
 set(CPACK_PACKAGE_EXECUTABLES "rstudio" "RStudio")
 set(CPACK_INCLUDE_TOPLEVEL_DIRECTORY 0)
@@ -40,7 +34,6 @@ set(CPACK_NSIS_EXTRA_INSTALL_COMMANDS "
    WriteRegStr HKCR 'Applications\\\\rstudio.exe\\\\SupportedTypes' '.Rhtml' ''
    WriteRegStr HKCR 'Applications\\\\rstudio.exe\\\\SupportedTypes' '.Rpres' ''
    WriteRegStr HKCR 'Applications\\\\rstudio.exe\\\\SupportedTypes' '.Rproj' ''
-   WriteRegStr HKCR 'Applications\\\\rstudio.exe\\\\SupportedTypes' '.rdprsp' ''
 
    WriteRegStr HKCR '.R\\\\OpenWithList\\\\rstudio.exe' '' ''
    WriteRegStr HKCR '.RData\\\\OpenWithList\\\\rstudio.exe' '' ''
@@ -64,8 +57,7 @@ set(CPACK_NSIS_EXTRA_INSTALL_COMMANDS "
    WriteRegStr HKCR '.cpp\\\\OpenWithList\\\\rstudio.exe' '' ''
    WriteRegStr HKCR '.h\\\\OpenWithList\\\\rstudio.exe' '' ''
    WriteRegStr HKCR '.hpp\\\\OpenWithList\\\\rstudio.exe' '' ''
-   WriteRegStr HKCR '.rdprsp\\\\OpenWithList\\\\rstudio.exe' '' '' 
-
+   
    WriteRegStr HKCR '.Rproj' '' 'RStudio.Rproj'
    WriteRegStr HKCR 'RStudio.Rproj' '' 'R Project'
    WriteRegStr HKCR 'RStudio.Rproj\\\\DefaultIcon' '' '$INSTDIR\\\\bin\\\\rstudio.exe,-2'
@@ -99,7 +91,6 @@ set(CPACK_NSIS_EXTRA_UNINSTALL_COMMANDS "
    DeleteRegKey HKCR '.cpp\\\\OpenWithList\\\\rstudio.exe'
    DeleteRegKey HKCR '.h\\\\OpenWithList\\\\rstudio.exe'
    DeleteRegKey HKCR '.hpp\\\\OpenWithList\\\\rstudio.exe'
-   DeleteRegKey HKCR '.rdprsp\\\\OpenWithList\\\\rstudio.exe'
    DeleteRegKey HKCR 'RStudio.Rproj'
 #")
 

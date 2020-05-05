@@ -1,7 +1,7 @@
 /*
  * RSConnectPublishInput.java
  *
- * Copyright (C) 2009-18 by RStudio, PBC
+ * Copyright (C) 2009-15 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -80,13 +80,6 @@ public class RSConnectPublishInput
                   originatingEvent_.getFromPreview().getOutputFile());
    }
    
-   public String getDocOutput()
-   {
-      if (!hasDocOutput())
-         return null;
-      return originatingEvent_.getFromPreview().getOutputFile();
-   }
-    
    public void setExternalUIEnabled(boolean enabled)
    {
       isExternalUIEnabled_ = enabled;
@@ -146,17 +139,7 @@ public class RSConnectPublishInput
    {
       return !StringUtil.isNullOrEmpty(websiteDir_);
    }
-   
-   public String getWebsiteOutputDir()
-   {
-      return websiteOutputDir_;
-   }
-   
-   public void setWebsiteOutputDir(String dir)
-   {
-      websiteOutputDir_ = dir;
-   }
- 
+
    public boolean isStaticDocInput()
    {
       // plots and presentations are always static
@@ -182,5 +165,4 @@ public class RSConnectPublishInput
    private RSConnectActionEvent originatingEvent_;
    private String description_ = null;
    private String websiteDir_;
-   private String websiteOutputDir_;
 }

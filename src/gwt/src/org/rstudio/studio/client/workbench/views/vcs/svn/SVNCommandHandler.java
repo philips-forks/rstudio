@@ -1,7 +1,7 @@
 /*
  * SVNCommandHandler.java
  *
- * Copyright (C) 2009-12 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -101,19 +101,6 @@ public class SVNCommandHandler
          });
    }
    
-   public void onVcsPullRebase()
-   {
-      server_.svnUpdate(new SimpleRequestCallback<ConsoleProcess>()
-         {
-            @Override
-            public void onResponseReceived(ConsoleProcess response)
-            {
-               new ConsoleProgressDialog(response, server_).showModal();
-            }
-         });
-   }
-   
-   
    public void onVcsCommit()
    {
       pCommitDialog_.get().showModal();
@@ -126,10 +113,10 @@ public class SVNCommandHandler
       if (items.size() == 1)
       {
          StatusAndPath item = items.get(0);
-         if (item.isDirectory() && item.getStatus() == "M")
+         if (item.isDirectory() && item.getStatus().equals("M"))
          {
             String path = item.getPath();
-            if (path == ".")
+            if (path.equals("."))
                path = "";
             IgnoreList ignoreList = new IgnoreList(path, 
                                                    new ArrayList<String>());
@@ -309,7 +296,7 @@ public class SVNCommandHandler
       ArrayList<String> revertList = new ArrayList<String>();
       for (StatusAndPath item :  svnState_.getStatus())
       {
-         if (item.getRawPath() == file.getPath())
+         if (item.getRawPath().equals(file.getPath()))
          {
             revertList.add(item.getPath());
             break;

@@ -1,7 +1,7 @@
 /*
  * FileInfo.hpp
  *
- * Copyright (C) 2009-12 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -23,7 +23,7 @@
 #include <string>
 #include <iosfwd>
 
-#include <shared_core/FilePath.hpp>
+#include <core/FilePath.hpp>
 
 // TODO: satisfy outselves that it is safe to query for symlink status
 // in all cases and eliminate its "optional" semantics
@@ -89,7 +89,7 @@ public:
    }
    
 public:
-   std::string absolutePath() const { return absolutePath_; }
+   std::string absolutePath() const { return absolutePath_.c_str(); }
    bool isDirectory() const { return isDirectory_; }
    uintmax_t size() const { return size_; }
    std::time_t lastWriteTime() const { return lastWriteTime_; }

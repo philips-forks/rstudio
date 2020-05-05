@@ -1,7 +1,7 @@
 /*
  * ShellUtils.hpp
  *
- * Copyright (C) 2009-12 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -21,7 +21,7 @@
 
 #include <boost/regex.hpp>
 
-#include <shared_core/FilePath.hpp>
+#include <core/FilePath.hpp>
 #include <core/RegexUtils.hpp>
 #include <core/StringUtils.hpp>
 
@@ -52,19 +52,13 @@ enum EscapeMode
    EscapeFilesOnly
 };
 
-enum EncodingMode
-{
-   SystemEncoding,
-   DefaultEncoding
-};
-
 class ShellCommand
 {
 public:
    explicit ShellCommand(const core::FilePath& filePath)
       : escapeMode_(EscapeAll)
    {
-      output_ = escape(string_utils::utf8ToSystem(filePath.getAbsolutePath()));
+      output_ = escape(string_utils::utf8ToSystem(filePath.absolutePath()));
    }
 
    explicit ShellCommand(const std::string& program)
@@ -104,8 +98,6 @@ private:
 class ShellArgs
 {
 public:
-   ShellArgs() : encodingMode_(SystemEncoding) {}
-   ShellArgs& operator<<(EncodingMode mode);
    ShellArgs& operator<<(const std::string& arg);
    ShellArgs& operator<<(int arg);
    ShellArgs& operator<<(const FilePath& path);
@@ -124,7 +116,6 @@ public:
 
 private:
    std::vector<std::string> args_;
-   EncodingMode encodingMode_;
 };
 
 }

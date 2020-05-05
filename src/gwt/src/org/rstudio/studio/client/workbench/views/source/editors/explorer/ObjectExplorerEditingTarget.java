@@ -1,7 +1,7 @@
 /*
  * ObjectExplorerEditingTarget.java
  *
- * Copyright (C) 2009-20 by RStudio, PBC
+ * Copyright (C) 2009-15 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -14,15 +14,15 @@
  */
 package org.rstudio.studio.client.workbench.views.source.editors.explorer;
 
-import com.google.gwt.aria.client.Roles;
+import com.google.gwt.resources.client.ImageResource;
 import com.google.gwt.user.client.ui.Widget;
 import com.google.inject.Inject;
 
-import org.rstudio.core.client.StringUtil;
+import org.rstudio.core.client.resources.ImageResource2x;
 import org.rstudio.core.client.widget.SimplePanelWithProgress;
 import org.rstudio.studio.client.application.events.EventBus;
 import org.rstudio.studio.client.common.GlobalDisplay;
-import org.rstudio.studio.client.common.filetypes.FileIcon;
+import org.rstudio.studio.client.common.filetypes.FileIconResources;
 import org.rstudio.studio.client.common.filetypes.FileType;
 import org.rstudio.studio.client.common.filetypes.FileTypeRegistry;
 import org.rstudio.studio.client.workbench.commands.Commands;
@@ -54,19 +54,12 @@ public class ObjectExplorerEditingTarget
    {
       progressPanel_ = new SimplePanelWithProgress();
       progressPanel_.setSize("100%", "100%");
-      Roles.getTabpanelRole().set(progressPanel_.getElement());
-      setAccessibleName(null);
       reloadDisplay();
       return new Display()
       {
          public void print()
          {
             ((Display)progressPanel_.getWidget()).print();
-         }
-
-         public void setAccessibleName(String name)
-         {
-            ObjectExplorerEditingTarget.this.setAccessibleName(name);
          }
 
          public Widget asWidget()
@@ -93,22 +86,15 @@ public class ObjectExplorerEditingTarget
    }
    
    @Override
-   public void onDismiss(int dismissType)
-   {
-      // explicitly avoid calling super method as we don't
-      // have an associated content URL to clean up
-   }
-   
-   @Override
    public String getPath()
    {
       return getHandle().getPath();
    }
 
    @Override
-   public FileIcon getIcon()
+   public ImageResource getIcon()
    {
-      return FileIcon.OBJECT_EXPLORER_ICON;
+      return new ImageResource2x(FileIconResources.INSTANCE.iconObjectExplorer2x());
    }
 
    private ObjectExplorerHandle getHandle()
@@ -148,16 +134,8 @@ public class ObjectExplorerEditingTarget
       {
          reloadDisplay();
       }
-      
-      view_.refresh();
    }
-
-   @Override
-   public String getCurrentStatus()
-   {
-      return "Object Explorer displayed";
-   }
-
+   
    // Private methods ----
    
    private void reloadDisplay()
@@ -172,14 +150,7 @@ public class ObjectExplorerEditingTarget
       view_.setSize("100%", "100%");
       progressPanel_.setWidget(view_);
    }
-
-   private void setAccessibleName(String accessibleName)
-   {
-      if (StringUtil.isNullOrEmpty(accessibleName))
-         accessibleName = "Untitled Object Explorer";
-      Roles.getTabpanelRole().setAriaLabelProperty(progressPanel_.getElement(), accessibleName +
-            " Object Explorer");
-   }
+   
 
    private SimplePanelWithProgress progressPanel_;
    private ObjectExplorerEditingTargetWidget view_;

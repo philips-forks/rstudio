@@ -1,7 +1,7 @@
 /*
  * ConsoleDispatcher.java
  *
- * Copyright (C) 2009-12 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -170,7 +170,7 @@ public class ConsoleDispatcher
          String escapedPath = escapedPath(path);
          String systemEncoding = session_.getSessionInfo().getSystemEncoding();
          boolean isSystemEncoding =
-          normalizeEncoding(encoding) == normalizeEncoding(systemEncoding);
+          normalizeEncoding(encoding).equals(normalizeEncoding(systemEncoding));
          
          if (contentKnownToBeAscii || isSystemEncoding)
             code.append((debug ? "debugSource" : "source") + 

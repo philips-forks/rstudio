@@ -1,7 +1,7 @@
 /*
  * LibClang.cpp
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -19,11 +19,12 @@
 #include <vector>
 
 #include <boost/regex.hpp>
+#include <boost/foreach.hpp>
 
 #include <core/Log.hpp>
-#include <shared_core/FilePath.hpp>
+#include <core/FilePath.hpp>
 #include <core/RegexUtils.hpp>
-#include <shared_core/SafeConvert.hpp>
+#include <core/SafeConvert.hpp>
 
 #include <core/system/LibraryLoader.hpp>
 
@@ -43,94 +44,24 @@ namespace libclang {
 
 namespace {
 
-// path and compilation arguments used for system (non-embedded) libclang
-FilePath s_libraryPath;
-std::vector<std::string> s_baseCompileArgs;
-
-std::vector<std::string> defaultCompileArgs(LibraryVersion version)
-{
-   std::vector<std::string> compileArgs;
-
-   // we need to add in the associated libclang headers as
-   // they are not discovered / used by default during compilation
-   FilePath llvmPath = s_libraryPath.getParent().getParent();
-   boost::format fmt("%1%/lib/clang/%2%/include");
-   fmt % llvmPath.getAbsolutePath() % version.asString();
-   std::string includePath = fmt.str();
-   if (FilePath(includePath).exists())
-     compileArgs.push_back(std::string("-I") + includePath);
-
-#ifdef __APPLE__
-   // newer versions of macOS (e.g. Mojave) no longer install system
-   // headers into /usr/include by default. attempt to find the headers
-   // made available as part of the default toolchain instead
-   if (!FilePath("/usr/include").exists())
-   {
-      // try multiple locations for path to appropriate system headers
-      std::vector<std::string> usrIncludePaths = {
-         "/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include",
-         "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include"
-         "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/include",
-      };
-
-      for (auto&& path : usrIncludePaths)
-      {
-         if (FilePath(path).exists())
-         {
-            compileArgs.insert(compileArgs.begin(), path);
-            compileArgs.insert(compileArgs.begin(), "-isystem");
-            break;
-         }
-      }
-   }
-#endif
-
-   return compileArgs;
-}
-
 std::vector<std::string> systemClangVersions()
 {
    std::vector<std::string> clangVersions;
-   
-#if defined(__APPLE__)
-   // NOTE: the version of libclang.dylib bundled with Xcode
-   // doesn't seem to work well when loaded as a library
-   // (there seems to be extra orchestration required to get
-   // include paths set up; easier to just depend on command
-   // line tools since we request their installation in other
-   // contexts)
-   clangVersions = {
-      "/Library/Developer/CommandLineTools/usr/lib/libclang.dylib",
-      "/usr/local/opt/llvm/lib/libclang.dylib",
-   };
-#elif defined(__unix__)
-   // default set of versions
-   clangVersions = {
-      "/usr/lib/libclang.so",
-      "/usr/lib/llvm/libclang.so",
-      "/usr/lib64/libclang.so",
-      "/usr/lib64/llvm/libclang.so",
-   };
-   
-   // iterate through the set of available 'llvm' directories
-   for (const char* prefix : {"/usr/lib", "/usr/lib64"})
-   {
-      FilePath prefixPath(prefix);
-      if (!prefixPath.exists())
-         continue;
-      
-      std::vector<FilePath> directories;
-      Error error = prefixPath.getChildren(directories);
-      if (error)
-         LOG_ERROR(error);
 
-      // generate a path for each 'llvm' directory
-      for (const FilePath& path : directories)
-         if (path.getFilename().find("llvm") == 0)
-            clangVersions.push_back(path.completePath("lib/libclang.so.1").getAbsolutePath());
-   }
+   // platform-specific
+#ifndef _WIN32
+#ifdef __APPLE__
+   clangVersions.push_back("/Applications/Xcode.app/Contents/"
+                           "Developer/Toolchains/XcodeDefault.xctoolchain"
+                           "/usr/lib/libclang.dylib");
+#else
+   clangVersions.push_back("/usr/lib/llvm/libclang.so");
+   clangVersions.push_back("/usr/lib64/llvm/libclang.so");
+   clangVersions.push_back("/usr/lib/llvm-3.5/lib/libclang.so.1");
+   clangVersions.push_back("/usr/lib/llvm-3.4/lib/libclang.so.1");
 #endif
-   
+#endif
+
    return clangVersions;
 }
 
@@ -169,27 +100,18 @@ bool LibClang::load(EmbeddedLibrary embedded,
    std::vector<std::string> sysVersions = systemClangVersions();
    versions.insert(versions.end(), sysVersions.begin(), sysVersions.end());
 
-   for (const std::string& version : versions)
+   BOOST_FOREACH(const std::string& version, versions)
    {
       FilePath versionPath(version);
       ostr << versionPath << std::endl;
       if (versionPath.exists())
       {
-         Error error = tryLoad(versionPath.getAbsolutePath(), requiredVersion);
+         Error error = tryLoad(versionPath.absolutePath(), requiredVersion);
          if (!error)
          {
             // if this was the embedded version then record it
             if (version == embeddedVersion)
                embedded_ = embedded;
-
-            if (embedded_.empty())
-            {
-               // save the library path
-               s_libraryPath = versionPath;
-
-               // save default compilation arguments
-               s_baseCompileArgs = defaultCompileArgs(this->version());
-            }
 
             // print diagnostics
             ostr << "   LOADED: " << this->version().asString()
@@ -557,7 +479,7 @@ Error LibClang::tryLoad(const std::string& libraryPath,
 
 Error LibClang::unload()
 {
-   if (pLib_ != nullptr)
+   if (pLib_ != NULL)
    {
       Error error = core::system::closeLibrary(pLib_);
       if (error)
@@ -566,7 +488,7 @@ Error LibClang::unload()
       }
       else
       {
-         pLib_ = nullptr;
+         pLib_ = NULL;
          return Success();
       }
    }
@@ -588,7 +510,7 @@ LibraryVersion LibClang::version() const
    std::vector<boost::regex> patterns;
    patterns.push_back(boost::regex("LLVM " + verRegex));
    patterns.push_back(boost::regex(verRegex));
-   for (boost::regex re : patterns)
+   BOOST_FOREACH(boost::regex re, patterns)
    {
       boost::smatch match;
       if (regex_utils::search(versionString, match, re))
@@ -613,9 +535,7 @@ std::vector<std::string> LibClang::compileArgs(bool isCppFile) const
 {
    std::vector<std::string> compileArgs;
 
-   if (embedded_.empty())
-      compileArgs = s_baseCompileArgs;
-   else
+   if (!embedded_.empty())
       compileArgs = embedded_.compileArgs(version(), isCppFile);
 
    return compileArgs;

@@ -1,7 +1,7 @@
 /*
  * Document.java
  *
- * Copyright (C) 2009-12 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -15,7 +15,6 @@
 package org.rstudio.studio.client.workbench.views.source.editors.text.ace;
 
 import com.google.gwt.core.client.JavaScriptObject;
-import com.google.gwt.core.client.JsArrayString;
 
 public class Document extends JavaScriptObject
 {
@@ -28,10 +27,6 @@ public class Document extends JavaScriptObject
 
    public native final String getLine(int row) /*-{
       return this.getLine(row);
-   }-*/;
-   
-   public native final JsArrayString getLines() /*-{
-      return this.$lines;
    }-*/;
 
    public native final int getLength() /*-{

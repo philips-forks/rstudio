@@ -89,10 +89,5 @@ mlstring <- "first
 second
 third"
 
-# 14: roxygen comments could confuse the multiline
-# expression system; e.g.
-#' [name](link)
-statement <- 1 + 1
-
 # cursor should end here after executing all lines
 EOF

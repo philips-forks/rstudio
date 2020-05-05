@@ -1,7 +1,7 @@
 /*
  * TextBoxWithButton.java
  *
- * Copyright (C) 2009-20 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -20,77 +20,40 @@ import com.google.gwt.event.logical.shared.HasValueChangeHandlers;
 import com.google.gwt.event.logical.shared.ValueChangeEvent;
 import com.google.gwt.event.logical.shared.ValueChangeHandler;
 import com.google.gwt.event.shared.HandlerRegistration;
+import com.google.gwt.user.client.ui.*;
 
-import com.google.gwt.user.client.ui.Composite;
-import com.google.gwt.user.client.ui.FlowPanel;
-import com.google.gwt.user.client.ui.HorizontalPanel;
-import com.google.gwt.user.client.ui.TextBox;
-import org.rstudio.core.client.ElementIds;
-import org.rstudio.core.client.StringUtil;
 import org.rstudio.core.client.theme.res.ThemeResources;
 
 public class TextBoxWithButton extends Composite
                                implements HasValueChangeHandlers<String>,
                                           CanFocus
 {
-   /**
-    * @param label label text
-    * @param emptyLabel placeholder text
-    * @param action button text
-    * @param helpButton optional HelpButton
-    * @param uniqueId unique elementId for this instance
-    * @param readOnly textbox editability
-    * @param handler button click callback
-    */
-   public TextBoxWithButton(String label,
-                            String emptyLabel,
-                            String action,
+   public TextBoxWithButton(String label, String action, ClickHandler handler)
+   {
+      this(label, "", action, handler);
+   }
+   
+   public TextBoxWithButton(String label, 
+                            String emptyLabel, 
+                            String action, 
+                            ClickHandler handler)
+   {
+      this(label, emptyLabel, action, null, handler);
+   }
+   
+   public TextBoxWithButton(String label, 
+                            String emptyLabel, 
+                            String action, 
                             HelpButton helpButton,
-                            ElementIds.TextBoxButtonId uniqueId,
-                            boolean readOnly,
                             ClickHandler handler)
    {
-      this(label, null, emptyLabel, action, helpButton, uniqueId, readOnly, handler);
-   }
-
-   /**
-    * @param existingLabel label control to associate with textbox
-    * @param emptyLabel placeholder text
-    * @param action button text
-    * @param uniqueId unique elementId for this instance
-    * @param readOnly textbox editability
-    * @param handler button click callback
-    */
-   public TextBoxWithButton(FormLabel existingLabel,
-                            String emptyLabel,
-                            String action,
-                            ElementIds.TextBoxButtonId uniqueId,
-                            boolean readOnly,
-                            ClickHandler handler)
-   {
-      this(null, existingLabel, emptyLabel, action, null, uniqueId, readOnly, handler);
-   }
-
-   protected TextBoxWithButton(String label,
-                               FormLabel existingLabel,
-                               String emptyLabel,
-                               String action,
-                               HelpButton helpButton,
-                               ElementIds.TextBoxButtonId uniqueId,
-                               boolean readOnly,
-                               ClickHandler handler)
-   {
-      emptyLabel_ = StringUtil.isNullOrEmpty(emptyLabel) ? "" : emptyLabel;
-      uniqueId_ = "_" + uniqueId;
+      emptyLabel_ = emptyLabel;
       
       textBox_ = new TextBox();
       textBox_.setWidth("100%");
-      textBox_.setReadOnly(readOnly);
+      textBox_.setReadOnly(true);
 
       themedButton_ = new ThemedButton(action, handler);
-
-      // prevent button from triggering "submit" when hosted in a form, such as in FileUploadDialog
-      themedButton_.getElement().setAttribute("type", "button");
 
       inner_ = new HorizontalPanel();
       inner_.add(textBox_);
@@ -101,45 +64,37 @@ public class TextBoxWithButton extends Composite
       FlowPanel outer = new FlowPanel();
       if (label != null)
       {
-         assert existingLabel == null : "Invalid usage, cannot provide both label and existingLabel";
-
-         lblCaption_ = new FormLabel(label, true);
+         Label lblCaption = new Label(label, true);
          if (helpButton != null)
          {
-            helpButton_ = helpButton;
             HorizontalPanel panel = new HorizontalPanel();
-            panel.add(lblCaption_);
+            panel.add(lblCaption);
             helpButton.getElement().getStyle().setMarginLeft(5, Unit.PX);
             panel.add(helpButton);
             outer.add(panel);
          }
          else
          {
-            outer.add(lblCaption_);
+            outer.add(lblCaption);
          }
       }
-      else
-      {
-         lblCaption_ = existingLabel;
-      }
-
       outer.add(inner_);
       initWidget(outer);
 
       addStyleName(ThemeResources.INSTANCE.themeStyles().textBoxWithButton());
    }
-
+   
    public HandlerRegistration addClickHandler(ClickHandler handler)
    {
       return themedButton_.addClickHandler(handler);
    }
-
+   
    public HandlerRegistration addValueChangeHandler(
                                     ValueChangeHandler<String> handler)
    {
       return addHandler(handler, ValueChangeEvent.getType());
    }
-
+   
    public void focusButton()
    {
       themedButton_.setFocus(true);
@@ -151,18 +106,18 @@ public class TextBoxWithButton extends Composite
    {
       useDefaultValue_ = useDefaultValue;
    }
-
+   
    public void setText(String text)
    {
       text_ = text;
-
-      if (text_ == useDefaultValue_)
+      
+      if (text_.equals(useDefaultValue_))
          textBox_.setText("[Use Default] " + text);
       else if (text.length() > 0)
          textBox_.setText(text);
       else
          textBox_.setText(emptyLabel_);
-
+      
       ValueChangeEvent.fire(this, getText());
    }
 
@@ -170,7 +125,7 @@ public class TextBoxWithButton extends Composite
    {
       return text_;
    }
-
+   
    public void setTextWidth(String width)
    {
       inner_.setCellWidth(textBox_, width);
@@ -180,7 +135,7 @@ public class TextBoxWithButton extends Composite
    {
       textBox_.setReadOnly(readOnly);
    }
-
+   
    public void click()
    {
       themedButton_.click();
@@ -196,47 +151,28 @@ public class TextBoxWithButton extends Composite
       textBox_.setEnabled(enabled);
       themedButton_.setEnabled(enabled);
    }
-
-   public TextBox getTextBox()
+   
+   protected TextBox getTextBox()
    {
       return textBox_;
    }
-
+   
    protected ThemedButton getButton()
    {
       return themedButton_;
    }
-
+   
    @Override
    public void focus()
    {
       textBox_.setFocus(true);
    }
 
-   @Override
-   protected void onAttach()
-   {
-      super.onAttach();
-
-      // Some UI scenarios create multiple TextBoxWithButtons before adding them to the
-      // DOM; defer assigning IDs until added to DOM in order to detect and
-      // prevent duplicates.
-      ElementIds.assignElementId(textBox_, ElementIds.TBB_TEXT + uniqueId_);
-      ElementIds.assignElementId(themedButton_, ElementIds.TBB_BUTTON + uniqueId_);
-      if (helpButton_ != null)
-         ElementIds.assignElementId(helpButton_, ElementIds.TBB_HELP + uniqueId_);
-      if (lblCaption_ != null)
-         lblCaption_.setFor(textBox_);
-   }
-
-
-   private final HorizontalPanel inner_;
-   private FormLabel lblCaption_;
-   private final TextBox textBox_;
-   private HelpButton helpButton_;
-   private final ThemedButton themedButton_;
-   private final String emptyLabel_;
+   private HorizontalPanel inner_;
+   private TextBox textBox_;
+   private ThemedButton themedButton_;
+   private String emptyLabel_;
    private String useDefaultValue_;
    private String text_ = "";
-   private String uniqueId_;
+  
 }

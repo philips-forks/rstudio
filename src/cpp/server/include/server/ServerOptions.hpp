@@ -1,7 +1,7 @@
 /*
  * ServerOptions.hpp
  *
- * Copyright (C) 2009-17 by RStudio, PBC
+ * Copyright (C) 2009-16 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -20,13 +20,13 @@
 #include <map>
 #include <iosfwd>
 
-#include <boost/regex.hpp>
 #include <boost/utility.hpp>
 
-#include <shared_core/FilePath.hpp>
+#include <core/FilePath.hpp>
 #include <core/ProgramOptions.hpp>
-#include <shared_core/SafeConvert.hpp>
-#include <core/system/Types.hpp>
+#include <core/SafeConvert.hpp>
+
+
 
 namespace rstudio {
 namespace core {
@@ -39,11 +39,8 @@ namespace server {
 
 // singleton
 class Options ;
-Options& options();
-
-// add overlay-specific args and/or environment variables
-void sessionProcessConfigOverlay(core::system::Options* pArgs, core::system::Options* pEnvironment);
-
+Options& options();   
+   
 class Options : boost::noncopyable
 {
 private:
@@ -79,19 +76,9 @@ public:
    
    bool serverDaemonize() const { return serverDaemonize_; }
 
-   std::string serverPidFile() const { return serverPidFile_; }
+   bool serverAppArmorEnabled() const { return serverAppArmorEnabled_; }
 
    bool serverSetUmask() const { return serverSetUmask_; }
-
-   core::FilePath serverDataDir() const
-   {
-      return core::FilePath(serverDataDir_);
-   }
-
-   const std::vector<std::string>& serverAddHeaders() const
-   {
-      return serverAddHeaders_;
-   }
 
    // www 
    std::string wwwAddress() const
@@ -149,31 +136,6 @@ public:
       return wwwVerifyUserAgent_;
    }
 
-   bool wwwEnableOriginCheck() const
-   {
-      return wwwEnableOriginCheck_;
-   }
-
-   std::vector<boost::regex> wwwAllowedOrigins()
-   {
-      return wwwAllowedOrigins_;
-   }
-
-   bool wwwIFrameEmbedding() const
-   {
-      return wwwIFrameEmbedding_;
-   }
-
-   bool wwwLegacyCookies() const
-   {
-      return wwwLegacyCookies_;
-   }
-
-   bool wwwIFrameLegacyCookies() const
-   {
-      return wwwIFrameEmbedding_ && wwwLegacyCookies_;
-   }
-
    // auth
    bool authNone()
    {
@@ -188,11 +150,6 @@ public:
    int authStaySignedInDays()
    {
       return authStaySignedInDays_;
-   }
-
-   int authTimeoutMinutes()
-   {
-      return authTimeoutMinutes_;
    }
 
    bool authEncryptPassword()
@@ -215,29 +172,9 @@ public:
       return authMinimumUserId_;
    }
 
-   int authSignInThrottleSeconds()
-   {
-      return authSignInThrottleSeconds_;
-   }
-
    std::string authPamHelperPath() const
    {
       return std::string(authPamHelperPath_.c_str());
-   }
-
-   core::FilePath authRevocationListDir() const
-   {
-      return core::FilePath(authRevocationListDir_);
-   }
-   
-   bool authPamRequirePasswordPrompt() const
-   {
-      return authPamRequirePasswordPrompt_;
-   }
-
-   bool authCookiesForceSecure() const
-   {
-      return authCookiesForceSecure_;
    }
 
    // rsession
@@ -266,15 +203,21 @@ public:
       return std::string(rsessionConfigFile_.c_str()); 
    }
 
-   int rsessionProxyMaxWaitSeconds()
-   {
-      return rsessionProxyMaxWaitSeconds_;
-   }
-
    std::string monitorSharedSecret() const
    {
       return std::string(monitorSharedSecret_.c_str());
    }
+  
+   /******************Modified code by Philips DSP*********************************************************/ 
+   bool authSignEnabled()
+   {
+      return authSignEnabled_;
+   }
+   std::string authSignPublicKeyCert() const
+   {
+      return std::string(authSignPublicKeyCert_.c_str());
+   }
+   /***************************************************************************/ 
 
    int monitorIntervalSeconds() const
    {
@@ -282,21 +225,10 @@ public:
    }
 
    std::string gwtPrefix() const;
-
-   core::FilePath secureCookieKeyFile() const
-   {
-      return core::FilePath(secureCookieKeyFile_);
-   }
    
    std::string getOverlayOption(const std::string& name)
    {
       return overlayOptions_[name];
-   }
-
-   // database
-   std::string databaseConfigFile() const
-   {
-      return databaseConfigFile_;
    }
 
 private:
@@ -304,8 +236,7 @@ private:
    void resolvePath(const core::FilePath& basePath,
                     std::string* pPath) const;
 
-   void addOverlayOptions(boost::program_options::options_description* pVerify,
-                          boost::program_options::options_description* pServer,
+   void addOverlayOptions(boost::program_options::options_description* pServer,
                           boost::program_options::options_description* pWWW,
                           boost::program_options::options_description* pRSession,
                           boost::program_options::options_description* pAuth,
@@ -337,12 +268,9 @@ private:
    std::string serverWorkingDir_;
    std::string serverUser_;
    bool serverDaemonize_;
-   std::string serverPidFile_;
    bool serverAppArmorEnabled_;
    bool serverSetUmask_;
    bool serverOffline_;
-   std::string serverDataDir_;
-   std::vector<std::string> serverAddHeaders_;
    std::string wwwAddress_ ;
    std::string wwwPort_ ;
    std::string wwwLocalPath_ ;
@@ -352,33 +280,24 @@ private:
    int wwwThreadPoolSize_;
    bool wwwProxyLocalhost_;
    bool wwwVerifyUserAgent_;
-   bool wwwEnableOriginCheck_;
-   std::vector<boost::regex> wwwAllowedOrigins_;
-   bool wwwIFrameEmbedding_;
-   bool wwwLegacyCookies_;
    bool authNone_;
    bool authValidateUsers_;
    int authStaySignedInDays_;
-   int authTimeoutMinutes_;
    bool authEncryptPassword_;
    std::string authLoginPageHtml_;
    std::string authRequiredUserGroup_;
    unsigned int authMinimumUserId_;
    std::string authPamHelperPath_;
-   bool authPamRequirePasswordPrompt_;
-   int authSignInThrottleSeconds_;
-   std::string authRevocationListDir_;
-   bool authCookiesForceSecure_;
    std::string rsessionWhichR_;
    std::string rsessionPath_;
    std::string rldpathPath_;
    std::string rsessionConfigFile_;
    std::string rsessionLdLibraryPath_;
-   int rsessionProxyMaxWaitSeconds_;
    std::string monitorSharedSecret_;
+   //Added as part of rstudio customization
+   bool authSignEnabled_;
+   std::string authSignPublicKeyCert_; //added this variable as part of DSP customization
    int monitorIntervalSeconds_;
-   std::string secureCookieKeyFile_;
-   std::string databaseConfigFile_;
    std::map<std::string,std::string> overlayOptions_;
 };
       

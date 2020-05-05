@@ -1,7 +1,7 @@
 /*
  * DocUpdateSentinel.java
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -33,18 +33,15 @@ import org.rstudio.core.client.js.JsObject;
 import org.rstudio.core.client.patch.SubstringDiff;
 import org.rstudio.core.client.widget.Operation;
 import org.rstudio.core.client.widget.ProgressIndicator;
-import org.rstudio.studio.client.application.Desktop;
 import org.rstudio.studio.client.application.events.EventBus;
 import org.rstudio.studio.client.common.SimpleRequestCallback;
 import org.rstudio.studio.client.common.ValueChangeHandlerManager;
 import org.rstudio.studio.client.server.ServerError;
-import org.rstudio.studio.client.server.ServerErrorCause;
 import org.rstudio.studio.client.server.ServerRequestCallback;
 import org.rstudio.studio.client.server.Void;
 import org.rstudio.studio.client.workbench.events.LastChanceSaveEvent;
 import org.rstudio.studio.client.workbench.events.LastChanceSaveHandler;
 import org.rstudio.studio.client.workbench.model.ChangeTracker;
-import org.rstudio.studio.client.workbench.prefs.model.UserPrefs;
 import org.rstudio.studio.client.workbench.views.source.editors.text.DocDisplay;
 import org.rstudio.studio.client.workbench.views.source.editors.text.Fold;
 import org.rstudio.studio.client.workbench.views.source.editors.text.ace.VimMarks;
@@ -68,10 +65,9 @@ public class DocUpdateSentinel
       {
       }
       
-      public ReopenFileCallback(Command onCompleted, boolean ignoreDeletes)
+      public ReopenFileCallback(Command onCompleted)
       {
          onCompleted_ = onCompleted;
-         ignoreDeletes_ = ignoreDeletes;
       }
       
       @Override
@@ -94,16 +90,7 @@ public class DocUpdateSentinel
       {
          if (progress_ != null)
          {
-            if (ignoreDeletes_)
-            {
-               ServerErrorCause cause = error.getCause();
-               if (cause.getCode() != ServerErrorCause.FILE_NOT_FOUND)
-                  progress_.onError(error.getUserMessage());
-            }
-            else
-            {
-               progress_.onError(error.getUserMessage());
-            }
+            progress_.onError(error.getUserMessage());
          }
          
          if (onCompleted_ != null)
@@ -111,7 +98,6 @@ public class DocUpdateSentinel
       }
       
       private Command onCompleted_ = null;
-      private boolean ignoreDeletes_ = false;
    }
 
    public DocUpdateSentinel(SourceServerOperations server,
@@ -119,8 +105,7 @@ public class DocUpdateSentinel
                             SourceDocument sourceDoc,
                             ProgressIndicator progress,
                             DirtyState dirtyState,
-                            EventBus events,
-                            UserPrefs prefs)
+                            EventBus events)
    {
       server_ = server;
       docDisplay_ = docDisplay;
@@ -128,105 +113,81 @@ public class DocUpdateSentinel
       progress_ = progress;
       dirtyState_ = dirtyState;
       eventBus_ = events;
-      prefs_ = prefs;
       changeTracker_ = docDisplay.getChangeTracker();
       propertyChangeHandlers_ = 
             new HashMap<String, ValueChangeHandlerManager<String>>();
 
-      prefs_.autoSaveOnIdle().bind((String behavior) ->
+      autosaver_ = new DebouncedCommand(1000)
       {
-         if (behavior == UserPrefs.AUTO_SAVE_ON_IDLE_BACKUP)
+         @Override
+         protected void execute()
          {
-            // Set up the debounced auto-save method when the preference is
-            // enabled
-            createAutosaver();
+            maybeAutoSave();
          }
-         else if (autosaver_ != null)
-         {
-            // Turn off unsaved change tracking
-            autosaver_.suspend();
-            autosaver_ = null;
-         }
-      });
-      prefs_.autoSaveIdleMs().bind((Integer ms) -> 
-      {
-         // If we have an auto-saver, re-create it with the new idle timeout
-         if (autosaver_ != null)
-         {
-            autosaver_.suspend();
-            autosaver_ = null;
-            createAutosaver();
-         }
-      });
+      };
 
       docDisplay_.addValueChangeHandler(this);
       docDisplay_.addFoldChangeHandler(this);
 
       // Web only
-      if (!Desktop.isDesktop())
+      closeHandlerReg_ = Window.addWindowClosingHandler(new ClosingHandler()
       {
-         closeHandlerReg_ = Window.addWindowClosingHandler(new ClosingHandler()
+         public void onWindowClosing(ClosingEvent event)
          {
-            public void onWindowClosing(ClosingEvent event)
-            {
-               if (changesPending_)
-                  event.setMessage("Some of your source edits are still being " +
-                        "backed up. If you continue, your latest " +
-                        "changes may be lost. Do you want to continue?");
-            }
-         });
-      }
+            if (changesPending_)
+               event.setMessage("Some of your source edits are still being " +
+                                "backed up. If you continue, your latest " +
+                                "changes may be lost. Do you want to continue?");
+         }
+      });
 
       // Desktop only
-      if (Desktop.isDesktop())
-      {
-         lastChanceSaveHandlerReg_ = events.addHandler(
-               LastChanceSaveEvent.TYPE,
-               new LastChanceSaveHandler() {
-                  public void onLastChanceSave(LastChanceSaveEvent event)
+      lastChanceSaveHandlerReg_ = events.addHandler(
+            LastChanceSaveEvent.TYPE,
+            new LastChanceSaveHandler() {
+               public void onLastChanceSave(LastChanceSaveEvent event)
+               {
+                  // We're quitting. Save one last time.
+                  final Token token = event.acquire();
+                  boolean saving = doSave(null, null, null,
+                                          new ProgressIndicator()
                   {
-                     // We're quitting. Save one last time.
-                     final Token token = event.acquire();
-                     boolean saving = doSave(null, null, null,
-                           new ProgressIndicator()
+                     public void onProgress(String message)
                      {
-                        public void onProgress(String message)
-                        {
-                        }
-
-                        public void onProgress(String message, Operation onCancel)
-                        {
-                        }
-
-                        public void clearProgress()
-                        {
-                           // alternate way to signal completion. safe to quit
-                           token.release();
-                        }
-
-                        public void onCompleted()
-                        {
-                           // We saved successfully. We're safe to quit now.
-                           token.release();
-                        }
-
-                        public void onError(String message)
-                        {
-                           // The save didn't succeed. Oh well. Nothing we can
-                           // do but quit.
-                           token.release();
-                        }
-                     });
-
-                     if (!saving)
+                     }
+                     
+                     public void onProgress(String message, Operation onCancel)
                      {
-                        // No save was performed (not needed). We're safe to quit
-                        // now, no need to wait for server requests to complete.
+                     }
+                     
+                     public void clearProgress()
+                     {
+                        // alternate way to signal completion. safe to quit
                         token.release();
                      }
+
+                     public void onCompleted()
+                     {
+                        // We saved successfully. We're safe to quit now.
+                        token.release();
+                     }
+
+                     public void onError(String message)
+                     {
+                        // The save didn't succeed. Oh well. Nothing we can
+                        // do but quit.
+                        token.release();
+                     }
+                  });
+
+                  if (!saving)
+                  {
+                     // No save was performed (not needed). We're safe to quit
+                     // now, no need to wait for server requests to complete.
+                     token.release();
                   }
-               });
-      }
+               }
+            });
    }
 
    public void withSavedDoc(final Command onSaved)
@@ -303,8 +264,7 @@ public class DocUpdateSentinel
                                           String encoding,
                                           final ProgressIndicator progress)
    {
-      if (autosaver_ != null)
-         autosaver_.suspend();
+      autosaver_.suspend();
       doSave(path, fileType, encoding, new ProgressIndicator()
       {
          public void onProgress(String message)
@@ -320,24 +280,21 @@ public class DocUpdateSentinel
          
          public void clearProgress()
          {
-            if (autosaver_ != null)
-               autosaver_.resume();
+            autosaver_.resume();
             if (progress != null)
                progress.clearProgress();
          }
 
          public void onCompleted()
          {
-            if (autosaver_!= null)
-               autosaver_.resume();
+            autosaver_.resume();
             if (progress != null)
                progress.onCompleted();
          }
 
          public void onError(String message)
          {
-            if (autosaver_ != null)
-               autosaver_.resume();
+            autosaver_.resume();
             if (progress != null)
                progress.onError(message);
          }
@@ -382,7 +339,7 @@ public class DocUpdateSentinel
                   oldMarksSpec = getProperty("marks");
 
                String newMarksSpec = VimMarks.encode(docDisplay_.getMarks());
-               if (oldMarksSpec != newMarksSpec)
+               if (!oldMarksSpec.equals(newMarksSpec))
                   setProperty("marks", newMarksSpec);
             }
          }
@@ -413,12 +370,13 @@ public class DocUpdateSentinel
       JsArray<ChunkDefinition> oldChunkDefs = 
             sourceDoc_.getNotebookDoc().getChunkDefs();
       
+      //String patch = DiffMatchPatch.diff(oldContents, newContents);
       SubstringDiff diff = new SubstringDiff(oldContents, newContents);
 
       // Don't auto-save when there are no changes. In addition to being
       // wasteful, it causes the server to think the document is dirty.
-      if (path == null && fileType == null && diff.isValid() && diff.isEmpty()
-          && foldSpec == oldFoldSpec 
+      if (path == null && fileType == null && diff.isEmpty()
+          && foldSpec.equals(oldFoldSpec) 
           && (newChunkDefs == null || 
               ChunkDefinition.equalTo(newChunkDefs, oldChunkDefs)))
       {
@@ -428,7 +386,7 @@ public class DocUpdateSentinel
 
       if (path == null && fileType == null
           && oldContents.length() == 0
-          && newContents == "\n")
+          && newContents.equals("\n"))
       {
          // This is necessary due to us adding an extra \n to empty
          // documents, which we have to do or else CodeMirror starts
@@ -463,7 +421,6 @@ public class DocUpdateSentinel
             diff.getReplacement(),
             diff.getOffset(),
             diff.getLength(),
-            diff.isValid(),
             hash,
             new ServerRequestCallback<String>()
             {
@@ -526,7 +483,7 @@ public class DocUpdateSentinel
                      docDisplay_.fireEvent(saveEvent);
                      eventBus_.fireEvent(saveEvent);
                   }
-                  else if (hash != sourceDoc_.getHash())
+                  else if (!hash.equals(sourceDoc_.getHash()))
                   {
                      // We just hit a race condition where two updates
                      // happened at once. Try again
@@ -722,24 +679,17 @@ public class DocUpdateSentinel
       }
    }
    
-   public void suspendAutosave(boolean value)
-   {
-      suspendAutosave_ = value;
-   }
-   
    public void onValueChange(ValueChangeEvent<Void> voidValueChangeEvent)
    {
       changesPending_ = true;
-      if (autosaver_ != null && !suspendAutosave_)
-         autosaver_.nudge();
+      autosaver_.nudge();
    }
 
    @Override
    public void onFoldChange(FoldChangeEvent event)
    {
       changesPending_ = true;
-      if (autosaver_ != null && !suspendAutosave_)
-         autosaver_.nudge();
+      autosaver_.nudge();
    }
    
    public String getPath()
@@ -759,33 +709,22 @@ public class DocUpdateSentinel
 
    public void stop()
    {
-      if (autosaver_ != null)
-         autosaver_.suspend();
-      
-      if (closeHandlerReg_ != null)
-      {
-         closeHandlerReg_.removeHandler();
-         closeHandlerReg_ = null;
-      }
-      
-      if (lastChanceSaveHandlerReg_ != null)
-      {
-         lastChanceSaveHandlerReg_.removeHandler();
-         lastChanceSaveHandlerReg_ = null;
-      }
+      autosaver_.suspend();
+      closeHandlerReg_.removeHandler();
+      lastChanceSaveHandlerReg_.removeHandler();
    }
 
    public void revert()
    {
-      revert(null, false);
+      revert(null);
    }
    
-   public void revert(Command onCompleted, boolean ignoreDeletes)
+   public void revert(Command onCompleted)
    {
       server_.revertDocument(
             sourceDoc_.getId(),
             sourceDoc_.getType(),
-            new ReopenFileCallback(onCompleted, ignoreDeletes));
+            new ReopenFileCallback(onCompleted));
    }
 
    public void reopenWithEncoding(String encoding)
@@ -823,22 +762,6 @@ public class DocUpdateSentinel
       return sourceDoc_.getId();
    }
    
-   private void createAutosaver()
-   {
-      if (autosaver_ == null)
-      {
-         autosaver_ = new DebouncedCommand(prefs_.autoSaveMs())
-         {
-            @Override
-            protected void execute()
-            {
-               maybeAutoSave();
-            }
-         };
-      }
-   }
-   
-   private boolean suspendAutosave_ = false;
    private boolean changesPending_ = false;
    private final ChangeTracker changeTracker_;
    private final SourceServerOperations server_;
@@ -847,9 +770,8 @@ public class DocUpdateSentinel
    private final ProgressIndicator progress_;
    private final DirtyState dirtyState_;
    private final EventBus eventBus_;
-   private DebouncedCommand autosaver_;
-   private final UserPrefs prefs_;
-   private HandlerRegistration closeHandlerReg_;
+   private final DebouncedCommand autosaver_;
+   private final HandlerRegistration closeHandlerReg_;
    private HandlerRegistration lastChanceSaveHandlerReg_;
    private final HashMap<String, ValueChangeHandlerManager<String>> 
                  propertyChangeHandlers_;

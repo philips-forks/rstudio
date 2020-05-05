@@ -1,7 +1,7 @@
 /*
  * CompileOutputPane.java
  *
- * Copyright (C) 2009-20 by RStudio, PBC
+ * Copyright (C) 2009-14 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -58,14 +58,16 @@ public class CompileOutputPane extends WorkbenchPane
    @Override
    protected Toolbar createMainToolbar()
    {
-      Toolbar toolbar = new Toolbar(getTitle() + " Tab");
+      Toolbar toolbar = new Toolbar();
       
       fileLabel_ = new ToolbarFileLabel(toolbar, 200);
       
       ImageResource showLogImage = new ImageResource2x(StandardIcons.INSTANCE.show_log2x());
       if (hasLogs_)
       {
-         showLogButton_ = new ToolbarButton("View Log", ToolbarButton.NoTitle, showLogImage);
+         showLogButton_ = new ToolbarButton("View Log", 
+                                            showLogImage, 
+                                            (ClickHandler) null);
          showLogButton_.getElement().getStyle().setMarginBottom(3, Unit.PX);
          showLogButton_.setTitle(logTitle_);
          showLogSeparator_ = toolbar.addLeftSeparator();
@@ -114,7 +116,7 @@ public class CompileOutputPane extends WorkbenchPane
    @Override
    public void showErrors(JsArray<SourceMarker> errors)
    {
-      compilePanel_.showErrors(null, errors, SourceMarkerList.AUTO_SELECT_FIRST, true);
+      compilePanel_.showErrors(null, errors, SourceMarkerList.AUTO_SELECT_FIRST);
       
       if (SourceMarker.showErrorList(errors))
          ensureVisible(true);

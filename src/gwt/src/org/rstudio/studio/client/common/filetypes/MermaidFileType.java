@@ -1,7 +1,7 @@
 /*
  * MermaidFileType.java
  *
- * Copyright (C) 2009-12 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -23,7 +23,6 @@ public class MermaidFileType extends PreviewableFromRFileType
    public MermaidFileType()
    {
       super("mermaid", "Mermaid", EditorLanguage.LANG_MERMAID, ".mmd",
-            new ImageResource2x(FileIconResources.INSTANCE.iconMermaid2x()), "DiagrammeR::mermaid",
-            false);
+            new ImageResource2x(FileIconResources.INSTANCE.iconMermaid2x()), "DiagrammeR::mermaid");
    }
 }

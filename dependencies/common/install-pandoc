@@ -3,7 +3,7 @@
 #
 # install-pandoc
 #
-# Copyright (C) 2009-20 by RStudio, PBC
+# Copyright (C) 2009-12 by RStudio, Inc.
 #
 # Unless you have received this program directly from RStudio pursuant
 # to the terms of a commercial license agreement with RStudio, then
@@ -20,15 +20,10 @@ set -e
 source rstudio-tools
 
 # variables that control download + installation process
-PANDOC_VERSION="2.9.2.1"
+PANDOC_VERSION="1.19.2.1"
+PANDOC_CITEPROC_VERSION="0.10.4"
 PANDOC_SUBDIR="pandoc/${PANDOC_VERSION}"
 PANDOC_URL_BASE="https://s3.amazonaws.com/rstudio-buildtools/pandoc/${PANDOC_VERSION}"
-
-# see if we already have binaries
-if [ -d "${PANDOC_SUBDIR}" ]; then
-    echo "Pandoc ${PANDOC_VERSION} already installed"
-    exit 0
-fi
 
 # enter pandoc subdirectory
 mkdir -p "${PANDOC_SUBDIR}"
@@ -41,14 +36,16 @@ case "${PLATFORM}" in
 "Darwin-64")
   SUBDIR="macos"
   FILES=(
-    "pandoc-${PANDOC_VERSION}-macOS.zip"
+    "pandoc-${PANDOC_VERSION}.zip"
+    "pandoc-citeproc-${PANDOC_CITEPROC_VERSION}.zip"
   )
   ;;
 
 "Linux-64")
-  SUBDIR="linux"
+  SUBDIR="linux-64"
   FILES=(
-    "pandoc-${PANDOC_VERSION}-linux-amd64.tar.gz"
+    "pandoc.gz"
+    "pandoc-citeproc.gz"
   )
   ;;
 
@@ -59,25 +56,23 @@ case "${PLATFORM}" in
 
 esac
 
+# enter sub-directory
+mkdir -p "${SUBDIR}"
+pushd "${SUBDIR}"
+
 # download and extract files
 for FILE in "${FILES[@]}"; do
-  echo "Downloading ${FILE} from ${PANDOC_URL_BASE}/${FILE}"
-  download "${PANDOC_URL_BASE}/${FILE}" "${FILE}"
+  download "${PANDOC_URL_BASE}/${SUBDIR}/${FILE}" "${FILE}"
   extract "${FILE}"
   rm -f "${FILE}"
 done
 
-# enter binaries dir
-pushd "pandoc-${PANDOC_VERSION}/bin"
-
 # copy pandoc binaries to parent folder
-cp pandoc* ../..
-
-# leave binaries dir
+cp pandoc* ..
 popd
 
 # remove transient download folder
-rm -rf "pandoc-${PANDOC_VERSION}"
+rm -rf "${SUBDIR}"
 
 # make pandoc executable
 chmod 755 pandoc*

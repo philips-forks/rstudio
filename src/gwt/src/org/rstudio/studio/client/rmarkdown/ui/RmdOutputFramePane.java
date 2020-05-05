@@ -1,7 +1,7 @@
 /*
  * RmdOutputFramePane.java
  *
- * Copyright (C) 2009-14 by RStudio, PBC
+ * Copyright (C) 2009-14 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -15,16 +15,16 @@
 package org.rstudio.studio.client.rmarkdown.ui;
 
 import org.rstudio.core.client.ScrollUtil;
-import org.rstudio.core.client.dom.DomUtils;
+import org.rstudio.core.client.StringUtil;
 import org.rstudio.core.client.dom.WindowEx;
 import org.rstudio.core.client.widget.Operation;
 import org.rstudio.core.client.widget.RStudioFrame;
 import org.rstudio.studio.client.application.events.EventBus;
+import org.rstudio.studio.client.rmarkdown.RmdOutput;
 import org.rstudio.studio.client.rmarkdown.model.RMarkdownServerOperations;
 import org.rstudio.studio.client.rmarkdown.model.RmdPreviewParams;
 import org.rstudio.studio.client.server.VoidServerRequestCallback;
 import org.rstudio.studio.client.shiny.ShinyFrameHelper;
-import org.rstudio.studio.client.workbench.prefs.model.UserPrefs;
 import org.rstudio.studio.client.workbench.views.viewer.events.ViewerClearedEvent;
 import org.rstudio.studio.client.workbench.views.viewer.events.ViewerNavigatedEvent;
 import org.rstudio.studio.client.workbench.views.viewer.events.ViewerPreviewRmdEvent;
@@ -74,13 +74,13 @@ public class RmdOutputFramePane extends RmdOutputFrameBase
    {
       final RmdPreviewParams params = getPreviewParams();
       if (params != null &&
-          params.getOutputUrl() == event.getURL())
+          params.getOutputUrl().equals(event.getURL()))
       {
          frame_ = event.getFrame();
          if (params.isShinyDocument())
          {
             shinyFrame_.initialize(
-               DomUtils.makeAbsoluteUrl(params.getOutputUrl()),
+               StringUtil.makeAbsoluteUrl(params.getOutputUrl()),
                new Operation() {
                   @Override
                   public void execute()
@@ -115,9 +115,9 @@ public class RmdOutputFramePane extends RmdOutputFrameBase
    }
 
    @Override
-   public String getViewerType()
+   public int getViewerType()
    {
-      return UserPrefs.RMD_VIEWER_TYPE_PANE;
+      return RmdOutput.RMD_VIEWER_TYPE_PANE;
    }
    
    @Override
@@ -129,19 +129,11 @@ public class RmdOutputFramePane extends RmdOutputFrameBase
       }
       else
       {
-         int position = 0;
-         try
-         {
-            position = frame_.getIFrame().getContentWindow().getScrollTop();
-         }
-         catch(Exception ex)
-         {
-            // can happen if there's no document at this point, or the browser
-            // thinks we're a different origin; handle this by returning a safe
-            // default below
-         }
-
-         return position;
+         if (frame_ == null ||
+             frame_.getIFrame() == null ||
+             frame_.getIFrame().getContentWindow() == null)
+            return 0;
+         return frame_.getIFrame().getContentWindow().getScrollTop();
       }
    }
    
@@ -155,16 +147,11 @@ public class RmdOutputFramePane extends RmdOutputFrameBase
       }
       else
       {
-         try
-         {
-            url = frame_.getIFrame().getContentDocument().getURL();
-         }
-         catch(Exception x)
-         {
-            // can happen if there's no document at this point, or the browser
-            // thinks we're a different origin; handle this by returning a safe
-            // default below
-         }
+         if (frame_ == null ||
+             frame_.getIFrame() == null ||
+             frame_.getIFrame().getContentDocument() == null)
+            return "";
+         url = frame_.getIFrame().getContentDocument().getURL();
       }
       if (url == null)
          return "";

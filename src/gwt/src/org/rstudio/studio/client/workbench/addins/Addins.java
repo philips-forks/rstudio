@@ -4,7 +4,6 @@ import com.google.gwt.core.client.JavaScriptObject;
 import com.google.gwt.user.client.Command;
 import com.google.inject.Inject;
 
-import org.rstudio.core.client.BrowseCap;
 import org.rstudio.core.client.Debug;
 import org.rstudio.core.client.StringUtil;
 import org.rstudio.core.client.js.JsMap;
@@ -14,8 +13,6 @@ import org.rstudio.studio.client.application.events.EventBus;
 import org.rstudio.studio.client.common.GlobalDisplay;
 import org.rstudio.studio.client.common.SimpleRequestCallback;
 import org.rstudio.studio.client.common.dependencies.DependencyManager;
-import org.rstudio.studio.client.server.ServerError;
-import org.rstudio.studio.client.server.ServerRequestCallback;
 import org.rstudio.studio.client.server.Void;
 import org.rstudio.studio.client.workbench.WorkbenchContext;
 import org.rstudio.studio.client.workbench.views.console.events.SendToConsoleEvent;
@@ -32,8 +29,7 @@ public class Addins
                                                String title,
                                                String description,
                                                boolean interactive,
-                                               String binding,
-                                               int ordinal)
+                                               String binding)
       /*-{
          return {
             "name": name,
@@ -41,8 +37,7 @@ public class Addins
             "title": title,
             "description": description,
             "interactive": interactive,
-            "binding": binding,
-            "ordinal": ordinal
+            "binding": binding
          };
       }-*/;
       
@@ -52,7 +47,6 @@ public class Addins
       public final native String getDescription() /*-{ return this["description"]; }-*/;
       public final native boolean isInteractive() /*-{ return this["interactive"]; }-*/;
       public final native String getBinding() /*-{ return this["binding"]; }-*/;
-      public final native int getOrdinal() /*-{ return this["ordinal"] || 0; }-*/;
       
       public final String getId()
       {
@@ -68,8 +62,7 @@ public class Addins
                addin.getTitle(),
                addin.getDescription(),
                addin.isInteractive() ? "true" : "false",
-               addin.getBinding(),
-               "" + addin.getOrdinal());
+               addin.getBinding());
       }
       
       public final static RAddin decode(String decoded)
@@ -87,8 +80,7 @@ public class Addins
                splat[2],
                splat[3],
                splat[4] == "false" ? false : true,
-               splat[5],
-               StringUtil.parseInt(splat[6], 0));
+               splat[5]);
       }
    }
    
@@ -146,31 +138,10 @@ public class Addins
                   {
                      String code = addin.getPackage() + ":::" + 
                                    addin.getBinding() + "()";
-                     
-                     if (BrowseCap.isMacintoshDesktopMojave())
-                     {
-                        server_.prepareForAddin(new ServerRequestCallback<Void>()
-                        {
-                           @Override
-                           public void onResponseReceived(Void response)
-                           {
-                              SendToConsoleEvent event = new SendToConsoleEvent(code, true, false, false);
-                              events_.fireEvent(event);
-                           }
-
-                           @Override
-                           public void onError(ServerError error)
-                           {
-                              Debug.logError(error);
-                           }
-                        });
-                     }
-                     else
-                     {
-                        SendToConsoleEvent event = new SendToConsoleEvent(code, true, false, false);
-                        events_.fireEvent(event);
-                     }
-                        
+                     events_.fireEvent(new SendToConsoleEvent(code, 
+                                                              true, 
+                                                              false, 
+                                                              false));
                   }
                });
             }

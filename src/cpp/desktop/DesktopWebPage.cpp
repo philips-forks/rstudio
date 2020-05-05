@@ -1,7 +1,7 @@
 /*
  * DesktopWebPage.cpp
  *
- * Copyright (C) 2009-20 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -16,23 +16,21 @@
 #include "DesktopWebPage.hpp"
 
 #include <boost/algorithm/string.hpp>
-#include <boost/thread/once.hpp>
 
-#include <core/http/URL.hpp>
-#include <core/Thread.hpp>
+#include <core/Log.hpp>
+#include <core/Error.hpp>
+#include <core/FilePath.hpp>
 
-#include <QFileDialog>
-#include <QWebEngineSettings>
-
-#include "DesktopInfo.hpp"
-#include "DesktopDownloadItemHelper.hpp"
-#include "DesktopMainWindow.hpp"
-#include "DesktopOptions.hpp"
+#include <QWidget>
+#include <QWebFrame>
+#include <QtDebug>
+#include "DesktopNetworkAccessManager.hpp"
+#include "DesktopWindowTracker.hpp"
 #include "DesktopSatelliteWindow.hpp"
 #include "DesktopSecondaryWindow.hpp"
-#include "DesktopWebProfile.hpp"
-#include "DesktopWindowTracker.hpp"
-#include "DesktopSessionServersOverlay.hpp"
+#include "DesktopMainWindow.hpp"
+
+#include "DesktopUtils.hpp"
 
 using namespace rstudio::core;
 
@@ -44,134 +42,30 @@ namespace desktop {
 namespace {
 
 WindowTracker s_windowTracker;
-std::mutex s_mutex;
-
-// NOTE: This variable is static and hence shared by all of the web pages
-// created by RStudio. This is intentional as it's possible that the
-// request interceptor from one page will handle a request, and a _different_
-// page will handle the new navigation attempt -- so both pages will need
-// access to the same data.
-std::map<QUrl, int> s_subframes;
-
-// NOTE: To work around a bug where Qt thinks that attempts to click a link
-// are attempts to open that link within a sub-frame, monitor which link was
-// last hovered and allow navigation to links in that case. This terrible hack
-// works around https://bugreports.qt.io/browse/QTBUG-56805.
-QString s_hoveredUrl;
-
-void onLinkHovered(const QString& url)
-{
-   s_hoveredUrl = url;
-}
-
-void handlePdfDownload(QWebEngineDownloadItem* downloadItem,
-                       const QString& downloadPath)
-{
-   QObject::connect(
-            downloadItem, &QWebEngineDownloadItem::finished,
-            [=]()
-   {
-      desktop::openFile(downloadPath);
-   });
-   
-   downloadItem->setPath(downloadPath);
-   downloadItem->accept();
-}
-
-void onPdfDownloadRequested(QWebEngineDownloadItem* downloadItem)
-{
-   QString scratchDir =
-         QString::fromStdString(options().scratchTempDir().getAbsolutePath());
-   
-   // if we're requesting the download of a file with a '.pdf' extension,
-   // re-use that file name (since most desktop applications will display the
-   // associated filename somewhere visible)
-   QString fileName = downloadItem->url().fileName();
-   if (fileName.endsWith(QStringLiteral(".pdf"), Qt::CaseInsensitive))
-   {
-      QTemporaryDir tempDir(QStringLiteral("%1/").arg(scratchDir));
-      tempDir.setAutoRemove(false);
-      if (tempDir.isValid())
-      {
-         QString downloadPath = QStringLiteral("%1/%2")
-               .arg(tempDir.path())
-               .arg(fileName);
-         
-         return handlePdfDownload(downloadItem, downloadPath);
-      }
-   }
-   
-   // otherwise, create a temporary file
-   QString fileTemplate = QStringLiteral("%1/RStudio-XXXXXX.pdf").arg(scratchDir);
-   QTemporaryFile tempFile(fileTemplate);
-   tempFile.setAutoRemove(false);
-   if (tempFile.open())
-      return handlePdfDownload(downloadItem, tempFile.fileName());
-}
-
-void onDownloadRequested(QWebEngineDownloadItem* downloadItem)
-{
-   // download and then open PDF files requested by the user
-   if (downloadItem->mimeType() == QStringLiteral("application/pdf"))
-      return onPdfDownloadRequested(downloadItem);
-   
-   // request directory from user
-   QString downloadPath = QFileDialog::getSaveFileName(
-            nullptr,
-            QStringLiteral("Save File"),
-            downloadItem->path());
-   
-   if (downloadPath.isEmpty())
-      return;
-   
-   DownloadHelper::manageDownload(downloadItem, downloadPath);
-}
 
 } // anonymous namespace
 
 WebPage::WebPage(QUrl baseUrl, QWidget *parent, bool allowExternalNavigate) :
-      QWebEnginePage(new WebProfile(baseUrl), parent),
+      QWebPage(parent),
       baseUrl_(baseUrl),
+      navigated_(false),
       allowExternalNav_(allowExternalNavigate)
 {
-   init();
-}
+   settings()->setAttribute(QWebSettings::DeveloperExtrasEnabled, true);
+   settings()->setAttribute(QWebSettings::JavascriptCanOpenWindows, true);
+   settings()->setAttribute(QWebSettings::LocalStorageEnabled, true);
+   settings()->setAttribute(QWebSettings::JavascriptCanAccessClipboard, true);
+   QString storagePath = QStandardPaths::writableLocation(QStandardPaths::GenericDataLocation);
+   settings()->setOfflineStoragePath(storagePath);
+   settings()->enablePersistentStorage(storagePath);
 
-WebPage::WebPage(QWebEngineProfile *profile,
-                 QUrl baseUrl,
-                 QWidget *parent,
-                 bool allowExternalNavigate) :
-   QWebEnginePage(profile, parent),
-   baseUrl_(baseUrl),
-   allowExternalNav_(allowExternalNavigate)
-{
-   init();
-}
-
-void WebPage::init()
-{
-   settings()->setAttribute(QWebEngineSettings::PluginsEnabled, true);
-   settings()->setAttribute(QWebEngineSettings::FullScreenSupportEnabled, true);
-   settings()->setAttribute(QWebEngineSettings::JavascriptCanOpenWindows, true);
-   settings()->setAttribute(QWebEngineSettings::JavascriptCanAccessClipboard, true);
-   settings()->setAttribute(QWebEngineSettings::LocalStorageEnabled, true);
-   settings()->setAttribute(QWebEngineSettings::WebGLEnabled, true);
-   
-#ifdef __APPLE__
-   settings()->setFontFamily(QWebEngineSettings::FixedFont,     QStringLiteral("Courier"));
-   settings()->setFontFamily(QWebEngineSettings::SansSerifFont, QStringLiteral("Helvetica"));
-#endif
-
+   setNetworkAccessManager(new NetworkAccessManager(sharedSecret, parent));
    defaultSaveDir_ = QDir::home();
    connect(this, SIGNAL(windowCloseRequested()), SLOT(closeRequested()));
-   connect(this, &QWebEnginePage::linkHovered, onLinkHovered);
-   connect(profile(), &QWebEngineProfile::downloadRequested, onDownloadRequested);
-   connect(profile(), &WebProfile::urlIntercepted, this, &WebPage::onUrlIntercepted, Qt::DirectConnection);
 }
 
 void WebPage::setBaseUrl(const QUrl& baseUrl)
 {
-   profile()->setBaseUrl(baseUrl);
    baseUrl_ = baseUrl;
 }
 
@@ -189,17 +83,13 @@ void WebPage::closeWindow(QString name)
       desktop::closeWindow(pWindow);
 }
 
-void WebPage::prepareForWindow(const PendingWindow& pendingWindow)
+void WebPage::prepareForWindow(const PendingWindow& pendingWnd)
 {
-   std::lock_guard<std::mutex> lock(s_mutex);
-   
-   pendingWindows_.push(pendingWindow);
+   pendingWindow_ = pendingWnd;
 }
 
-QWebEnginePage* WebPage::createWindow(QWebEnginePage::WebWindowType type)
+QWebPage* WebPage::createWindow(QWebPage::WebWindowType)
 {
-   std::lock_guard<std::mutex> lock(s_mutex);
-
    QString name;
    bool isSatellite = false;
    bool showToolbar = true;
@@ -208,47 +98,27 @@ QWebEnginePage* WebPage::createWindow(QWebEnginePage::WebWindowType type)
    int height = 0;
    int x = -1;
    int y = -1;
-   MainWindow* pMainWindow = nullptr;
-   BrowserWindow* pWindow = nullptr;
-   bool show = true;
+   MainWindow* pMainWindow = NULL;
+   BrowserWindow* pWindow = NULL;
 
-   // check if this is target="_blank" from an IDE window
-   if (!baseUrl_.isEmpty() && type == QWebEnginePage::WebWindowType::WebBrowserTab)
+   // check if this is a satellite window
+   if (!pendingWindow_.isEmpty())
    {
-      // QtWebEngine behavior is to open a new browser window and send it the 
-      // acceptNavigationRequest we use to redirect to system browser; don't want
-      // that to be visible
-      show = false;
-      name = tr("_blank_redirector");
-
-      // check for an existing hidden window
-      pWindow = s_windowTracker.getWindow(name);
-      if (pWindow)
-      {
-         return pWindow->webView()->webPage();
-      }
-   }
-
-   // check if we have a satellite window waiting to come up
-   if (!pendingWindows_.empty())
-   {
-      // retrieve the window
-      PendingWindow pendingWindow = pendingWindows_.front();
-      pendingWindows_.pop();
-
       // capture pending window params then clear them (one time only)
-      name = pendingWindow.name;
-      isSatellite = pendingWindow.isSatellite;
-      showToolbar = pendingWindow.showToolbar;
-      pMainWindow = pendingWindow.pMainWindow;
-      allowExternalNavigate = pendingWindow.allowExternalNavigate;
+      name = pendingWindow_.name;
+      isSatellite = pendingWindow_.isSatellite;
+      showToolbar = pendingWindow_.showToolbar;
+      pMainWindow = pendingWindow_.pMainWindow;
+      allowExternalNavigate = pendingWindow_.allowExternalNavigate;
 
       // get width and height, and adjust for high DPI
       double dpiZoomScaling = getDpiZoomScaling();
-      width = pendingWindow.width * dpiZoomScaling;
-      height = pendingWindow.height * dpiZoomScaling;
-      x = pendingWindow.x;
-      y = pendingWindow.y;
+      width = pendingWindow_.width * dpiZoomScaling;
+      height = pendingWindow_.height * dpiZoomScaling;
+      x = pendingWindow_.x;
+      y = pendingWindow_.y;
+
+      pendingWindow_ = PendingWindow();
 
       // check for an existing window of this name
       pWindow = s_windowTracker.getWindow(name);
@@ -257,14 +127,14 @@ QWebEnginePage* WebPage::createWindow(QWebEnginePage::WebWindowType type)
          // activate the browser then return NULL to indicate
          // we didn't create a new WebView
          desktop::raiseAndActivateWindow(pWindow);
-         return nullptr;
+         return NULL;
       }
    }
 
    if (isSatellite)
    {
       // create and size
-      pWindow = new SatelliteWindow(pMainWindow, name, this);
+      pWindow = new SatelliteWindow(pMainWindow, name);
       pWindow->resize(width, height);
 
       if (x >= 0 && y >= 0)
@@ -288,8 +158,8 @@ QWebEnginePage* WebPage::createWindow(QWebEnginePage::WebWindowType type)
 
          // x is based on centering over main window
          int moveX = pMainWindow->x() +
-               (pMainWindow->width() / 2) -
-               (width / 2);
+                     (pMainWindow->width() / 2) -
+                     (width / 2);
 
          // perform move
          pWindow->move(moveX, moveY);
@@ -297,16 +167,8 @@ QWebEnginePage* WebPage::createWindow(QWebEnginePage::WebWindowType type)
    }
    else
    {
-      pWindow = new SecondaryWindow(showToolbar, name, baseUrl_, nullptr, this,
+      pWindow = new SecondaryWindow(showToolbar, name, baseUrl_, NULL, this,
                                     allowExternalNavigate);
-
-      // allow for Ctrl + W to close window (NOTE: Ctrl means Meta on macOS)
-      QAction* action = new QAction(pWindow);
-      action->setShortcut(Qt::CTRL + Qt::Key_W);
-      pWindow->addAction(action);
-      QObject::connect(
-               action, &QAction::triggered,
-               pWindow, &BrowserWindow::close);
    }
 
    // if we have a name set, start tracking this window
@@ -316,8 +178,7 @@ QWebEnginePage* WebPage::createWindow(QWebEnginePage::WebWindowType type)
    }
 
    // show and return the browser
-   if (show)
-      pWindow->show();
+   pWindow->show();
    return pWindow->webView()->webPage();
 }
 
@@ -328,222 +189,205 @@ void WebPage::closeRequested()
    view()->window()->close();
 }
 
-void WebPage::onUrlIntercepted(const QUrl& url, int type)
-{
-   if (type == QWebEngineUrlRequestInfo::ResourceTypeSubFrame &&
-       url != s_hoveredUrl)
-   {
-      s_subframes[url] = type;
-   }
-}
-
 bool WebPage::shouldInterruptJavaScript()
 {
    return false;
 }
 
-void WebPage::javaScriptConsoleMessage(JavaScriptConsoleMessageLevel /*level*/, const QString& message,
-                                       int /*lineNumber*/, const QString& /*sourceID*/)
+void WebPage::javaScriptConsoleMessage(const QString& message, int /*lineNumber*/, const QString& /*sourceID*/)
 {
    qDebug() << message;
 }
 
-namespace {
-
-boost::once_flag s_once = BOOST_ONCE_INIT;
-std::vector<std::string> safeHosts_;
-
-void initSafeHosts()
+QString WebPage::userAgentForUrl(const QUrl &url) const
 {
-   safeHosts_ = {
-      ".youtube.com",
-      ".vimeo.com",
-      ".c9.ms"
-   };
-
-   for (const SessionServer& server : sessionServerSettings().servers())
-   {
-      http::URL url(server.url());
-      safeHosts_.push_back(url.hostname());
-   }
+   return this->QWebPage::userAgentForUrl(url) + QString::fromUtf8(" Qt/") + QString::fromUtf8(qVersion());
 }
 
-bool isSafeHost(const std::string& host)
-{  
-   boost::call_once(s_once,
-                    initSafeHosts);
-
-   for (auto entry : safeHosts_)
-      if (boost::algorithm::ends_with(host, entry))
-         return true;
-   
-   return false;
-}
-
-} // end anonymous namespace
-
-// NOTE: NavigationType is unreliable, as per:
-//
-//    https://bugreports.qt.io/browse/QTBUG-56805
-//
-// so we avoid querying it here.
-bool WebPage::acceptNavigationRequest(const QUrl &url,
-                                      NavigationType /* navType*/,
-                                      bool isMainFrame)
+bool WebPage::acceptNavigationRequest(QWebFrame* pWebFrame,
+                                       const QNetworkRequest& request,
+                                       NavigationType navType)
 {
-   if (url.toString() == QStringLiteral("about:blank"))
-      return true;
-   
-   if (url.toString() == QStringLiteral("chrome://gpu/"))
+   QUrl url = request.url();
+
+   if (url.toString() == QString::fromUtf8("about:blank"))
       return true;
 
-   if (url.scheme() == QStringLiteral("data"))
-      return true;
-
-   if (url.scheme() != QStringLiteral("http") &&
-       url.scheme() != QStringLiteral("https") &&
-       url.scheme() != QStringLiteral("mailto"))
+   if (url.scheme() != QString::fromUtf8("http")
+       && url.scheme() != QString::fromUtf8("https")
+       && url.scheme() != QString::fromUtf8("mailto")
+       && url.scheme() != QString::fromUtf8("data"))
    {
       qDebug() << url.toString();
       return false;
    }
-   
+
    // determine if this is a local request (handle internally only if local)
    std::string host = url.host().toStdString();
-   bool isLocal = host == "localhost" || host == "127.0.0.1" || host == "::1";
-   
-   // accept Chrome Developer Tools navigation attempts
-#ifndef NDEBUG
-   if (isLocal && url.port() == desktopInfo().getChromiumDevtoolsPort())
-      return true;
-#endif
-   
-   // if this appears to be an attempt to load an external page within
-   // an iframe, check it's from a safe host
-   if (!isLocal && s_subframes.count(url))
-   {
-      s_subframes.erase(url);
-      return isSafeHost(host);
-   }
+   bool isLocal = host == "localhost" || host == "127.0.0.1";
 
    if ((baseUrl_.isEmpty() && isLocal) ||
-       (url.scheme() == baseUrl_.scheme() &&
-        url.host() == baseUrl_.host() &&
-        url.port() == baseUrl_.port()))
+       (url.scheme() == baseUrl_.scheme()
+        && url.host() == baseUrl_.host()
+        && url.port() == baseUrl_.port()))
    {
+      navigated_ = true;
       return true;
    }
-   // allow viewer urls to be handled internally by Qt. note that the client is responsible for 
-   // ensuring that non-local viewer urls are appropriately sandboxed.
-   else if (!viewerUrl().isEmpty() &&
-            url.toString().startsWith(viewerUrl()))
+   // allow local viewer urls to be handled internally by Qt
+   else if (isLocal && !viewerUrl_.isEmpty() &&
+            url.toString().startsWith(viewerUrl_))
    {
+      navigated_ = true;
       return true;
    }
-   // allow tutorial urls to be handled internally by Qt. note that the client is responsible for 
-   // ensuring that non-local tutorial urls are appropriately sandboxed.
-   else if (!tutorialUrl().isEmpty() &&
-            url.toString().startsWith(tutorialUrl()))
-   {
-      return true;
-   }
-   // allow shiny dialog urls to be handled internally by Qt
+   // allow shiny dialiog urls to be handled internally by Qt
    else if (isLocal && !shinyDialogUrl_.isEmpty() &&
             url.toString().startsWith(shinyDialogUrl_))
    {
+      navigated_ = true;
       return true;
    }
    else
    {
-      bool navigated = false;
-      
-      if (allowExternalNav_)
+      if (url.scheme() == QString::fromUtf8("data") &&
+          (navType == QWebPage::NavigationTypeLinkClicked ||
+           navType == QWebPage::NavigationTypeFormSubmitted))
+      {
+         handleBase64Download(pWebFrame, url);
+      }
+      else if (allowExternalNav_)
       {
          // if allowing external navigation, follow this (even if a link click)
+         navigated_ = true;
          return true;
       }
-      else if (isSafeHost(host))
-      {
-         return true;
-      }
-      else
+      else if (navType == QWebPage::NavigationTypeLinkClicked)
       {
          // when not allowing external navigation, open an external browser
          // to view the URL
          desktop::openUrl(url);
-         navigated = true;
+      }
+      else if (boost::algorithm::ends_with(host, ".youtube.com") ||
+            boost::algorithm::ends_with(host, ".vimeo.com")   ||
+            boost::algorithm::ends_with(host, ".c9.ms"))
+      {
+         navigated_ = true;
+         return true;
       }
 
-      if (!navigated)
+      if (!navigated_)
          this->view()->window()->deleteLater();
 
       return false;
    }
 }
 
-namespace {
-
-void setPaneUrl(const QString& requestedUrl, QString* pUrl)
+void WebPage::handleBase64Download(QWebFrame* pWebFrame, QUrl url)
 {
-   // record about:blank literally
-   if (requestedUrl == QStringLiteral("about:blank"))
+   // look for beginning of base64 data
+   QString base64 = QString::fromUtf8("base64,");
+   int pos = url.path().indexOf(base64);
+   if (pos == -1)
    {
-      *pUrl = requestedUrl;
+      LOG_ERROR_MESSAGE("Base64 designator not found in data url");
       return;
    }
 
-   // extract the authority (domain and port) from the URL; we'll agree to
-   // serve requests for the pane that match this prefix. 
-   QUrl url(requestedUrl);
-   *pUrl =
-         url.scheme() + QStringLiteral("://") +
-         url.authority() + QStringLiteral("/");
-   
-}
+   // extract the base64 data from the uri
+   QString base64Data = url.path();
+   base64Data.remove(0, pos + base64.length());
+   QByteArray base64ByteArray(base64Data.toStdString().c_str());
+   QByteArray byteArray = QByteArray::fromBase64(base64ByteArray);
 
-} // end anonymous namespace
+   // find the a tag in the page with this href
+   QWebElement aTag;
+   QString urlString = url.toString(QUrl::None);
+   QWebElementCollection aElements = pWebFrame->findAllElements(
+                                             QString::fromUtf8("a"));
+   for (int i=0; i<aElements.count(); i++)
+   {
+      QWebElement a = aElements.at(i);
+      QString href = a.attribute(QString::fromUtf8("href"));
+      href.replace(QChar::fromLatin1('\n'), QString::fromUtf8(""));
+      if (href == urlString)
+      {
+         aTag = a;
+         break;
+      }
+   }
 
-void WebPage::setTutorialUrl(const QString& tutorialUrl)
-{
-   setPaneUrl(tutorialUrl, &tutorialUrl_);
+   // if no a tag was found then bail
+   if (aTag.isNull())
+   {
+      LOG_ERROR_MESSAGE("Unable to finding matching a tag for data url");
+      return;
+   }
+
+   // get the download attribute (default filename)
+   QString download = aTag.attribute(QString::fromUtf8("download"));
+   QString defaultFilename = defaultSaveDir_.absoluteFilePath(download);
+
+   // prompt for filename
+   QString filename = QFileDialog::getSaveFileName(
+                                            NULL,
+                                            tr("Download File"),
+                                            defaultFilename,
+                                            defaultSaveDir_.absolutePath(),
+                                            0,
+                                            standardFileDialogOptions());
+   if (!filename.isEmpty())
+   {
+      // see if we need to force the extension
+      FilePath defaultFilePath(defaultFilename.toUtf8().constData());
+      FilePath chosenFilePath(filename.toUtf8().constData());
+      if (chosenFilePath.extension().empty() &&
+          !defaultFilePath.extension().empty())
+      {
+         filename += QString::fromStdString(defaultFilePath.extension());
+      }
+
+      // write the file
+      QFile file(filename);
+      if (file.open(QIODevice::WriteOnly))
+      {
+         if (file.write(byteArray) == -1)
+         {
+            showFileError(QString::fromUtf8("writing"),
+                          filename,
+                          file.errorString());
+         }
+
+         file.close();
+      }
+      else
+      {
+         showFileError(QString::fromUtf8("writing"),
+                       filename,
+                       file.errorString());
+      }
+
+      // persist the defaultSaveDir
+      defaultSaveDir_ = QFileInfo(file).dir();
+   }
 }
 
 void WebPage::setViewerUrl(const QString& viewerUrl)
 {
-   setPaneUrl(viewerUrl, &viewerUrl_);
-}
-
-QString WebPage::tutorialUrl()
-{
-   if (tutorialUrl_.isEmpty())
+   // record about:blank literally
+   if (viewerUrl == QString::fromUtf8("about:blank"))
    {
-      // if we don't know the tutorial URL ourselves but we're a child window, ask our parent
-      BrowserWindow *parent = dynamic_cast<BrowserWindow*>(view()->window());
-      if (parent != nullptr && parent->opener() != nullptr)
-      {
-         return parent->opener()->tutorialUrl();
-      }
+      viewerUrl_ = viewerUrl;
+      return;
    }
 
-   // return our own tutorial URL
-   return tutorialUrl_;
+   // extract the authority (domain and port) from the URL; we'll agree to
+   // serve requests for the viewer pane that match this prefix. 
+   QUrl url(viewerUrl);
+   viewerUrl_ = url.scheme() + QString::fromUtf8("://") +
+                url.authority() + QString::fromUtf8("/");
 }
 
-QString WebPage::viewerUrl()
-{
-   if (viewerUrl_.isEmpty())
-   {
-      // if we don't know the viewer URL ourselves but we're a child window, ask our parent
-      BrowserWindow *parent = dynamic_cast<BrowserWindow*>(view()->window());
-      if (parent != nullptr && parent->opener() != nullptr)
-      {
-         return parent->opener()->viewerUrl();
-      }
-   }
-
-   // return our own viewer URL
-   return viewerUrl_;
-}
 
 void WebPage::setShinyDialogUrl(const QString &shinyDialogUrl)
 {
@@ -552,19 +396,17 @@ void WebPage::setShinyDialogUrl(const QString &shinyDialogUrl)
 
 void WebPage::triggerAction(WebAction action, bool checked)
 {
-   QWebEnginePage::triggerAction(action, checked);
-}
+   // swallow copy events when the selection is empty
+   if (action == QWebPage::Copy || action == QWebPage::Cut)
+   {
+      QString code = QString::fromUtf8("window.desktopHooks.isSelectionEmpty()");
+      bool emptySelection = mainFrame()->evaluateJavaScript(code).toBool();
+      if (emptySelection)
+         return;
+   }
 
-PendingWindow::PendingWindow(QString name,
-                             MainWindow* pMainWindow,
-                             int screenX,
-                             int screenY,
-                             int width,
-                             int height)
-   : name(name), pMainWindow(pMainWindow), x(screenX), y(screenY),
-     width(width), height(height), isSatellite(true),
-     allowExternalNavigate(pMainWindow->isRemoteDesktop()), showToolbar(false)
-{
+   // delegate to base
+   QWebPage::triggerAction(action, checked);
 }
 
 } // namespace desktop

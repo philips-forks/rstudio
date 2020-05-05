@@ -117,7 +117,7 @@
    
    .outer
    {
-      padding-bottom: 7px;
+      padding-bottom: 10px;
       position: relative;
    }
 

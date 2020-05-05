@@ -1,7 +1,7 @@
 /*
  * ConnectionsServerOperations.java
  *
- * Copyright (C) 2009-12 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -47,6 +47,10 @@ public interface ConnectionsServerOperations extends CryptoServerOperations
    
    void getNewConnectionContext(
             ServerRequestCallback<NewConnectionContext> callback);
+   
+   void installSpark(String sparkVersion,
+                     String hadoopVersion,
+                     ServerRequestCallback<ConsoleProcess> callback);
 
    void launchEmbeddedShinyConnectionUI(String packageName,
                                         String connectionName,
@@ -57,16 +61,4 @@ public interface ConnectionsServerOperations extends CryptoServerOperations
 
    void connectionAddPackage(String packageName, 
                              ServerRequestCallback<Void> callback);
-
-   void installOdbcDriver(String name,
-                          String installationPath,
-                          ServerRequestCallback<ConsoleProcess> requestCallback);
-
-   void getOdbcConnectionContext(String name,
-                                 ServerRequestCallback<NewConnectionInfo> callback);
-
-   void uninstallOdbcDriver(String name,
-                            ServerRequestCallback<ConnectionUninstallResult> callback);
-
-   void updateOdbcInstallers(ServerRequestCallback<ConnectionUpdateResult> callback);
 }

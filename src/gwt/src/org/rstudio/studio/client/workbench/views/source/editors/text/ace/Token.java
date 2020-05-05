@@ -1,7 +1,7 @@
 /*
  * Token.java
  *
- * Copyright (C) 2009-12 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -54,12 +54,7 @@ public class Token extends JavaScriptObject
    
    public final boolean valueEquals(String value)
    {
-      return value == getValue();
-   }
-   
-   public final boolean valueMatches(String pattern)
-   {
-      return getValue().matches(pattern);
+      return value.equals(getValue());
    }
    
    public final boolean hasAllTypes(String... types)
@@ -71,7 +66,7 @@ public class Token extends JavaScriptObject
       for (String type : types)
       {
          boolean hasType =
-               tokenType == type ||
+               tokenType.equals(type) ||
                tokenType.contains(type + ".") ||
                tokenType.contains("." + type);
          

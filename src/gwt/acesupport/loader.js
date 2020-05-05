@@ -1,7 +1,7 @@
 /*
  * loader.js
  *
- * Copyright (C) 2009-12 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -22,23 +22,17 @@
 
 define("rstudio/loader", ["require", "exports", "module"], function(require, exports, module) {
 
-var EditSession = require("ace/edit_session").EditSession;
-var Editor = require("ace/editor").Editor;
-var EventEmitter = require("ace/lib/event_emitter").EventEmitter;
-var ExpandSelection = require("util/expand_selection");
-var Range = require("ace/range").Range;
-var Renderer = require("ace/virtual_renderer").VirtualRenderer;
-var TextMode = require("ace/mode/text").Mode;
-var UndoManager = require("ace/undomanager").UndoManager;
-var Utils = require("mode/utils");
-var event = require("ace/lib/event");
 var oop = require("ace/lib/oop");
+var event = require("ace/lib/event");
+var EventEmitter = require("ace/lib/event_emitter").EventEmitter;
+var Editor = require("ace/editor").Editor;
+var EditSession = require("ace/edit_session").EditSession;
+var UndoManager = require("ace/undomanager").UndoManager;
+var Range = require("ace/range").Range;
+var Utils = require("mode/utils");
+var ExpandSelection = require("util/expand_selection");
 
 require("mixins/token_iterator"); // adds mixins to TokenIterator.prototype
-
-
-
-// RStudioEditor ----
 
 var RStudioEditor = function(renderer, session) {
    Editor.call(this, renderer, session);
@@ -73,18 +67,13 @@ oop.inherits(RStudioEditor, Editor);
          // Read UI pref to determine what are eligible for surrounding
          var candidates = [];
          if (this.$surroundSelection === "quotes")
-            candidates = ["'", "\"", "`"];
+            candidates = ["'", "\""];
          else if (this.$surroundSelection === "quotes_and_brackets")
-            candidates = ["'", "\"", "`", "(", "{", "["];
+            candidates = ["'", "\"", "(", "{", "["];
 
          // in markdown documents, allow '_', '*' to surround selection
          do
          {
-            // assume this preference is only wanted when surrounding
-            // other objects in general for now
-            if (this.$surroundSelection !== "quotes_and_brackets")
-               break;
-
             var mode = this.session.$mode;
             if (/\/markdown$/.test(mode.$id))
             {
@@ -139,9 +128,6 @@ oop.inherits(RStudioEditor, Editor);
    };
 }).call(RStudioEditor.prototype);
 
-
-
-// RStudioEditSession ----
 
 var RStudioEditSession = function(text, mode) {
    EditSession.call(this, text, mode);
@@ -237,9 +223,6 @@ oop.inherits(RStudioEditSession, EditSession);
 }).call(RStudioEditSession.prototype);
 
 
-
-// RStudioUndoManager ----
-
 var RStudioUndoManager = function() {
    UndoManager.call(this);
 };
@@ -252,45 +235,22 @@ oop.inherits(RStudioUndoManager, UndoManager);
    };
 }).call(RStudioUndoManager.prototype);
 
-
-
-// RStudioRenderer ----
-
-var RStudioRenderer = function(container, theme) {
-   Renderer.call(this, container, theme);
-};
-oop.inherits(RStudioRenderer, Renderer);
-
-(function() {
-
-   this.setTheme = function(theme) {
-
-      if (theme)
-         Renderer.prototype.setTheme.call(this, theme);
-
-   }
-
-}).call(RStudioRenderer.prototype);
-
-
-
 function loadEditor(container) {
    var env = {};
    container.env = env;
 
-   // Load the editor
-   var renderer = new RStudioRenderer(container, "");
-   var session = new RStudioEditSession("");
-   var editor = new RStudioEditor(renderer, session);
-   env.editor = editor;
+   var Renderer = require("ace/virtual_renderer").VirtualRenderer;
 
-   var session = editor.getSession();
+   var TextMode = require("ace/mode/text").Mode;
+   var theme = {}; // prevent default textmate theme from loading
+
+   env.editor = new RStudioEditor(new Renderer(container, theme), new RStudioEditSession(""));
+   var session = env.editor.getSession();
    session.setMode(new TextMode());
    session.setUndoManager(new RStudioUndoManager());
 
    // Setup syntax checking
    var config = require("ace/config");
-   config.set("basePath", "ace");
    config.set("workerPath", "js/workers");
    config.setDefaultValue("session", "useWorker", false);
 
@@ -306,6 +266,8 @@ function loadEditor(container) {
    squelch("gotoline");
    squelch("foldall");
    squelch("unfoldall");
+   squelch("touppercase");
+   squelch("tolowercase");
    return env.editor;
 }
 

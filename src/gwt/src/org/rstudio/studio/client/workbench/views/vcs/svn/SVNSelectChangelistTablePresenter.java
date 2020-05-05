@@ -1,7 +1,7 @@
 /*
  * SVNSelectChangelistTablePresenter.java
  *
- * Copyright (C) 2009-12 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -46,7 +46,7 @@ public class SVNSelectChangelistTablePresenter extends SVNChangelistTablePresent
          {
             if (value)
             {
-               if (object.getStatus() == "?")
+               if (object.getStatus().equals("?"))
                {
                   server.svnAdd(toArray(object.getPath()), new SimpleRequestCallback<ProcessResult>()
                   {
@@ -59,7 +59,7 @@ public class SVNSelectChangelistTablePresenter extends SVNChangelistTablePresent
                   });
                   return;
                }
-               if (object.getStatus() == "!")
+               if (object.getStatus().equals("!"))
                {
                   server.svnDelete(toArray(object.getPath()),
                                    new SimpleRequestCallback<ProcessResult>()
@@ -74,7 +74,7 @@ public class SVNSelectChangelistTablePresenter extends SVNChangelistTablePresent
                                    });
                   return;
                }
-               if (object.getStatus() == "C")
+               if (object.getStatus().equals("C"))
                {
                   globalDisplay.showYesNoMessage(
                         GlobalDisplay.MSG_WARNING,

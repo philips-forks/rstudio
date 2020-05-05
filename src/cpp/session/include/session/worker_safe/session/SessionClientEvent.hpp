@@ -1,7 +1,7 @@
 /*
  * SessionClientEvent.hpp
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-17 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -18,7 +18,7 @@
 
 #include <string>
 
-#include <shared_core/json/Json.hpp>
+#include <core/json/Json.hpp>
 
 namespace rstudio {
 namespace core {
@@ -46,6 +46,7 @@ extern const int kBusy;
 extern const int kFileChanged;
 extern const int kWorkingDirChanged;
 extern const int kPlotsStateChanged;
+extern const int kViewData;
 extern const int kPackageStatusChanged;
 extern const int kPackageStateChanged;
 extern const int kLocator;
@@ -68,7 +69,7 @@ extern const int kConsoleProcessOutput;
 extern const int kConsoleProcessExit;
 extern const int kListChanged;
 extern const int kConsoleProcessCreated;
-extern const int kUserPrefsChanged;
+extern const int kUiPrefsChanged;
 extern const int kHandleUnsavedChanges;
 extern const int kConsoleProcessPrompt;
 extern const int kConsoleProcessCreated;
@@ -181,27 +182,6 @@ extern const int kRequestOpenProject;
 extern const int kOpenFileDialog;
 extern const int kRemoveTerminal;
 extern const int kShowPageViewerEvent;
-extern const int kAskSecret;
-extern const int kTestsStarted;
-extern const int kTestsOutput;
-extern const int kTestsCompleted;
-extern const int kJobUpdated;
-extern const int kJobRefresh;
-extern const int kJobOutput;
-extern const int kDataOutputCompleted;
-extern const int kNewDocumentWithCode;
-extern const int kPlumberViewer;
-extern const int kAvailablePackagesReady;
-extern const int kComputeThemeColors;
-extern const int kRequestDocumentClose;
-extern const int kRequestDocumentCloseCompleted;
-extern const int kExecuteAppCommand;
-extern const int kUserStateChanged;
-extern const int kHighlightUi;
-extern const int kReplaceResult;
-extern const int kReplaceUpdated;
-extern const int kTutorialCommand;
-extern const int kTutorialLaunch;
 }
    
 class ClientEvent

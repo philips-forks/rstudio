@@ -1,7 +1,7 @@
 /*
  * MacRecycleBin.cpp
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -15,8 +15,8 @@
 
 #include <CoreServices/CoreServices.h>
 
-#include <shared_core/Error.hpp>
-#include <shared_core/FilePath.hpp>
+#include <core/Error.hpp>
+#include <core/FilePath.hpp>
 
 #include <core/StringUtils.hpp>
 
@@ -50,17 +50,17 @@ Error errorForStatus(OSStatus status,
 Error sendTo(const FilePath& filePath)
 {
    FSRef ref;
-   std::string sysPath = string_utils::utf8ToSystem(filePath.getAbsolutePath());
+   std::string sysPath = string_utils::utf8ToSystem(filePath.absolutePath());
    OSStatus status = ::FSPathMakeRefWithOptions(
                                         (const UInt8*)sysPath.c_str(),
                                         kFSPathMakeRefDoNotFollowLeafSymlink,
                                         &ref,
-                                        nullptr);
+                                        NULL);
    if (status != 0)
       return errorForStatus(status, filePath, ERROR_LOCATION);
 
    status = ::FSMoveObjectToTrashSync(&ref,
-                                      nullptr,
+                                      NULL,
                                       kFSFileOperationDefaultOptions);
    if (status != 0)
       return errorForStatus(status, filePath, ERROR_LOCATION);

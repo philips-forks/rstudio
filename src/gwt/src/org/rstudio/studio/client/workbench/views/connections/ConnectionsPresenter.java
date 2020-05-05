@@ -1,7 +1,7 @@
 /*
  * ConnectionsPresenter.java
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * This program is licensed to you under the terms of version 3 of the
  * GNU Affero General Public License. This program is distributed WITHOUT
@@ -24,7 +24,6 @@ import com.google.gwt.event.logical.shared.ValueChangeHandler;
 import com.google.gwt.event.shared.HandlerRegistration;
 import com.google.inject.Inject;
 
-import org.rstudio.core.client.Debug;
 import org.rstudio.core.client.ListUtil;
 import org.rstudio.core.client.ListUtil.FilterPredicate;
 import org.rstudio.core.client.command.CommandBinder;
@@ -40,7 +39,6 @@ import org.rstudio.studio.client.application.events.EventBus;
 import org.rstudio.studio.client.common.DelayedProgressRequestCallback;
 import org.rstudio.studio.client.common.GlobalDisplay;
 import org.rstudio.studio.client.common.GlobalProgressDelayer;
-import org.rstudio.studio.client.server.ServerError;
 import org.rstudio.studio.client.server.VoidServerRequestCallback;
 import org.rstudio.studio.client.workbench.WorkbenchListManager;
 import org.rstudio.studio.client.workbench.WorkbenchView;
@@ -49,8 +47,7 @@ import org.rstudio.studio.client.workbench.model.ClientState;
 import org.rstudio.studio.client.workbench.model.Session;
 import org.rstudio.studio.client.workbench.model.SessionInfo;
 import org.rstudio.studio.client.workbench.model.helper.JSObjectStateValue;
-import org.rstudio.studio.client.workbench.prefs.model.UserPrefs;
-import org.rstudio.studio.client.workbench.prefs.model.UserState;
+import org.rstudio.studio.client.workbench.prefs.model.UIPrefs;
 import org.rstudio.studio.client.workbench.views.BasePresenter;
 import org.rstudio.studio.client.workbench.views.connections.events.ActiveConnectionsChangedEvent;
 import org.rstudio.studio.client.workbench.views.connections.events.ConnectionListChangedEvent;
@@ -63,7 +60,6 @@ import org.rstudio.studio.client.workbench.views.connections.events.ViewConnecti
 import org.rstudio.studio.client.workbench.views.connections.model.Connection;
 import org.rstudio.studio.client.workbench.views.connections.model.ConnectionId;
 import org.rstudio.studio.client.workbench.views.connections.model.ConnectionOptions;
-import org.rstudio.studio.client.workbench.views.connections.model.ConnectionUpdateResult;
 import org.rstudio.studio.client.workbench.views.connections.model.ConnectionsServerOperations;
 import org.rstudio.studio.client.workbench.views.connections.model.NewConnectionContext;
 import org.rstudio.studio.client.workbench.views.connections.ui.NewConnectionWizard;
@@ -113,8 +109,7 @@ public class ConnectionsPresenter extends BasePresenter
                                ConnectionsServerOperations server,
                                GlobalDisplay globalDisplay,
                                EventBus eventBus,
-                               UserPrefs userPrefs,
-                               UserState userState,
+                               UIPrefs uiPrefs,
                                Binder binder,
                                final Commands commands,
                                WorkbenchListManager listManager,
@@ -126,8 +121,7 @@ public class ConnectionsPresenter extends BasePresenter
       display_ = display;
       commands_ = commands;
       server_ = server;
-      state_ = userState;
-      userPrefs_ = userPrefs;
+      uiPrefs_ = uiPrefs;
       globalDisplay_ = globalDisplay;
       eventBus_ = eventBus;
       applicationInterrupt_ = applicationInterrupt;
@@ -156,7 +150,7 @@ public class ConnectionsPresenter extends BasePresenter
          @Override
          public void onClick(ClickEvent event)
          {
-            showAllConnections(!userPrefs_.reducedMotion().getValue());
+            showAllConnections(true);
          }
       });
       
@@ -275,73 +269,43 @@ public class ConnectionsPresenter extends BasePresenter
    
    public void onNewConnection()
    {
-      // if r session busy, fail
+      // if r session bussy, fail
       if (commands_.interruptR().isEnabled()) {
-         showError(
-            "The R session is currently busy. Wait for completion or " +
-            "interrupt the current session and retry.");
-         return;
+        showError(
+          "The R session is currently busy. Wait for completion or " +
+          "interrupt the current session and retry.");
+        return;
       }
 
-      // check for updates
-      if (!installersUpdated_) {
-         installersUpdated_ = true;
-         server_.updateOdbcInstallers(
-            new DelayedProgressRequestCallback<ConnectionUpdateResult>(
-               "Checking for Updates...") {
-
-               @Override
-               public void onSuccess(ConnectionUpdateResult result)
-               {
-                  installersWarning_ = result.getWarning();
-                  showWizard();
-               } 
-
-               @Override
-               public void onError(ServerError error)
-               {
-                  Debug.logError(error);
-                  globalDisplay_.showErrorMessage("Failed to check for updates", error.getMessage());
-               }
-            }
-         );  
-      }
-      else {
-        showWizard();
-      }
-   }
-
-   private void showWizard()
-   {
-       server_.getNewConnectionContext(
-          new DelayedProgressRequestCallback<NewConnectionContext>("Preparing Connections...") {
+      // get the context
+      server_.getNewConnectionContext(
+         new DelayedProgressRequestCallback<NewConnectionContext>(
+                                                   "New Connection...") {
    
-             @Override
-             protected void onSuccess(final NewConnectionContext context)
-             {
+            @Override
+            protected void onSuccess(final NewConnectionContext context)
+            {
                 // show dialog
-                NewConnectionWizard newConnectionWizard = new NewConnectionWizard(
-                   context,
-                   new ProgressOperationWithInput<ConnectionOptions>() {
-                      @Override
-                      public void execute(ConnectionOptions result,
-                                          ProgressIndicator indicator)
-                      {
-                         indicator.onCompleted();
+               NewConnectionWizard newConnectionWizard = new NewConnectionWizard(
+                 context,
+                 new ProgressOperationWithInput<ConnectionOptions>() {
+                    @Override
+                    public void execute(ConnectionOptions result,
+                                        ProgressIndicator indicator)
+                    {
+                       indicator.onCompleted();
 
-                         eventBus_.fireEvent(new PerformConnectionEvent(
-                            result.getConnectVia(),
-                            result.getConnectCode())
-                         );
-                      }
-                   },
-                   installersWarning_
-                );
+                       eventBus_.fireEvent(new PerformConnectionEvent(
+                          result.getConnectVia(),
+                          result.getConnectCode())
+                       );
+                    }
+                 }
+               );
                
-                newConnectionWizard.showModal();
-             }
-          }
-       );  
+               newConnectionWizard.showModal();
+            }
+         });      
    }
    
    @Override
@@ -350,24 +314,25 @@ public class ConnectionsPresenter extends BasePresenter
       String connectVia = event.getConnectVia();
       String connectCode = event.getConnectCode();
      
-      if (connectVia == ConnectionOptions.CONNECT_COPY_TO_CLIPBOARD)
+      if (connectVia.equals(
+            ConnectionOptions.CONNECT_COPY_TO_CLIPBOARD))
       {
          DomUtils.copyCodeToClipboard(connectCode);
       }
-      else if (connectVia == ConnectionOptions.CONNECT_R_CONSOLE)
+      else if (connectVia.equals(ConnectionOptions.CONNECT_R_CONSOLE))
       {
          eventBus_.fireEvent(
                new SendToConsoleEvent(connectCode, true));
          
          display_.showConnectionProgress("Connecting");
       }
-      else if (connectVia == ConnectionOptions.CONNECT_NEW_R_SCRIPT ||
-               connectVia == ConnectionOptions.CONNECT_NEW_R_NOTEBOOK)
+      else if (connectVia.equals(ConnectionOptions.CONNECT_NEW_R_SCRIPT) ||
+               connectVia.equals(ConnectionOptions.CONNECT_NEW_R_NOTEBOOK))
       {
          String type;
          String code = connectCode;
          SourcePosition cursorPosition = null;
-         if (connectVia == ConnectionOptions.CONNECT_NEW_R_SCRIPT)
+         if (connectVia.equals(ConnectionOptions.CONNECT_NEW_R_SCRIPT))
          {
             type = NewDocumentWithCodeEvent.R_SCRIPT;
             code = code + "\n\n";
@@ -427,31 +392,30 @@ public class ConnectionsPresenter extends BasePresenter
          MessageDialog.QUESTION,
          "Remove Connection",
          "Are you sure you want to remove this connection from the connection history?",
-         false /* includeCancel */,
-         () -> {
-            server_.removeConnection(
-              removingConnection.getId(), 
-              new VoidServerRequestCallback()
-              {
-                 @Override
-                 protected void onSuccess()
+         new Operation() {
+            @Override
+            public void execute()
+            {
+               server_.removeConnection(
+                 removingConnection.getId(), 
+                 new VoidServerRequestCallback()
                  {
-                     exploredConnection_ = removingConnection;
-                     disconnectConnection(false);
-                     showAllConnections(!userPrefs_.reducedMotion().getValue());
-                 }
-                 @Override
-                 protected void onFailure()
-                 {
-                     exploredConnection_ = removingConnection;
-                 }
-              }); 
+                    @Override
+                    protected void onSuccess()
+                    {
+                        exploredConnection_ = removingConnection;
+                        disconnectConnection(false);
+                        showAllConnections(true);
+                    }
+                    @Override
+                    protected void onFailure()
+                    {
+                        exploredConnection_ = removingConnection;
+                    }
+                 }); 
+            }
          },
-         () -> {
-            // if user selects No, restore interleaving actions
-            exploredConnection_ = removingConnection;
-         },
-         true /* yes is default */);
+         true);
    }
    
    @Handler
@@ -523,7 +487,7 @@ public class ConnectionsPresenter extends BasePresenter
       {
          for (int i = 0; i<connections.length(); i++)
          {
-            if (connections.get(i).getId() == exploredConnection_.getId())
+            if (connections.get(i).getId().equals(exploredConnection_.getId()))
             {
                exploredConnection_ = connections.get(i);
                display_.setExploredConnection(exploredConnection_);
@@ -545,7 +509,7 @@ public class ConnectionsPresenter extends BasePresenter
    private void exploreConnection(Connection connection)
    {
       exploredConnection_ = connection;
-      display_.showConnectionExplorer(connection, state_.connectVia().getValue());
+      display_.showConnectionExplorer(connection, uiPrefs_.connectionsConnectVia().getValue());
       manageUI();
    }
    
@@ -600,12 +564,11 @@ public class ConnectionsPresenter extends BasePresenter
    
    private final GlobalDisplay globalDisplay_;
    
-   private final Display display_;
+   private final Display display_ ;
    private final EventBus eventBus_;
    private final Commands commands_;
-   private UserState state_;
-   private UserPrefs userPrefs_;
-   private final ConnectionsServerOperations server_;
+   private UIPrefs uiPrefs_;
+   private final ConnectionsServerOperations server_ ;
    @SuppressWarnings("unused") private final ApplicationInterrupt applicationInterrupt_;
    
    // client state
@@ -617,6 +580,4 @@ public class ConnectionsPresenter extends BasePresenter
    private ArrayList<Connection> allConnections_ = new ArrayList<Connection>();
    private ArrayList<ConnectionId> activeConnections_ = new ArrayList<ConnectionId>();
    
-   private static boolean installersUpdated_ = false;
-   private static String installersWarning_ = null;
 }

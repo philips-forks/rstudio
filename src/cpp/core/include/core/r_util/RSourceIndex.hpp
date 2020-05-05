@@ -1,7 +1,7 @@
 /*
  * RSourceIndex.hpp
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -23,11 +23,12 @@
 #include <boost/function.hpp>
 #include <boost/utility.hpp>
 #include <boost/regex.hpp>
+#include <boost/foreach.hpp>
 #include <boost/range/adaptors.hpp>
 #include <boost/algorithm/string/predicate.hpp>
 
 #include <core/Algorithm.hpp>
-#include <shared_core/SafeConvert.hpp>
+#include <core/SafeConvert.hpp>
 #include <core/StringUtils.hpp>
 #include <core/RegexUtils.hpp>
 
@@ -127,8 +128,8 @@ public:
    const std::string& name() const { return name_; }
    const std::vector<RS4MethodParam>& signature() const { return signature_; }
    const int braceLevel() const { return braceLevel_; }
-   int line() const { return core::safe_convert::numberTo<std::size_t, int>(line_,0); }
-   int column() const { return core::safe_convert::numberTo<std::size_t, int>(column_,0); }
+   int line() const { return core::safe_convert::numberTo<int>(line_,0); }
+   int column() const { return core::safe_convert::numberTo<int>(column_,0); }
 
    // support for RSourceIndex::search
 
@@ -274,7 +275,7 @@ private:
    const RSourceItem& get(const std::string& name,
                           const RSourceItem::Type type = RSourceItem::Function)
    {
-      for (const RSourceItem& item : items_)
+      BOOST_FOREACH(const RSourceItem& item, items_)
       {
          if (item.name() == name && item.type() == type)
             return item;
@@ -287,7 +288,7 @@ public:
 
    static const std::set<std::string>& getAllInferredPackages()
    {
-      return allInferredPkgNames();
+      return s_allInferredPkgNames_;
    }
 
    const std::vector<std::string>& getInferredPackages()
@@ -298,36 +299,36 @@ public:
    static void addPackageInformation(const std::string& package,
                                      const PackageInformation& info)
    {
-      packageInformation()[package] = info;
+      s_packageInformation_[package] = info;
    }
 
    static bool hasInformation(const std::string& package)
    {
-      return packageInformation().find(package) != packageInformation().end();
+      return s_packageInformation_.find(package) != s_packageInformation_.end();
    }
    
    typedef std::map<std::string, PackageInformation> PackageInformationDatabase;
    static const PackageInformationDatabase& getPackageInformationDatabase()
    {
-      return packageInformation();
+      return s_packageInformation_;
    }
    
    static const PackageInformation& getPackageInformation(const std::string& package)
    {
-      return packageInformation()[package];
+      return s_packageInformation_[package];
    }
    
    static bool hasFunctionInformation(const std::string& func,
                                       const std::string& pkg)
    {
-      return packageInformation()[pkg].functionInfo.count(func);
+      return s_packageInformation_[pkg].functionInfo.count(func);
    }
    
    static const FunctionInformation& getFunctionInformation(
          const std::string& func,
          const std::string& pkg)
    {
-      return packageInformation()[pkg].functionInfo[func];
+      return s_packageInformation_[pkg].functionInfo[func];
    }
    
    static const FunctionInformation& getFunctionInformationAnywhere(
@@ -340,27 +341,27 @@ public:
            ++it)
       {
          const std::string& pkg = *it;
-         if (packageInformation().count(pkg))
+         if (s_packageInformation_.count(pkg))
          {
-            const PackageInformation& pkgInfo = packageInformation()[pkg];
+            const PackageInformation& pkgInfo = s_packageInformation_[pkg];
             if (pkgInfo.functionInfo.count(func))
                return const_cast<FunctionInformationMap&>(pkgInfo.functionInfo)[func];
          }
       }
       
       *pLookupFailed = true;
-      return noSuchFunction();
+      return s_noSuchFunction_;
    }
 
    static std::vector<std::string> getAllUnindexedPackages()
    {
       std::vector<std::string> result;
       typedef std::set<std::string>::const_iterator iterator_t;
-      for (iterator_t it = allInferredPkgNames().begin();
-           it != allInferredPkgNames().end();
+      for (iterator_t it = s_allInferredPkgNames_.begin();
+           it != s_allInferredPkgNames_.end();
            ++it)
       {
-         if (allInferredPkgNames().count(*it) == 0)
+         if (s_packageInformation_.count(*it) == 0)
             result.push_back(*it);
       }
       return result;
@@ -369,40 +370,40 @@ public:
    void addInferredPackage(const std::string& packageName)
    {
       inferredPkgNames_.push_back(packageName);
-      allInferredPkgNames().insert(packageName);
+      s_allInferredPkgNames_.insert(packageName);
    }
    
    static void addGloballyInferredPackage(const std::string& pkgName)
    {
-      allInferredPkgNames().insert(pkgName);
+      s_allInferredPkgNames_.insert(pkgName);
    }
    
    static void setImportedPackages(const std::set<std::string>& pkgNames)
    {
-      importedPackages().clear();
-      importedPackages().insert(pkgNames.begin(), pkgNames.end());
-      allInferredPkgNames().insert(pkgNames.begin(), pkgNames.end());
+      s_importedPackages_.clear();
+      s_importedPackages_.insert(pkgNames.begin(), pkgNames.end());
+      s_allInferredPkgNames_.insert(pkgNames.begin(), pkgNames.end());
    }
    
    static const std::set<std::string>& getImportedPackages()
    {
-      return importedPackages();
+      return s_importedPackages_;
    }
    
    typedef std::map< std::string, std::set<std::string> > ImportFromMap;
    
    static void setImportFromDirectives(const ImportFromMap& map)
    {
-      importFromDirectives() = map;
-      for (const std::string& pkg : map | boost::adaptors::map_keys)
+      s_importFromDirectives_ = map;
+      BOOST_FOREACH(const std::string& pkg, map | boost::adaptors::map_keys)
       {
-         allInferredPkgNames().insert(pkg);
+         s_allInferredPkgNames_.insert(pkg);
       }
    }
    
    static ImportFromMap& getImportFromDirectives()
    {
-      return importFromDirectives();
+      return s_importFromDirectives_;
    }
    
    void addSourceItem(const RSourceItem& item)
@@ -424,37 +425,13 @@ private:
    // but we share that state in a static variable (so that we can
    // cache and share across all indexes)
    std::vector<std::string> inferredPkgNames_;
-   
-   static std::set<std::string>& importedPackages()
-   {
-      static std::set<std::string> instance;
-      return instance;
-   }
-   
-   static ImportFromMap& importFromDirectives()
-   {
-      static ImportFromMap instance;
-      return instance;
-   }
-   
-   static std::set<std::string>& allInferredPkgNames()
-   {
-      static std::set<std::string> instance;
-      return instance;
-   }
+   static std::set<std::string> s_importedPackages_;
+   static ImportFromMap s_importFromDirectives_;
+   static std::set<std::string> s_allInferredPkgNames_;
    
    // NOTE: All source indexes share a set of completions
-   static std::map<std::string, PackageInformation>& packageInformation()
-   {
-      static std::map<std::string, PackageInformation> instance;
-      return instance;
-   }
-   
-   static FunctionInformation& noSuchFunction()
-   {
-      static FunctionInformation instance;
-      return instance;
-   }
+   static std::map<std::string, PackageInformation> s_packageInformation_;
+   static FunctionInformation s_noSuchFunction_;
    
 };
 

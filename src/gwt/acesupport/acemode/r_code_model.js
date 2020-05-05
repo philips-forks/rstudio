@@ -1,7 +1,7 @@
 /*
  * r_code_model.js
  *
- * Copyright (C) 2009-12 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -915,7 +915,7 @@ var RCodeModel = function(session, tokenizer,
                label = label.replace(/\s*[#=-]+\s*$/, "");
             }
 
-            this.$scopes.onSectionStart(label, position);
+            this.$scopes.onSectionHead(label, position);
          }
 
          // Sweave
@@ -925,7 +925,6 @@ var RCodeModel = function(session, tokenizer,
          else if (!isInRMode &&
                   modeId === "mode/sweave" &&
                   type === "keyword" &&
-                  position.column === 0 &&
                   value.indexOf("\\") === 0 && (
                      value === "\\chapter" ||
                      value === "\\section" ||
@@ -967,7 +966,7 @@ var RCodeModel = function(session, tokenizer,
          else if (/\bcodebegin\b/.test(type) && value === "---")
          {
             var title = $extractYamlTitle(this.$session);
-            this.$scopes.onSectionStart(title, position, {isYaml: true});
+            this.$scopes.onSectionHead(title, position, {isYaml: true});
          }
 
          else if (/\bcodeend\b/.test(type) && value === "---")
@@ -983,7 +982,7 @@ var RCodeModel = function(session, tokenizer,
                   /\bcodebegin\b/.test(type) &&
                   value.trim().indexOf("/***") === 0)
          {
-            this.$scopes.onSectionStart("(R Code Chunk)", position);
+            this.$scopes.onSectionHead("(R Code Chunk)", position);
          }
 
          else if (modeId === "mode/rmarkdown" &&
@@ -1191,7 +1190,6 @@ var RCodeModel = function(session, tokenizer,
    };
 
    this.getFoldWidget = function(session, foldStyle, row) {
-
       var foldToken = this.$getFoldToken(session, foldStyle, row);
       if (foldToken == null)
          return "";
@@ -1399,10 +1397,8 @@ var RCodeModel = function(session, tokenizer,
    // we wish to reindent.
    this.getNextLineIndent = function(state, line, tab, row)
    {
-      // If we're within a multi-line string, preserve the indent
-      // of the current line.
       if (Utils.endsWith(state, "qstring"))
-         return this.$getIndent(line);
+         return "";
 
       // NOTE: Pressing enter will already have moved the cursor to
       // the next row, so we need to push that back a single row.
@@ -1901,7 +1897,10 @@ var RCodeModel = function(session, tokenizer,
             }
          }
       }
-      else if (isOneOf(tokenCursor.currentValue(), ["else", "repeat"]))
+      else if (isOneOf(tokenCursor.currentValue(),
+                       ["else", "repeat", "<-", "<<-", "="]) ||
+               tokenCursor.hasType("infix") ||
+               tokenCursor.currentType() === "keyword.operator")
       {
          return this.$getIndent(this.$getLine(tokenCursor.$row));
       }
@@ -1996,13 +1995,45 @@ var RCodeModel = function(session, tokenizer,
 
    this.$onDocChange = function(evt)
    {
-      if (evt.action === "insert")
-         this.$insertNewRows(evt.start.row, evt.end.row - evt.start.row);
-      else
-         this.$removeRows(evt.start.row, evt.end.row - evt.start.row);
+      var delta = evt.data;
 
-      this.$invalidateRow(evt.start.row);
-      this.$scopes.invalidateFrom(evt.start);
+      if (delta.action === "insertLines")
+      {
+         this.$insertNewRows(delta.range.start.row,
+                             delta.range.end.row - delta.range.start.row);
+      }
+      else if (delta.action === "insertText")
+      {
+         if (this.$doc.isNewLine(delta.text))
+         {
+            this.$invalidateRow(delta.range.start.row);
+            this.$insertNewRows(delta.range.end.row, 1);
+         }
+         else
+         {
+            this.$invalidateRow(delta.range.start.row);
+         }
+      }
+      else if (delta.action === "removeLines")
+      {
+         this.$removeRows(delta.range.start.row,
+                          delta.range.end.row - delta.range.start.row);
+         this.$invalidateRow(delta.range.start.row);
+      }
+      else if (delta.action === "removeText")
+      {
+         if (this.$doc.isNewLine(delta.text))
+         {
+            this.$removeRows(delta.range.end.row, 1);
+            this.$invalidateRow(delta.range.start.row);
+         }
+         else
+         {
+            this.$invalidateRow(delta.range.start.row);
+         }
+      }
+
+      this.$scopes.invalidateFrom(delta.range.start);
    };
    
    this.$invalidateRow = function(row)

@@ -1,7 +1,7 @@
 /*
  * RSession.hpp
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-17 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -20,7 +20,7 @@
 
 #include <boost/function.hpp>
 
-#include <shared_core/FilePath.hpp>
+#include <core/FilePath.hpp>
 
 #include <core/r_util/RSessionContext.hpp>
 
@@ -32,7 +32,7 @@
 
 namespace rstudio {
 namespace core {
-   class Error ;
+	class Error ;
    class Settings;
 } 
 }
@@ -64,10 +64,7 @@ struct ROptions
          autoReloadSource(false),
          restoreWorkspace(true),
          saveWorkspace(SA_SAVEASK),
-         disableRProfileOnStart(false),
-         rProfileOnResume(false),
-         restoreEnvironmentOnResume(true),
-         packratEnabled(false)
+         rProfileOnResume(false)
    {
    }
    core::FilePath userHomePath;
@@ -82,20 +79,15 @@ struct ROptions
    boost::function<bool()> alwaysSaveHistory;
    core::FilePath rSourcePath;
    std::string rLibsUser;
-   std::string rCRANUrl;
-   std::string rCRANSecondary;
-   std::string runScript;
+   std::string rCRANRepos;
    bool useInternet2;
    int rCompatibleGraphicsEngineVersion;
    bool serverMode;
    bool autoReloadSource ;
    bool restoreWorkspace;
    SA_TYPE saveWorkspace;
-   bool disableRProfileOnStart;
    bool rProfileOnResume;
-   bool restoreEnvironmentOnResume;
    core::r_util::SessionScope sessionScope;
-   bool packratEnabled;
 };
       
 struct RInitInfo
@@ -173,25 +165,19 @@ void reportAndLogWarning(const std::string& warning);
 
 // suspend/resume
 bool isSuspendable(const std::string& prompt);
-bool suspend(bool force, int status, const std::string& envVarSaveBlacklist);
+bool suspend(bool force, int status = EXIT_SUCCESS);
 
 struct RSuspendOptions
 {
    RSuspendOptions(int exitStatus)
-      : status(exitStatus)
-   {
-   }
-
-   RSuspendOptions(int exitStatus, const std::string& blacklist) 
-      : status(exitStatus),
-        envVarSaveBlacklist(blacklist)
+      : status(exitStatus), saveMinimal(false), saveWorkspace(false), 
+        excludePackages(false)
    {
    }
    int status;
-   bool saveMinimal { false };
-   bool saveWorkspace { false };
-   bool excludePackages { false };
-   std::string envVarSaveBlacklist;
+   bool saveMinimal;
+   bool saveWorkspace;
+   bool excludePackages;
 };
 void suspendForRestart(const RSuspendOptions& options);
    

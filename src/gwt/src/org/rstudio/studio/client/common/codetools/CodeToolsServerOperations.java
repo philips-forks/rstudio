@@ -1,7 +1,7 @@
 /*
  * CodeToolsServerOperations.java
  *
- * Copyright (C) 2009-12 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -20,14 +20,9 @@ import org.rstudio.core.client.js.JsObject;
 import org.rstudio.studio.client.server.*;
 import org.rstudio.studio.client.server.Void;
 import org.rstudio.studio.client.workbench.codesearch.model.CodeSearchServerOperations;
-import org.rstudio.studio.client.workbench.views.console.shell.assist.PythonCompletionContext;
-import org.rstudio.studio.client.workbench.views.console.shell.assist.SqlCompletionParseContext;
 import org.rstudio.studio.client.workbench.views.help.model.HelpServerOperations;
-import org.rstudio.studio.client.workbench.views.output.lint.model.AceAnnotation;
 import org.rstudio.studio.client.workbench.views.source.model.CppServerOperations;
 
-import com.google.gwt.core.client.JavaScriptObject;
-import com.google.gwt.core.client.JsArray;
 import com.google.gwt.core.client.JsArrayString;
 
 public interface CodeToolsServerOperations extends HelpServerOperations,
@@ -52,7 +47,6 @@ public interface CodeToolsServerOperations extends HelpServerOperations,
          String filePath,
          String documentId,
          String line,
-         boolean isConsole,
          ServerRequestCallback<Completions> completions);
    
    void getDplyrJoinCompletions(
@@ -83,44 +77,5 @@ public interface CodeToolsServerOperations extends HelpServerOperations,
          ServerRequestCallback<JsObject> callback);
    
    void executeUserCommand(String name, ServerRequestCallback<Void> callback);
-   
-   void markdownGetCompletions(
-         int completionType,
-         JavaScriptObject completionData,
-         ServerRequestCallback<Completions> requestCallback);
-   
-   void pythonGetCompletions(
-         String line,
-         PythonCompletionContext context,
-         ServerRequestCallback<Completions> requestCallback);
-   
-   void pythonGoToDefinition(
-         String line,
-         int column,
-         ServerRequestCallback<Boolean> requestCallback);
-   
-   void pythonGoToHelp(
-         String line,
-         int column,
-         ServerRequestCallback<Boolean> requestCallback);
-   
-   void stanGetCompletions(
-         String line,
-         ServerRequestCallback<Completions> requestCallback);
-   
-   void stanGetArguments(
-         String function,
-         ServerRequestCallback<String> requestCallback);
-   
-   void stanRunDiagnostics(
-         String filename,
-         boolean useSourceDatabase,
-         ServerRequestCallback<JsArray<AceAnnotation>> requestCallback);
-   
-   void sqlGetCompletions(
-         String line,
-         String connection,
-         SqlCompletionParseContext context,
-         ServerRequestCallback<Completions> requestCallback);
-   
+         
 }

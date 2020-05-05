@@ -1,7 +1,7 @@
 /*
  * ConsoleWriteOutputEvent.java
  *
- * Copyright (C) 2009-12 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -30,12 +30,12 @@ public class ConsoleWriteOutputEvent extends GwtEvent<ConsoleWriteOutputHandler>
    
    public String getOutput()
    {
-      return output_.text;
+      return output_.getText();
    }
 
    public String getConsole()
    {
-      return output_.console;
+      return output_.getConsole();
    }
    
    @Override

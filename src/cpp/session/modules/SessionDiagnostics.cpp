@@ -1,7 +1,7 @@
 /*
  * SessionDiagnostics.cpp
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-2015 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -28,20 +28,21 @@
 
 #include <core/Debug.hpp>
 #include <core/Exec.hpp>
-#include <shared_core/Error.hpp>
+#include <core/Error.hpp>
 #include <core/FileSerializer.hpp>
 #include <core/YamlUtil.hpp>
 
 #include <session/SessionRUtil.hpp>
+#include <session/SessionUserSettings.hpp>
 #include <session/SessionModuleContext.hpp>
 #include <session/SessionSourceDatabase.hpp>
 #include <session/projects/SessionProjects.hpp>
-#include <session/prefs/UserPrefs.hpp>
 
 #include "shiny/SessionShiny.hpp"
 
 #include <boost/shared_ptr.hpp>
 #include <boost/bind.hpp>
+#include <boost/foreach.hpp>
 #include <boost/range/adaptor/map.hpp>
 
 #include <r/RSexp.hpp>
@@ -87,7 +88,7 @@ void addUnreferencedSymbol(const ParseItem& item,
    if (symbols.count(item.symbol))
    {
       ParseNode::Positions positions = symbols[item.symbol];
-      for (const Position& position : positions)
+      BOOST_FOREACH(const Position& position, positions)
       {
          lint.symbolDefinedAfterUsage(item, position);
       }
@@ -112,7 +113,7 @@ void doCheckDefinedButNotUsed(ParseNode* pNode, ParseResults& results)
       
       if (pNode->isSymbolDefinedButNotUsed(symbolName, true, true))
       {
-         ParseNode::Positions* symbolPos = nullptr;
+         ParseNode::Positions* symbolPos = NULL;
          if (get(definitions, symbolName, &symbolPos))
          {
             results.lint().symbolDefinedButNotUsed(
@@ -126,7 +127,7 @@ void doCheckDefinedButNotUsed(ParseNode* pNode, ParseResults& results)
 void checkDefinedButNotUsed(ParseResults& results)
 {
    ParseNode::Children children = results.parseTree()->getChildren();
-   for (const boost::shared_ptr<ParseNode>& child : children)
+   BOOST_FOREACH(const boost::shared_ptr<ParseNode>& child, children)
    {
       doCheckDefinedButNotUsed(child.get(), results);
    }
@@ -151,13 +152,13 @@ void addInferredSymbols(const FilePath& filePath,
    
    // We have the index -- now list the packages discovered in
    // 'library' calls, and add those here.
-   for (const std::string& package : pIndex->getInferredPackages())
+   BOOST_FOREACH(const std::string& package, pIndex->getInferredPackages())
    {
       const PackageInformation& completions =
             pIndex->getPackageInformation(package);
       
-      core::algorithm::append(pSymbols, completions.exports);
-      core::algorithm::append(pSymbols, completions.datasets);
+      pSymbols->insert(completions.exports.begin(),
+                       completions.exports.end());
    }
    
    // make 'shiny' implicitly available in shiny documents
@@ -183,7 +184,7 @@ void addNamespaceSymbols(std::set<std::string>* pSymbols)
 {
    // Add symbols specifically mentioned as 'importFrom'
    // directives in the NAMESPACE.
-   for (const std::set<std::string>& symbolNames :
+   BOOST_FOREACH(const std::set<std::string>& symbolNames,
                  RSourceIndex::getImportFromDirectives() | boost::adaptors::map_values)
    {
       pSymbols->insert(symbolNames.begin(), symbolNames.end());
@@ -191,15 +192,17 @@ void addNamespaceSymbols(std::set<std::string>* pSymbols)
    
    // Make all (exported) symbols published by packages
    // that are 'import'ed in the NAMESPACE.
-   for (const std::string& package : RSourceIndex::getImportedPackages())
+   BOOST_FOREACH(const std::string& package,
+                 RSourceIndex::getImportedPackages())
    {
       DEBUG("- Adding imports for package '" << package << "'");
       const PackageInformation& pkgInfo =
             RSourceIndex::getPackageInformation(package);
       
       DEBUG("--- Adding " << pkgInfo.exports.size() << " symbols");
-      core::algorithm::append(pSymbols, pkgInfo.exports);
-      core::algorithm::append(pSymbols, pkgInfo.datasets);
+      pSymbols->insert(
+               pkgInfo.exports.begin(),
+               pkgInfo.exports.end());
    }
 }
 
@@ -418,12 +421,12 @@ Error getAllAvailableRSymbols(const FilePath& filePath,
    
    if (projects::projectContext().isPackageProject() && filePath.isWithin(projDir))
    {
-      DEBUG("- Package file: '" << filePath.getAbsolutePath() << "'");
+      DEBUG("- Package file: '" << filePath.absolutePath() << "'");
       error = getAvailableSymbolsForPackage(filePath, documentId, pSymbols);
    }
    else
    {
-      DEBUG("- Project file: '" << filePath.getAbsolutePath() << "'");
+      DEBUG("- Project file: '" << filePath.absolutePath() << "'");
       error = getAvailableSymbolsForProject(filePath, documentId, pSymbols);
    }
    
@@ -432,13 +435,13 @@ Error getAllAvailableRSymbols(const FilePath& filePath,
    // Add common 'testing' packages, based on the DESCRIPTION's
    // 'Imports' and 'Suggests' fields, and use that if we're within a
    // common 'test'ing directory.
-   if (filePath.isWithin(projDir.completeChildPath("inst")) ||
-       filePath.isWithin(projDir.completeChildPath("tests")))
+   if (filePath.isWithin(projDir.childPath("inst")) ||
+       filePath.isWithin(projDir.childPath("tests")))
    {
       addTestPackageSymbols(pSymbols);
    }
    
-   if (filePath.isWithin(projects::projectContext().directory().completeChildPath("tests/testthat")))
+   if (filePath.isWithin(projects::projectContext().directory().childPath("tests/testthat")))
    {
       PackageSymbolRegistry& registry = packageSymbolRegistry();
       registry.fillNamespaceSymbols("testthat", pSymbols, false);
@@ -447,7 +450,7 @@ Error getAllAvailableRSymbols(const FilePath& filePath,
    // If the file is named 'server.R', 'ui.R' or 'app.R', we'll implicitly
    // assume that it depends on Shiny.
    std::string basename = boost::algorithm::to_lower_copy(
-            filePath.getFilename());
+            filePath.filename());
    
    if (basename == "server.r" ||
        basename == "ui.r" ||
@@ -485,7 +488,7 @@ void checkNoDefinitionInScope(const FilePath& origin,
    
    // For each unresolved symbol, add it to the lint if it's not on the search
    // path.
-   for (const ParseItem& item : unresolvedItems)
+   BOOST_FOREACH(const ParseItem& item, unresolvedItems)
    {
       if (!r::util::isRKeyword(item.symbol) &&
           !r::util::isWindowsOnlyFunction(item.symbol) &&
@@ -532,7 +535,7 @@ void parseLintOptionGlobals(const std::string& text, FileLocalLintOptions* pOpti
    std::string::const_iterator end = text.end();
    
    ParsedCSVLine parsed = parseCsvLine(begin + 1, end, true);
-   for (const std::string element : parsed.first)
+   BOOST_FOREACH(const std::string element, parsed.first)
    {
       pOptions->globals.insert(string_utils::trimWhitespace(element));
    }
@@ -548,7 +551,7 @@ void parseLintOption(const std::string& text, FileLocalLintOptions* pOptions)
    
    ParsedCSVLine line = parseCsvLine(text.begin(), text.end(), true);
    
-   for (const std::string& entry : line.first)
+   BOOST_FOREACH(const std::string& entry, line.first)
    {
       std::string::const_iterator it = 
             std::find(entry.begin(), entry.end(), '=');
@@ -564,7 +567,7 @@ void parseLintOption(const std::string& text, FileLocalLintOptions* pOptions)
 FileLocalLintOptions parseLintOptions(const std::vector<std::string>& lintText)
 {
    FileLocalLintOptions options;
-   for (const std::string text : lintText)
+   BOOST_FOREACH(const std::string text, lintText)
    {
       parseLintOption(text, &options);
    }
@@ -579,7 +582,7 @@ void applyOptions(const FileLocalLintOptions& fileOptions,
                                  fileOptions.globals.end());
    
    typedef std::pair<std::string, std::string> PairStringString;
-   for (const PairStringString& option : fileOptions.options)
+   BOOST_FOREACH(const PairStringString& option, fileOptions.options)
    {
       if (option.first == "style")
          pOptions->setRecordStyleLint(lintOptionValueAsBool(option.second));
@@ -595,7 +598,7 @@ void applyOptions(const FileLocalLintOptions& fileOptions,
    }
 }
 
-#define kLintComment L"(?:^|\\n)#+\\s+\\!diagnostics"
+const char * const kLintComment = "(?:^|\\n)#+\\s+\\!diagnostics";
 
 void setFileLocalParseOptions(const std::wstring& rCode,
                               ParseOptions* pOptions,
@@ -604,7 +607,7 @@ void setFileLocalParseOptions(const std::wstring& rCode,
    using namespace string_utils;
    
    // Extract all of the lint commands.
-   boost::wregex reLintComments(kLintComment);
+   boost::regex reLintComments(kLintComment);
    std::vector<std::string> lintCommands;
    boost::wsmatch match;
    
@@ -641,22 +644,19 @@ ParseResults parse(const std::wstring& rCode,
    ParseOptions options;
    
    options.setLintRFunctions(
-            prefs::userPrefs().diagnosticsInRFunctionCalls());
+            userSettings().lintRFunctionCalls());
    
    options.setCheckArgumentsToRFunctionCalls(
-            prefs::userPrefs().checkArgumentsToRFunctionCalls());
-   
-   options.setCheckUnexpectedAssignmentInFunctionCall(
-            prefs::userPrefs().checkUnexpectedAssignmentInFunctionCall());
+            userSettings().checkArgumentsToRFunctionCalls());
    
    options.setWarnIfVariableIsDefinedButNotUsed(
-            isExplicit && prefs::userPrefs().warnVariableDefinedButNotUsed());
+            isExplicit && userSettings().warnIfVariableDefinedButNotUsed());
    
    options.setWarnIfNoSuchVariableInScope(
-            prefs::userPrefs().warnIfNoSuchVariableInScope());
+            userSettings().warnIfNoSuchVariableInScope());
    
    options.setRecordStyleLint(
-            prefs::userPrefs().styleDiagnostics());
+            userSettings().enableStyleDiagnostics());
    
    bool noLint = false;
    setFileLocalParseOptions(rCode, &options, &noLint);
@@ -703,8 +703,9 @@ namespace {
 json::Array lintAsJson(const LintItems& items)
 {
    json::Array jsonArray;
+   jsonArray.reserve(items.size());
    
-   for (const LintItem& item : items)
+   BOOST_FOREACH(const LintItem& item, items)
    {
       json::Object jsonObject;
       
@@ -728,7 +729,7 @@ module_context::SourceMarkerSet asSourceMarkerSet(const LintItems& items,
    using namespace module_context;
    std::vector<SourceMarker> markers;
    markers.reserve(items.size());
-   for (const LintItem& item : items)
+   BOOST_FOREACH(const LintItem& item, items)
    {
       markers.push_back(SourceMarker(
                            sourceMarkerTypeFromString(lintTypeToString(item.type)),
@@ -752,7 +753,7 @@ module_context::SourceMarkerSet asSourceMarkerSet(
    {
       const FilePath& path = it->first;
       const LintItems& lintItems = it->second;
-      for (const LintItem& item : lintItems)
+      BOOST_FOREACH(const LintItem& item, lintItems)
       {
          markers.push_back(SourceMarker(
                               sourceMarkerTypeFromString(lintTypeToString(item.type)),
@@ -902,12 +903,12 @@ void onNAMESPACEchanged()
    if (!projects::projectContext().hasProject())
       return;
    
-   FilePath NAMESPACE(projects::projectContext().directory().completePath("NAMESPACE"));
+   FilePath NAMESPACE(projects::projectContext().directory().complete("NAMESPACE"));
    if (!NAMESPACE.exists())
       return;
    
    RFunction parseNamespace(".rs.parseNamespaceImports");
-   parseNamespace.addParam(NAMESPACE.getAbsolutePath());
+   parseNamespace.addParam(NAMESPACE.absolutePath());
    
    r::sexp::Protect protect;
    SEXP result;
@@ -944,9 +945,9 @@ void onNAMESPACEchanged()
 void onFilesChanged(const std::vector<core::system::FileChangeEvent>& events)
 {
    std::string namespacePath =
-      projects::projectContext().directory().completePath("NAMESPACE").getAbsolutePath();
+         projects::projectContext().directory().complete("NAMESPACE").absolutePath();
    
-   for (const core::system::FileChangeEvent& event : events)
+   BOOST_FOREACH(const core::system::FileChangeEvent& event, events)
    {
       std::string eventPath = event.fileInfo().absolutePath();
       if (eventPath == namespacePath)
@@ -957,7 +958,7 @@ void onFilesChanged(const std::vector<core::system::FileChangeEvent>& events)
 void afterSessionInitHook(bool newSession)
 {
    if (projects::projectContext().hasProject() &&
-      projects::projectContext().directory().completePath("NAMESPACE").exists())
+       projects::projectContext().directory().complete("NAMESPACE").exists())
    {
       onNAMESPACEchanged();
    }
@@ -974,7 +975,7 @@ bool collectLint(int depth,
                  const FilePath& path,
                  std::map<FilePath, LintItems>* pLint)
 {
-   if (path.getExtensionLowerCase() != ".r")
+   if (path.extensionLowerCase() != ".r")
       return true;
    
    std::string contents;
@@ -1007,7 +1008,7 @@ SEXP rs_lintDirectory(SEXP directorySEXP)
       return R_NilValue;
    
    std::map<FilePath, LintItems> lint;
-   Error error = dirPath.getChildrenRecursive(
+   Error error = dirPath.childrenRecursive(
             boost::bind(collectLint, _1, _2, &lint));
    if (error)
    {

@@ -1,7 +1,7 @@
 /*
  * UnsavedFiles.cpp
  *
- * Copyright (C) 2009-12 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -14,8 +14,6 @@
  */
 
 #include <core/libclang/UnsavedFiles.hpp>
-
-#include <algorithm>
 
 #include <core/StringUtils.hpp>
 
@@ -67,7 +65,7 @@ void UnsavedFiles::update(const std::string& filename,
                 contents.data() + contents.length(),
                 buffContents);
       unsavedFile.Contents = buffContents;
-      unsavedFile.Length = static_cast<unsigned long>(contents.length());
+      unsavedFile.Length = contents.length();
 
       // add it to the list
       files_.push_back(unsavedFile);

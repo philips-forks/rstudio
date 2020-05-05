@@ -1,7 +1,7 @@
 /*
  * TerminalLocalEcho.java
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-17 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -15,43 +15,44 @@
 package org.rstudio.studio.client.workbench.views.terminal;
 
 import java.util.LinkedList;
-import java.util.function.Consumer;
 
 import org.rstudio.core.client.AnsiCode;
+import org.rstudio.core.client.StringSink;
 import org.rstudio.core.client.StringUtil;
 import org.rstudio.core.client.regex.Match;
 import org.rstudio.core.client.regex.Pattern;
 
 public class TerminalLocalEcho
 {
-   public TerminalLocalEcho(Consumer<String> writer)
+   public TerminalLocalEcho(StringSink writer)
    {
       writer_ = writer;
+      
    }
-
+   
    public void echo(String input)
    {
       if (paused())
          return;
-
+      
       // input longer than one character is likely a control sequence, or
       // pasted text; only local-echo and sync with single-character input
-      if (input.length() == 1)
+      if (input.length() == 1) 
       {
          int ch = input.charAt(0);
          if (ch >= 32 /*space*/ && ch <= 126 /*tilde*/ || ch == 8 /*backspace*/)
          {
             localEcho_.add(input);
-            writer_.accept(input);
+            writer_.write(input);
          }
       }
    }
-
+   
    public boolean isEmpty()
    {
       return localEcho_.isEmpty();
    }
-
+   
    public void write(String output)
    {
       // Rapid typing with intermixed backspaces can cause shell
@@ -67,7 +68,7 @@ public class TerminalLocalEcho
       // seen by the shell process when you press enter.
       int chunkStart = 0;
       int chunkEnd = output.length();
-      Match match = ANSI_CTRL_PATTERN.match(output, 0);
+      Match match = ANSI_CTRL_PATTERN.match(output,  0);
       while (match != null)
       {
          chunkEnd = match.getIndex();
@@ -81,7 +82,7 @@ public class TerminalLocalEcho
             {
                // didn't match previously echoed text at all; write 
                // everything after that chunk
-               writer_.accept(output.substring(chunkEnd));
+               writer_.write(output.substring(chunkEnd));
                return;
             }
             // Otherwise completely or partially matched; at this point
@@ -90,7 +91,7 @@ public class TerminalLocalEcho
          }
 
          String matchedValue = match.getValue();
-         if (StringUtil.equals(matchedValue, "\b") && !localEcho_.isEmpty())
+         if (matchedValue.equals("\b")  && !localEcho_.isEmpty())
          {
             // If the backspace was typed by the user, it will be in the
             // localecho buffer, and already echoed to the screen. If it isn't
@@ -99,17 +100,17 @@ public class TerminalLocalEcho
             // remove the backspace from the localEcho buffer so matching
             // doesn't break at this point.
             String popped = localEcho_.pop();
-            if (!StringUtil.equals(popped, "\b"))
+            if (!popped.equals("\b"))
             {
                // Anything in localEcho at this point represents text written to
                // the local screen that the server doesn't know was written, so a
                // backspace needs to delete starting at the point the server
                // thinks is on the screen
-               writer_.accept(matchedValue);
+               writer_.write(matchedValue);
             }
          }
 
-         writer_.accept(matchedValue); // write special sequence
+         writer_.write(matchedValue); // write special sequence
 
          chunkStart = chunkEnd + matchedValue.length();
 
@@ -119,7 +120,7 @@ public class TerminalLocalEcho
 
       outputNonEchoed(output.substring(chunkStart, chunkEnd));
    }
-
+   
    /**
     * Skip any previously local-echoed output, write out any trailing text
     * that wasn't previously echoed. Only exact-match from beginning of string.
@@ -128,57 +129,57 @@ public class TerminalLocalEcho
     */
    private int outputNonEchoed(String outputToMatch)
    {
-      StringBuilder lastOutput = new StringBuilder();
+      String lastOutput = "";
       while (!localEcho_.isEmpty() && lastOutput.length() < outputToMatch.length())
       {
-         lastOutput.append(localEcho_.poll());
+         lastOutput += localEcho_.poll();
       }
 
-      if (lastOutput.toString().equals(outputToMatch))
+      if (lastOutput.equals(outputToMatch))
       {
          // all matched, nothing to output
          return outputToMatch.length();
       }
 
-      else if (outputToMatch.startsWith(lastOutput.toString()))
+      else if (outputToMatch.startsWith(lastOutput))
       {
          // output is superset of what was local-echoed; write out the
          // unmatched part
-         writer_.accept(outputToMatch.substring(lastOutput.length()));
+         writer_.write(outputToMatch.substring(lastOutput.length()));
          return lastOutput.length();
       }
       else
       {
          // didn't match previously echoed text; delete local-input
          // queue so we don't get too far out of sync and write text as-is
-
+         
          // diagnostics to help isolate cases where local-echo is 
          // not matching as expected 
-         diagnostic_.log("Received: '" + AnsiCode.prettyPrint(outputToMatch) +
-               "' Had: '" + AnsiCode.prettyPrint(lastOutput.toString()) + "'");
-
+         diagnostic("Received: '" + AnsiCode.prettyPrint(outputToMatch) + 
+               "' Had: '" + AnsiCode.prettyPrint(lastOutput) + "'");
+         
          localEcho_.clear();
-         writer_.accept(outputToMatch);
+         writer_.write(outputToMatch);
          return 0;
       }
    }
-
+   
    public void clear()
    {
       localEcho_.clear();
    }
-
+   
    public void pause(int pauseMillis)
    {
       stopEchoPause_ = System.currentTimeMillis() + pauseMillis;
       clear();
    }
-
+   
    public boolean paused()
    {
       if (stopEchoPause_ == 0)
          return false;
-
+      
       if (stopEchoPause_ > 0 && System.currentTimeMillis() < stopEchoPause_)
       {
          return true;
@@ -189,25 +190,49 @@ public class TerminalLocalEcho
          return false;
       }
    }
+   
+   private void diagnostic(String msg)
+   {
+      if (diagnostic_ == null)
+         diagnostic_ = new StringBuilder();
+     
+      diagnostic_.append(StringUtil.getTimestamp());
+      diagnostic_.append(": ");
+      diagnostic_.append(msg);
+      diagnostic_.append("\n");
+   }
 
    public String getDiagnostics()
    {
-      return diagnostic_.getLog();
+      if (diagnostic_ == null || diagnostic_.length() == 0)
+         return("<none>\n");
+      else
+         return diagnostic_.toString();
    }
 
    public void resetDiagnostics()
    {
-      diagnostic_.resetLog();
+      diagnostic_ = null;
    }
 
-   // Matches ANSI control sequences or BS, CR, LF, DEL, BEL
+   public String getEchoBuffer()
+   {
+      StringBuilder b = new StringBuilder();
+      for (String s : localEcho_)
+      {
+         b.append(s);
+      }
+      return b.toString();
+   }
+
+  // Matches ANSI control sequences or BS, CR, LF, DEL, BEL
    private static final Pattern ANSI_CTRL_PATTERN =
          Pattern.create("(?:" + AnsiCode.ANSI_REGEX + ")|(?:" + "[\b\n\r\177\7]" + ")");
 
    // Pause local-echo until this time
    private long stopEchoPause_;
-   private final TerminalDiagnostics diagnostic_ = new TerminalDiagnostics();
-
-   private final Consumer<String> writer_;
-   private final LinkedList<String> localEcho_ = new LinkedList<>();
+   private StringBuilder diagnostic_;
+   
+   private final StringSink writer_;
+   private LinkedList<String> localEcho_ = new LinkedList<String>();
 }

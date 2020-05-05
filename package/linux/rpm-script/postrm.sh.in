@@ -32,14 +32,13 @@ then
    then
       systemctl stop rstudio-server.service 2>/dev/null
       systemctl disable rstudio-server.service 2>/dev/null
-      rm -rf /lib/systemd/system/rstudio-server.service
-      rm -rf /usr/lib/systemd/system/rstudio-server.service
+      rm -rf /etc/systemd/system/rstudio-server.service
       systemctl daemon-reload
    fi
 
    # remove openssl softlinks
-   rm -rf ${CMAKE_INSTALL_PREFIX}/bin/libssl.so.10
-   rm -rf ${CMAKE_INSTALL_PREFIX}/bin/libcrypto.so.10
+   rm -rf ${CMAKE_INSTALL_PREFIX}/bin/libssl.so.6
+   rm -rf ${CMAKE_INSTALL_PREFIX}/bin/libcrypto.so.6
 fi
 
 # clear error termination state

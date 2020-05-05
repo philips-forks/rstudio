@@ -1,7 +1,7 @@
 /*
  * Satellite.java
  *
- * Copyright (C) 2009-12 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -19,14 +19,13 @@ import org.rstudio.core.client.dom.WindowEx;
 import org.rstudio.studio.client.RStudioGinjector;
 import org.rstudio.studio.client.application.Desktop;
 import org.rstudio.studio.client.application.events.EventBus;
-import org.rstudio.studio.client.common.mathjax.MathJaxLoader;
 import org.rstudio.studio.client.common.satellite.events.SatelliteFocusedEvent;
 import org.rstudio.studio.client.server.remote.ClientEventDispatcher;
 import org.rstudio.studio.client.workbench.commands.Commands;
 import org.rstudio.studio.client.workbench.events.SessionInitEvent;
 import org.rstudio.studio.client.workbench.model.Session;
 import org.rstudio.studio.client.workbench.model.SessionInfo;
-import org.rstudio.studio.client.workbench.prefs.model.UserPrefs;
+import org.rstudio.studio.client.workbench.prefs.model.UIPrefs;
 
 import com.google.gwt.core.client.JavaScriptObject;
 import com.google.gwt.event.dom.client.FocusEvent;
@@ -51,7 +50,7 @@ public class Satellite implements HasCloseHandlers<Satellite>
    public Satellite(Session session,
                     EventBus eventBus,
                     Commands commands,
-                    Provider<UserPrefs> pUIPrefs)
+                    Provider<UIPrefs> pUIPrefs)
    {
       session_ = session;
       pUIPrefs_ = pUIPrefs;
@@ -66,13 +65,10 @@ public class Satellite implements HasCloseHandlers<Satellite>
       onReactivated_ = onReactivated;
       initializeNative(name);
       
-      // load MathJax
-      MathJaxLoader.ensureMathJaxLoaded();
-      
       // NOTE: Desktop doesn't seem to get onWindowClosing events in Qt 4.8
       // so we instead rely on an explicit callback from the desktop frame
       // to notifyRStudioSatelliteClosing
-      if (!Desktop.hasDesktopFrame())
+      if (!Desktop.isDesktop())
       {
          Window.addWindowClosingHandler(new ClosingHandler() {
             @Override
@@ -191,7 +187,7 @@ public class Satellite implements HasCloseHandlers<Satellite>
                $wnd.opener.notifyRStudioSatelliteClosed(name);
             }),
             true);
-      
+
       // register (this will call the setSessionInfo back)
       $wnd.opener.registerAsRStudioSatellite(name, $wnd);
    }-*/;
@@ -220,7 +216,7 @@ public class Satellite implements HasCloseHandlers<Satellite>
    
    public void focusMainWindow() 
    {
-      if (Desktop.hasDesktopFrame())
+      if (Desktop.isDesktop())
          focusMainWindowDesktop();
       else
          focusMainWindowWeb();
@@ -242,15 +238,15 @@ public class Satellite implements HasCloseHandlers<Satellite>
       RStudioGinjector.INSTANCE.getAddinsCommandManager();
       
       // get the session info and set it
-      SessionInfo sessionInfo = si.cast();
+      SessionInfo sessionInfo = si.<SessionInfo>cast();
       session_.setSessionInfo(sessionInfo);
-   
-      // some objects wait for SessionInit in order to initialize themselves
-      // with SessionInfo
-      events_.fireEvent(new SessionInitEvent());
   
       // ensure ui prefs initialize
       pUIPrefs_.get();
+      
+      // some objects wait for SessionInit in order to initialize themselves
+      // with SessionInfo
+      events_.fireEvent(new SessionInitEvent());
    }
    
    // called by main window to setParams
@@ -292,7 +288,7 @@ public class Satellite implements HasCloseHandlers<Satellite>
    }
    
    private final Session session_;
-   private final Provider<UserPrefs> pUIPrefs_;
+   private final Provider<UIPrefs> pUIPrefs_;
    private final ClientEventDispatcher eventDispatcher_;
    private final HandlerManager handlerManager_ = new HandlerManager(this);
    private final Commands commands_;

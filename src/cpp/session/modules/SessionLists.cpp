@@ -1,7 +1,7 @@
 /*
  * SessionLists.cpp
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -19,12 +19,12 @@
 #include <map>
 
 #include <boost/bind.hpp>
+#include <boost/foreach.hpp>
 #include <boost/utility.hpp>
 #include <boost/circular_buffer.hpp>
 
 #include <core/Exec.hpp>
 #include <core/FileSerializer.hpp>
-#include <core/collection/MruList.hpp>
 
 #include <session/SessionModuleContext.hpp>
 
@@ -36,8 +36,6 @@ namespace modules {
 namespace lists {
    
 namespace {
-
-using namespace collection;
 
 // list names
 const char * const kFileMru = "file_mru";
@@ -67,11 +65,11 @@ std::size_t listSize(const char* const name)
 
 FilePath listPath(const std::string& name)
 {
-   return s_listsPath.completePath(name);
+   return s_listsPath.complete(name);
 }
 
-Error readList(const std::string& name,
-               boost::shared_ptr<MruList>* pList)
+template <typename T>
+Error readList(const std::string& name, T* pList)
 {
    // lookup list size (also serves as a validation of list name)
    std::size_t size = listSize(name.c_str());
@@ -84,14 +82,36 @@ Error readList(const std::string& name,
    }
 
    // read the list from disk
-   pList->reset(new MruList(listPath(name), size));
-   return (*pList)->initialize();
+   pList->clear();
+   FilePath listFilePath = listPath(name);
+   if (listFilePath.exists())
+   {
+      Error error = readCollectionFromFile<T>(listFilePath,
+                                              pList,
+                                              parseString);
+      if (error)
+         return error;
+
+      if (pList->size() > size)
+         pList->resize(size);
+   }
+
+   // return success
+   return Success();
 }
+
+
+template <typename T>
+Error writeList(const std::string& name, const T& list)
+{
+   return writeCollectionToFile<T>(listPath(name), list, stringifyString);
+}
+
 
 json::Array listToJson(const std::list<std::string>& list)
 {
    json::Array jsonArray;
-   for (const std::string& val : list)
+   BOOST_FOREACH(const std::string& val, list)
    {
       jsonArray.push_back(val);
    }
@@ -105,15 +125,15 @@ void onListsFileChanged(const core::system::FileChangeEvent& fileChange)
       return;
 
    // ignore if it is the lists directory
-   if (fileChange.fileInfo().absolutePath() == s_listsPath.getAbsolutePath())
+   if (fileChange.fileInfo().absolutePath() == s_listsPath.absolutePath())
       return;
 
    // get the name of the list
    FilePath filePath(fileChange.fileInfo().absolutePath());
-   std::string name = filePath.getFilename();
+   std::string name = filePath.filename();
 
    // read it
-   boost::shared_ptr<MruList> list;
+   std::list<std::string> list;
    Error error = readList(name, &list);
    if (error)
    {
@@ -123,7 +143,7 @@ void onListsFileChanged(const core::system::FileChangeEvent& fileChange)
 
    json::Object eventJson;
    eventJson["name"] = name;
-   eventJson["list"] = listToJson(list->contents());
+   eventJson["list"] = listToJson(list);
 
    ClientEvent event(client_events::kListChanged, eventJson);
    module_context::enqueClientEvent(event);
@@ -149,7 +169,7 @@ Error getListName(const json::JsonRpcRequest& request, std::string* pName)
 
 Error getListNameAndContents(const json::JsonRpcRequest& request,
                              std::string* pName,
-                             boost::shared_ptr<MruList>* pList)
+                             std::list<std::string>* pList)
 {
    Error error = getListName(request, pName);
    if (error)
@@ -163,12 +183,12 @@ Error listGet(const json::JsonRpcRequest& request,
               json::JsonRpcResponse* pResponse)
 {
    std::string name;
-   boost::shared_ptr<MruList> list;
+   std::list<std::string> list;
    Error error = getListNameAndContents(request, &name, &list);
    if (error)
       return error;
 
-   pResponse->setResult(listToJson(list->contents()));
+   pResponse->setResult(listToJson(list));
 
    return Success();
 }
@@ -183,7 +203,7 @@ Error listSetContents(const json::JsonRpcRequest& request,
       return error;
 
    std::list<std::string> list;
-   for (const json::Value& val : jsonList)
+   BOOST_FOREACH(const json::Value& val, jsonList)
    {
       if (!json::isType<std::string>(val))
       {
@@ -191,10 +211,10 @@ Error listSetContents(const json::JsonRpcRequest& request,
          continue;
       }
 
-      list.push_back(val.getString());
+      list.push_back(val.get_str());
    }
 
-   return writeCollectionToFile<std::list<std::string> >(listPath(name), list, stringifyString);
+   return writeList(name, list);
 }
 
 Error listInsertItem(bool prepend,
@@ -203,21 +223,36 @@ Error listInsertItem(bool prepend,
 {
    // get params and other context
    std::string name, value;
-   boost::shared_ptr<MruList> list;
+   std::list<std::string> list;
+   std::size_t maxSize;
    Error error = getListNameAndContents(request, &name, &list);
    if (error)
       return error;
    error = json::readParam(request.params, 1, &value);
    if (error)
       return error;
+   maxSize = listSize(name.c_str());
+
+   // remove any existing item with this value
+   list.remove(value);
+
+   // enforce size constraints
+   while (list.size() >= maxSize)
+   {
+      if (prepend)
+         list.pop_back();
+      else
+         list.pop_front();
+   }
 
    // do the insert
    if (prepend)
-      list->prepend(value);
+      list.push_front(value);
    else
-      list->append(value);
+      list.push_back(value);
 
-   return Success();
+   // update the list
+   return writeList(name, list);
 }
 
 
@@ -240,7 +275,7 @@ Error listRemoveItem(const json::JsonRpcRequest& request,
 {
    // get list name and contents
    std::string name;
-   boost::shared_ptr<MruList> list;
+   std::list<std::string> list;
    Error error = getListNameAndContents(request, &name, &list);
    if (error)
       return error;
@@ -250,9 +285,10 @@ Error listRemoveItem(const json::JsonRpcRequest& request,
    error = json::readParam(request.params, 1, &value);
 
    // remove it
-   list->remove(value);
+   list.remove(value);
 
-   return Success();
+   // update the list
+   return writeList(name, list);
 }
 
 Error listClear(const json::JsonRpcRequest& request,
@@ -260,15 +296,12 @@ Error listClear(const json::JsonRpcRequest& request,
 {
    // which list
    std::string name;
-   boost::shared_ptr<MruList> list;
-   Error error = getListNameAndContents(request, &name, &list);
+   Error error = getListName(request, &name);
    if (error)
       return error;
 
-   // clear list
-   list->clear();
-
-   return Success();
+   // write empty list
+   return writeList(name, std::list<std::string>());
 }
 
 } // anonymous namespace
@@ -279,12 +312,12 @@ json::Object allListsAsJson()
    json::Object allListsJson;
    for (Lists::const_iterator it = s_lists.begin(); it != s_lists.end(); ++it)
    {
-      boost::shared_ptr<MruList> list;
+      std::list<std::string> list;
       Error error = readList(it->first, &list);
       if (error)
          LOG_ERROR(error);
 
-      allListsJson[it->first] = listToJson(list->contents());
+      allListsJson[it->first] = listToJson(list);
    }
 
    return allListsJson;

@@ -1,7 +1,7 @@
 /*
  * TexLogParser.cpp
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -15,17 +15,16 @@
 
 #include <core/tex/TexLogParser.hpp>
 
-#include <gsl/gsl>
-
+#include <boost/foreach.hpp>
 #include <boost/regex.hpp>
 #include <boost/lexical_cast.hpp>
 #include <boost/algorithm/string.hpp>
 
-#include <shared_core/Error.hpp>
-#include <shared_core/FilePath.hpp>
+#include <core/Error.hpp>
+#include <core/FilePath.hpp>
 #include <core/FileSerializer.hpp>
 #include <core/RegexUtils.hpp>
-#include <shared_core/SafeConvert.hpp>
+#include <core/SafeConvert.hpp>
 #include <core/system/System.hpp>
 
 namespace rstudio {
@@ -133,7 +132,7 @@ FilePath resolveFilename(const FilePath& rootDir,
       return FilePath();
 
    // Check for existence of file
-   FilePath file = rootDir.completePath(result);
+   FilePath file = rootDir.complete(result);
    if (file.exists() && !file.isDirectory())
       return file;
    else
@@ -143,7 +142,7 @@ FilePath resolveFilename(const FilePath& rootDir,
 // TeX wraps lines hard at 79 characters. We use heuristics as described in
 // Sublime Text's TeX plugin to determine where these breaks are.
 void unwrapLines(std::vector<std::string>* pLines,
-                 std::vector<size_t>* pLinesUnwrapped=nullptr)
+                 std::vector<size_t>* pLinesUnwrapped=NULL)
 {
    static boost::regex regexLine("^l\\.(\\d+)\\s");
    static boost::regex regexAssignment("^\\\\.*?=");
@@ -272,7 +271,7 @@ private:
            it != fileStack_.rend();
            it++)
       {
-         if (!it->isEmpty())
+         if (!it->empty())
          {
             currentFile_ = *it;
             return;
@@ -292,13 +291,14 @@ FilePath texFilePath(const std::string& logPath, const FilePath& compileDir)
    // report them relative to the compilation directory -- on Posix use
    // realPath to get a clean full path back
 
-   FilePath path = compileDir.completePath(logPath);
+   FilePath path = compileDir.complete(logPath);
    FilePath realPath;
    Error error = core::system::realPath(path, &realPath);
    if (error)
    {
       // log any error which isn't no such file or directory
-      if (error != systemError(boost::system::errc::no_such_file_or_directory, ErrorLocation()))
+      if (error.code() !=
+          boost::system::errc::no_such_file_or_directory)
       {
          LOG_ERROR(error);
       }
@@ -345,7 +345,7 @@ Error parseLatexLog(const FilePath& logFilePath, LogEntries* pLogEntries)
    std::vector<size_t> linesUnwrapped;
    unwrapLines(&lines, &linesUnwrapped);
 
-   FilePath rootDir = logFilePath.getParent();
+   FilePath rootDir = logFilePath.parent();
    FileStack fileStack(rootDir);
 
    for (std::vector<std::string>::const_iterator it = lines.begin();
@@ -353,7 +353,7 @@ Error parseLatexLog(const FilePath& logFilePath, LogEntries* pLogEntries)
         it++)
    {
       const std::string& line = *it;
-      auto logLineNum = (it - lines.begin()) + 1;
+      int logLineNum = (it - lines.begin()) + 1;
 
       // We slurp overfull/underfull messages with no further processing
       // (i.e. not manipulating the file stack)
@@ -383,9 +383,8 @@ Error parseLatexLog(const FilePath& logFilePath, LogEntries* pLogEntries)
          }
 
          pLogEntries->push_back(LogEntry(logFilePath,
-                                         gsl::narrow_cast<int>(calculateWrappedLine(
-                                                                  linesUnwrapped,
-                                                                  logLineNum)),
+                                         calculateWrappedLine(linesUnwrapped,
+                                                              logLineNum),
                                          LogEntry::Box,
                                          fileStack.currentFile(),
                                          lineNum,
@@ -431,9 +430,8 @@ Error parseLatexLog(const FilePath& logFilePath, LogEntries* pLogEntries)
          }
 
          pLogEntries->push_back(LogEntry(logFilePath,
-                                         gsl::narrow_cast<int>(calculateWrappedLine(
-                                                                  linesUnwrapped,
-                                                                  logLineNum)),
+                                         calculateWrappedLine(linesUnwrapped,
+                                                              logLineNum),
                                          LogEntry::Error,
                                          fileStack.currentFile(),
                                          lineNum,
@@ -472,9 +470,8 @@ Error parseLatexLog(const FilePath& logFilePath, LogEntries* pLogEntries)
          }
 
          pLogEntries->push_back(LogEntry(logFilePath,
-                                         gsl::narrow_cast<int>(calculateWrappedLine(
-                                                                  linesUnwrapped,
-                                                                  logLineNum)),
+                                         calculateWrappedLine(linesUnwrapped,
+                                                              logLineNum),
                                          LogEntry::Warning,
                                          fileStack.currentFile(),
                                          lineNum,
@@ -498,9 +495,8 @@ Error parseLatexLog(const FilePath& logFilePath, LogEntries* pLogEntries)
          {
             int lineNum = safe_convert::stringTo<int>(cStyleErrorMatch[2], -1);
             pLogEntries->push_back(LogEntry(logFilePath,
-                                            gsl::narrow_cast<int>(calculateWrappedLine(
-                                                                     linesUnwrapped,
-                                                                     logLineNum)),
+                                            calculateWrappedLine(linesUnwrapped,
+                                                                 logLineNum),
                                             LogEntry::Error,
                                             cstyleFile,
                                             lineNum,
@@ -533,9 +529,9 @@ Error parseBibtexLog(const FilePath& logFilePath, LogEntries* pLogEntries)
          pLogEntries->push_back(
                LogEntry(
                      logFilePath,
-                     gsl::narrow_cast<int>((it - lines.begin()) + 1),
+                     (it - lines.begin()) + 1,
                      LogEntry::Error,
-                     texFilePath(match[3], logFilePath.getParent()),
+                     texFilePath(match[3], logFilePath.parent()),
                      boost::lexical_cast<int>(match[2]),
                      match[1]));
       }

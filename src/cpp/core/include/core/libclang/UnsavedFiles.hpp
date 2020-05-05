@@ -1,7 +1,7 @@
 /*
  * UnsavedFiles.hpp
  *
- * Copyright (C) 2009-18 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -19,7 +19,6 @@
 #include <map>
 #include <iosfwd>
 #include <vector>
-#include <string>
 
 #include <boost/noncopyable.hpp>
 
@@ -41,8 +40,8 @@ public:
    void remove(const std::string& filename);
    void removeAll();
 
-   CXUnsavedFile* unsavedFilesArray() { return files_.data(); }
-   unsigned numUnsavedFiles() { return static_cast<unsigned>(files_.size()); }
+   CXUnsavedFile* unsavedFilesArray() { return &(files_[0]); }
+   unsigned numUnsavedFiles() { return files_.size(); }
 
 private:
    // vector of unsaved files we pass to various clang functions

@@ -1,7 +1,7 @@
 #
 # SessionRmdNotebook.R
 #
-# Copyright (C) 2009-17 by RStudio, PBC
+# Copyright (C) 2009-17 by RStudio, Inc.
 #
 # Unless you have received this program directly from RStudio pursuant
 # to the terms of a commercial license agreement with RStudio, then
@@ -394,9 +394,6 @@ assign(".rs.notebookVersion", envir = .rs.toolsEnv(), "1.0")
       if (is.null(options))
          return()
       
-      # fix up case where 'fig.dim' is a list
-      options[["fig.dim"]] <- as.numeric(options[["fig.dim"]])
-      
       # set those options
       knitr::opts_chunk$set(options)
       
@@ -408,6 +405,16 @@ assign(".rs.notebookVersion", envir = .rs.toolsEnv(), "1.0")
    result
 })
 
+# SessionSourceDatabase.cpp
+.rs.addFunction("getSourceDocumentProperties", function(path, includeContents = FALSE)
+{
+   if (!file.exists(path))
+      return(NULL)
+   
+   path <- normalizePath(path, winslash = "/", mustWork = TRUE)
+   .Call("rs_getDocumentProperties", path, includeContents)
+})
+   
 .rs.addFunction("createNotebookFromCacheData", function(rnbData,
                                                         inputFile,
                                                         outputFile = NULL,
@@ -438,30 +445,6 @@ assign(".rs.notebookVersion", envir = .rs.toolsEnv(), "1.0")
 
    # set up output_source
    outputOptions <- list(output_source = .rs.rnb.outputSource(rnbData))
-   
-   # override knitr's 'eval_lang' and suppress evaluation of language /
-   # symbol chunk options (necessary since we don't actually execute any
-   # R code while evaluating chunks and so evaluation of such chunk options
-   # could fail)
-   if (exists("eval_lang", envir = asNamespace("knitr")))
-   {
-      override <- function(x, envir = knit_global()) {
-         
-         # white-list for the commonly-used 'T' and 'F' options
-         if (identical(x, as.name("T")))
-            return(TRUE)
-         else if (identical(x, as.name("F")))
-            return(FALSE)
-         else if (is.language(x))
-            return(NULL)
-         else
-            return(x)
-         
-      }
-      
-      original <- .rs.replaceBinding("eval_lang", "knitr", override)
-      on.exit(.rs.replaceBinding("eval_lang", "knitr", original), add = TRUE)
-   }
 
    # knitr outputs relevant information in the form of messages that we attach to the error
    renderMessages <- list()
@@ -535,8 +518,6 @@ assign(".rs.notebookVersion", envir = .rs.toolsEnv(), "1.0")
 
 .rs.addFunction("rnb.renderVerbatimConsoleInput", function(code, engine, indent)
 {
-   Encoding(code) <- "UTF-8"
-   
    if (length(code) == 1)
       code <- strsplit(code, "\n", fixed = TRUE)[[1]]
    
@@ -556,9 +537,6 @@ assign(".rs.notebookVersion", envir = .rs.toolsEnv(), "1.0")
    # bail early for empty data
    if (length(csvData) == 0 || nrow(csvData) == 0)
       return(list())
-   
-   # remove ANSI escapes used for color from text
-   csvData$text <- gsub("\033\\[\\d*(?:;\\d*)*m", "", csvData$text)
    
    # split on type
    cutpoints <- .rs.cutpoints(csvData$type)
@@ -625,7 +603,6 @@ assign(".rs.notebookVersion", envir = .rs.toolsEnv(), "1.0")
 {
   opts <- list()
 
-  Encoding(code) <- "UTF-8"
   # if several lines of code are passed, operate only on the first 
   code <- unlist(strsplit(code, "\n", fixed = TRUE))[[1]]
 
@@ -650,52 +627,15 @@ assign(".rs.notebookVersion", envir = .rs.toolsEnv(), "1.0")
     opts <- .rs.mergeLists(opts,
                            eval(substitute(knitr:::parse_params(code)),
                                 envir = .GlobalEnv))
-    
-    # convert T, F to TRUE, FALSE as appropriate
-    opts <- lapply(opts, function(opt) {
-      if (identical(opt, as.name("T")))
-        TRUE
-      else if (identical(opt, as.name("F")))
-        FALSE
-      else
-        opt
-    })
-
-    # convert language name objects to plain characters (these can occur in
-    # malformed expressions, and cause scalar conversion below to fail)
-    names <- vapply(opts, is.name, TRUE)
-    opts[names] <- as.character(opts[names])
-    
-    # ensure that fields we expect to be logical are actually logical
-    # (sanitize invalid inputs here since they can break notebook execution)
-    fields <- list(
-      warning = TRUE,
-      message = TRUE,
-      error   = FALSE
-    )
-    
-    .rs.enumerate(fields, function(key, default) {
-       
-      if (is.null(opts[[key]]))
-        next
-       
-      opts[[key]] <<- tryCatch(
-        as.logical(opts[[key]]),
-        error = function(e) default
-      )
-       
-    })
-    
   },
   error = function(e) {})
 
-  .rs.scalarListFromList(opts, expressions = TRUE)
+  .rs.scalarListFromList(opts)
 })
 
 .rs.addFunction("extractChunkInnerCode", function(code)
 {
   # split into lines
-  Encoding(code) <- "UTF-8"   
   code <- unlist(strsplit(code, "\n", fixed = TRUE))
   
   # find chunk indicators (safe fallbacks if absent)
@@ -1114,9 +1054,7 @@ assign(".rs.notebookVersion", envir = .rs.toolsEnv(), "1.0")
    
    # unset the chunk options and code (so we know what options/code
    # were actually specified in setup chunk later)
-   # (we tag the 'FALSE' value so we can detect if the user has explicitly
-   # set or unset it in the setup chunk as well)
-   defaults <- list(error = .rs.scalar(FALSE))
+   defaults <- list(error = FALSE)
    knitr::opts_chunk$restore(defaults)
    knitr:::knit_code$restore(list())
    knitr::opts_knit$set(root.dir = NULL)
@@ -1127,10 +1065,6 @@ assign(".rs.notebookVersion", envir = .rs.toolsEnv(), "1.0")
    # get current set of options
    defaultOptions <- knitr::opts_chunk$get()
    
-   # remove the rstudio-injected 'error' option if needed
-   if (identical(defaultOptions$error, .rs.scalar(FALSE)))
-      defaultOptions$error <- NULL
-   
    # restore the previously cached knitr options and code
    chunkOptions <- get(".rs.knitr.chunkOptions", envir = .rs.toolsEnv())
    knitr::opts_chunk$restore(chunkOptions)
@@ -1138,14 +1072,6 @@ assign(".rs.notebookVersion", envir = .rs.toolsEnv(), "1.0")
    knitr:::knit_code$restore(knitrCode)
    knitrDir <- get(".rs.knitr.root.dir", envir = .rs.toolsEnv())
    knitr::opts_knit$set(root.dir = knitrDir)
-   
-   # overlay any newly-set chunk options set by the user in this chunk.
-   # this is necessary so that settings from e.g.
-   #
-   #    knitr::opts_chunk$set(connection = conn)
-   #
-   # are appropriately preserved after running the setup chunk
-   knitr::opts_chunk$set(defaultOptions)
    
    # return current set
    .rs.scalarListFromList(defaultOptions)

@@ -1,7 +1,7 @@
 /*
  * ManipulatorControlPicker.java
  *
- * Copyright (C) 2009-12 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -60,7 +60,7 @@ public class ManipulatorControlPicker extends ManipulatorControl
       {
          String choice = choices.get(i);
          listBox_.addItem(choice);
-         if (choice == value)
+         if (choice.equals(value))
             selectedIndex = i;
       }
       listBox_.setSelectedIndex(selectedIndex);

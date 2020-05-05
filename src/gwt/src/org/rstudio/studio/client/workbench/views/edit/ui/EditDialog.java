@@ -1,7 +1,7 @@
 /*
  * EditDialog.java
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -14,13 +14,11 @@
  */
 package org.rstudio.studio.client.workbench.views.edit.ui;
 
-import com.google.gwt.aria.client.DialogRole;
 import com.google.gwt.event.dom.client.ClickEvent;
 import com.google.gwt.event.dom.client.ClickHandler;
 import com.google.gwt.user.client.ui.HasHorizontalAlignment;
 import com.google.gwt.user.client.ui.SimplePanel;
 import com.google.gwt.user.client.ui.Widget;
-import org.rstudio.core.client.ElementIds;
 import org.rstudio.core.client.Size;
 import org.rstudio.core.client.dom.DomMetrics;
 import org.rstudio.core.client.widget.*;
@@ -30,7 +28,6 @@ import org.rstudio.studio.client.workbench.views.source.editors.text.AceEditor;
 public class EditDialog extends ModalDialogBase
 {
    public EditDialog(String text,
-                     DialogRole role,
                      boolean isRCode,
                      boolean lineWrapping,
                      final ProgressOperationWithInput<String> operation)
@@ -38,7 +35,6 @@ public class EditDialog extends ModalDialogBase
       this("Edit", 
            "Save",
            text, 
-           role,
            isRCode, 
            lineWrapping, 
            new Size(0,0), 
@@ -48,16 +44,13 @@ public class EditDialog extends ModalDialogBase
    public EditDialog(String caption,
                      String saveCaption,
                      String text,
-                     DialogRole role,
                      boolean isRCode,
                      boolean lineWrapping,
                      Size minimumSize,
                      final ProgressOperationWithInput<String> operation)
    {
-      super(role);
       editor_ = new AceEditor();
       setText(caption);
-      editor_.setTextInputAriaLabel(caption);
       sourceText_ = text;
       isRCode_ = isRCode;
       lineWrapping_ = lineWrapping;
@@ -72,7 +65,7 @@ public class EditDialog extends ModalDialogBase
             operation.execute(editor_.getCode(), progressIndicator);
          }
       });
-      addButton(saveButton, ElementIds.DIALOG_OK_BUTTON);
+      addButton(saveButton);
 
       ThemedButton cancelButton = new ThemedButton("Cancel", new ClickHandler() {
          public void onClick(ClickEvent event)
@@ -80,7 +73,7 @@ public class EditDialog extends ModalDialogBase
             operation.execute(null, progressIndicator);
          }
       });
-      addCancelButton(cancelButton, ElementIds.DIALOG_CANCEL_BUTTON);
+      addCancelButton(cancelButton);
 
       setButtonAlignment(HasHorizontalAlignment.ALIGN_RIGHT);
    }
@@ -123,14 +116,14 @@ public class EditDialog extends ModalDialogBase
    }
    
    @Override
-   protected void focusInitialControl()
+   protected void onDialogShown()
    {
       editor_.focus();
    }
 
-   private final String sourceText_;
+   private final String sourceText_ ;
    private final boolean isRCode_;
    private final boolean lineWrapping_;
-   private final AceEditor editor_;
+   private final AceEditor editor_ ;
    private Size minimumSize_;
 }

@@ -1,7 +1,7 @@
 /*
  * REmbedded.hpp
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -59,7 +59,7 @@ struct Callbacks
 
 struct InternalCallbacks
 {
-   InternalCallbacks() : suicide(nullptr), cleanUp(nullptr) {}
+   InternalCallbacks() : suicide(NULL), cleanUp(NULL) {}
    void (*suicide)(const char*);
    void (*cleanUp)(SA_TYPE, int, int);
 };

@@ -1,7 +1,7 @@
 /*
  * CompileOutputBuffer.java
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-17 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -20,7 +20,6 @@ import org.rstudio.core.client.VirtualConsole;
 import org.rstudio.core.client.widget.BottomScrollPanel;
 import org.rstudio.core.client.widget.FontSizer;
 import org.rstudio.core.client.widget.PreWidget;
-import org.rstudio.studio.client.RStudioGinjector;
 import org.rstudio.studio.client.workbench.views.console.ConsoleResources;
 
 import com.google.gwt.user.client.ui.Composite;
@@ -31,7 +30,7 @@ public class CompileOutputBuffer extends Composite
    public CompileOutputBuffer()
    {
       output_ = new PreWidget();
-      virtualConsole_ = RStudioGinjector.INSTANCE.getVirtualConsoleFactory().create(output_.getElement());
+      virtualConsole_ = new VirtualConsole(output_.getElement());
       output_.setStylePrimaryName(
                         ConsoleResources.INSTANCE.consoleStyles().output());
       FontSizer.applyNormalFontSize(output_);
@@ -79,7 +78,7 @@ public class CompileOutputBuffer extends Composite
    public void clear()
    {
       output_.setText("");
-      virtualConsole_ = RStudioGinjector.INSTANCE.getVirtualConsoleFactory().create(output_.getElement());
+      virtualConsole_ = new VirtualConsole(output_.getElement());
    }
  
    private PreWidget output_;

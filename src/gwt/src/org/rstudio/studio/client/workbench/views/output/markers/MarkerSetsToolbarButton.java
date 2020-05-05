@@ -1,7 +1,7 @@
 /*
  * MarkerSetsToolbarButton.java
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -16,7 +16,6 @@ package org.rstudio.studio.client.workbench.views.output.markers;
 
 import org.rstudio.core.client.widget.ScrollableToolbarPopupMenu;
 import org.rstudio.core.client.widget.ToolbarButton;
-import org.rstudio.core.client.widget.ToolbarMenuButton;
 import org.rstudio.core.client.widget.ToolbarPopupMenu;
 import org.rstudio.studio.client.common.icons.StandardIcons;
 
@@ -29,13 +28,13 @@ import com.google.gwt.safehtml.shared.SafeHtml;
 import com.google.gwt.safehtml.shared.SafeHtmlBuilder;
 import com.google.gwt.user.client.ui.MenuItem;
 
-public class MarkerSetsToolbarButton extends ToolbarMenuButton
+public class MarkerSetsToolbarButton extends ToolbarButton
                                      implements HasValueChangeHandlers<String>
 {
+
    public MarkerSetsToolbarButton()
    {
-      super(ToolbarButton.NoText,
-            ToolbarButton.NoTitle,
+      super("",
             StandardIcons.INSTANCE.empty_command(),
             new ScrollableToolbarPopupMenu());
      
@@ -75,9 +74,13 @@ public class MarkerSetsToolbarButton extends ToolbarMenuButton
       }
    }
    
+   
    @Override
    public HandlerRegistration addValueChangeHandler(ValueChangeHandler<String> handler)
    {
       return addHandler(handler, ValueChangeEvent.getType());
    }
+
+   
+ 
 }

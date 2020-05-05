@@ -1,7 +1,7 @@
 /*
  * MonitorClientImpl.hpp
  *
- * Copyright (C) 2009-12 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -25,25 +25,13 @@ class SyncClient : public Client
 {
 public:
    SyncClient(const std::string& metricsSocket,
-              const std::string& auth,
-              bool useSharedSecret = true)
-      : Client(metricsSocket, auth, useSharedSecret)
-   {
-   }
-
-   SyncClient(const std::string& tcpAddress,
-              const std::string& tcpPort,
-              bool useSsl,
-              bool verifySslCerts,
-              const std::string& prefixUri,
-              const std::string& auth,
-              bool useSharedSecret = false)
-      : Client(tcpAddress, tcpPort, useSsl, verifySslCerts, prefixUri, auth, useSharedSecret)
+              const std::string& sharedSecret)
+      : Client(metricsSocket, sharedSecret)
    {
    }
 
    void logMessage(const std::string& programIdentity,
-                   core::log::LogLevel level,
+                   core::system::LogLevel level,
                    const std::string& message);
 
    void sendMetrics(const std::vector<metrics::Metric>& metrics);
@@ -59,29 +47,15 @@ class AsyncClient : public Client
 {
 public:
    AsyncClient(const std::string& metricsSocket,
-               const std::string& auth,
-               boost::asio::io_service& ioService,
-               bool useSharedSecret = true)
-      : Client(metricsSocket, auth, useSharedSecret),
-        ioService_(ioService)
-   {
-   }
-
-   AsyncClient(const std::string& tcpAddress,
-               const std::string& tcpPort,
-               bool useSsl,
-               bool verifySslCerts,
-               const std::string& prefixUri,
-               const std::string& auth,
-               boost::asio::io_service& ioService,
-               bool useSharedSecret = false)
-      : Client(tcpAddress, tcpPort, useSsl, verifySslCerts, prefixUri, auth, useSharedSecret),
+               const std::string& sharedSecret,
+               boost::asio::io_service& ioService)
+      : Client(metricsSocket, sharedSecret),
         ioService_(ioService)
    {
    }
 
    void logMessage(const std::string& programIdentity,
-                   core::log::LogLevel level,
+                   core::system::LogLevel level,
                    const std::string& message);
 
    void sendMetrics(const std::vector<metrics::Metric>& metrics);
@@ -92,7 +66,8 @@ public:
 
    void logConsoleAction(const audit::ConsoleAction& action);
 
-   boost::asio::io_service& ioService() const { return ioService_; }
+protected:
+   boost::asio::io_service& ioService() { return ioService_; }
 
 private:
    boost::asio::io_service& ioService_;

@@ -1,7 +1,7 @@
 /*
  * DesktopOptions.hpp
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -20,16 +20,12 @@
 
 #include <QDir>
 #include <QMainWindow>
-#include <QNetworkCookie>
 #include <QSettings>
 #include <QStringList>
 
-#include <shared_core/FilePath.hpp>
+#include <core/FilePath.hpp>
 
-#define kRunDiagnosticsOption    "--run-diagnostics"
-#define kSessionServerOption     "--session-server"
-#define kSessionServerUrlOption  "--session-url"
-#define kTempCookiesOption       "--use-temp-cookies"
+#define kRunDiagnosticsOption "--run-diagnostics"
 
 #if defined(__APPLE__)
 #define FORMAT QSettings::NativeFormat
@@ -53,33 +49,13 @@ public:
    QString portNumber() const;
    QString newPortNumber();
    std::string localPeer() const; // derived from portNumber
-   
-   QString desktopRenderingEngine() const;
-   void setDesktopRenderingEngine(QString engine);
 
    QString proportionalFont() const;
-   void setProportionalFont(QString font);
-
    QString fixedWidthFont() const;
    void setFixedWidthFont(QString font);
 
    double zoomLevel() const;
    void setZoomLevel(double zoomLevel);
-
-   bool enableAccessibility() const;
-   void setEnableAccessibility(bool enable);
-
-   bool clipboardMonitoring() const;
-   void setClipboardMonitoring(bool monitoring);
-   
-   bool ignoreGpuBlacklist() const;
-   void setIgnoreGpuBlacklist(bool ignore);
-   
-   bool disableGpuDriverBugWorkarounds() const;
-   void setDisableGpuDriverBugWorkarounds(bool disable);
-
-   bool useFontConfigDatabase() const;
-   void setUseFontConfigDatabase(bool use);
 
 #ifdef _WIN32
    // If "", then use automatic detection
@@ -90,20 +66,11 @@ public:
    void setPreferR64(bool preferR64);
 #endif
 
-   // Resolves to 'desktop' sub-directory in development builds.
-   // Resolves to 'bin' directory in release builds.
    core::FilePath scriptsPath() const;
    void setScriptsPath(const core::FilePath& scriptsPath);
 
    core::FilePath executablePath() const;
-
-   // Resolves to 'root' install directory in both development
-   // and release builds. On macOS, points to 'Resources' directory.
    core::FilePath supportingFilePath() const;
-
-   // Resolves to 'desktop/resources' sub-directory in development builds.
-   // Resolves to 'resources' sub-directory in release builds.
-   core::FilePath resourcesPath() const;
 
    core::FilePath wwwDocsPath() const;
 
@@ -120,27 +87,19 @@ public:
 
    bool runDiagnostics() { return runDiagnostics_; }
 
-   QString lastRemoteSessionUrl(const QString& serverUrl);
-   void setLastRemoteSessionUrl(const QString& serverUrl, const QString& sessionUrl);
-
-   QList<QNetworkCookie> authCookies() const;
-   QList<QNetworkCookie> tempAuthCookies() const;
-   void setAuthCookies(const QList<QNetworkCookie>& cookies);
-   void setTempAuthCookies(const QList<QNetworkCookie>& cookies);
-
 private:
-   Options();
+   Options() : settings_(FORMAT, QSettings::UserScope,
+                         QString::fromUtf8("RStudio"),
+                         QString::fromUtf8("desktop")),
+               runDiagnostics_(false)
+   {
+   }
    friend Options& options();
-
-   void setFont(QString key, QString font);
-   QStringList cookiesToList(const QList<QNetworkCookie>& cookies) const;
-   QList<QNetworkCookie> cookiesFromList(const QStringList& cookieStrs) const;
 
    QSettings settings_;
    core::FilePath scriptsPath_;
    mutable core::FilePath executablePath_;
    mutable core::FilePath supportingFilePath_;
-   mutable core::FilePath resourcesPath_;
    mutable QString portNumber_;
    mutable std::string localPeer_;
    bool runDiagnostics_;

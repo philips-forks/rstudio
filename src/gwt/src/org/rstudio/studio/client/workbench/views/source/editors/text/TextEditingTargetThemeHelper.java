@@ -1,7 +1,7 @@
 /*
  * TextEditingTargetThemeHelper.java
  *
- * Copyright (C) 2009-17 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -14,11 +14,8 @@
  */
 package org.rstudio.studio.client.workbench.views.source.editors.text;
 
-import java.util.ArrayList;
-
 import org.rstudio.core.client.dom.DomUtils;
 import org.rstudio.studio.client.application.events.EventBus;
-import org.rstudio.studio.client.common.Timers;
 import org.rstudio.studio.client.workbench.views.source.editors.text.events.EditorThemeChangedEvent;
 import org.rstudio.studio.client.workbench.views.source.editors.text.events.EditorThemeStyleChangedEvent;
 
@@ -26,28 +23,34 @@ import com.google.gwt.dom.client.Element;
 import com.google.gwt.dom.client.Style;
 import com.google.gwt.event.shared.HandlerManager;
 import com.google.gwt.event.shared.HandlerRegistration;
-import com.google.gwt.user.client.ui.Widget;
+import com.google.gwt.user.client.Timer;
 
 public class TextEditingTargetThemeHelper
 {  
    public TextEditingTargetThemeHelper(final TextEditingTarget editingTarget,
-                                       final EventBus eventBus,
-                                       final ArrayList<HandlerRegistration> releaseOnDismiss)
+                                       final EventBus eventBus)
    {
       // do an initial sync after 100ms (to allow initial render)
-      Timers.singleShot(100, () -> {
-
-         // do the sync
-         syncToEditorTheme(editingTarget);
-
-         // register for notification on subsequent changes
-         releaseOnDismiss.add(
-               eventBus.addHandler(
-                     EditorThemeChangedEvent.TYPE,
-                     (EditorThemeChangedEvent e) -> {
-                        syncToEditorTheme(editingTarget);
-                     }));
-      });
+      new Timer() {
+         @Override
+         public void run()
+         {
+            // do the sync
+            syncToEditorTheme(editingTarget);
+            
+            // register for notification on subsquent changes
+            eventBus.addHandler(
+               EditorThemeChangedEvent.TYPE,
+               new EditorThemeChangedEvent.Handler()
+               {
+                  @Override
+                  public void onEditorThemeChanged(EditorThemeChangedEvent e)
+                  {
+                     syncToEditorTheme(editingTarget);
+                  }
+               });
+         }
+      }.schedule(100);;
    }
    
    public HandlerRegistration addEditorThemeStyleChangedHandler(
@@ -69,12 +72,7 @@ public class TextEditingTargetThemeHelper
  
    private void syncToEditorTheme(TextEditingTarget editingTarget)
    {
-      // ensure we're passed a real widget
-      Widget editingWidget = editingTarget.asWidget();
-      if (editingWidget == null)
-         return;
-      
-      Element editorContainer = editingWidget.getElement();
+      Element editorContainer = editingTarget.asWidget().getElement();
       Element[] aceContentElements =
             DomUtils.getElementsByClassName(editorContainer, "ace_scroller");
       
@@ -87,7 +85,8 @@ public class TextEditingTargetThemeHelper
       currentContent_ = content;
       
       // call all registered handlers
-      handlers_.fireEvent(new EditorThemeStyleChangedEvent(content, currentStyle_));
+      handlers_.fireEvent(new EditorThemeStyleChangedEvent(content, 
+            currentStyle_));
    }
    
    private HandlerManager handlers_ = new HandlerManager(this);

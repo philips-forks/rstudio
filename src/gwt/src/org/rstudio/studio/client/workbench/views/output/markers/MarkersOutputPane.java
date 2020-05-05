@@ -1,7 +1,7 @@
 /*
  * MarkersOutputPane.java
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -40,10 +40,8 @@ public class MarkersOutputPane extends WorkbenchPane
       super("Markers");
       markerSetsToolbarButton_ = new MarkerSetsToolbarButton();
       markerList_ = new SourceMarkerList();
-      clearButton_ = new ToolbarButton(
-            ToolbarButton.NoText,
-            "Clear markers",
-            commands.clearPlots().getImageResource());
+      clearButton_ = new ToolbarButton(commands.clearPlots().getImageResource(),
+                                       null);
       ensureWidget();
    }
    
@@ -75,7 +73,7 @@ public class MarkersOutputPane extends WorkbenchPane
    @Override
    protected Toolbar createMainToolbar()
    {
-      Toolbar toolbar = new Toolbar("Markers Tab");
+      Toolbar toolbar = new Toolbar();
       toolbar.addLeftWidget(markerSetsToolbarButton_);
       
       toolbar.addRightWidget(clearButton_);

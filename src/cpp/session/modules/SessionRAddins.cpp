@@ -1,7 +1,7 @@
 /*
  * SessionRAddins.cpp
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-16 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -13,27 +13,23 @@
  *
  */
 
-#include "SessionRAddins.hpp"
-
-#include <gsl/gsl>
-
 #include <core/Macros.hpp>
 #include <core/Algorithm.hpp>
 #include <core/Debug.hpp>
-#include <shared_core/Error.hpp>
+#include <core/Error.hpp>
 #include <core/Exec.hpp>
-#include <shared_core/FilePath.hpp>
+#include <core/FilePath.hpp>
 #include <core/FileSerializer.hpp>
 #include <core/text/DcfParser.hpp>
 
 #include <boost/regex.hpp>
+#include <boost/foreach.hpp>
 #include <boost/bind.hpp>
 #include <boost/range/adaptor/map.hpp>
 #include <boost/system/error_code.hpp>
 
 #include <r/RSexp.hpp>
 #include <r/RExec.hpp>
-#include <r/RRoutines.hpp>
 
 #include <session/projects/SessionProjects.hpp>
 #include <session/SessionModuleContext.hpp>
@@ -47,8 +43,6 @@ namespace modules {
 namespace r_addins {
 
 namespace {
-
-RSTUDIO_BOOST_CONNECTION s_consolePromptHandler;
 
 bool isDevtoolsLoadAllActive()
 {
@@ -71,11 +65,10 @@ public:
                       const std::string& title,
                       const std::string& description,
                       bool interactive,
-                      const std::string& binding,
-                      int ordinal)
+                      const std::string& binding)
       : name_(name), package_(package), title_(title),
         description_(description), interactive_(interactive),
-        binding_(binding), ordinal_(ordinal)
+        binding_(binding)
    {
    }
    
@@ -85,7 +78,6 @@ public:
    const std::string& getDescription() const { return description_; }
    bool isInteractive() const { return interactive_; }
    const std::string& getBinding() const { return binding_; }
-   int getOrdinal() const { return ordinal_; }
    
    json::Object toJson() const
    {
@@ -97,7 +89,6 @@ public:
       object["description"] = description_;
       object["interactive"] = interactive_;
       object["binding"] = binding_;
-      object["ordinal"] = ordinal_;
       
       return object;
    }
@@ -109,7 +100,6 @@ private:
    std::string description_;
    bool interactive_;
    std::string binding_;
-   int ordinal_;
 };
 
 class AddinRegistry : boost::noncopyable
@@ -118,15 +108,15 @@ public:
    
    void saveToFile(const core::FilePath& filePath) const
    {
-      std::shared_ptr<std::ostream> pStream;
-      Error error = filePath.openForWrite(pStream);
+      boost::shared_ptr<std::ostream> pStream;
+      Error error = filePath.open_w(&pStream);
       if (error)
       {
          LOG_ERROR(error);
          return;
       }
 
-      toJson().writeFormatted(*pStream);
+      json::writeFormatted(toJson(), *pStream);
    }
 
    void loadFromFile(const core::FilePath& filePath)
@@ -147,45 +137,37 @@ public:
       // check but don't log for unexpected input because we are the only ones
       // that write this file
       json::Value parsedJson;
-      if (!parsedJson.parse(contents) &&
+      if (json::parse(contents, &parsedJson) &&
           json::isType<json::Object>(parsedJson))
       {
-         const json::Object& addinsJson = parsedJson.getObject();
+         json::Object addinsJson = parsedJson.get_obj();
 
-         for(const json::Object::Member& member : addinsJson)
+         BOOST_FOREACH(const std::string& key, addinsJson | boost::adaptors::map_keys)
          {
-            const std::string& key = member.getName();
-            const json::Value& valueJson = member.getValue();
-            if (json::isType<json::Object>(valueJson))
+            json::Value valueJson = addinsJson.at(key);
+            if(json::isType<json::Object>(valueJson))
             {
                bool interactive;
                std::string name, package, title, description, binding;
-               Error error = json::readObject(valueJson.getObject(),
-                                              "name", name,
-                                              "package", package,
-                                              "title", title,
-                                              "description", description,
-                                              "interactive", interactive,
-                                              "binding", binding);
+               Error error = json::readObject(valueJson.get_obj(),
+                                              "name", &name,
+                                              "package", &package,
+                                              "title", &title,
+                                              "description", &description,
+                                              "interactive", &interactive,
+                                              "binding", &binding);
                if (error)
                {
                   LOG_ERROR(error);
                   continue;
                }
-               
-               // attempt read to ordinal (note that this was not persisted
-               // as part of older addin databases so we read it separately;
-               // we don't log errors as they're rather noisy and otherwise
-               // harmless)
-               int ordinal = 0;
-               json::readObject(valueJson.getObject(), "ordinal", ordinal);
+
                addins_[key] = AddinSpecification(name,
                                                  package,
                                                  title,
                                                  description,
                                                  interactive,
-                                                 binding,
-                                                 ordinal);
+                                                 binding);
             }
          }
 
@@ -212,8 +194,7 @@ public:
             fields["Title"],
             fields["Description"],
             interactive,
-            fields["Binding"],
-            gsl::narrow_cast<int>(addins_.size() + 1)));
+            fields["Binding"]));
    }
 
    void add(const std::string& pkgName, const FilePath& addinPath)
@@ -256,7 +237,7 @@ public:
    {
       json::Object object;
       
-      for (const std::string& key : addins_ | boost::adaptors::map_keys)
+      BOOST_FOREACH(const std::string& key, addins_ | boost::adaptors::map_keys)
       {
          object[key] = addins_.at(key).toJson();
       }
@@ -306,7 +287,7 @@ boost::shared_ptr<AddinRegistry> s_pCurrentRegistry =
 
 FilePath addinRegistryPath()
 {
-   return module_context::userScratchPath().completeChildPath("addin_registry");
+   return module_context::userScratchPath().childPath("addin_registry");
 }
 
 void updateAddinRegistry(boost::shared_ptr<AddinRegistry> pRegistry)
@@ -349,7 +330,7 @@ class AddinWorker : public ppe::Worker
       if (isDevtoolsLoadAllActive())
       {
          FilePath pkgPath = projects::projectContext().buildTargetPath();
-         FilePath addinPath = pkgPath.completeChildPath("inst/rstudio/addins.dcf");
+         FilePath addinPath = pkgPath.childPath("inst/rstudio/addins.dcf");
          if (addinPath.exists())
          {
             std::string pkgName = projects::projectContext().packageInfo().name();
@@ -362,7 +343,7 @@ class AddinWorker : public ppe::Worker
 
       // handle pending continuations
       json::Object registryJson = addinRegistry().toJson();
-      for (json::JsonRpcFunctionContinuation continuation : continuations_)
+      BOOST_FOREACH(json::JsonRpcFunctionContinuation continuation, continuations_)
       {
          json::JsonRpcResponse response;
          response.setResult(registryJson);
@@ -467,7 +448,7 @@ Error executeRAddin(const json::JsonRpcRequest& request,
    if (!addinRegistry().contains(pkgName, cmdName))
    {
       std::string message = "no addin with id '" + commandId + "' registered";
-      pResponse->setError(noSuchAddin(ERROR_LOCATION), json::Value(message));
+      pResponse->setError(noSuchAddin(ERROR_LOCATION), message);
       return Success();
    }
    
@@ -476,7 +457,7 @@ Error executeRAddin(const json::JsonRpcRequest& request,
    {
       std::string message =
             "no function '" + cmdName + "' found in package '" + pkgName + "'";
-      pResponse->setError(noSuchAddin(ERROR_LOCATION), json::Value(message));
+      pResponse->setError(noSuchAddin(ERROR_LOCATION), message);
       return Success();
    }
    
@@ -488,24 +469,6 @@ Error executeRAddin(const json::JsonRpcRequest& request,
     }
    
    return Success();
-}
-
-void onConsolePrompt(const std::string&)
-{
-   Error error = r::exec::RFunction(".rs.addins.removeShinyResponseFilter").call();
-   if (error)
-      LOG_ERROR(error);
-
-   s_consolePromptHandler.disconnect();
-}
-
-SEXP rs_registerAddinConsolePromptHandler()
-{
-   using namespace module_context;
-
-   s_consolePromptHandler = events().onConsolePrompt.connect(onConsolePrompt);
-
-   return R_NilValue;
 }
 
 } // end anonymous namespace
@@ -525,9 +488,6 @@ Error initialize()
    
    // register worker
    ppe::indexer().addWorker(addinWorker());
-
-   // register call methods
-   RS_REGISTER_CALL_METHOD(rs_registerAddinConsolePromptHandler);
    
    ExecBlock initBlock;
    initBlock.addFunctions()

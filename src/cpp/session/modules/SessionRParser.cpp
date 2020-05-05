@@ -1,7 +1,7 @@
 /*
- * SessionRParser.cpp
+ * RParser.hpp
  *
- * Copyright (C) 2009-20 by RStudio, PBC
+ * Copyright (C) 2009-2015 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -80,24 +80,6 @@ std::map<std::string, std::string> makeComplementMap()
 static std::map<std::string, std::string> s_complements =
       makeComplementMap();
 
-Error safeEvaluateString(const std::string& string,
-                         SEXP* pSEXP,
-                         r::sexp::Protect* pProtect)
-{
-   // only evaluate strings that consist of identifiers + extraction
-   // operators, e.g. 'foo$bar[[1]]'
-   boost::regex reSafeEvaluation("^[a-zA-Z0-9_$@\\[\\]]+$");
-   if (regex_utils::search(string, reSafeEvaluation))
-   {
-      return r::exec::evaluateString(string, pSEXP, pProtect);
-   }
-   else
-   {
-      *pSEXP = R_NilValue;
-      return Success();
-   }
-}
-
 bool isDataTableSingleBracketCall(RTokenCursor& cursor)
 {
    if (!cursor.contentEquals(L"["))
@@ -127,7 +109,7 @@ bool isDataTableSingleBracketCall(RTokenCursor& cursor)
    // Get the object and check if it inherits from data.table
    SEXP objectSEXP;
    r::sexp::Protect protect;
-   Error error = safeEvaluateString(objectString, &objectSEXP, &protect);
+   Error error = r::exec::evaluateString(objectString, &objectSEXP, &protect);
    if (error)
       return false;
    
@@ -141,7 +123,7 @@ public:
    NSEDatabase()
    {
       // Add in a set of 'known' NSE-performing functinos.
-      for (const std::string& name : r::sexp::nsePrimitives())
+      BOOST_FOREACH(const std::string& name, r::sexp::nsePrimitives())
       {
          addNseFunction(name, "base");
       }
@@ -196,7 +178,7 @@ NSEDatabase& nseDatabase()
 SEXP resolveObjectAssociatedWithCall(RTokenCursor cursor,
                                      r::sexp::Protect* pProtect,
                                      bool functionsOnly = false,
-                                     bool* pCacheable = nullptr)
+                                     bool* pCacheable = NULL)
 {
    DEBUG("--- Resolve function call: " << cursor);
    
@@ -260,7 +242,7 @@ SEXP resolveObjectAssociatedWithCall(RTokenCursor cursor,
       // avoid output leaking to console
       r::session::utils::SuppressOutputInScope scope;
       
-      Error error = safeEvaluateString(call, &symbolSEXP, pProtect);
+      Error error = r::exec::evaluateString(call, &symbolSEXP, pProtect);
       if (error)
       {
          DEBUG("- Failed to evaluate call '" << call << "'");
@@ -276,7 +258,7 @@ SEXP resolveObjectAssociatedWithCall(RTokenCursor cursor,
 
 SEXP resolveFunctionAssociatedWithCall(RTokenCursor cursor,
                                        r::sexp::Protect* pProtect,
-                                       bool* pCacheable = nullptr)
+                                       bool* pCacheable = NULL)
 {
    return resolveObjectAssociatedWithCall(cursor, pProtect, true, pCacheable);
 }
@@ -286,7 +268,7 @@ std::set<std::wstring> makeWideNsePrimitives()
    std::set<std::wstring> wide;
    const std::set<std::string>& nsePrimitives = r::sexp::nsePrimitives();
    
-   for (const std::string& primitive : nsePrimitives)
+   BOOST_FOREACH(const std::string& primitive, nsePrimitives)
    {
       wide.insert(string_utils::utf8ToWide(primitive));
    }
@@ -408,7 +390,7 @@ bool mightPerformNonstandardEvaluation(const RTokenCursor& origin,
    if (!failed)
    {
       DEBUG("--- Found function in pkgInfo index: " << *fnInfo.binding());
-      return bool(fnInfo.performsNse());
+      return fnInfo.performsNse();
    }
    
    // Handle some special cases first.
@@ -514,19 +496,19 @@ std::wstring typeToWideString(char type)
    } while (0)
 
 #define MOVE_TO_NEXT_TOKEN(__CURSOR__, __STATUS__)                             \
-   RSTUDIO_PARSE_ACTION(__CURSOR__, __STATUS__, moveToNextToken)
+   RSTUDIO_PARSE_ACTION(__CURSOR__, __STATUS__, moveToNextToken);
 
 #define MOVE_TO_NEXT_SIGNIFICANT_TOKEN(__CURSOR__, __STATUS__)                 \
-   RSTUDIO_PARSE_ACTION(__CURSOR__, __STATUS__, moveToNextSignificantToken)
+   RSTUDIO_PARSE_ACTION(__CURSOR__, __STATUS__, moveToNextSignificantToken);
 
 #define FWD_OVER_WHITESPACE(__CURSOR__, __STATUS__)                            \
-   RSTUDIO_PARSE_ACTION(__CURSOR__, __STATUS__, fwdOverWhitespace)
+   RSTUDIO_PARSE_ACTION(__CURSOR__, __STATUS__, fwdOverWhitespace);
 
 #define FWD_OVER_WHITESPACE_AND_COMMENTS(__CURSOR__, __STATUS__)               \
-   RSTUDIO_PARSE_ACTION(__CURSOR__, __STATUS__, fwdOverWhitespaceAndComments)
+   RSTUDIO_PARSE_ACTION(__CURSOR__, __STATUS__, fwdOverWhitespaceAndComments);
 
 #define FWD_OVER_BLANK(__CURSOR__, __STATUS__)                                 \
-   RSTUDIO_PARSE_ACTION(__CURSOR__, __STATUS__, fwdOverBlank)
+   RSTUDIO_PARSE_ACTION(__CURSOR__, __STATUS__, fwdOverBlank);
 
 #define MOVE_TO_NEXT_SIGNIFICANT_TOKEN_WARN_ON_BLANK(__CURSOR__, __STATUS__)   \
    do                                                                          \
@@ -576,7 +558,7 @@ std::wstring typeToWideString(char type)
       }                                                                        \
    } while (0)
 
-#define ENSURE_TYPE(__CURSOR__, __STATUS__, __TYPE__, __RETURN__)              \
+#define ENSURE_TYPE(__CURSOR__, __STATUS__, __TYPE__)                          \
    do                                                                          \
    {                                                                           \
       if (!__CURSOR__.isType(__TYPE__))                                        \
@@ -585,11 +567,11 @@ std::wstring typeToWideString(char type)
                    << string_utils::wideToUtf8(typeToWideString(__TYPE__)));   \
          __STATUS__.lint().unexpectedToken(                                    \
              __CURSOR__, L"'" + typeToWideString(__TYPE__) + L"'");            \
-         if (__RETURN__) return;                                               \
+         return;                                                               \
       }                                                                        \
    } while (0)
 
-#define ENSURE_TYPE_NOT(__CURSOR__, __STATUS__, __TYPE__, __RETURN__)          \
+#define ENSURE_TYPE_NOT(__CURSOR__, __STATUS__, __TYPE__)                      \
    do                                                                          \
    {                                                                           \
       if (__CURSOR__.isType(__TYPE__))                                         \
@@ -597,7 +579,7 @@ std::wstring typeToWideString(char type)
          DEBUG("(" << __LINE__ << "): Unexpected "                             \
                    << string_utils::wideToUtf8(typeToWideString(__TYPE__)));   \
          __STATUS__.lint().unexpectedToken(__CURSOR__);                        \
-         if (__RETURN__) return;                                               \
+         return;                                                               \
       }                                                                        \
    } while (0)
 
@@ -608,49 +590,6 @@ std::wstring typeToWideString(char type)
       DEBUG("(" << __LINE__ << "): Unexpected token (" << __CURSOR__ << ")");  \
       __STATUS__.lint().unexpectedToken(__CURSOR__);                           \
    } while (0)
-
-#define BEGIN_EXPRESSION(__CURSOR__, __STATUS__, __STATE__, __REASON__)        \
-   do                                                                          \
-   {                                                                           \
-      if (__CURSOR__.isType(RToken::LBRACE))                                   \
-      {                                                                        \
-         __STATUS__.pushState(__STATE__ ## Expression);                        \
-         __STATUS__.pushBracket(__CURSOR__);                                   \
-         MOVE_TO_NEXT_SIGNIFICANT_TOKEN(__CURSOR__, __STATUS__);               \
-      }                                                                        \
-      else if (canStartExpression(__CURSOR__))                                 \
-      {                                                                        \
-         __STATUS__.pushState(__STATE__ ## Statement);                         \
-      }                                                                        \
-      else                                                                     \
-      {                                                                        \
-         const RToken& prevToken = __CURSOR__.previousSignificantToken();      \
-         __STATUS__.lint().addLintItem(prevToken, LintTypeError, __REASON__);  \
-      }                                                                        \
-   } while (0)
-
-#define BEGIN_FUNCTION_EXPRESSION(__CURSOR__, __STATUS__)                      \
-   do                                                                          \
-   {                                                                           \
-      if (__CURSOR__.isType(RToken::LBRACE))                                   \
-      {                                                                        \
-         __STATUS__.pushState(ParseStatus::ParseStateFunctionExpression);      \
-         __STATUS__.pushBracket(__CURSOR__);                                   \
-         MOVE_TO_NEXT_SIGNIFICANT_TOKEN(__CURSOR__, __STATUS__);               \
-      }                                                                        \
-      else if (canStartExpression(__CURSOR__))                                 \
-      {                                                                        \
-         __STATUS__.pushState(ParseStatus::ParseStateFunctionStatement);       \
-      }                                                                        \
-      else                                                                     \
-      {                                                                        \
-         const RToken& prevToken = __CURSOR__.previousSignificantToken();      \
-         const char* reason = "missing function definition";                   \
-         __STATUS__.lint().addLintItem(prevToken, LintTypeError, reason);      \
-         __STATUS__.setParentAsCurrent();                                      \
-      }                                                                        \
-   } while (0)
-
 
 void lookAheadAndWarnOnUsagesOfSymbol(const RTokenCursor& startCursor,
                                       RTokenCursor& clone,
@@ -917,23 +856,6 @@ void handleIdentifier(RTokenCursor& cursor,
    }
 }
 
-void handleString(RTokenCursor& cursor,
-                  ParseStatus& status)
-{
-   // if this is a string within a call to glue,
-   // mark used variables as appropriate
-   if (status.currentFunctionName() == L"glue")
-   {
-      const std::string& value = cursor.contentAsUtf8();
-      boost::regex re("{([^}]+)}");
-      boost::sregex_token_iterator it(value.begin(), value.end(), re, 1);
-      boost::sregex_token_iterator end;
-      for (; it != end; ++it)
-         status.node()->addReferencedSymbol(gsl::narrow_cast<int>(cursor.row()),
-                                            gsl::narrow_cast<int>(cursor.column()), *it);
-   }
-}
-
 // Extract a single formal from an in-source function _definition_. For example,
 //
 //    foo <- function(alpha = 1, beta, gamma) {}
@@ -1193,28 +1115,11 @@ public:
       // chain. If so, then we implicitly set the first argument as that object.
       if (isPipeOperator(cursor.previousSignificantToken()))
       {
-         // If magrittr sees a '.' at the top level (ie: used standalone as
-         // an argument) it treats that as a request to move the 'lhs' to
-         // that position. (This is not true when '.' is used as part of
-         // a more complicated expression)
-         bool usesTopLevelDot = core::algorithm::contains(unnamedArguments, ".");
-         if (!usesTopLevelDot)
-         {
-            for (auto&& item : namedArguments)
-            {
-               if (item.second == ".")
-               {
-                  usesTopLevelDot = true;
-                  break;
-               }
-            }
-         }
-
          std::string chainHead = cursor.getHeadOfPipeChain();
-         if (!chainHead.empty() && !usesTopLevelDot)
+         if (!chainHead.empty())
             unnamedArguments.insert(unnamedArguments.begin(), chainHead);
       }
-
+      
       DEBUG_BLOCK("Named, Unnamed Arguments")
       {
          LOG_OBJECT(namedArguments);
@@ -1244,9 +1149,9 @@ public:
        * 1. Identify perfect matches in the set of formals to search.
        */
       std::vector<std::size_t> matchedIndices;
-      for (const std::string& argName : userSuppliedArgNames)
+      BOOST_FOREACH(const std::string& argName, userSuppliedArgNames)
       {
-         for (std::size_t index : formalIndices)
+         BOOST_FOREACH(std::size_t index, formalIndices)
          {
             const std::string& formalName = formalNames[index];
             if (argName == formalName)
@@ -1271,9 +1176,9 @@ public:
        * 2. Identify prefix matches in the set of remaining formals.
        */
       std::vector<std::pair<std::string, std::string> > prefixMatchedPairs;
-      for (const std::string& userSuppliedArgName : userSuppliedArgNames)
+      BOOST_FOREACH(const std::string& userSuppliedArgName, userSuppliedArgNames)
       {
-         for (std::size_t index : formalIndices)
+         BOOST_FOREACH(std::size_t index, formalIndices)
          {
             const std::string& formalName = formalNames[index];
             if (boost::algorithm::starts_with(formalName, userSuppliedArgName))
@@ -1299,7 +1204,7 @@ public:
        * 3. Match other formals positionally.
        */
       std::size_t index = 0;
-      for (const std::string& argument : unnamedArguments)
+      BOOST_FOREACH(const std::string& argument, unnamedArguments)
       {
          if (index == formalIndices.size())
             break;
@@ -1384,7 +1289,7 @@ public:
       if (cursor.contentEquals(L"trace"))
       {
          std::vector<FormalInformation>& formals = pCall->functionInfo().formals();
-         for (FormalInformation& formal : formals)
+         BOOST_FOREACH(FormalInformation& formal, formals)
          {
             formal.setMissingnessHandled(true);
          }
@@ -1490,7 +1395,7 @@ ParseResults parse(const FilePath& filePath,
    
    doParse(cursor, status);
    
-   if (status.node()->getParent() != nullptr)
+   if (status.node()->getParent() != NULL)
    {
       DEBUG("** Parent is not null (not at top level): failed to close all scopes?");
       status.lint().unexpectedEndOfDocument(cursor.currentToken());
@@ -1550,29 +1455,6 @@ bool closesArgumentList(const RTokenCursor& cursor,
    default:
       return false;
    }
-}
-
-// Used to check for variable assignments that occur within
-// argument lists, e.g.
-//
-//    list(a = 1, b <- 2)
-//                ^^^^^^
-//
-// Most likely, the user intended to write 'b = 2' but accidentally
-// used '<-' instead.
-void checkVariableAssignmentInArgumentList(RTokenCursor cursor,
-                                           ParseStatus& status)
-{
-   if (!cursor.isType(RToken::ID))
-      return;
-   
-   if (!cursor.moveToNextSignificantToken())
-      return;
-   
-   if (!cursor.contentEquals(L"<-"))
-      return;
-   
-   status.lint().unexpectedAssignmentInArgumentList(cursor);
 }
 
 void checkBinaryOperatorWhitespace(RTokenCursor& cursor,
@@ -2370,13 +2252,7 @@ START:
          }
          
          if (cursor.isType(RToken::ID))
-         {
             handleIdentifier(cursor, status);
-         }
-         else if (cursor.isType(RToken::STRING))
-         {
-            handleString(cursor, status);
-         }
          
          // Identifiers following identifiers on the same line is
          // illegal (except for else), e.g.
@@ -2431,18 +2307,18 @@ START:
          // parses with '-' as a binary operator.
          if (isBinaryOp(next))
          {
-            if (!status.isInParentheticalScope() && (next.row() > cursor.row()))
+            if (!status.isInParentheticalScope() &&
+                isValidAsUnaryOperator(next) &&
+                (next.row() > cursor.row()))
             {
-               DEBUG("----- Not binding binary operator to statement" << next);
+               DEBUG("----- Unary operator: " << next);
                MOVE_TO_NEXT_SIGNIFICANT_TOKEN(cursor, status);
                goto START;
             }
-            else
-            {
-               DEBUG("----- Binary operator: " << next);
-               MOVE_TO_NEXT_SIGNIFICANT_TOKEN(cursor, status);
-               goto BINARY_OPERATOR;
-            }
+            
+            DEBUG("----- Binary operator: " << next);
+            MOVE_TO_NEXT_SIGNIFICANT_TOKEN(cursor, status);
+            goto BINARY_OPERATOR;
          }
          
          // Identifiers followed by brackets are function calls.
@@ -2521,13 +2397,15 @@ ARGUMENT_LIST:
          status.pushFunctionCallState(
                   ParseStatus::ParseStateSingleBracketArgumentList,
                   cursor.previousSignificantToken().content(),
-                  status.isWithinNseCall());
+                  status.isWithinNseCall() ||
+                     mightPerformNonstandardEvaluation(cursor, status));
          break;
       case RToken::LDBRACKET:
          status.pushFunctionCallState(
                   ParseStatus::ParseStateDoubleBracketArgumentList,
                   cursor.previousSignificantToken().content(),
-                  status.isWithinNseCall());
+                  status.isWithinNseCall() ||
+                  mightPerformNonstandardEvaluation(cursor, status));
          break;
       default:
          GOTO_INVALID_TOKEN(cursor);
@@ -2556,19 +2434,13 @@ ARGUMENT_START:
          }
       }
       
-      if (status.parseOptions().checkUnexpectedAssignmentInFunctionCall())
-         checkVariableAssignmentInArgumentList(cursor, status);
-      
       if (closesArgumentList(cursor, status))
       {
-         // TODO: we previously warned about commas found before a closing
-         // parenthesis, e.g.
-         //
-         //    rnorm(a, b, )
-         //               ^
-         //
-         // but we relax that now as many tidyverse functions now permit
-         // an empty trailing argument
+         if (status.isWithinParenFunctionCall() &&
+             cursor.previousSignificantToken().isType(RToken::COMMA))
+         {
+            status.lint().missingArgumentToFunctionCall(cursor.previousSignificantToken());
+         }
          goto ARGUMENT_LIST_END;
       }
       
@@ -2662,7 +2534,7 @@ FUNCTION_START:
       DEBUG("** Function start ** " << cursor);
       ENSURE_CONTENT(cursor, status, L"function");
       MOVE_TO_NEXT_SIGNIFICANT_TOKEN_WARN_ON_BLANK(cursor, status);
-      ENSURE_TYPE(cursor, status, RToken::LPAREN, true);
+      ENSURE_TYPE(cursor, status, RToken::LPAREN);
       status.pushBracket(cursor);
       enterFunctionScope(cursor, status);
       MOVE_TO_NEXT_SIGNIFICANT_TOKEN_WARN_ON_BLANK(cursor, status);
@@ -2672,12 +2544,8 @@ FUNCTION_START:
 FUNCTION_ARGUMENT_START:
       
       DEBUG("** Function argument start");
-      
-      checkVariableAssignmentInArgumentList(cursor, status);
-      
       if (cursor.isType(RToken::ID) &&
-          (cursor.nextSignificantToken().contentEquals(L"=") ||
-           cursor.nextSignificantToken().contentEquals(L"<-")))
+          cursor.nextSignificantToken().contentEquals(L"="))
       {
          status.node()->addDefinedSymbol(cursor, status.node()->position());
          MOVE_TO_NEXT_SIGNIFICANT_TOKEN(cursor, status);
@@ -2692,7 +2560,7 @@ FUNCTION_ARGUMENT_START:
          {
             MOVE_TO_NEXT_SIGNIFICANT_TOKEN(cursor, status);
             MOVE_TO_NEXT_SIGNIFICANT_TOKEN(cursor, status);
-            goto FUNCTION_ARGUMENT_START;
+             goto FUNCTION_ARGUMENT_START;
          }
          
          if (cursor.nextSignificantToken().isType(RToken::RPAREN))
@@ -2701,11 +2569,18 @@ FUNCTION_ARGUMENT_START:
       
 FUNCTION_ARGUMENT_LIST_END:
       
-      ENSURE_TYPE(cursor, status, RToken::RPAREN, false);
+      ENSURE_TYPE(cursor, status, RToken::RPAREN);
       status.popState();
       status.popBracket(cursor);
       MOVE_TO_NEXT_SIGNIFICANT_TOKEN(cursor, status);
-      BEGIN_FUNCTION_EXPRESSION(cursor, status);
+      if (cursor.isType(RToken::LBRACE))
+      {
+         status.pushState(ParseStatus::ParseStateFunctionExpression);
+         status.pushBracket(cursor);
+         MOVE_TO_NEXT_SIGNIFICANT_TOKEN(cursor, status);
+      }
+      else
+         status.pushState(ParseStatus::ParseStateFunctionStatement);
       goto START;
       
 FOR_START:
@@ -2713,26 +2588,33 @@ FOR_START:
       DEBUG("For start: " << cursor);
       ENSURE_CONTENT(cursor, status, L"for");
       MOVE_TO_NEXT_SIGNIFICANT_TOKEN_WARN_IF_NO_WHITESPACE(cursor, status);
-      ENSURE_TYPE(cursor, status, RToken::LPAREN, true);
+      ENSURE_TYPE(cursor, status, RToken::LPAREN);
       status.pushBracket(cursor);
       MOVE_TO_NEXT_SIGNIFICANT_TOKEN_WARN_ON_BLANK(cursor, status);
-      ENSURE_TYPE(cursor, status, RToken::ID, false);
+      ENSURE_TYPE(cursor, status, RToken::ID);
       status.node()->addDefinedSymbol(cursor, cursor.currentPosition());
       MOVE_TO_NEXT_SIGNIFICANT_TOKEN(cursor, status);
       ENSURE_CONTENT(cursor, status, L"in");
       MOVE_TO_NEXT_SIGNIFICANT_TOKEN(cursor, status);
-      ENSURE_TYPE_NOT(cursor, status, RToken::RPAREN, false);
+      ENSURE_TYPE_NOT(cursor, status, RToken::RPAREN);
       status.pushState(ParseStatus::ParseStateForCondition);
       goto START;
       
 FOR_CONDITION_END:
       
       DEBUG("** For condition end ** " << cursor);
-      ENSURE_TYPE(cursor, status, RToken::RPAREN, false);
+      ENSURE_TYPE(cursor, status, RToken::RPAREN);
       status.popState();
       status.popBracket(cursor);
       MOVE_TO_NEXT_SIGNIFICANT_TOKEN_WARN_IF_NO_WHITESPACE(cursor, status);
-      BEGIN_EXPRESSION(cursor, status, ParseStatus::ParseStateFor, "missing expression following `for (...)`");
+      if (cursor.isType(RToken::LBRACE))
+      {
+         status.pushState(ParseStatus::ParseStateForExpression);
+         status.pushBracket(cursor);
+         MOVE_TO_NEXT_SIGNIFICANT_TOKEN(cursor, status);
+      }
+      else
+         status.pushState(ParseStatus::ParseStateForStatement);
       goto START;
       
 WHILE_START:
@@ -2740,22 +2622,29 @@ WHILE_START:
       DEBUG("** While start **");
       ENSURE_CONTENT(cursor, status, L"while");
       MOVE_TO_NEXT_SIGNIFICANT_TOKEN_WARN_IF_NO_WHITESPACE(cursor, status);
-      ENSURE_TYPE(cursor, status, RToken::LPAREN, true);
+      ENSURE_TYPE(cursor, status, RToken::LPAREN);
       status.pushBracket(cursor);
       status.pushState(ParseStatus::ParseStateWhileCondition);
       MOVE_TO_NEXT_SIGNIFICANT_TOKEN_WARN_ON_BLANK(cursor, status);
-      ENSURE_TYPE_NOT(cursor, status, RToken::RPAREN, false);
+      ENSURE_TYPE_NOT(cursor, status, RToken::RPAREN);
       DEBUG("** Entering while condition: " << cursor);
       goto START;
       
 WHILE_CONDITION_END:
       
       DEBUG("** While condition end ** " << cursor);
-      ENSURE_TYPE(cursor, status, RToken::RPAREN, false);
+      ENSURE_TYPE(cursor, status, RToken::RPAREN);
       status.popState();
       status.popBracket(cursor);
       MOVE_TO_NEXT_SIGNIFICANT_TOKEN_WARN_IF_NO_WHITESPACE(cursor, status);
-      BEGIN_EXPRESSION(cursor, status, ParseStatus::ParseStateWhile, "missing expression following `while (...)`");
+      if (cursor.isType(RToken::LBRACE))
+      {
+         status.pushState(ParseStatus::ParseStateWhileExpression);
+         status.pushBracket(cursor);
+         MOVE_TO_NEXT_SIGNIFICANT_TOKEN(cursor, status);
+      }
+      else
+         status.pushState(ParseStatus::ParseStateWhileStatement);
       goto START;
  
 IF_START:
@@ -2763,11 +2652,11 @@ IF_START:
       DEBUG("** If start ** " << cursor);
       ENSURE_CONTENT(cursor, status, L"if");
       MOVE_TO_NEXT_SIGNIFICANT_TOKEN_WARN_IF_NO_WHITESPACE(cursor, status);
-      ENSURE_TYPE(cursor, status, RToken::LPAREN, true);
+      ENSURE_TYPE(cursor, status, RToken::LPAREN);
       status.pushBracket(cursor);
       status.pushState(ParseStatus::ParseStateIfCondition);
       MOVE_TO_NEXT_SIGNIFICANT_TOKEN(cursor, status);
-      ENSURE_TYPE_NOT(cursor, status, RToken::RPAREN, false);
+      ENSURE_TYPE_NOT(cursor, status, RToken::RPAREN);
       if (cursor.isType(RToken::RPAREN))
          goto IF_CONDITION_END;
       goto START;
@@ -2775,11 +2664,18 @@ IF_START:
 IF_CONDITION_END:
       
       DEBUG("** If condition end ** " << cursor);
-      ENSURE_TYPE(cursor, status, RToken::RPAREN, false);
+      ENSURE_TYPE(cursor, status, RToken::RPAREN);
       status.popState();
       status.popBracket(cursor);
       MOVE_TO_NEXT_SIGNIFICANT_TOKEN_WARN_IF_NO_WHITESPACE(cursor, status);
-      BEGIN_EXPRESSION(cursor, status, ParseStatus::ParseStateIf, "missing expression following `if (...)`");
+      if (cursor.isType(RToken::LBRACE))
+      {
+         status.pushState(ParseStatus::ParseStateIfExpression);
+         status.pushBracket(cursor);
+         MOVE_TO_NEXT_SIGNIFICANT_TOKEN(cursor, status);
+      }
+      else
+         status.pushState(ParseStatus::ParseStateIfStatement);
       goto START;
       
 REPEAT_START:
@@ -2787,7 +2683,14 @@ REPEAT_START:
       DEBUG("** Repeat start ** " << cursor);
       ENSURE_CONTENT(cursor, status, L"repeat");
       MOVE_TO_NEXT_SIGNIFICANT_TOKEN_WARN_IF_NO_WHITESPACE(cursor, status);
-      BEGIN_EXPRESSION(cursor, status, ParseStatus::ParseStateRepeat, "missing expression following `repeat`");
+      if (cursor.isType(RToken::LBRACE))
+      {
+         status.pushState(ParseStatus::ParseStateRepeatExpression);
+         status.pushBracket(cursor);
+         MOVE_TO_NEXT_SIGNIFICANT_TOKEN(cursor, status);
+      }
+      else
+         status.pushState(ParseStatus::ParseStateRepeatStatement);
       goto START;
       
 INVALID_TOKEN:

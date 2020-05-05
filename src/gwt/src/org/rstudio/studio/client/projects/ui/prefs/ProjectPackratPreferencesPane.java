@@ -1,7 +1,7 @@
 /*
  * ProjectPackratPreferencesPane.java
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -20,7 +20,6 @@ import java.util.List;
 
 import org.rstudio.core.client.StringUtil;
 import org.rstudio.core.client.js.JsUtil;
-import org.rstudio.core.client.prefs.RestartRequirement;
 import org.rstudio.core.client.resources.ImageResource2x;
 import org.rstudio.core.client.widget.FixedTextArea;
 import org.rstudio.core.client.widget.LabelWithHelp;
@@ -133,6 +132,10 @@ public class ProjectPackratPreferencesPane extends ProjectPreferencesPane
         add(chkUseCache_);
         
         panelExternalPackages_ = new VerticalPanel();
+        panelExternalPackages_.add(new LabelWithHelp(
+              "External packages (comma separated):",
+              "packrat_external_packages",
+              false));
         taExternalPackages_ = new FixedTextArea(3);
         taExternalPackages_.addStyleName(styles.externalPackages());
         taExternalPackages_.setText(
@@ -144,10 +147,6 @@ public class ProjectPackratPreferencesPane extends ProjectPreferencesPane
                     ),
                     ", "));
         taExternalPackages_.getElement().getStyle().setMarginBottom(8, Unit.PX);
-        panelExternalPackages_.add(new LabelWithHelp(
-            "External packages (comma separated):",
-            "packrat_external_packages",
-            false, "Help on external packages", taExternalPackages_));
         panelExternalPackages_.add(taExternalPackages_);
         add(panelExternalPackages_);
         
@@ -172,8 +171,7 @@ public class ProjectPackratPreferencesPane extends ProjectPreferencesPane
    
    private void manageUI(boolean packified)
    {
-      boolean vcsActive = !StringUtil.isNullOrEmpty(
-            session_.getSessionInfo().getVcsName());
+      boolean vcsActive = !session_.getSessionInfo().getVcsName().equals("");
       
       chkAutoSnapshot_.setVisible(packified);
       chkUseCache_.setVisible(packified);
@@ -184,7 +182,7 @@ public class ProjectPackratPreferencesPane extends ProjectPreferencesPane
    }
 
    @Override
-   public RestartRequirement onApply(RProjectOptions options)
+   public boolean onApply(RProjectOptions options)
    {
       RProjectPackratOptions packratOptions = options.getPackratOptions();
       packratOptions.setUsePackrat(chkUsePackrat_.getValue());
@@ -198,7 +196,7 @@ public class ProjectPackratPreferencesPane extends ProjectPreferencesPane
       packratOptions.setLocalRepos(
             JsUtil.toJsArrayString(widgetLocalRepos_.getItems()));
             
-      return new RestartRequirement();
+      return false;
    }
    
    
@@ -214,7 +212,7 @@ public class ProjectPackratPreferencesPane extends ProjectPreferencesPane
       ArrayList<String> result = new ArrayList<String>();
       for (String s : values)
       {
-         if (!StringUtil.isNullOrEmpty(s))
+         if (!s.equals(""))
          {
             result.add(s);
          }
@@ -227,7 +225,7 @@ public class ProjectPackratPreferencesPane extends ProjectPreferencesPane
    {
       final ProgressIndicator indicator = getProgressIndicator();
       
-      indicator.onProgress("Verifying prerequisites...");
+      indicator.onProgress("Verifying prequisites...");
       
       server_.getPackratPrerequisites(
         new ServerRequestCallback<PackratPrerequisites>() {

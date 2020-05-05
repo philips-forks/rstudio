@@ -1,7 +1,7 @@
 /*
  * JSONArrayBuilder.java
  *
- * Copyright (C) 2009-17 by RStudio, PBC
+ * Copyright (C) 2009-17 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -14,13 +14,11 @@
  */
 package org.rstudio.studio.client.common;
 
-import com.google.gwt.core.client.JavaScriptObject;
 import com.google.gwt.core.client.JsArrayString;
 import com.google.gwt.json.client.JSONArray;
 import com.google.gwt.json.client.JSONBoolean;
 import com.google.gwt.json.client.JSONNull;
 import com.google.gwt.json.client.JSONNumber;
-import com.google.gwt.json.client.JSONObject;
 import com.google.gwt.json.client.JSONString;
 import com.google.gwt.json.client.JSONValue;
 
@@ -74,19 +72,6 @@ public class JSONArrayBuilder
       return this;
    }
    
-   public final JSONArrayBuilder add(JavaScriptObject object)
-   {
-      append(new JSONObject(object));
-      return this;
-   }
-   
-   public final JSONArrayBuilder add(Object object)
-   {
-      JavaScriptObject jso = cast(object);
-      append(new JSONObject(jso));
-      return this;
-   }
-   
    private final JSONValue fromString(String value)
    {
       return (value == null)
@@ -104,11 +89,6 @@ public class JSONArrayBuilder
    {
       array_.set(index_++, value);
    }
-   
-   private static final native JavaScriptObject cast(Object object)
-   /*-{
-      return object;
-   }-*/;
    
    private final JSONArray array_;
    private int index_;

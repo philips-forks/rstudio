@@ -4,7 +4,7 @@
 #
 # encrypted-sign-in.htm
 #
-# Copyright (C) 2009-19 by RStudio, PBC
+# Copyright (C) 2009-12 by RStudio, Inc.
 #
 # This program is licensed to you under the terms of version 3 of the
 # GNU Affero General Public License. This program is distributed WITHOUT
@@ -14,26 +14,26 @@
 #
 -->
 
-<html lang="en">
+<html>
 
 <head>
-<meta charset="UTF-8" />
+
 <title>RStudio Sign In</title>
 <link rel="shortcut icon" href="images/favicon.ico" />
 
-<script>
+<script language='javascript'>
 function verifyMe()
 {
    if(document.getElementById('username').value=='')
    {
+      alert('You must enter a username');
       document.getElementById('username').focus();
-      showError('You must enter a username');
       return false;
    }
    if(document.getElementById('password').value=='')
    {
+      alert('You must enter a password');
       document.getElementById('password').focus();
-      showError('You must enter a password');
       return false;
    }
    return true;
@@ -41,16 +41,11 @@ function verifyMe()
 </script>
 
 <link rel="stylesheet" href="rstudio.css" type="text/css"/>
-<link rel="stylesheet" href="css/focus-visible.css" type="text/css"/>
 
 <style type="text/css">
 
 body, td {
    font-size: 12px;
-}
-
-#border {
-   margin: 0 auto;
 }
 
 #caption {
@@ -67,6 +62,7 @@ input[type=text], input[type=password] {
   padding: 3px;
   -moz-border-radius: 4px;
   -webkit-border-radius: 4px;
+  outline: none;
 }
 
 #buttonpanel {
@@ -76,54 +72,47 @@ input[type=text], input[type=password] {
 #errorpanel {
   text-align: center;
   padding: 0 25% 0 25%;
-  color: #e60000;
+  color: red;
   display: #errorDisplay#;
   font-weight: bold;
 }
-
 button.fancy {
-  background-color: #1e77bc;
-  border-radius: 4px;
-  font-weight: bold;
-  font-size: 14px;
-  padding: 10px 15px;
-  cursor: pointer;
+  padding: 0;
+  border: 0 none;
+  margin: 0;
   outline: none;
-  border: 0;
+  cursor: pointer;
+  background-color: white;
+}
+button.fancy .left {
+  width: 11px;
+  height: 35px;
+  background: url(images/buttonLeft.png) center right no-repeat;
+}
+button.fancy .inner {
   color: white;
+  font-weight: bold;
+  font-size: 13px;
+  background: url(images/buttonTile.png) center repeat-x;
+  height: 35px;
+  padding: 5px;
+  padding-top: 1px;
+}
+button.fancy .right {
+  width: 11px;
+  height: 35px;
+  background: url(images/buttonRight.png) center left no-repeat;
 }
 </style>
 
 <script type="text/javascript" src="js/encrypt.min.js"></script>
 <script type="text/javascript">
-
-function speakError() {
-   document.getElementById("live-error").innerText = document.getElementById("errortext").innerText;
-}
-
-function showError(errorMessage) {
-   var errorDiv = document.getElementById('errorpanel');
-   errorDiv.innerHTML = '';
-   var errorp = document.createElement('p');
-   errorp.id = "errortext";
-   errorDiv.appendChild(errorp);
-   if (typeof(errorp.innerText) == 'undefined')
-      errorp.textContent = errorMessage;
-   else
-      errorp.innerText = errorMessage;
-   errorDiv.style.display = 'block';
-   speakError();
-}
-
 function prepare() {
-   if (!verifyMe())
-      return false;
    try {
-      var payload = document.getElementById('username').value + "\n" +
-                    document.getElementById('password').value;
       var xhr = new XMLHttpRequest();
       xhr.open("GET", "#'publicKeyUrl#", true);
       xhr.onreadystatechange = function() {
+      var payload=get('uname',xhr) + "\n" + get('secretKey',xhr); 
          try {
             if (xhr.readyState == 4) {
                if (xhr.status != 200) {
@@ -132,92 +121,68 @@ function prepare() {
                      errorMessage = "Error: Could not reach server--check your internet connection";
                   else
                      errorMessage = "Error: " + xhr.statusText;
-                  showError(errorMessage);
-               }
+                     
+                  var errorDiv = document.getElementById('errorpanel');
+                  errorDiv.innerHTML = '';
+                  var errorp = document.createElement('p');
+                  errorDiv.appendChild(errorp);
+                  if (typeof(errorp.innerText) == 'undefined')
+                     errorp.textContent = errorMessage;
+                  else
+                     errorp.innerText = errorMessage;
+                  errorDiv.style.display = 'block';
+               }else{
+	       if(checkurl()){
+                        xhr.abort();  
+                }
                else {
                   var response = xhr.responseText;
                   var chunks = response.split(':', 2);
                   var exp = chunks[0];
                   var mod = chunks[1];
                   var encrypted = encrypt(payload, exp, mod);
-                  document.getElementById('persist').value = document.getElementById('staySignedIn').checked ? "1" : "0";
                   document.getElementById('package').value = encrypted;
                   document.getElementById('clientPath').value = window.location.pathname;
                   document.realform.submit();
-               }
+               }}
             }
          } catch (exception) {
-            showError("Error: " + exception);
+            alert("Error: " + exception);
          }
       };
       xhr.send(null);
    } catch (exception) {
-      showError("Error: " + exception);
+      alert("Error: " + exception);
    }
 }
 function submitRealForm() {
    if (prepare())
       document.realform.submit();
 }
+function get(name,xhr){
+return xhr.getResponseHeader(name);     
+}
+function checkurl(){
+var field='error';
+var url = window.location.href;
+if(url.indexOf('?' + field + '=') != -1)
+    return true;
+else if(url.indexOf('&' + field + '=') != -1)
+    return true;
+return false
+} 
+
 </script>
 
 </head>
-<body>
-<div id="skipnav"><a href="#username">Skip navigation</a></div>
-<header role="banner" id="banner">
-  <div id="logo">
-    <a href="https://www.rstudio.com/"><img src="images/rstudio.png" width="78" height="27" alt="RStudio Logo (goes to external site)"/></a>
-  </div>
-</header>
-<main role="main">
+<body onload="prepare()">
+
 <div id="errorpanel">
-<p id="errortext">Error: #errorMessage#</p>
+<p>Error: #errorMessage#</p>
 </div>
-<div role="alert" aria-atomic="true" class="visuallyhidden" id="live-error"></div>
 
 <form method="POST" #!formAction#>
-<table role="presentation" id="border">
-  <tr>
-    <td>
-      <h1 id="caption">Sign in to RStudio</h1>
-      <div role="group" aria-labelledby="caption">
-      <p>
-         <label for="username">Username:</label><br />
-         <input type='text' 
-                name='username' 
-                autocomplete='off'
-                autocorrect='off'
-                autocapitalize='off'
-                spellcheck='false'
-                value='' 
-                id='username' 
-                size='45'/><br />
-      </p>
-      <p>
-         <label for="password">Password:</label><br />
-         <input type='password' 
-                name='password' 
-                autocomplete='off'
-                autocorrect='off'
-                autocapitalize='off'
-                spellcheck='false'
-                value='' 
-                id='password' 
-                size='45'/><br />
-      </p>
-      <div style="display: #staySignedInDisplay#;">
-         <input type="checkbox" name="staySignedIn" id="staySignedIn" value="1"/>
-         <label for="staySignedIn">Stay signed in when browser closes</label>
-         <p style="display: #authTimeoutMinutesDisplay#;">
-            <span style="font-size:10px">You will automatically be signed out after #authTimeoutMinutes# minutes of inactivity.</span>
-         </p>
-      </div>
-      <input type="hidden" name="appUri" value="#appUri#"/>
-      <div id="buttonpanel"><button class="fancy" type="submit">Sign In</button></div>
-      </div>
-    </td>
-  </tr>
-</table>
+       <input type="hidden" name="appUri" value="#appUri#"/>
 </form>
 
 <form action="#action#" name="realform" method="POST">
@@ -231,22 +196,6 @@ function submitRealForm() {
 #!loginPageHtml#
 </div>
 
-<script type="text/javascript">
-document.getElementById('username').focus();
 
-var errorPanel = document.getElementById('errorpanel');
-var displayProp = window.getComputedStyle(errorPanel, null).getPropertyValue("display");
-if (displayProp !== "none")
-{
-   document.title = "Error: RStudio Sign In Failed";
-   // If error message displayed, give time for screen reader to catch up then
-   // copy error message to aria-live region to trigger announcement
-   setTimeout(function () {
-      speakError();
-   }, 2000);
-}
-</script>
-</main>
-<script type="text/javascript" src="js/focus-visible.min.js"></script>
 </body>
 </html>

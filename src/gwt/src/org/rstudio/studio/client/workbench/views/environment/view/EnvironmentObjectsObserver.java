@@ -1,7 +1,7 @@
 /*
  * EnvironmentObjectsObserver.java
  *
- * Copyright (C) 2009-12 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -19,7 +19,7 @@ import org.rstudio.studio.client.workbench.views.environment.model.RObject;
 
 public interface EnvironmentObjectsObserver
 {
-   void viewObject(String action, String objectName);
+   void viewObject(String objectName);
    void setObjectExpanded(String objectName);
    void setObjectCollapsed(String objectName);
    void setPersistedScrollPosition(int scrollPosition);

@@ -1,7 +1,7 @@
 /*
  * SourceDocument.java
  *
- * Copyright (C) 2009-18 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -15,7 +15,6 @@
 package org.rstudio.studio.client.workbench.views.source.model;
 
 import com.google.gwt.core.client.JavaScriptObject;
-import com.google.gwt.core.client.JsArrayString;
 
 import org.rstudio.core.client.js.JsObject;
 import org.rstudio.studio.client.rmarkdown.model.NotebookDoc;
@@ -166,35 +165,10 @@ public class SourceDocument extends JavaScriptObject
      this.collab_params = params;
    }-*/;
    
-   public native final boolean isReadOnly() /*-{
-      return !!this.read_only;
-   }-*/;
-   
-   public native final JsArrayString getReadOnlyAlternatives() /*-{
-      return this.read_only_alternatives;
-   }-*/;
-   
-   public static boolean isPlumberFile(String extendedType)
-   {
-      return extendedType != null && extendedType == SourceDocument.XT_PLUMBER_API;
-   }
-
-   public static boolean hasCustomSource(String extendedType)
-   {
-      return extendedType != null && extendedType == SourceDocument.XT_R_CUSTOM_SOURCE;
-   }
-   
    public final static String XT_RMARKDOWN = "rmarkdown";
    public final static String XT_SHINY_PREFIX = "shiny-";
    public final static String XT_SHINY_DIR = "shiny-dir";
    public final static String XT_SHINY_SINGLE_FILE = "shiny-single-file";
    public final static String XT_SHINY_SINGLE_EXE = "shiny-single-executable";
    public final static String XT_SHINY_DOCUMENT = "shiny-document";
-   public final static String XT_TEST_PREFIX = "test-";
-   public final static String XT_TEST_TESTTHAT = "test-testthat";
-   public final static String XT_TEST_SHINYTEST = "test-shinytest";
-   public final static String XT_JS_PREVIEWABLE = "js-previewable";
-   public final static String XT_SQL_PREVIEWABLE = "sql-previewable";
-   public final static String XT_PLUMBER_API = "plumber-api";
-   public final static String XT_R_CUSTOM_SOURCE = "r-custom-source";
 }

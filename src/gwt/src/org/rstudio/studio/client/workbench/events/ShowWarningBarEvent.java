@@ -1,7 +1,7 @@
 /*
  * ShowWarningBarEvent.java
  *
- * Copyright (C) 2009-20 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -14,62 +14,37 @@
  */
 package org.rstudio.studio.client.workbench.events;
 
-import com.google.gwt.event.shared.EventHandler;
-import jsinterop.annotations.JsPackage;
-import jsinterop.annotations.JsType;
+import org.rstudio.studio.client.workbench.model.WarningBarMessage;
 
 import com.google.gwt.event.shared.GwtEvent;
 
 
-public class ShowWarningBarEvent extends GwtEvent<ShowWarningBarEvent.Handler>
+public class ShowWarningBarEvent extends GwtEvent<ShowWarningBarHandler>
 {
-   public ShowWarningBarEvent(boolean severe, String message)
+   public static final GwtEvent.Type<ShowWarningBarHandler> TYPE =
+      new GwtEvent.Type<ShowWarningBarHandler>();
+   
+   public ShowWarningBarEvent(WarningBarMessage message)
    {
-      data_ = new Data();
-      data_.severe = severe;
-      data_.message = message;
-   }
-
-   public ShowWarningBarEvent(ShowWarningBarEvent.Data message)
-   {
-      data_ = message;
+      message_ = message;
    }
    
-   public interface Handler extends EventHandler
+   public WarningBarMessage getMessage()
    {
-      void onShowWarningBar(ShowWarningBarEvent event);
-   }
-   
-   @JsType(isNative = true, namespace = JsPackage.GLOBAL, name = "Object")
-   public static class Data
-   {
-      public boolean severe;
-      public String message;
-   }
-
-   public boolean isSevere()
-   {
-      return data_.severe;
-   }
-   
-   public String getMessage()
-   {
-      return data_.message;
+      return message_;
    }
    
    @Override
-   protected void dispatch(Handler handler)
+   protected void dispatch(ShowWarningBarHandler handler)
    {
       handler.onShowWarningBar(this);
    }
 
    @Override
-   public Type<Handler> getAssociatedType()
+   public GwtEvent.Type<ShowWarningBarHandler> getAssociatedType()
    {
       return TYPE;
    }
    
-   public static final GwtEvent.Type<Handler> TYPE = new GwtEvent.Type<>();
-
-   private Data data_;
+   private WarningBarMessage message_;
 }

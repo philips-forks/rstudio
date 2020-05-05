@@ -1,7 +1,7 @@
 /*
  * FileUtils.hpp
  *
- * Copyright (C) 2009-12 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -17,11 +17,15 @@
 #define CORE_FILEUTILS_HPP
 
 #include <string>
-#include <shared_core/Error.hpp>
-#include <shared_core/FilePath.hpp>
+
+
 
 namespace rstudio {
 namespace core {
+
+class Error;
+class FilePath;
+
 namespace file_utils {
 
 FilePath uniqueFilePath(const core::FilePath& parent,
@@ -29,14 +33,12 @@ FilePath uniqueFilePath(const core::FilePath& parent,
 
 std::string readFile(const core::FilePath& filePath);
 
-#ifdef _WIN32
+#ifdef WIN32
 bool isWindowsReservedName(const std::string& name);
 #endif
 
 Error copyDirectory(const FilePath& sourceDirectory,
                     const FilePath& targetDirectory);
-
-bool isDirectoryWriteable(const FilePath& directory);
 
 } // namespace file_utils
 } // namespace core

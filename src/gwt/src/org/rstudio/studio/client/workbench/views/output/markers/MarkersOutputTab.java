@@ -1,7 +1,7 @@
 /*
  * MarkersOutputTab.java
  *
- * Copyright (C) 2009-12 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -35,7 +35,7 @@ public class MarkersOutputTab extends DelayLoadWorkbenchTab<MarkersOutputPresent
             extends DelayLoadTabShim<MarkersOutputPresenter, MarkersOutputTab>
             implements MarkersChangedEvent.Handler
    {
-      abstract void showInitialMarkers(MarkersState state);
+      abstract void initialize(MarkersState state);
       abstract void onClosing();
    }
 
@@ -57,12 +57,7 @@ public class MarkersOutputTab extends DelayLoadWorkbenchTab<MarkersOutputPresent
          public void onSessionInit(SessionInitEvent sie)
          {
             MarkersState state = session.getSessionInfo().getMarkersState();
-            if (state.hasMarkers())
-            {
-               // don't talk to the shim unless there are existing markers, doing so will
-               // unnecessarily trigger downloading and loading the deferred-load tab
-               shim_.showInitialMarkers(state);
-            }
+            shim_.initialize(state);
          }
       });
 

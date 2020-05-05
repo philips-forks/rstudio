@@ -1,7 +1,7 @@
 /*
  * EditSession.java
  *
- * Copyright (C) 2009-12 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -76,16 +76,8 @@ public class EditSession extends JavaScriptObject
       return this.setUseWrapMode(useWrapMode);
    }-*/;
    
-   public native final boolean getUseWrapMode() /*-{
-      return this.getUseWrapMode();
-   }-*/;
-   
    public native final void setWrapLimitRange(int min, int max) /*-{
       this.setWrapLimitRange(min, max);
-   }-*/;
-   
-   public native final boolean getUseSoftTabs() /*-{
-      return this.getUseSoftTabs();
    }-*/;
 
    public native final void setUseSoftTabs(boolean on) /*-{
@@ -156,17 +148,6 @@ public class EditSession extends JavaScriptObject
    }-*/;
 
    public native final void reindent(Range range) /*-{
-      
-      // ensure document re-tokenized before indent
-      var tokenizer = this.bgTokenizer;
-      if (tokenizer != null) {
-         var n = range.end.row;
-         for (var i = 0; i <= n; i++)
-           tokenizer.$tokenizeRow(i);
-         tokenizer.fireUpdateEvent(0, n);
-      }
-      
-      // now ready to re-indent
       this.reindent(range);
    }-*/;
 

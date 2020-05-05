@@ -1,7 +1,7 @@
 /*
  * TerminalHelper.java
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-17 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -16,9 +16,10 @@
 package org.rstudio.studio.client.workbench.views.terminal;
 
 import org.rstudio.core.client.widget.MessageDialog;
+import org.rstudio.core.client.widget.Operation;
 import org.rstudio.studio.client.application.events.EventBus;
 import org.rstudio.studio.client.common.GlobalDisplay;
-import org.rstudio.studio.client.workbench.prefs.model.UserPrefs;
+import org.rstudio.studio.client.workbench.prefs.model.UIPrefsAccessor;
 import org.rstudio.studio.client.workbench.views.terminal.events.TerminalBusyEvent;
 
 import com.google.gwt.user.client.Command;
@@ -34,15 +35,22 @@ public class TerminalHelper
    {
       events_ = events;
       globalDisplay_ = globalDisplay;
-
+      
       // track busy terminals
       events_.addHandler(TerminalBusyEvent.TYPE,
-            event -> warnBeforeClosing_ = event.isBusy());
+                          new TerminalBusyEvent.Handler()
+      {
+         @Override
+         public void onTerminalBusy(TerminalBusyEvent event)
+         {
+            warnBeforeClosing_ = event.isBusy();
+         }
+      });
    }
-
-   public boolean warnBeforeClosing(String busyMode)
+   
+   public boolean warnBeforeClosing(int busyMode)
    {
-      if (busyMode == UserPrefs.BUSY_DETECTION_NEVER)
+      if (busyMode == UIPrefsAccessor.BUSY_DETECT_NEVER)
          warnBeforeClosing_ = false;
       
       return warnBeforeClosing_;
@@ -51,22 +59,27 @@ public class TerminalHelper
    public void warnBusyTerminalBeforeCommand(final Command command, 
                                              String caption,
                                              String question,
-                                             String busyMode)
+                                             int busyMode)
    {
       if (!warnBeforeClosing(busyMode))
       {
          command.execute();
          return;
       }
-
+      
       globalDisplay_.showYesNoMessage(
             MessageDialog.QUESTION,
             caption, 
             "The terminal is currently busy. " + question,
-            command::execute,
+            new Operation() {
+               @Override
+               public void execute()
+               {
+                  command.execute();
+               }}, 
             true);
    }
-
+   
    private boolean warnBeforeClosing_;
 
    // Injected ----  

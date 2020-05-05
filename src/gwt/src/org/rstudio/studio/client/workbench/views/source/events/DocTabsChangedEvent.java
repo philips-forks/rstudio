@@ -1,7 +1,7 @@
 /*
  * DocTabsChangedEvent.java
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -15,36 +15,29 @@
 package org.rstudio.studio.client.workbench.views.source.events;
 
 import com.google.gwt.event.shared.GwtEvent;
-import org.rstudio.studio.client.common.filetypes.FileIcon;
+import com.google.gwt.resources.client.ImageResource;
 
 public class DocTabsChangedEvent extends GwtEvent<DocTabsChangedHandler>
 {
    public static final Type<DocTabsChangedHandler> TYPE = new Type<DocTabsChangedHandler>();
 
-   public DocTabsChangedEvent(String activeId,
-                              String[] ids,
-                              FileIcon[] icons,
+   public DocTabsChangedEvent(String[] ids,
+                              ImageResource[] icons,
                               String[] names,
                               String[] paths)
    {
-      activeId_ = activeId;
       ids_ = ids;
       this.icons = icons;
       this.names = names;
       this.paths = paths;
    }
 
-   public String getActiveId()
-   {
-      return activeId_;
-   }
-   
    public String[] getIds()
    {
       return ids_;
    }
 
-   public FileIcon[] getIcons()
+   public ImageResource[] getIcons()
    {
       return icons;
    }
@@ -71,9 +64,8 @@ public class DocTabsChangedEvent extends GwtEvent<DocTabsChangedHandler>
       handler.onDocTabsChanged(this);
    }
 
-   private final String activeId_;
    private final String[] ids_;
-   private final FileIcon[] icons;
+   private final ImageResource[] icons;
    private final String[] names;
    private final String[] paths;
 }

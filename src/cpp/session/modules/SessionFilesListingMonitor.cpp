@@ -1,7 +1,7 @@
 /*
  * SessionFilesListingMonitor.cpp
  *
- * Copyright (C) 2009-20 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -18,11 +18,12 @@
 #include <algorithm>
 
 #include <boost/bind.hpp>
+#include <boost/foreach.hpp>
 
-#include <shared_core/Error.hpp>
+#include <core/Error.hpp>
 #include <core/Log.hpp>
 #include <core/FileInfo.hpp>
-#include <shared_core/FilePath.hpp>
+#include <core/FilePath.hpp>
 
 #include <core/json/JsonRpc.hpp>
 
@@ -30,8 +31,6 @@
 #include <core/system/FileChangeEvent.hpp>
 
 #include <session/SessionModuleContext.hpp>
-
-#include <session/prefs/UserPrefs.hpp>
 
 #include "SessionVCS.hpp"
 
@@ -42,29 +41,19 @@ namespace session {
 namespace modules { 
 namespace files {
 
-// filter for listing files which shows all files (hidden or not)
-bool acceptAllFiles(const FileInfo&)
-{
-   return true;
-}
-
-Error FilesListingMonitor::start(const FilePath& filePath, bool includeHidden, 
-      json::Array* pJsonFiles)
+Error FilesListingMonitor::start(const FilePath& filePath, json::Array* pJsonFiles)
 {
    // always stop existing
    stop();
 
-   // save include hidden setting
-   includeHidden_ = includeHidden;
-
    // scan the directory (populates pJsonFiles out parameter)
    std::vector<FilePath> files;
-   Error error = listFiles(filePath, &files, includeHidden, pJsonFiles);
+   Error error = listFiles(filePath, &files, pJsonFiles);
    if (error)
       return error;
 
    // copy the file listing into a vector of FileInfo which we will order so that it can
-   // be compared with the initial scan of the file monitor for changes
+   // be compared with the initial scan of the file montor for changes
    std::vector<FileInfo> prevFiles;
    std::transform(files.begin(),
                   files.end(),
@@ -74,22 +63,15 @@ Error FilesListingMonitor::start(const FilePath& filePath, bool includeHidden,
    // kickoff new monitor
    core::system::file_monitor::Callbacks cb;
    cb.onRegistered = boost::bind(&FilesListingMonitor::onRegistered,
-         this, _1, filePath, prevFiles, _2);
-   cb.onRegistrationError = boost::bind(core::log::logError, _1, ERROR_LOCATION);
+                                    this, _1, filePath, prevFiles, _2);
+   cb.onRegistrationError =  boost::bind(core::log::logError, _1, ERROR_LOCATION);
    cb.onFilesChanged = boost::bind(module_context::enqueFileChangedEvents, filePath, _1);
    cb.onMonitoringError = boost::bind(core::log::logError, _1, ERROR_LOCATION);
    cb.onUnregistered = boost::bind(&FilesListingMonitor::onUnregistered, this, _1);
-   if (includeHidden)
-   {
-      core::system::file_monitor::registerMonitor(filePath, false, acceptAllFiles, cb);
-   }
-   else
-   {
-      core::system::file_monitor::registerMonitor(filePath, false, 
-            boost::bind(module_context::fileListingFilter, _1, 
-                  prefs::userPrefs().hideObjectFiles()), 
-            cb);
-   }
+   core::system::file_monitor::registerMonitor(filePath,
+                                               false,
+                                               module_context::fileListingFilter,
+                                               cb);
 
    return Success();
 }
@@ -162,20 +144,14 @@ void FilesListingMonitor::onRegistered(core::system::file_monitor::Handle handle
    // compare the previously returned listing with the initial scan to see if any
    // file changes occurred between listings
    std::vector<core::system::FileChangeEvent> events;
-   if (includeHidden_)
-   {
-      core::system::collectFileChangeEvents(prevFiles.begin(), prevFiles.end(),
-            currFiles.begin(), currFiles.end(), acceptAllFiles, &events);
-   }
-   else
-   {
-      core::system::collectFileChangeEvents(prevFiles.begin(), prevFiles.end(),
-            currFiles.begin(), currFiles.end(), 
-            boost::bind(module_context::fileListingFilter, _1, 
-                  prefs::userPrefs().hideObjectFiles()), &events);
-   }
+   core::system::collectFileChangeEvents(prevFiles.begin(),
+                                         prevFiles.end(),
+                                         currFiles.begin(),
+                                         currFiles.end(),
+                                         module_context::fileListingFilter,
+                                         &events);
 
-   // enqueue any events we discovered
+   // enque any events we discovered
    if (!events.empty())
       module_context::enqueFileChangedEvents(filePath, events);
 }
@@ -195,29 +171,27 @@ void FilesListingMonitor::onUnregistered(core::system::file_monitor::Handle hand
 
 Error FilesListingMonitor::listFiles(const FilePath& rootPath,
                                      std::vector<FilePath>* pFiles,
-                                     bool includeHidden,
                                      json::Array* pJsonFiles)
 {
    // enumerate the files
    pFiles->clear();
-   core::Error error = rootPath.getChildren(*pFiles);
+   core::Error error = rootPath.children(pFiles) ;
    if (error)
       return error;
 
    using namespace source_control;
-   auto pCtx = source_control::fileDecorationContext(rootPath, false);
+   boost::shared_ptr<FileDecorationContext> pCtx =
+                  source_control::fileDecorationContext(rootPath);
 
    // sort the files by name
-   std::sort(pFiles->begin(), pFiles->end(), FilePath::isEqualCaseInsensitive);
+   std::sort(pFiles->begin(), pFiles->end(), core::compareAbsolutePathNoCase);
 
    // produce json listing
-   for (core::FilePath& filePath : *pFiles)
+   BOOST_FOREACH( core::FilePath& filePath, *pFiles)
    {
       // files which may have been deleted after the listing or which
       // are not end-user visible
-      if (filePath.exists() && 
-            (includeHidden || module_context::fileListingFilter(core::FileInfo(filePath),
-                prefs::userPrefs().hideObjectFiles())))
+      if (filePath.exists() && module_context::fileListingFilter(core::FileInfo(filePath)))
       {
          core::json::Object fileObject = module_context::createFileSystemItem(filePath);
          pCtx->decorateFile(filePath, &fileObject);
@@ -229,7 +203,7 @@ Error FilesListingMonitor::listFiles(const FilePath& rootPath,
 }
 
 
-} // namespace files
+} // namepsace files
 } // namespace modules
 } // namespace session
 } // namespace rstudio

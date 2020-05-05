@@ -1,7 +1,7 @@
 /*
  * SessionConsoleProcessSocket.hpp
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-17 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -24,16 +24,13 @@
 #include <boost/function.hpp>
 #include <boost/scoped_ptr.hpp>
 #include <boost/asio.hpp>
-#include <boost/asio/strand.hpp>
 
-#include <shared_core/Error.hpp>
+#include <core/Error.hpp>
 #include <core/Thread.hpp>
 
 #include <websocketpp/config/asio_no_tls.hpp>
 #include <websocketpp/server.hpp>
 #include <websocketpp/frame.hpp>
-
-#include "SessionConsoleProcessConnectionCallbacks.hpp"
 
 namespace rstudio {
 namespace session {
@@ -44,10 +41,28 @@ namespace console_process {
 // speed communication of input/output for interactive terminals
 // spawned by the server, and displayed in the client.
 //
+// ConsoleProcessSocketConnectionCallbacks are related to connections.
+// Each connections made will supply a unique set of these callbacks,
+// and will receive callbacks only related to that connection.
+//
 // Each connection MUST be made with a URL ending with /xxxx/ where "xxxx"
 // is some textual unique handle for that connection. In practice, this is
 // the terminal handle string used elsewhere in the codebase. This uniqueId
 // is used to dispatch callbacks, and to send output to the right connection.
+//
+// IMPORTANT: Callbacks are dispatched on a background thread.
+
+struct ConsoleProcessSocketConnectionCallbacks
+{
+   // invoked when input arrives on the socket
+   boost::function<void (const std::string& input)> onReceivedInput;
+
+   // invoked when connection opens
+   boost::function<void()> onConnectionOpened;
+
+   // invoked when connection closes
+   boost::function<void ()> onConnectionClosed;
+};
 
 typedef websocketpp::server<websocketpp::config::asio> terminalServer;
 typedef terminalServer::message_ptr terminalMessage_ptr;
@@ -81,18 +96,9 @@ public:
    // stop listening to given terminal handle
    core::Error stopListening(const std::string& terminalHandle);
 
-   // send raw text to client
-   core::Error sendRawText(const std::string& terminalHandle,
-                           const std::string& message);
-
-   // send text packet to client
+   // send text to client
    core::Error sendText(const std::string& terminalHandle,
                         const std::string& message);
-
-   // send keepalive response to client; we're not using low-level WebSocket
-   // ping/pong as that isn't accessible from JavaScript apps; so we're just doing a
-   // simple message exchange to keep proxies from killing an idle terminal
-   core::Error sendPong(const std::string& terminalHandle);
 
    // network port for websocket listener; 0 means no port
    int port() const;
@@ -107,7 +113,8 @@ private:
    void onClose(terminalServer* s, websocketpp::connection_hdl hdl);
    void onOpen(terminalServer* s, websocketpp::connection_hdl hdl);
    void onHttp(terminalServer* s, websocketpp::connection_hdl hdl);
-   void onFail(terminalServer* s, websocketpp::connection_hdl hdl);
+
+   void onServerTimeout(boost::system::error_code ec);
 
 private:
    core::thread::ThreadsafeMap<std::string, ConsoleProcessSocketConnectionDetails> connections_;

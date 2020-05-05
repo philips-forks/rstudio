@@ -1,7 +1,7 @@
 /*
  * ThemeResources.java
  *
- * Copyright (C) 2009-17 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -69,12 +69,15 @@ public interface ThemeResources extends ClientBundle
 
    @Source("rstudio_2x.png")
    ImageResource rstudio2x();
-   
-   @Source("rstudio_large_2x.png")
-   ImageResource rstudioLarge2x();
 
    @Source("rstudio_small_2x.png")
    ImageResource rstudio_small2x();
+   
+   @Source("rstudio_home_2x.png")
+   ImageResource rstudio_home2x();
+
+   @Source("rstudio_home_small_2x.png")
+   ImageResource rstudio_home_small2x();
    
    @Source("backgroundGradient.png")
    DataResource backgroundGradient();
@@ -294,13 +297,4 @@ public interface ThemeResources extends ClientBundle
    
    @Source("user_2x.png")
    ImageResource user();
-   
-   @Source("refreshWorkspaceMonitored_2x.png")
-   ImageResource refreshWorkspaceMonitored2x();
-   
-   @Source("refreshWorkspaceUnmonitored_2x.png")
-   ImageResource refreshWorkspaceUnmonitored2x();
-   
-   @Source("browsePackage_2x.png")
-   ImageResource browsePackage2x();
 }

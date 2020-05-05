@@ -1,7 +1,7 @@
 /*
  * CommandBundleGenerator.java
  *
- * Copyright (C) 2009-12 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -330,7 +330,6 @@ class CommandBundleGeneratorHelper
       setPropertyBool(writer, name, props.get(name), "checkable");
       setPropertyBool(writer, name, props.get(name), "checked");
       setPropertyBool(writer, name, props.get(name), "rebindable");
-      setPropertyBool(writer, name, props.get(name), "radio");
       
       if (images.hasImage(name))
       {

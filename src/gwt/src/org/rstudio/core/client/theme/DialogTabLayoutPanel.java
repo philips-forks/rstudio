@@ -1,7 +1,7 @@
 /*
  * DialogTabLayoutPanel.java
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -14,8 +14,6 @@
  */
 package org.rstudio.core.client.theme;
 
-import com.google.gwt.user.client.ui.Widget;
-import org.rstudio.core.client.ElementIds;
 import org.rstudio.core.client.theme.res.ThemeResources;
 import org.rstudio.core.client.theme.res.ThemeStyles;
 
@@ -26,9 +24,9 @@ import com.google.gwt.user.client.ui.TabLayoutPanel;
 
 public class DialogTabLayoutPanel extends TabLayoutPanel
 {
-   public DialogTabLayoutPanel(String tabListLabel)
+   public DialogTabLayoutPanel()
    {
-      super(14, Unit.PX, tabListLabel);
+      super(14, Unit.PX);
       
       ThemeStyles styles = ThemeResources.INSTANCE.themeStyles();
       addStyleName(styles.dialogTabPanel());
@@ -42,9 +40,4 @@ public class DialogTabLayoutPanel extends TabLayoutPanel
       tabInner.getStyle().clearWidth();
    }
 
-   public void add(Widget child, String text, String tabId)
-   {
-      super.add(child, text);
-      setTabId(child, ElementIds.getElementId(VerticalTabPanel.getTabId(tabId)));
-   }
 }

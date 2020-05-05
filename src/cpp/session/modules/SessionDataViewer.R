@@ -1,7 +1,7 @@
 #
 # SessionDataViewer.R
 #
-# Copyright (C) 2009-20 by RStudio, PBC
+# Copyright (C) 2009-17 by RStudio, Inc.
 #
 # Unless you have received this program directly from RStudio pursuant
 # to the terms of a commercial license agreement with RStudio, then
@@ -29,25 +29,24 @@
    if (is.numeric(col)) {
      # show numbers as doubles
      storage.mode(col) <- "double"
-
-     # remember which values are NA 
-     naVals <- is.na(col) 
-
-     # format all the numeric values; this drops NAs (the na.encode option only
-     # preserves NA for character cols)
-     vals <- format(col, trim = TRUE, justify = "none", ...)
-
-     # restore NA values if there were any
-     if (any(naVals)) {
-       vals[naVals] <- col[naVals]
-     } 
-
-     # return formatted values
-     vals
    } else {
      # show everything else as characters
-     as.character(col)
+     col <- as.character(col)
    }
+
+   # remember which values are NA 
+   naVals <- is.na(col) 
+
+   # format all the values; this drops NAs (the na.encode option only preserves
+   # NA for character cols)
+   vals <- format(col, trim = TRUE, justify = "none", ...)
+
+   # restore NA values if there were any
+   if (any(naVals)) {
+     vals[naVals] <- col[naVals]
+   } 
+
+   vals
 })
 
 .rs.addFunction("describeCols", function(x, maxFactors) 
@@ -87,8 +86,8 @@
                   as.character(idx)
     col_type <- "unknown"
     col_type_r <- "unknown"
-    col_breaks <- c()
-    col_counts <- c()
+    col_min <- 0
+    col_max <- 0
     col_vals <- ""
     col_search_type <- ""
 
@@ -102,9 +101,10 @@
       col_label <- ""
 
     # ensure that the column contains some scalar values we can examine 
-    if (length(x[[idx]]) > 0)
+    # (treat vector-valued columns as of unknown type) 
+    if (length(x[[idx]]) > 0 && length(x[[idx]][1]) == 1)
     {
-      val <- x[[idx]][[1]]
+      val <- x[[idx]][1]
       col_type_r <- typeof(val)
       if (is.factor(val))
       {
@@ -121,28 +121,34 @@
           col_vals <- levels(val)
         }
       }
-      # for histograms, we support only the base R numeric class and its derivatives;
-      # is.numeric can return true for values that can only be manipulated using
-      # packages that are currently loaded (e.g. bit64's integer64)
-      else if (is.numeric(x[[idx]]) && !is.object(x[[idx]]))
+      else if (is.numeric(val))
       {
         # ignore missing and infinite values (i.e. let any filter applied
         # implicitly remove those values); if that leaves us with nothing,
         # treat this column as untyped since we can do no meaningful filtering
         # on it
-        hist_vals <- x[[idx]][is.finite(x[[idx]])]
-        if (length(hist_vals) > 1)
+        minmax_vals <- x[[idx]][is.finite(x[[idx]])]
+        if (length(minmax_vals) > 1)
         {
-          # create histogram for brushing -- suppress warnings as in rare cases
-          # an otherwise benign integer overflow can occurs; see
-          # https://github.com/rstudio/rstudio/issues/3232
-          h <- suppressWarnings(hist(hist_vals, plot = FALSE))
-          col_breaks <- h$breaks
-          col_counts <- h$counts
+          col_min <- round(min(minmax_vals), 5)
+          col_max <- round(max(minmax_vals), 5)
 
-          # record column type
-          col_type <- "numeric"
-          col_search_type <- "numeric"
+          # if the base value is 16 digits or larger, it's going to get 
+          # serialized in such a way that we can't parse it (either with a
+          # trailing "." or with a e+xx exponent), so disable filtering
+          col_min_c <- as.character(trunc(col_min))
+          col_max_c <- as.character(trunc(col_max))
+          if (nchar(col_min_c) >= 16 || grepl("e", col_min_c, fixed = TRUE) ||
+              nchar(col_max_c) >= 16 || grepl("e", col_max_c, fixed = TRUE))
+          {
+            col_min <- 0
+            col_max <- 0
+          }
+          else if (col_min < col_max) 
+          {
+            col_type <- "numeric"
+            col_search_type <- "numeric"
+          }
         }
       }
       else if (is.character(val))
@@ -155,20 +161,12 @@
         col_type <- "boolean"
         col_search_type <- "boolean"
       }
-      else if (is.data.frame(val))
-      {
-        col_type <- "data.frame"
-      }
-      else if (is.list(val))
-      {
-         col_type <- "list"
-      }
     }
     list(
       col_name        = .rs.scalar(col_name),
       col_type        = .rs.scalar(col_type),
-      col_breaks      = as.character(col_breaks),
-      col_counts      = col_counts,
+      col_min         = .rs.scalar(col_min),
+      col_max         = .rs.scalar(col_max),
       col_search_type = .rs.scalar(col_search_type),
       col_label       = .rs.scalar(col_label),
       col_vals        = col_vals,
@@ -180,24 +178,8 @@
 
 .rs.addFunction("formatRowNames", function(x, start, len) 
 {
-   # detect whether this is a data.frame that contains
-   # row names, or if the row names are stored compactly
-   if (is.data.frame(x))
-   {
-      info <- .row_names_info(x, type = 0L)
-      if (is.integer(info) && length(info) > 0 && is.na(info[[1]]))
-      {
-         # the second element indicates the number of rows, and is negative if they're 
-         # automatic
-         n <- abs(info[[2]])
-         range <- seq(from = start, to = min(n, start + len))
-         return(as.character(range))
-      }
-   }
-   
-   # otherwise, extract row names and subset as usual
-   rownames <- row.names(x)
-   rownames[start:min(length(rownames), start + len)]
+  rownames <- row.names(x)
+  rownames[start:min(length(rownames), start+len)]
 })
 
 # wrappers for nrow/ncol which will report the class of object for which we
@@ -249,15 +231,13 @@
     {
       # create a temporary frame to hold the value; this is necessary because
       # "x" is a function argument and therefore a promise whose value won't
-      # be bound via substitute() below. we use a random-looking name so we 
-      # can spot it later when relabeling columns.
-      `__RSTUDIO_VIEWER_COLUMN__` <- x
+      # be bound via substitute() below
+      coerced <- x
 
       # perform the actual coercion in the global environment; this is 
       # necessary because we want to honor as.data.frame overrides of packages
       # which are loaded after tools:rstudio in the search path
-      frame <- eval(substitute(as.data.frame(`__RSTUDIO_VIEWER_COLUMN__`, 
-                                             optional = TRUE)), 
+      frame <- eval(substitute(as.data.frame(coerced, optional = TRUE)), 
                     envir = globalenv())
     },
     error = function(e)
@@ -266,19 +246,14 @@
     
     # as.data.frame uses the name of its argument to label unlabeled columns,
     # so label these back to the original name
-    if (!is.null(frame) && !is.null(names(frame)))
-      names(frame)[names(frame) == "__RSTUDIO_VIEWER_COLUMN__"] <- name
+    if (!is.null(frame))
+      names(frame)[names(frame) == "x"] <- name
     x <- frame 
   }
 
   # if coercion was successful (or we started with a frame), flatten the frame
   # if necessary and requested
   if (is.data.frame(x)) {
-    
-    # generate column names if we didn't have any to start
-    if (is.null(names(x)))
-      names(x) <- paste("V", seq_along(x), sep = "")
-    
     if (!flatten) {
       return(x)
     }
@@ -336,7 +311,7 @@
   x
 })
 
-.rs.addFunction("applyTransform", function(x, filtered, search, cols, dirs)
+.rs.addFunction("applyTransform", function(x, filtered, search, col, dir) 
 {
   # mark encoding on character inputs if not already marked
   filtered <- vapply(filtered, function(colfilter) {
@@ -414,28 +389,22 @@
   }
 
   # apply sort
-  if (length(cols) > 0)
+  if (col > 0 && length(x[[col]]) > 0)
   {
-    vals <- list()
-    for (i in length(cols))
+    if (is.list(x[[col]][[1]]) || length(x[[col]][[1]]) > 1)
     {
-      idx <- cols[[i]]
-      if (length(x[[idx]]) > 0)
-      {
-        if (identical(dirs[[i]], "asc"))
-        {
-          vals <- append(vals, list(x[[idx]]))
-        }
-        else
-        {
-          vals <- append(vals, list(-xtfrm(x[[idx]])))
-        }
-      }
+      # extract the first value from each cell for ordering (handle
+      # vector-valued columns gracefully)
+      x <- as.data.frame(x[order(vapply(x[[col]], `[`, 0, 1), 
+                                 decreasing = identical(dir, "desc")), ,
+                           drop = FALSE])
     }
-
-    if (length(vals) > 0)
+    else
     {
-      x <- x[do.call(order, vals), , drop = FALSE]
+      # skip the expensive vapply when we're dealing with scalars
+      x <- as.data.frame(x[order(x[[col]], 
+                                 decreasing = identical(dir, "desc")), ,
+                           drop = FALSE])
     }
   }
 
@@ -562,16 +531,9 @@
 })
 
 .rs.addFunction("viewHook", function(original, x, title) {
-   
-  # remember the expression from which the data was generated
-   expr <- deparse(substitute(x), backtick = TRUE)
-
-   # generate title if necessary (from deparsed expr)
+   # generate title if necessary
    if (missing(title))
-      title <- paste(expr[1])
-
-   # collapse expr for serialization
-   expr <- paste(expr, collapse = " ")
+      title <- paste(deparse(substitute(x))[1])
 
    name <- ""
    env <- emptyenv()
@@ -659,14 +621,14 @@
    cacheKey <- .rs.addCachedData(force(x), name)
    
    # call viewData 
-   invisible(.Call("rs_viewData", x, expr, title, name, env, cacheKey, FALSE))
+   invisible(.Call("rs_viewData", x, title, name, env, cacheKey, FALSE))
 })
 
 .rs.registerReplaceHook("View", "utils", .rs.viewHook)
 
 .rs.addFunction("viewDataFrame", function(x, title, preview) {
    cacheKey <- .rs.addCachedData(force(x), "")
-   invisible(.Call("rs_viewData", x, "", title, "", emptyenv(), cacheKey, preview))
+   invisible(.Call("rs_viewData", x, title, "", emptyenv(), cacheKey, preview))
 })
 
 .rs.addFunction("initializeDataViewer", function(server) {

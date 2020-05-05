@@ -1,7 +1,7 @@
 /*
  * ScreenUtils.java
  *
- * Copyright (C) 2009-12 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -41,7 +41,7 @@ public class ScreenUtils
       else
       {
          // adjust for window framing, etc.
-         if (Desktop.hasDesktopFrame())
+         if (Desktop.isDesktop())
             height = height - 40;
          else
             height = height - 60;

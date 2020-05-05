@@ -1,7 +1,7 @@
 /*
  * StringUtils.cpp
  *
- * Copyright (C) 2009-12 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -18,7 +18,6 @@
 #include <core/Algorithm.hpp>
 #include <core/StringUtils.hpp>
 
-#define kLatexStyleLineCommentRegex ("^%+\\s*")
 
 namespace rstudio {
 namespace core {
@@ -26,7 +25,7 @@ namespace string_utils {
 
 using namespace algorithm;
 
-test_context("String splitting")
+context("String splitting")
 {
    test_that("Strings can be split on NUL bytes")
    {
@@ -50,7 +49,7 @@ test_context("String splitting")
    }
 }
 
-test_context("isSubsequence")
+context("isSubsequence")
 {
    test_that("isSubsequence works")
    {
@@ -101,57 +100,6 @@ test_context("isSubsequence")
    {
       std::string str("\r\n\r\n");
       expect_true(countNewlines(str) == 2);
-   }
-}
-
-test_context("Comment extraction")
-{
-   test_that("Comment headers can be extracted")
-   {
-      std::string text(
-               "% This is a header.\n"
-               "% Let's hope the text is extracted.\n"
-               "\n"
-               "This should be ignored.");
-      
-      std::string extracted;
-      bool success = extractCommentHeader(text, kLatexStyleLineCommentRegex, &extracted);
-      std::string expected(
-               "This is a header.\n"
-               "Let's hope the text is extracted.\n");
-      
-      expect_true(success);
-      expect_true(extracted == expected);
-   }
-   
-   test_that("Comment headers with no trailing newline are handled")
-   {
-      std::string text("% Hello\n% World");
-      
-      std::string extracted;
-      bool success = extractCommentHeader(text, kLatexStyleLineCommentRegex, &extracted);
-      std::string expected("Hello\nWorld\n");
-      
-      expect_true(success);
-      expect_true(extracted == expected);
-   }
-   
-   test_that("Edge cases are handled")
-   {
-      std::string extracted;
-      expect_false(extractCommentHeader("", kLatexStyleLineCommentRegex, &extracted));
-      
-      std::string text(
-               "There is a comment\n"
-               "% but not at the start of the document.\n");
-      expect_false(extractCommentHeader(text, kLatexStyleLineCommentRegex, &extracted));
-   }
-
-   test_that("JavaScript literals are escaped")
-   {
-      expect_true(jsLiteralEscape("\"hello\"") == "\\\"hello\\\"");
-      expect_true(jsLiteralEscape("'goodbye'") == "\\'goodbye\\'");
-      expect_true(jsLiteralEscape("</script>") == "\\074/script>");
    }
 }
 

@@ -1,7 +1,7 @@
 /*
  * Workbench.java
  *
- * Copyright (C) 2009-20 by RStudio, PBC
+ * Copyright (C) 2009-15 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -15,7 +15,6 @@
 package org.rstudio.studio.client.workbench;
 
 import com.google.gwt.core.client.GWT;
-import com.google.gwt.core.client.Scheduler;
 import com.google.gwt.user.client.Command;
 import com.google.inject.Inject;
 import com.google.inject.Provider;
@@ -24,7 +23,6 @@ import org.rstudio.core.client.BrowseCap;
 import org.rstudio.core.client.Size;
 import org.rstudio.core.client.StringUtil;
 import org.rstudio.core.client.TimeBufferedCommand;
-import org.rstudio.core.client.command.AppCommand;
 import org.rstudio.core.client.command.CommandBinder;
 import org.rstudio.core.client.command.Handler;
 import org.rstudio.core.client.files.FileSystemItem;
@@ -36,7 +34,6 @@ import org.rstudio.core.client.widget.ProgressIndicator;
 import org.rstudio.core.client.widget.ProgressOperationWithInput;
 import org.rstudio.studio.client.application.ApplicationVisibility;
 import org.rstudio.studio.client.application.Desktop;
-import org.rstudio.studio.client.application.events.DeferredInitCompletedEvent;
 import org.rstudio.studio.client.application.events.EventBus;
 import org.rstudio.studio.client.common.ConsoleDispatcher;
 import org.rstudio.studio.client.common.FileDialogs;
@@ -46,7 +43,6 @@ import org.rstudio.studio.client.common.GlobalProgressDelayer;
 import org.rstudio.studio.client.common.SimpleRequestCallback;
 import org.rstudio.studio.client.common.dependencies.DependencyManager;
 import org.rstudio.studio.client.common.filetypes.FileTypeRegistry;
-import org.rstudio.studio.client.common.rstudioapi.AskSecretManager;
 import org.rstudio.studio.client.common.vcs.AskPassManager;
 import org.rstudio.studio.client.common.vcs.ShowPublicKeyDialog;
 import org.rstudio.studio.client.common.vcs.VCSConstants;
@@ -56,7 +52,6 @@ import org.rstudio.studio.client.htmlpreview.events.ShowPageViewerEvent;
 import org.rstudio.studio.client.htmlpreview.events.ShowPageViewerHandler;
 import org.rstudio.studio.client.htmlpreview.model.HTMLPreviewParams;
 import org.rstudio.studio.client.pdfviewer.PDFViewer;
-import org.rstudio.studio.client.plumber.PlumberAPI;
 import org.rstudio.studio.client.projects.ProjectOpener;
 import org.rstudio.studio.client.projects.model.ProjectTemplateRegistryProvider;
 import org.rstudio.studio.client.rmarkdown.RmdOutput;
@@ -70,18 +65,14 @@ import org.rstudio.studio.client.server.remote.ExecuteUserCommandEvent;
 import org.rstudio.studio.client.shiny.ShinyApplication;
 import org.rstudio.studio.client.shiny.ui.ShinyGadgetDialog;
 import org.rstudio.studio.client.workbench.commands.Commands;
-import org.rstudio.studio.client.workbench.commands.ReportShortcutBindingEvent;
 import org.rstudio.studio.client.workbench.events.*;
-import org.rstudio.studio.client.workbench.events.ShowMainMenuEvent.Menu;
 import org.rstudio.studio.client.workbench.model.*;
-import org.rstudio.studio.client.workbench.prefs.model.UserPrefs;
+import org.rstudio.studio.client.workbench.prefs.model.UIPrefs;
 import org.rstudio.studio.client.workbench.views.choosefile.ChooseFile;
 import org.rstudio.studio.client.workbench.views.files.events.DirectoryNavigateEvent;
 import org.rstudio.studio.client.workbench.views.source.editors.profiler.ProfilerPresenter;
 import org.rstudio.studio.client.workbench.views.terminal.events.ActivateNamedTerminalEvent;
-import org.rstudio.studio.client.workbench.views.tutorial.TutorialPresenter.Tutorial;
-import org.rstudio.studio.client.workbench.views.tutorial.events.TutorialCommandEvent;
-import org.rstudio.studio.client.workbench.views.tutorial.events.TutorialLaunchEvent;
+import org.rstudio.studio.client.workbench.views.terminal.events.CreateTerminalEvent;
 import org.rstudio.studio.client.workbench.views.vcs.common.events.VcsRefreshEvent;
 import org.rstudio.studio.client.workbench.views.vcs.common.events.VcsRefreshHandler;
 import org.rstudio.studio.client.workbench.views.vcs.git.model.GitState;
@@ -89,7 +80,7 @@ import org.rstudio.studio.client.workbench.views.vcs.git.model.GitState;
 public class Workbench implements BusyHandler,
                                   ShowErrorMessageHandler,
                                   UserPromptHandler,
-                                  ShowWarningBarEvent.Handler,
+                                  ShowWarningBarHandler,
                                   BrowseUrlHandler,
                                   QuotaStatusHandler,
                                   WorkbenchLoadedHandler,
@@ -99,10 +90,7 @@ public class Workbench implements BusyHandler,
                                   ExecuteUserCommandEvent.Handler,
                                   AdminNotificationHandler,
                                   OpenFileDialogEvent.Handler,
-                                  ShowPageViewerHandler,
-                                  TutorialLaunchEvent.Handler,
-                                  DeferredInitCompletedEvent.Handler,
-                                  ReportShortcutBindingEvent.Handler
+                                  ShowPageViewerHandler
 {
    interface Binder extends CommandBinder<Commands, Workbench> {}
    
@@ -113,7 +101,7 @@ public class Workbench implements BusyHandler,
                     Commands commands,
                     EventBus eventBus,
                     Session session,
-                    Provider<UserPrefs> pPrefs,
+                    Provider<UIPrefs> pPrefs,
                     Server server,
                     RemoteFileSystemContext fsContext,
                     FileDialogs fileDialogs,
@@ -122,20 +110,16 @@ public class Workbench implements BusyHandler,
                     WorkbenchNewSession newSession,
                     ProjectOpener projectOpener,
                     Provider<GitState> pGitState,
-                    UserInterfaceHighlighter highlighter,       // force gin to create
-                    ChooseFile chooseFile,                      // force gin to create
-                    AskPassManager askPass,                     // force gin to create
-                    PDFViewer pdfViewer,                        // force gin to create
-                    HTMLPreview htmlPreview,                    // force gin to create
-                    ProfilerPresenter prof,                     // force gin to create
-                    ShinyApplication sApp,                      // force gin to create
-                    PlumberAPI sAPI,                            // force gin to create
-                    DependencyManager dm,                       // force gin to create
-                    ApplicationVisibility av,                   // force gin to create
-                    RmdOutput rmdOutput,                        // force gin to create    
-                    ProjectTemplateRegistryProvider provider,   // force gin to create
-                    WorkbenchServerOperations serverOperations, // force gin to create
-                    AskSecretManager askSecret)                 // force gin to create
+                    ChooseFile chooseFile,                    // force gin to create
+                    AskPassManager askPass,                   // force gin to create
+                    PDFViewer pdfViewer,                      // force gin to create
+                    HTMLPreview htmlPreview,                  // force gin to create
+                    ProfilerPresenter prof,                   // force gin to create
+                    ShinyApplication sApp,                    // force gin to create
+                    DependencyManager dm,                     // force gin to create
+                    ApplicationVisibility av,                 // force gin to create
+                    RmdOutput rmdOutput,                      // force gin to create    
+                    ProjectTemplateRegistryProvider provider) // force gin to create
   {
       view_ = view;
       workbenchContext_ = workbenchContext;
@@ -152,7 +136,6 @@ public class Workbench implements BusyHandler,
       consoleDispatcher_ = consoleDispatcher;
       pGitState_ = pGitState;
       newSession_ = newSession;
-      serverOperations_ = serverOperations;
       
       ((Binder)GWT.create(Binder.class)).bind(commands, this);
       
@@ -171,12 +154,9 @@ public class Workbench implements BusyHandler,
       eventBus.addHandler(AdminNotificationEvent.TYPE, this);
       eventBus.addHandler(OpenFileDialogEvent.TYPE, this);
       eventBus.addHandler(ShowPageViewerEvent.TYPE, this);
-      eventBus.addHandler(TutorialLaunchEvent.TYPE, this);
-      eventBus.addHandler(DeferredInitCompletedEvent.TYPE, this);
-      eventBus.addHandler(ReportShortcutBindingEvent.TYPE, this);
 
       // We don't want to send setWorkbenchMetrics more than once per 1/2-second
-      metricsChangedCommand_ = new TimeBufferedCommand(500)
+      metricsChangedCommand_ = new TimeBufferedCommand(-1, -1, 500)
       {
          @Override
          protected void performAction(boolean shouldSchedulePassive)
@@ -191,7 +171,7 @@ public class Workbench implements BusyHandler,
 
    public WorkbenchMainView getMainView()
    {
-      return view_;
+      return view_ ;
    }
 
    public void onWorkbenchLoaded(WorkbenchLoadedEvent event)
@@ -203,11 +183,11 @@ public class Workbench implements BusyHandler,
       if (defaultDialogDir != null)
          workbenchContext_.setDefaultFileDialogDir(defaultDialogDir);
       
+      // check for init messages
       checkForInitMessages();
-      checkForLicenseMessage();
       
       if (Desktop.isDesktop() && 
-          StringUtil.equals(session_.getSessionInfo().getVcsName(), VCSConstants.GIT_ID))
+          session_.getSessionInfo().getVcsName().equals(VCSConstants.GIT_ID))
       {
          pGitState_.get().addVcsRefreshHandler(new VcsRefreshHandler() {
    
@@ -220,27 +200,7 @@ public class Workbench implements BusyHandler,
             }
          });
       }
-   }
-   
-   public void onTutorialLaunch(final TutorialLaunchEvent event)
-   {
-      commands_.activateTutorial().execute();
       
-      Tutorial tutorial = event.getTutorial();
-      Scheduler.get().scheduleDeferred(() -> {
-         
-         TutorialCommandEvent commandEvent = new TutorialCommandEvent(
-               TutorialCommandEvent.TYPE_LAUNCH_DEFAULT_TUTORIAL,
-               tutorial.toJsObject());
-         
-         eventBus_.fireEvent(commandEvent);
-         
-      });
-   }
-
-   public void onDeferredInitCompleted(DeferredInitCompletedEvent ev)
-   {
-      checkForCrashHandlerPermission();
    }
    
    public void onBusy(BusyEvent event)
@@ -258,7 +218,8 @@ public class Workbench implements BusyHandler,
    @Override
    public void onShowWarningBar(ShowWarningBarEvent event)
    {
-      globalDisplay_.showWarningBar(event.isSevere(), event.getMessage());
+      WarningBarMessage message = event.getMessage();
+      globalDisplay_.showWarningBar(message.isSevere(), message.getMessage());
    } 
    
    public void onBrowseUrl(BrowseUrlEvent event)
@@ -359,7 +320,6 @@ public class Workbench implements BusyHandler,
    {
       newSession_.openNewSession(globalDisplay_, 
                                  workbenchContext_, 
-                                 serverOperations_,
                                  projectOpener_,
                                  server_);
    }
@@ -437,11 +397,9 @@ public class Workbench implements BusyHandler,
             @Override
             public void onResponseReceived(TerminalOptions options)
             {
-               Desktop.getFrame().openTerminal(
-                     StringUtil.notNull(options.getTerminalPath()),
-                     StringUtil.notNull(options.getWorkingDirectory()),
-                     StringUtil.notNull(options.getExtraPathEntries()),
-                     options.getShellType());
+               Desktop.getFrame().openTerminal(options.getTerminalPath(),
+                     options.getWorkingDirectory(),
+                     options.getExtraPathEntries());
             }
          });
       }
@@ -451,6 +409,12 @@ public class Workbench implements BusyHandler,
       }
    }
    
+   @Handler
+   public void onNewTerminal()
+   {
+      eventBus_.fireEvent(new CreateTerminalEvent());
+   }
+      
    @Handler
    public void onBrowseAddins()
    {
@@ -475,78 +439,13 @@ public class Workbench implements BusyHandler,
    @Handler
    public void onToggleFullScreen()
    {
-      if (Desktop.hasDesktopFrame())
+      if (Desktop.isDesktop() && Desktop.getFrame().supportsFullscreenMode())
          Desktop.getFrame().toggleFullscreenMode();
    }
-
-   @Handler
-   public void onShowFileMenu()
-   {
-      eventBus_.fireEvent(new ShowMainMenuEvent(Menu.File));
-   }
-
-   @Handler
-   public void onShowEditMenu()
-   {
-      eventBus_.fireEvent(new ShowMainMenuEvent(Menu.Edit));
-   }
-
-   @Handler
-   public void onShowCodeMenu()
-   {
-      eventBus_.fireEvent(new ShowMainMenuEvent(Menu.Code));
-   }
-
-   @Handler
-   public void onShowViewMenu()
-   {
-      eventBus_.fireEvent(new ShowMainMenuEvent(Menu.View));
-   }
-
-   @Handler
-   public void onShowPlotsMenu()
-   {
-      eventBus_.fireEvent(new ShowMainMenuEvent(Menu.Plots));
-   }
-
-   @Handler
-   public void onShowSessionMenu()
-   {
-      eventBus_.fireEvent(new ShowMainMenuEvent(Menu.Session));
-   }
-
-   @Handler
-   public void onShowBuildMenu()
-   {
-      eventBus_.fireEvent(new ShowMainMenuEvent(Menu.Build));
-   }
-
-   @Handler
-   public void onShowDebugMenu()
-   {
-      eventBus_.fireEvent(new ShowMainMenuEvent(Menu.Debug));
-   }
-
-   @Handler
-   public void onShowProfileMenu()
-   {
-      eventBus_.fireEvent(new ShowMainMenuEvent(Menu.Profile));
-   }
-
-   @Handler
-   public void onShowToolsMenu()
-   {
-      eventBus_.fireEvent(new ShowMainMenuEvent(Menu.Tools));
-   }
-
-   @Handler
-   public void onShowHelpMenu()
-   {
-      eventBus_.fireEvent(new ShowMainMenuEvent(Menu.Help));
-   }
-
+   
    private void checkForInitMessages()
    {
+      // only check for init messages in server mode
       if (!Desktop.isDesktop())
       {
          server_.getInitMessages(new ServerRequestCallback<String>() {
@@ -563,55 +462,6 @@ public class Workbench implements BusyHandler,
                // ignore
             }
          });
-      }
-      else
-      {
-         Desktop.getFrame().getInitMessages(message ->
-         {
-            if (!StringUtil.isNullOrEmpty(message))
-            {
-               globalDisplay_.showLicenseWarningBar(false, message);
-            }
-         });
-      }
-   }
-
-   private void checkForLicenseMessage()
-   {
-      String licenseMessage = session_.getSessionInfo().getLicenseMessage();
-      if (!StringUtil.isNullOrEmpty(licenseMessage))
-      {
-         globalDisplay_.showLicenseWarningBar(false, licenseMessage);
-      }
-   }
-
-   private void checkForCrashHandlerPermission()
-   {
-      boolean shouldPrompt = session_.getSessionInfo().getPromptForCrashHandlerPermission();
-      if (shouldPrompt)
-      {
-         String message =
-               "May we upload crash reports to RStudio automatically?\n\nCrash reports don't include " +
-               "any personal information, except for IP addresses which are used to determine how many users " +
-               "are affected by each crash.\n\nCrash reporting can be disabled at any time under the Global Options.";
-
-         globalDisplay_.showYesNoMessage(GlobalDisplay.MSG_QUESTION,
-               "Enable Automated Crash Reporting",
-               message,
-               false,
-               new Operation() {
-                  @Override
-                  public void execute() {
-                     server_.setUserCrashHandlerPrompted(true, new SimpleRequestCallback<Void>());
-                  }
-               },
-               new Operation() {
-                  @Override
-                  public void execute() {
-                     server_.setUserCrashHandlerPrompted(false, new SimpleRequestCallback<Void>());
-                  }
-               },
-               true);
       }
    }
     
@@ -702,7 +552,6 @@ public class Workbench implements BusyHandler,
                   initialFilePath,
                   filter,
                   false,
-                  false,
                   onSelected);
          }
          else
@@ -714,7 +563,6 @@ public class Workbench implements BusyHandler,
                   initialFilePath,
                   "",
                   false,
-                  false,
                   onSelected);
          }
       }
@@ -725,7 +573,6 @@ public class Workbench implements BusyHandler,
                label,
                fsContext_,
                initialFilePath,
-               false,
                onSelected);
       }
       else
@@ -750,8 +597,8 @@ public class Workbench implements BusyHandler,
    {
       if (BrowseCap.isWindowsDesktop())
       {
-         Desktop.getFrame().installRtools(StringUtil.notNull(event.getVersion()),
-                                          StringUtil.notNull(event.getInstallerPath())); 
+         Desktop.getFrame().installRtools(event.getVersion(),
+                                          event.getInstallerPath());  
       }
    }
    
@@ -770,22 +617,11 @@ public class Workbench implements BusyHandler,
    {
       server_.executeUserCommand(event.getCommandName(), new VoidServerRequestCallback());
    }
-
-   @Override
-   public void onReportShortcutBinding(ReportShortcutBindingEvent event)
-   {
-      AppCommand command = commands_.getCommandById(event.getCommand());
-      if (command == null)
-         globalDisplay_.showWarningBar(false, event.getCommand());
-      else
-         globalDisplay_.showWarningBar(false, event.getCommand() + " : " + command.summarize());
-   }
-
+   
    private final Server server_;
-   private final WorkbenchServerOperations serverOperations_;
    private final EventBus eventBus_;
    private final Session session_;
-   private final Provider<UserPrefs> pPrefs_;
+   private final Provider<UIPrefs> pPrefs_;
    private final WorkbenchMainView view_;
    private final GlobalDisplay globalDisplay_;
    private final Commands commands_;

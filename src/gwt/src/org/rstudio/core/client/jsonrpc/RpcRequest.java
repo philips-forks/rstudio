@@ -1,7 +1,7 @@
 /*
  * RpcRequest.java
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -22,8 +22,6 @@ import com.google.gwt.json.client.JSONString;
 import com.google.gwt.user.client.Random;
 import org.rstudio.core.client.Debug;
 import org.rstudio.core.client.jsonrpc.RequestLogEntry.ResponseType;
-import org.rstudio.studio.client.application.ApplicationCsrfToken;
-import org.rstudio.studio.client.application.Desktop;
 
 // NOTE: RpcRequest is an immutable object (all fields are marked final).
 // this means that it is safe to re-submit an RpcRequest since the 
@@ -31,25 +29,22 @@ import org.rstudio.studio.client.application.Desktop;
 // for retries after network or authentication errors)
 public class RpcRequest 
 {
-   public static final boolean TRACE = false;
+   public static final boolean TRACE = false ;
    
    public RpcRequest(String url, 
                      String method, 
                      JSONArray params, 
                      JSONObject kwparams,
                      boolean redactLog,
-                     String resultFieldName,
                      String sourceWindow,
                      String clientId,
-                     String clientVersion,
-                     boolean refreshCredentials)
+                     String clientVersion)
    {
       url_ = url;
       method_ = method;
-      params_ = params;
+      params_ = params ;
       kwparams_ = kwparams;
       redactLog_ = redactLog;
-      resultFieldName_ = resultFieldName;
       if (sourceWindow != null)
          sourceWindow_ = new JSONString(sourceWindow);
       else
@@ -59,18 +54,17 @@ public class RpcRequest
       else
          clientId_ = null;
       clientVersion_ = new JSONString(clientVersion);
-      refreshCredentials_ = refreshCredentials;
    }
    
    public void send(RpcRequestCallback callback)
    {
       // final references for access from anonymous class
-      final RpcRequest enclosingRequest = this;
-      final RpcRequestCallback requestCallback = callback;
+      final RpcRequest enclosingRequest = this ;
+      final RpcRequestCallback requestCallback = callback ;
       
       // build json request object
-      JSONObject request = new JSONObject();
-      request.put("method", new JSONString(method_));
+      JSONObject request = new JSONObject() ;
+      request.put("method", new JSONString(method_)) ;
       if ( params_ != null )
          request.put("params", params_);  
       if ( kwparams_ != null)
@@ -83,33 +77,23 @@ public class RpcRequest
       // add client id if we have it
       if (clientId_ != null)
          request.put("clientId", clientId_);
-
+      
       // add client version
       request.put("clientVersion", clientVersion_);
       
       // configure request builder
       RequestBuilder builder = new RequestBuilder(RequestBuilder.POST, url_);
-      builder.setHeader("Content-Type", "application/json");
+      builder.setHeader("Content-Type", "application/json") ;
       builder.setHeader("Accept", "application/json");
       String requestId = Integer.toString(Random.nextInt());
       builder.setHeader("X-RS-RID", requestId);
-      
-      // in server mode, append a CSRF token for request validation
-      if (!Desktop.isDesktop())
-      {
-         builder.setHeader("X-CSRF-Token", ApplicationCsrfToken.getCsrfToken());
-      }
-
-      // inform the server if we should not refresh auth creds
-      if (!refreshCredentials_)
-         builder.setHeader("X-RStudio-Refresh-Auth-Creds", "0");
       
       // send request
       try
       {
          String requestString = request.toString();
          if (TRACE)
-            Debug.log("Request: " + requestString);
+            Debug.log("Request: " + requestString) ;
 
          requestLogEntry_ = RequestLog.log(requestId,
                                            redactLog_ ? "[REDACTED]"
@@ -125,7 +109,7 @@ public class RpcRequest
                RpcError error = RpcError.create(
                                           RpcError.TRANSMISSION_ERROR,
                                           exception.getLocalizedMessage());
-               requestCallback.onError(enclosingRequest, error);
+               requestCallback.onError(enclosingRequest, error) ;
             }
             
             public void onResponseReceived(Request request, 
@@ -136,19 +120,19 @@ public class RpcRequest
                if ( status == 200 )
                {
                   // attempt to parse the response
-                  RpcResponse rpcResponse = null;
+                  RpcResponse rpcResponse = null ;
                   try
                   {
                      String responseText = response.getText();
                      if (TRACE)
-                        Debug.log("Response: " + responseText);
+                        Debug.log("Response: " + responseText) ;
                      requestLogEntry_.logResponse(ResponseType.Normal,
                                                  responseText);
                      rpcResponse = RpcResponse.parse(responseText);
                      
                      // response received and validated, process it!
                      requestCallback.onResponseReceived(enclosingRequest, 
-                                                        rpcResponse);
+                                                        rpcResponse) ;
                   }
                   catch(Exception e)
                   {
@@ -156,7 +140,7 @@ public class RpcRequest
                      RpcError error = RpcError.create(
                                                 RpcError.TRANSMISSION_ERROR,
                                                 e.getLocalizedMessage());
-                     requestCallback.onError(enclosingRequest, error);
+                     requestCallback.onError(enclosingRequest, error) ;
                   }
                }
                else
@@ -179,10 +163,10 @@ public class RpcRequest
                                               message);
                   RpcError error = RpcError.create(
                                              RpcError.TRANSMISSION_ERROR,
-                                             message);
+                                             message) ;
                   requestCallback.onError(enclosingRequest, error);
                }
-            }
+            };
          });
       }
       catch(RequestException e)
@@ -214,81 +198,17 @@ public class RpcRequest
          requestLogEntry_ = null;
       }
    }
-
-   public String getUrl()
-   {
-      return url_;
-   }
-
-   public String getMethod()
-   {
-      return method_;
-   }
-
-   public JSONArray getParams()
-   {
-      return params_;
-   }
-
-   public JSONObject getKwparams()
-   {
-      return kwparams_;
-   }
-
-   public boolean getRedactLog()
-   {
-      return redactLog_;
-   }
-   
-   /**
-    * @return If null, use standard "result" field for Rpc result, otherwise
-    *         use value as name of the result field
-    */
-   public String getResultFieldName()
-   {
-      return resultFieldName_;
-   }
-   
-   public String getSourceWindow()
-   {
-      if (sourceWindow_ == null)
-         return null;
-
-      return sourceWindow_.toString();
-   }
-
-   public String getClientId()
-   {
-      if (clientId_ == null)
-         return null;
-
-      return clientId_.toString();
-   }
-
-   public String getClientVersion()
-   {
-      if (clientVersion_ == null)
-         return null;
-      
-      return clientVersion_.toString();
-   }
-
-   public boolean getRefreshCreds()
-   {
-      return refreshCredentials_;
-   }
-
-   final private String url_;
-   final private String method_;
-   final private JSONArray params_;
+     
+   final private String url_ ;
+   final private String method_ ;
+   final private JSONArray params_ ;
    final private JSONObject kwparams_;
-   final private boolean redactLog_;
-   final private String resultFieldName_;
+   private final boolean redactLog_;
    final private JSONString sourceWindow_;
    final private JSONString clientId_;
    final private JSONString clientVersion_;
-   final private boolean refreshCredentials_;
    private Request request_ = null;
    private RequestLogEntry requestLogEntry_ = null;
-
+   
+     
 }

@@ -1,7 +1,7 @@
 /*
  * sweave.js
  *
- * Copyright (C) 2009-12 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * The Initial Developer of the Original Code is
  * Ajax.org B.V.
@@ -55,8 +55,19 @@ oop.inherits(Mode, TextMode);
 
 (function() {
 
-   this.tokenRe = new RegExp("^[" + unicode.wordChars + "._]+", "g");
-   this.nonTokenRe = new RegExp("^(?:[^" + unicode.wordChars + "._]|\\s)+", "g");
+   this.tokenRe = new RegExp("^["
+       + unicode.packages.L
+       + unicode.packages.Mn + unicode.packages.Mc
+       + unicode.packages.Nd
+       + unicode.packages.Pc + "._]+", "g"
+   );
+
+   this.nonTokenRe = new RegExp("^(?:[^"
+       + unicode.packages.L
+       + unicode.packages.Mn + unicode.packages.Mc
+       + unicode.packages.Nd
+       + unicode.packages.Pc + "._]|\\s])+", "g"
+   );
 
    this.$complements = {
             "(": ")",

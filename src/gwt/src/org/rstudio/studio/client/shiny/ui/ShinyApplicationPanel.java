@@ -1,7 +1,7 @@
 /*
  * ShinyApplicationPanel.java
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-14 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -17,11 +17,10 @@ package org.rstudio.studio.client.shiny.ui;
 import com.google.gwt.core.client.GWT;
 import com.google.gwt.dom.client.Style;
 import com.google.gwt.dom.client.Style.Unit;
-import com.google.gwt.event.dom.client.LoadHandler;
 import com.google.gwt.user.client.ui.Label;
 import com.google.inject.Inject;
 
-import org.rstudio.core.client.dom.DomUtils;
+import org.rstudio.core.client.StringUtil;
 import org.rstudio.core.client.theme.res.ThemeStyles;
 import org.rstudio.core.client.widget.RStudioFrame;
 import org.rstudio.core.client.widget.SatelliteFramePanel;
@@ -32,7 +31,6 @@ import org.rstudio.studio.client.rsconnect.RSConnect;
 import org.rstudio.studio.client.rsconnect.ui.RSConnectPublishButton;
 import org.rstudio.studio.client.shiny.ShinyApplicationPresenter;
 import org.rstudio.studio.client.shiny.model.ShinyApplicationParams;
-import org.rstudio.studio.client.shiny.model.ShinyViewerOptions;
 
 public class ShinyApplicationPanel extends SatelliteFramePanel<RStudioFrame>
                                    implements ShinyApplicationPresenter.Display
@@ -60,13 +58,12 @@ public class ShinyApplicationPanel extends SatelliteFramePanel<RStudioFrame>
       popoutButton.setText("Open in Browser");
       toolbar.addLeftWidget(popoutButton);
 
-      
       toolbar.addLeftSeparator();
-      refreshButton_ = 
+      ToolbarButton refreshButton = 
             commands.reloadShinyApp().createToolbarButton();
-      refreshButton_.setLeftImage(commands.viewerRefresh().getImageResource());
-      refreshButton_.getElement().getStyle().setMarginTop(1, Unit.PX);
-      toolbar.addLeftWidget(refreshButton_);
+      refreshButton.setLeftImage(commands.viewerRefresh().getImageResource());
+      refreshButton.getElement().getStyle().setMarginTop(1, Unit.PX);
+      toolbar.addLeftWidget(refreshButton);
       
       publishButton_ = new RSConnectPublishButton(
             RSConnectPublishButton.HOST_SHINY_APP,
@@ -75,7 +72,7 @@ public class ShinyApplicationPanel extends SatelliteFramePanel<RStudioFrame>
    }
    
    @Override
-   public void showApp(ShinyApplicationParams params, LoadHandler handler)
+   public void showApp(ShinyApplicationParams params)
    {
       appParams_ = params;
       publishButton_.setShinyPreview(params);
@@ -87,9 +84,7 @@ public class ShinyApplicationPanel extends SatelliteFramePanel<RStudioFrame>
          url = GWT.getHostPageBaseURL() + url;
       urlBox_.setText(url);
 
-      boolean removeTolbar = (appParams_.getViewerOptions() & ShinyViewerOptions.SHINY_VIEWER_OPTIONS_NOTOOLS) > 0;
-
-      showUrl(url, removeTolbar, handler);
+      showUrl(url);
    }
    
    @Override
@@ -115,17 +110,16 @@ public class ShinyApplicationPanel extends SatelliteFramePanel<RStudioFrame>
    @Override
    public String getAbsoluteUrl()
    {
-      return DomUtils.makeAbsoluteUrl(appParams_.getUrl());
+      return StringUtil.makeAbsoluteUrl(appParams_.getUrl());
    }
    
    @Override
    protected RStudioFrame createFrame(String url)
    {
-      return new RStudioFrame("Shiny Application", url);
+      return new RStudioFrame(url);
    }
 
    private Label urlBox_;
    private ShinyApplicationParams appParams_;
    private RSConnectPublishButton publishButton_;
-   private ToolbarButton refreshButton_;
 }

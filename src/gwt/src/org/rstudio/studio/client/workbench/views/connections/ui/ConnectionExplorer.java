@@ -1,7 +1,7 @@
 /*
  * ConnectionExplorer.java
  *
- * Copyright (C) 2009-20 by RStudio, PBC
+ * Copyright (C) 2009-17 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -46,7 +46,7 @@ public class ConnectionExplorer extends Composite implements RequiresResize
       disconnectedUI_.setWidth("100%");
       disconnectedUI_.setVerticalAlignment(HasVerticalAlignment.ALIGN_TOP);
       codePanel_ = new ConnectionCodePanel(false);
-      codePanel_.addStyleName(ThemeStyles.INSTANCE.rstheme_toolbarWrapper());
+      codePanel_.addStyleName(ThemeStyles.INSTANCE.toolbarWrapper());
       codePanel_.addStyleName(ThemeStyles.INSTANCE.secondaryToolbarPanel());
       codePanel_.getElement().getStyle().setPadding(8, Unit.PX);
       codePanel_.setHeight((codePanelHeight-5) + "px");
@@ -54,7 +54,7 @@ public class ConnectionExplorer extends Composite implements RequiresResize
       disconnectedUI_.add(codePanel_);
       Label label = new Label("(Not connected)");
       Style labelStyle = label.getElement().getStyle();
-      labelStyle.setColor("#767676");
+      labelStyle.setColor("#888");
       labelStyle.setMarginTop(25, Unit.PX);
       labelStyle.setTextAlign(TextAlign.CENTER);
       disconnectedUI_.add(label);
@@ -110,12 +110,7 @@ public class ConnectionExplorer extends Composite implements RequiresResize
    {
       activePanel_ = connected ? objectBrowser_ : disconnectedUI_;
       showActivePanel();
-      if (connected)
-      {
-         if (connection_ != null)
-            updateObjectBrowser();
-      }
-      else
+      if (!connected)
          objectBrowser_.clear();
    }
    
@@ -137,11 +132,6 @@ public class ConnectionExplorer extends Composite implements RequiresResize
    public void updateObjectBrowser(String hint)
    {   
       objectBrowser_.update(connection_, hint);
-   }
-   
-   public void setFilterText(String text)
-   {
-      objectBrowser_.setFilterText(text);
    }
   
    @Override

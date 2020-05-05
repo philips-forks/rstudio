@@ -1,7 +1,7 @@
 /*
  * MathJax.java
  *
- * Copyright (C) 2009-18 by RStudio, PBC
+ * Copyright (C) 2009-16 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -18,6 +18,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+import org.rstudio.core.client.BrowseCap;
 import org.rstudio.core.client.CommandWithArg;
 import org.rstudio.core.client.MapUtil;
 import org.rstudio.core.client.MapUtil.ForEachCommand;
@@ -28,12 +29,12 @@ import org.rstudio.core.client.layout.FadeOutAnimation;
 import org.rstudio.core.client.regex.Pattern;
 import org.rstudio.studio.client.common.mathjax.display.MathJaxPopupPanel;
 import org.rstudio.studio.client.rmarkdown.model.RmdChunkOptions;
-import org.rstudio.studio.client.workbench.prefs.model.UserPrefs;
+import org.rstudio.studio.client.workbench.prefs.model.UIPrefs;
+import org.rstudio.studio.client.workbench.prefs.model.UIPrefsAccessor;
 import org.rstudio.studio.client.workbench.views.source.editors.text.ChunkOutputSize;
 import org.rstudio.studio.client.workbench.views.source.editors.text.ChunkOutputWidget;
 import org.rstudio.studio.client.workbench.views.source.editors.text.DocDisplay;
 import org.rstudio.studio.client.workbench.views.source.editors.text.PinnedLineWidget;
-import org.rstudio.studio.client.workbench.views.source.editors.text.TextEditingTarget;
 import org.rstudio.studio.client.workbench.views.source.editors.text.DocDisplay.AnchoredSelection;
 import org.rstudio.studio.client.workbench.views.source.editors.text.ace.LineWidget;
 import org.rstudio.studio.client.workbench.views.source.editors.text.ace.Position;
@@ -71,7 +72,7 @@ public class MathJax
    }
    
    public MathJax(DocDisplay docDisplay, DocUpdateSentinel sentinel,
-         UserPrefs prefs)
+         UIPrefs prefs)
    {
       docDisplay_ = docDisplay;
       sentinel_ = sentinel;
@@ -249,8 +250,8 @@ public class MathJax
       // preferences indicate otherwise
       if (sentinel_.getBoolProperty(
             TextEditingTargetNotebook.CONTENT_PREVIEW_INLINE, 
-            prefs_.latexPreviewOnCursorIdle().getValue() == 
-               UserPrefs.LATEX_PREVIEW_ON_CURSOR_IDLE_ALWAYS))
+            prefs_.showLatexPreviewOnCursorIdle().getValue() == 
+               UIPrefsAccessor.LATEX_PREVIEW_SHOW_ALWAYS))
       {
          boolean isLatexChunk = text.startsWith("$$") && text.endsWith("$$");
          if (isLatexChunk)
@@ -424,6 +425,8 @@ public class MathJax
       final FlowPanel panel = new FlowPanel();
       panel.addStyleName(MATHJAX_ROOT_CLASSNAME);
       panel.addStyleName(RES.styles().mathjaxRoot());
+      if (BrowseCap.isWindowsDesktop())
+         panel.addStyleName(RES.styles().mathjaxRootWindows());
       return panel;
    }
    
@@ -525,7 +528,7 @@ public class MathJax
                             final MathJaxTypesetCallback callback)
    {
       // no need to re-render if text hasn't changed or is empty
-      if (text == lastRenderedText_)
+      if (text.equals(lastRenderedText_))
          return;
       
       // if empty, hide popup
@@ -534,10 +537,6 @@ public class MathJax
          endRender();
          return;
       }
-      
-      // don't show the popup in visual mode
-      if (sentinel_.getBoolProperty(TextEditingTarget.RMD_VISUAL_MODE, false))
-         return;
       
       // no need to re-position popup if already showing;
       // just typeset
@@ -703,6 +702,7 @@ public class MathJax
    public interface Styles extends CssResource
    {
       String mathjaxRoot();
+      String mathjaxRootWindows();
    }
 
    public interface Resources extends ClientBundle
@@ -719,7 +719,7 @@ public class MathJax
    
    private final DocDisplay docDisplay_;
    private final DocUpdateSentinel sentinel_;
-   private final UserPrefs prefs_;
+   private final UIPrefs prefs_;
    private final MathJaxPopupPanel popup_;
    private final MathJaxRenderQueue renderQueue_;
    private final List<HandlerRegistration> handlers_;

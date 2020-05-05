@@ -1,7 +1,7 @@
 /*
  * r_highlight_rules.js
  *
- * Copyright (C) 2009-12 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * The Initial Developer of the Original Code is
  * Ajax.org B.V.
@@ -47,77 +47,65 @@ define("mode/r_highlight_rules", ["require", "exports", "module"], function(requ
          {
             // escaped '@' sign
             token : "comment",
-            regex : "@@",
-            merge : false
+            regex : "@@"
          },
          {
             // latex-style keyword
             token : "keyword",
-            regex : "\\\\[a-zA-Z0-9]+",
-            merge : false
+            regex : "\\\\[a-zA-Z0-9]+"
          },
          {
             // roxygen tag accepting a parameter
             token : ["keyword", "comment"],
             regex : "(@(?:export|inheritParams|name|param|rdname|slot|template|useDynLib))(\\s+)(?=[a-zA-Z0-9._-])",
-            merge : false,
             next  : "rd-highlight"
          },
          {
             // generic roxygen tag
             token : "keyword",
-            regex : "@(?!@)[^ ]*",
-            merge : false
+            regex : "@(?!@)[^ ]*"
          },
          {
             // markdown link with =
             token : ["paren.keyword.operator", "comment"],
             regex : "(\\[)(=)",
-            merge : false,
             next  : "markdown-link"
          },
          {
             // markdown link
             token : "paren.keyword.operator",
             regex : "\\[",
-            merge : false,
             next  : "markdown-link"
          },
          {
             // markdown: `code`
             token : ["support.function", "support.function", "support.function"],
-            regex : "(`+)(.*?[^`])(\\1)",
-            merge : false
+            regex : "(`+)(.*?[^`])(\\1)"
          },
          {
             // markdown: __strong__
             token: ["comment", "constant.language.boolean"],
-            regex: "(\\s+|^)(__.+?__)\\b",
-            merge: false
+            regex: "(\\s+|^)(__.+?__)\\b"
          },
          {
             // markdown: _emphasis_
             token: ["comment", "constant.language.boolean"],
-            regex: "(\\s+|^)(_(?=[^_])(?:(?:\\\\.)|(?:[^_\\\\]))*?_)\\b",
-            merge: false
+            regex: "(\\s+|^)(_(?=[^_])(?:(?:\\\\.)|(?:[^_\\\\]))*?_)\\b"
          },
          {
             // markdown: **strong**
             token: ["constant.numeric"],
-            regex: "([*][*].+?[*][*])",
-            merge: false
+            regex: "([*][*].+?[*][*])"
          },
          {
             // markdown: *emphasis*
             token: ["constant.numeric"],
-            regex: "([*](?=[^*])(?:(?:\\\\.)|(?:[^*\\\\]))*?[*])",
-            merge: false
+            regex: "([*](?=[^*])(?:(?:\\\\.)|(?:[^*\\\\]))*?[*])"
          },
          {
             // highlight brackets
             token : "paren.keyword.operator",
-            regex : "(?:" + reLhsBracket + "|" + reRhsBracket + ")",
-            merge: false
+            regex : "(?:" + reLhsBracket + "|" + reRhsBracket + ")"
          },
          {
             defaultToken: "comment"
@@ -371,7 +359,7 @@ define("mode/r_highlight_rules", ["require", "exports", "module"], function(requ
          },
          {
             token : "keyword.operator",
-            regex : ":::|::|:=|%%|>=|<=|==|!=|<<\\-|\\->>|\\->|<\\-|\\|\\||&&|=|\\+|\\-|\\*\\*?|/|\\^|>|<|!|&|\\||~|\\$|:|@|\\?",
+            regex : ":::|::|:=|%%|>=|<=|==|!=|\\->|<\\-|<<\\-|\\|\\||&&|=|\\+|\\-|\\*\\*?|/|\\^|>|<|!|&|\\||~|\\$|:|@|\\?",
             merge : false,
             next  : "start"
          },

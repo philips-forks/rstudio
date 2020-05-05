@@ -1,7 +1,7 @@
 /*
  * EditorLanguage.java
  *
- * Copyright (C) 2009-18 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -50,16 +50,10 @@ public class EditorLanguage
          "mode/rhtml", true);
    public static final EditorLanguage LANG_CPP = new EditorLanguage(
          "mode/c_cpp", true);
-   public static final EditorLanguage LANG_SQL = new EditorLanguage(
-         "mode/sql", true);
    public static final EditorLanguage LANG_STAN = new EditorLanguage(
-         "mode/stan", true);
+         "mode/stan", false, true);
    public static final EditorLanguage LANG_YAML = new EditorLanguage(
          "mode/yaml", false, true);
-   public static final EditorLanguage LANG_PYTHON = new EditorLanguage(
-         "mode/python", true);
-   public static final EditorLanguage LANG_SH = new EditorLanguage(
-         "mode/sh", false, false);
    
    // Modes borrowed from Ace
    public static final EditorLanguage LANG_PLAIN = new EditorLanguage(
@@ -70,14 +64,16 @@ public class EditorLanguage
          "ace/mode/css", false, true);
    public static final EditorLanguage LANG_JAVASCRIPT = new EditorLanguage(
          "ace/mode/javascript", false, true);
+   public static final EditorLanguage LANG_PYTHON = new EditorLanguage(
+         "ace/mode/python", false, true);
+   public static final EditorLanguage LANG_SQL = new EditorLanguage(
+         "mode/sql", false, true);
+   public static final EditorLanguage LANG_SH = new EditorLanguage(
+         "ace/mode/sh", false, false);
    public static final EditorLanguage LANG_TOML = new EditorLanguage(
          "ace/mode/toml", false, true);
    public static final EditorLanguage LANG_XML = new EditorLanguage(
          "ace/mode/xml", false, false);
-   public static final EditorLanguage LANG_SCSS = new EditorLanguage(
-         "ace/mode/scss", false, true);
-   public static final EditorLanguage LANG_SASS = new EditorLanguage(
-         "ace/mode/sass", false, true);
    
    public static final EditorLanguage LANG_GRAPHVIZ = new EditorLanguage("ace/mode/dot", false, true);
    public static final EditorLanguage LANG_CLOJURE = new EditorLanguage("ace/mode/clojure", false, true);
@@ -88,7 +84,6 @@ public class EditorLanguage
    public static final EditorLanguage LANG_GROOVY = new EditorLanguage("ace/mode/groovy", false, true);
    public static final EditorLanguage LANG_HASKELL = new EditorLanguage("ace/mode/haskell", false, true);
    public static final EditorLanguage LANG_HAXE = new EditorLanguage("ace/mode/haxe", false, true);
-   public static final EditorLanguage LANG_INI = new EditorLanguage("ace/mode/ini", false, true);
    public static final EditorLanguage LANG_JAVA = new EditorLanguage("ace/mode/java", false, true);
    public static final EditorLanguage LANG_JULIA = new EditorLanguage("ace/mode/julia", false, true);
    public static final EditorLanguage LANG_LISP = new EditorLanguage("ace/mode/lisp", false, true);

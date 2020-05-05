@@ -1,7 +1,7 @@
 /*
  * cpp_code_model.js
  *
- * Copyright (C) 2009-12 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -345,7 +345,7 @@ var CppCodeModel = function(session, tokenizer,
             if (label.length > 50)
                label = label.substring(0, 50) + "...";
 
-            this.$scopes.onSectionStart(label, tokenCursor.currentPosition());
+            this.$scopes.onSectionHead(label, tokenCursor.currentPosition());
          }
          
          else if (/\bcodebegin\b/.test(tokenType))
@@ -1625,13 +1625,46 @@ var CppCodeModel = function(session, tokenizer,
 
    this.$onDocChange = function(evt)
    {
-      if (evt.action === "insert")
-         this.$tokenUtils.$insertNewRows(evt.start.row, evt.end.row - evt.start.row);
-      else
-         this.$tokenUtils.$removeRows(evt.start.row, evt.end.row - evt.start.row);
+      var delta = evt.data;
 
-      this.$tokenUtils.$invalidateRow(evt.start.row);
-      this.$scopes.invalidateFrom(evt.start);
+      if (delta.action === "insertLines")
+      {
+         this.$tokenUtils.$insertNewRows(delta.range.start.row,
+                             delta.range.end.row - delta.range.start.row);
+      }
+      else if (delta.action === "insertText")
+      {
+         if (this.$doc.isNewLine(delta.text))
+         {
+            this.$tokenUtils.$invalidateRow(delta.range.start.row);
+            this.$tokenUtils.$insertNewRows(delta.range.end.row, 1);
+         }
+         else
+         {
+            this.$tokenUtils.$invalidateRow(delta.range.start.row);
+         }
+      }
+      else if (delta.action === "removeLines")
+      {
+         this.$tokenUtils.$removeRows(delta.range.start.row,
+                          delta.range.end.row - delta.range.start.row);
+         this.$tokenUtils.$invalidateRow(delta.range.start.row);
+      }
+      else if (delta.action === "removeText")
+      {
+         if (this.$doc.isNewLine(delta.text))
+         {
+            this.$tokenUtils.$removeRows(delta.range.end.row, 1);
+            this.$tokenUtils.$invalidateRow(delta.range.start.row);
+         }
+         else
+         {
+            this.$tokenUtils.$invalidateRow(delta.range.start.row);
+         }
+      }
+
+      this.$scopes.invalidateFrom(delta.range.start);
+
    };
 
    this.$getIndent = function(line)

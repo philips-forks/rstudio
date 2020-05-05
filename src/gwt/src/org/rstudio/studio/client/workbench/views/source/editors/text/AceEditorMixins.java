@@ -1,7 +1,7 @@
 /*
  * AceEditorMixins.java
  *
- * Copyright (C) 2009-17 by RStudio, PBC
+ * Copyright (C) 2009-17 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -15,7 +15,6 @@
 package org.rstudio.studio.client.workbench.views.source.editors.text;
 
 import org.rstudio.core.client.BrowseCap;
-import org.rstudio.core.client.CommandWithArg;
 import org.rstudio.core.client.StringUtil;
 import org.rstudio.studio.client.JavaScriptEventHistory;
 import org.rstudio.studio.client.RStudioGinjector;
@@ -82,30 +81,15 @@ public class AceEditorMixins
             BrowseCap.isLinuxDesktop() &&
             isPasteTriggeredByMiddleClick();
       
-      // command to be executed once required text has been made available
-      final CommandWithArg<String> onReadyToPaste = new CommandWithArg<String>()
-      {
-         @Override
-         public void execute(String code)
-         {
-            // normalize line endings (Ace expects only '\n' line endings based
-            // on how we initialize it, and '\r\n' line endings cause issues)
-            code = code.replaceAll("\r\n|\r", "\n");
-
-            // invoke paste handler
-            invokePasteHandler(editor, code);
-         }
-      };
-      
       if (useGlobalMouseSelection)
-      {
-         Desktop.getFrame().getGlobalMouseSelection(selection ->
-               onReadyToPaste.execute(selection));
-      }
-      else
-      {
-         onReadyToPaste.execute(text);
-      }
+         text = Desktop.getFrame().getGlobalMouseSelection();
+      
+      // normalize line endings (Ace expects only '\n' line endings based
+      // on how we initialize it, and '\r\n' line endings cause issues)
+      text = text.replaceAll("\r\n|\r", "\n");
+      
+      // invoke paste handler
+      invokePasteHandler(editor, text);
    }
    
    private final boolean isPasteTriggeredByMiddleClick()
@@ -144,9 +128,9 @@ public class AceEditorMixins
       // (be permissive as to what mouse even occurred)
       String type = event.getType();
       return
-            type == "mousedown" ||
-            type == "click" ||
-            type == "mouseup";
+            type.equals("mousedown") ||
+            type.equals("click") ||
+            type.equals("mouseup");
    }
    
    private static final native void invokePasteHandler(AceEditorNative editor, String text)

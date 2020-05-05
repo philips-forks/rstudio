@@ -1,7 +1,7 @@
 /*
  * PrivateCommand.hpp
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-17 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -32,12 +32,6 @@ namespace terminal {
  * without the user seeing the input or output. It only runs if the terminal has no child
  * processes and if the user doesn't seem to be in the middle of typing a command.
  *
- * Relies on HISTCONTROL=ignorespace to prevent the "hidden" command from being added to
- * shell history. RStudio sets this when launching terminal, but shell config can change it.
- * If the command sees that HISTCONTROL is not set to ignorespace (or ignoreboth)
- * it will stop firing any more commands for duration of this object, otherwise users will see a
- * "weird" thing in history after virtually every command they type.
- *
  * Host must frequently call onTryCapture() to possibly fire the command, userInput() so
  * PrivateCommand can analyze if user has entered a command or is potentially in the middle of
  * typing a command, and output() to let PrivateCommand analyze output from a private command
@@ -67,7 +61,7 @@ public:
          int privateCommandDelayMs = 3000, // min delay between private commands
          int waitAfterCommandDelayMs = 2000, // min delay after user command
          int privateCommandTimeoutMs = 1200, // timeout for private command
-         int postCommandTimeoutMs = 300, // how long to suppress output after private command done
+         int postCommandTimeoutMs = 120, // how long to suppress output after private command done
          bool oncePerUserCommand = true); // only run private command after user has hit <enter>
 
    // Give private command opportunity to capture terminal; returns true if it does (or already did).
@@ -148,15 +142,11 @@ private:
 
    // parse details
    size_t firstCRLF_; // end of command
-   size_t histcontrol_; // value of $HISTCONTROL
    size_t outputStart_; // start of output
    size_t outputEnd_; // end of output
 
    // did last private command timeout?
    bool timeout_;
-
-   // wrong HISTCONTROL, further commands disabled
-   bool detectedWrongHistControl_;
 };
 
 } // namespace terminal

@@ -1,7 +1,7 @@
 /*
  * ServerOffline.cpp
  *
- * Copyright (C) 2009-12 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -15,13 +15,15 @@
 
 #include "ServerOffline.hpp"
 
-#include <shared_core/Error.hpp>
-#include <core/gwt/GwtFileHandler.hpp>
+#include <core/Error.hpp>
+#include <core/Log.hpp>
+
 #include <core/http/Request.hpp>
 #include <core/http/Response.hpp>
+
+#include <core/gwt/GwtFileHandler.hpp>
+
 #include <core/json/JsonRpc.hpp>
-#include <core/Log.hpp>
-#include <core/text/TemplateFilter.hpp>
 
 #include <server/ServerOptions.hpp>
 #include <server/ServerUriHandlers.hpp>
@@ -40,35 +42,16 @@ void handleOfflineRequest(const http::Request& request,
    // send error code for json responses
    if (request.acceptsContentType(json::kJsonContentType))
    {
-      json::setJsonRpcError(Error(json::errc::ServerOffline, ERROR_LOCATION), pResponse);
+      json::setJsonRpcError(json::errc::ServerOffline, pResponse);
    }
    
    // send error page for html responses
    else if (request.acceptsContentType("text/html"))
    {
-      std::ostringstream os;
-      std::map<std::string, std::string> vars;
-      vars["request_uri"] = string_utils::jsLiteralEscape(request.uri());
-
-      FilePath offlineTemplate = FilePath(options().wwwLocalPath()).completeChildPath("offline.htm");
-      core::Error err = core::text::renderTemplate(offlineTemplate, vars, os);
-
-      if (err)
-      {
-         // if we cannot display the page log the error
-         // note: this should never happen in a proper deployment
-         LOG_ERROR(err);
-      }
-      else
-      {
-         std::string body = os.str();
-         pResponse->setContentType("text/html");
-         pResponse->setBodyUnencoded(body);
-      }
-
-      // set 503 status even if there was an error showing the page
+      pResponse->setStatusCode(http::status::ServiceUnavailable);
       pResponse->setNoCacheHeaders();
-      pResponse->setStatusCode(core::http::status::ServiceUnavailable);
+      FilePath wwwPath(server::options().wwwLocalPath());
+      pResponse->setFile(wwwPath.complete("offline.htm"), request);
    }
    
    // other content types just get a plain 503 with no content
@@ -77,7 +60,7 @@ void handleOfflineRequest(const http::Request& request,
        pResponse->setStatusCode(http::status::ServiceUnavailable);
    }
 }
-
+   
 }
    
 Error httpServerAddHandlers()
@@ -87,14 +70,8 @@ Error httpServerAddHandlers()
    
    // use default gwt handling for image urls (required to render 
    // embedded images in offline page)
-   bool useSecureCookies = options.authCookiesForceSecure() ||
-                           options.getOverlayOption("ssl-enabled") == "1" ;
    uri_handlers::addBlocking("/images",
                              gwt::fileHandlerFunction(options.wwwLocalPath(),
-                                                      useSecureCookies,
-                                                      options.wwwIFrameEmbedding(),
-                                                      options.wwwLegacyCookies(),
-                                                      options.wwwIFrameLegacyCookies(),
                                                       "/"));
    
    // default handler sends back offline page or json error as appropriate

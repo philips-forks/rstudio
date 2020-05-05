@@ -1,7 +1,7 @@
 /*
- * GridViewerFrame.java
+ * GridViewer.java
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-16 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -20,24 +20,11 @@ import org.rstudio.studio.client.workbench.views.environment.dataimport.DataImpo
 
 import com.google.gwt.core.client.JavaScriptObject;
 
-public class GridViewerFrame extends RStudioThemedFrame
+public class GridViewerFrame extends RStudioFrame
 {
-   public GridViewerFrame(String title)
+   public GridViewerFrame()
    {
-      this(title, false);
-   }
-
-   public GridViewerFrame(String title, boolean enableThemes)
-   {
-      super(
-         title,
-         "grid_resource/gridviewer.html?data_source=data",
-         false,
-         null, 
-         GridViewerStyles.getCustomStyle(),
-         null,
-         false,
-         enableThemes);
+      super("grid_resource/gridviewer.html?data_source=data");
    }
    
    public void onAttach()
@@ -75,16 +62,6 @@ public class GridViewerFrame extends RStudioThemedFrame
       WindowEx gridViewerFrameWindow = getIFrame().getContentWindow();
       return getActiveColumn(gridViewerFrameWindow);
    }
-
-   public boolean isReady()
-   {
-      WindowEx gridViewerFrameWindow = getIFrame().getContentWindow();
-      return canSetOptions(gridViewerFrameWindow);
-   }
-
-   private native boolean canSetOptions(WindowEx frameContentWindow) /*-{
-      return typeof(frameContentWindow) !== " undefined";
-   }-*/;
    
    private final native void setDataNative(
       WindowEx frameContentWindow,

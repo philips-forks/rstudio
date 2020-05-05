@@ -1,7 +1,7 @@
 /*
  * ChildProcessSubprocPollTests.cpp
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-17 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -16,7 +16,7 @@
 #include "ChildProcessSubprocPoll.hpp"
 
 #include <boost/bind.hpp>
-#include <boost/thread/thread.hpp>
+#include <boost/asio/deadline_timer.hpp>
 
 #include <tests/TestThat.hpp>
 
@@ -39,7 +39,9 @@ const milliseconds kCheckCwdDelayExpired = milliseconds(45);
 
 void blockingwait(milliseconds ms)
 {
-   boost::this_thread::sleep(ms);
+   boost::asio::io_service io;
+   boost::asio::deadline_timer timer(io, ms);
+   timer.wait();
 }
 
 class NoSubProcPollingFixture
@@ -48,7 +50,7 @@ public:
    NoSubProcPollingFixture(PidType pid)
       :
         poller_(pid, kResetRecentDelay, kCheckSubprocDelay, kCheckCwdDelay,
-                0, std::vector<std::string>(), 0)
+                NULL, std::vector<std::string>(), NULL)
    {}
 
    ChildProcessSubprocPoll poller_;
@@ -62,7 +64,7 @@ public:
         poller_(pid, kResetRecentDelay, kCheckSubprocDelay, kCheckCwdDelay,
                 boost::bind(&SubProcPollingFixture::checkSubproc, this, _1),
                 std::vector<std::string>(),
-                0),
+                NULL),
         checkReturns_(false),
         callerPid_(0),
         checkCalled_(false)
@@ -102,7 +104,7 @@ public:
    CwdPollingFixture(PidType pid)
       :
         poller_(pid, kResetRecentDelay, kCheckSubprocDelay, kCheckCwdDelay,
-                0, std::vector<std::string>(),
+                NULL, std::vector<std::string>(),
                 boost::bind(&CwdPollingFixture::checkCwd, this, _1)),
         callerPid_(0),
         checkCalled_(false)
@@ -130,7 +132,7 @@ public:
 
 } // anonymous namespace
 
-test_context("ChildProcess polling support class")
+context("ChildProcess polling support class")
 {
    test_that("initial state without subproc polling matches expectation")
    {
@@ -223,7 +225,7 @@ test_context("ChildProcess polling support class")
       CwdPollingFixture test(pid);
 
       expect_true(test.poller_.hasRecentOutput());
-      expect_true(test.poller_.getCwd().isEmpty());
+      expect_true(test.poller_.getCwd().empty());
    }
 }
 

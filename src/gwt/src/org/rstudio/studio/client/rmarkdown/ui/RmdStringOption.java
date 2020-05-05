@@ -1,7 +1,7 @@
 /*
  * RmdStringOption.java
  *
- * Copyright (C) 2009-14 by RStudio, PBC
+ * Copyright (C) 2009-14 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -30,14 +30,14 @@ public class RmdStringOption extends RmdNullableOption
       defaultValue_ = option.getDefaultValue();
 
       HTMLPanel panel = new HTMLPanel("");
+      panel.add(getOptionLabelWidget());
       txtValue_ = new TextBox();
-      if (initialValue != "null")
+      if (!initialValue.equals("null"))
          txtValue_.setValue(initialValue);
       txtValue_.getElement().getStyle().setDisplay(Display.BLOCK);
       txtValue_.getElement().getStyle().setMarginLeft(20, Unit.PX);
       txtValue_.getElement().getStyle().setMarginTop(3, Unit.PX);
       txtValue_.setWidth("75%");
-      panel.add(getOptionLabelWidget(txtValue_.getElement()));
       panel.add(txtValue_);
 
       updateNull();
@@ -48,9 +48,9 @@ public class RmdStringOption extends RmdNullableOption
    public boolean valueIsDefault()
    {
       if (getValue() == null)
-         return defaultValue_ == "null";
+         return defaultValue_.equals("null");
       else 
-         return defaultValue_ == txtValue_.getValue();
+         return defaultValue_.equals(txtValue_.getValue());
    }
 
    @Override

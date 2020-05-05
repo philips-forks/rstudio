@@ -1,7 +1,7 @@
 /*
  * GwtLogHandler.cpp
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -16,11 +16,12 @@
 #include <core/gwt/GwtLogHandler.hpp>
 
 #include <boost/format.hpp>
+#include <boost/foreach.hpp>
 #include <boost/lexical_cast.hpp>
 #include <boost/algorithm/string/predicate.hpp>
 
 #include <core/Log.hpp>
-#include <shared_core/SafeConvert.hpp>
+#include <core/SafeConvert.hpp>
 #include <core/system/System.hpp>
 #include <core/http/Request.hpp>
 #include <core/http/Response.hpp>
@@ -36,7 +37,7 @@ namespace gwt {
 namespace {
 
 // symbol maps
-SymbolMaps* s_pSymbolMaps = nullptr;
+SymbolMaps* s_pSymbolMaps = NULL;
 
 // client exception
 struct ClientException
@@ -50,23 +51,23 @@ Error parseClientException(const json::Object exJson, ClientException* pEx)
 {
    json::Array stackJson;
    Error error = json::readObject(exJson,
-                                  "message", pEx->message,
-                                  "strong_name", pEx->strongName,
-                                  "stack", stackJson);
+                                  "message", &(pEx->message),
+                                  "strong_name", &(pEx->strongName),
+                                  "stack", &stackJson);
    if (error)
        return error;
 
-   for (const json::Value& elementJson : stackJson)
+   BOOST_FOREACH(const json::Value& elementJson, stackJson)
    {
       if (!json::isType<json::Object>(elementJson))
          return Error(json::errc::ParamTypeMismatch, ERROR_LOCATION);
 
       StackElement element;
-      Error error = json::readObject(elementJson.getObject(),
-                                     "file_name", element.fileName,
-                                     "class_name", element.className,
-                                     "method_name", element.methodName,
-                                     "line_number", element.lineNumber);
+      Error error = json::readObject(elementJson.get_obj(),
+                                     "file_name", &element.fileName,
+                                     "class_name", &element.className,
+                                     "method_name", &element.methodName,
+                                     "line_number", &element.lineNumber);
       if (error)
          return error;
 
@@ -141,7 +142,7 @@ void handleLogExceptionRequest(const std::string& username,
    // build the log message
    bool printFrame = false;
    std::ostringstream ostr;
-   for (const StackElement& element : stack)
+   BOOST_FOREACH(const StackElement& element, stack)
    {
       // skip past java/lang/Exception entries
       if (!printFrame)
@@ -164,15 +165,15 @@ void handleLogExceptionRequest(const std::string& username,
                      "Client-ID: %5%\n"
                      "User-Agent: %6%");
    std::string logEntry = boost::str(
-                        fmt % log::cleanDelimiters("rsession-" + username)
-                            % log::cleanDelimiters(ex.message)
-                            % log::s_delim
-                            % log::cleanDelimiters(ostr.str())
-                            % log::cleanDelimiters(jsonRpcRequest.clientId)
-                            % log::cleanDelimiters(userAgent));
+                        fmt % log::cleanDelims("rsession-" + username)
+                            % log::cleanDelims(ex.message)
+                            % log::DELIM
+                            % log::cleanDelims(ostr.str())
+                            % log::cleanDelims(jsonRpcRequest.clientId)
+                            % log::cleanDelims(userAgent));
 
    // log it
-   core::system::log(log::LogLevel::ERR, logEntry);
+   core::system::log(core::system::kLogLevelError, logEntry);
 
 
    // set void result
@@ -196,27 +197,27 @@ void handleLogMessageRequest(const std::string& username,
    }
    
    // convert level to appropriate enum and str
-   using namespace rstudio::core;
-   log::LogLevel logLevel;
+   using namespace rstudio::core::system;
+   LogLevel logLevel;
    std::string logLevelStr;
    switch(level)
    {
       case 0:
-         logLevel = log::LogLevel::ERR;
+         logLevel = kLogLevelError; 
          logLevelStr = "ERROR";
          break;
       case 1:
-         logLevel = log::LogLevel::WARN;
+         logLevel = kLogLevelWarning;
          logLevelStr = "WARNING";
          break;
       case 2:
-         logLevel = log::LogLevel::INFO;
+         logLevel = kLogLevelInfo;
          logLevelStr = "INFO";
          break;
       default:
          LOG_WARNING_MESSAGE("Unexpected log level: " + 
                              safe_convert::numberToString(level));
-         logLevel = log::LogLevel::ERR;
+         logLevel = kLogLevelError; 
          logLevelStr = "ERROR";
          break;
    }

@@ -1,7 +1,7 @@
 /*
  * Algorithm.hpp
  *
- * Copyright (C) 2009-12 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -193,31 +193,13 @@ bool get(const AssociativeContainer& container,
    return true;
 }
 
-namespace detail {
-
-template <typename Container, typename Iterator>
-typename boost::enable_if_c<type_traits::has_key_type<Container>::value, void>::type
-append(Container* pContainer, Iterator begin, Iterator end, boost::true_type)
+template <typename ContainerType>
+void append(ContainerType* pContainer, const ContainerType& other)
 {
-   pContainer->insert(begin, end);
-}
-
-template <typename Container, typename Iterator>
-typename boost::disable_if_c<type_traits::has_key_type<Container>::value, void>::type
-append(Container* pContainer, Iterator begin, Iterator end, boost::false_type)
-{
-   pContainer->insert(pContainer->end(), begin, end);
-}
-
-} // namespace detail
-
-template <typename ContainerType, typename OtherType>
-void append(ContainerType* pContainer, const OtherType& other)
-{
-   detail::append(pContainer,
-                  other.begin(),
-                  other.end(),
-                  type_traits::has_key_type<ContainerType>());
+   pContainer->insert(
+            pContainer->end(),
+            other.begin(),
+            other.end());
 }
 
 inline std::vector<std::string> split(const std::string& string,
@@ -265,34 +247,20 @@ inline std::string join(const std::vector<std::string>& container, const std::st
    return boost::algorithm::join(container, delim);
 }
 
-
-template <typename Iterator, typename F>
-inline std::string join(Iterator begin,
-                        Iterator end,
-                        const std::string& delim,
-                        F&& f)
+template <typename Iterator>
+inline std::string join(Iterator begin, Iterator end, const std::string& delim)
 {
    if (begin >= end)
       return std::string();
    
    std::string result;
-   result += f(*begin);
+   result += *begin;
    for (Iterator it = begin + 1; it != end; ++it)
    {
       result += delim;
-      result += f(*it);
+      result += *it;
    }
    return result;
-   
-}
-
-template <typename Iterator>
-inline std::string join(Iterator begin,
-                        Iterator end,
-                        const std::string& delim)
-{
-   auto callback = [](const std::string& string) { return string; };
-   return join(begin, end, delim, std::move(callback));
 }
 
 } // namespace algorithm

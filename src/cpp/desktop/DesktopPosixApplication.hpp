@@ -1,7 +1,7 @@
 /*
  * DesktopPosixApplication.hpp
  *
- * Copyright (C) 2009-17 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -18,8 +18,6 @@
 
 #include "3rdparty/qtsingleapplication/QtSingleApplication"
 
-#include "DesktopApplicationLaunch.hpp"
-
 namespace rstudio {
 namespace desktop {
 
@@ -28,10 +26,10 @@ class PosixApplication : public QtSingleApplication
     Q_OBJECT
 public:
 
-   PosixApplication(const QString& appName, int& argc, char* argv[])
-    : QtSingleApplication(appName, argc, argv),
-      pAppLauncher_(nullptr)
+   PosixApplication(QString appName, int& argc, char* argv[])
+    : QtSingleApplication(appName, argc, argv)
    {
+      setApplicationName(appName);
    }
 
    QString startupOpenFileRequest() const
@@ -39,21 +37,17 @@ public:
       return startupOpenFileRequest_;
    }
 
-   void setAppLauncher(ApplicationLaunch* pAppLauncher)
-   {
-       pAppLauncher_ = pAppLauncher;
-   }
-
-Q_SIGNALS:
+signals:
     void openFileRequest(QString filename);
 
 protected:
-    bool event(QEvent* pEvent) override;
+    virtual bool event(QEvent* pEvent);
 
 private:
     QString startupOpenFileRequest_;
-    ApplicationLaunch* pAppLauncher_;
+
 };
+
 
 
 } // namespace desktop

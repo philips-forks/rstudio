@@ -1,7 +1,7 @@
 /*
  * JsonRpc.hpp
  *
- * Copyright (C) 2009-18 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -13,15 +13,12 @@
  *
  */
 
-#ifndef CORE_JSON_RPC_HPP
-#define CORE_JSON_RPC_HPP
-
-#include <boost/system/error_code.hpp>
+#ifndef CORE_JSON_JSON_RPC_HPP
+#define CORE_JSON_JSON_RPC_HPP
 
 #include <core/type_traits/TypeTraits.hpp>
-#include <core/json/JsonRpc.hpp>
 
-#include <shared_core/json/Json.hpp>
+#include <boost/system/error_code.hpp>
 
 namespace rstudio {
 namespace core {
@@ -49,14 +46,6 @@ enum errc_t {
    InvalidClientVersion = 12, // client is running an invalid version
    ServerOffline = 13,    // server is offline
    InvalidSession = 14,   // target session is invalid
-   MaxSessionsReached = 15,     // license error - max sessions reached
-   MaxUsersReached = 16,  // license error - max users reached
-
-   // launcher session parameters not found and should be resent to implicitly resume the session
-   LaunchParametersMissing = 17,
-
-   // profile errors - those imposed by limits in user profiles
-   LimitSessionsReached = 20,
 
    // Execution errors -- These errors occurred during execution of the method.
    // Application state is therefore known based on the expected behavior
@@ -79,12 +68,11 @@ namespace RSTUDIO_BOOST_NAMESPACE {
 namespace system {
 template <>
 struct is_error_code_enum<rstudio::core::json::errc::errc_t>
-{
-   static const bool value = true;
-};
-
+ { static const bool value = true; };
 } // namespace system
 } // namespace boost
+
+
 
 #include <string>
 
@@ -93,8 +81,8 @@ struct is_error_code_enum<rstudio::core::json::errc::errc_t>
 #include <boost/optional.hpp>
 #include <boost/unordered_map.hpp>
 
-#include <shared_core/Error.hpp>
-#include <shared_core/json/Json.hpp>
+#include <core/Error.hpp>
+#include <core/json/Json.hpp>
 
 namespace rstudio {
 namespace core {
@@ -112,7 +100,7 @@ namespace json {
 extern const char * const kRpcResult;
 extern const char * const kRpcError;
 extern const char * const kJsonContentType ;
-extern const char * const kRpcAsyncHandle;
+   
 
 // jsonRpcCategory
 const boost::system::error_category& jsonRpcCategory() ;
@@ -145,36 +133,22 @@ struct JsonRpcRequest
 {
    JsonRpcRequest() : version(0), isBackgroundConnection(false) {}
    
-   std::string method;
-   Array params;
-   Object kwparams;
+   std::string method ;
+   json::Array params ;
+   json::Object kwparams ;
    std::string sourceWindow;
-   std::string clientId;
+   std::string clientId ;
    double version;
    std::string clientVersion;
-   bool isBackgroundConnection;
+   bool isBackgroundConnection ;
 
    bool empty() const { return method.empty(); }
    
    void clear() 
    {
-      method.clear();
-      params.clear();
-      kwparams.clear();
-   }
-
-   Object toJsonObject()
-   {
-      Object obj;
-      obj["method"] = method;
-      obj["params"] = params;
-      obj["kwparams"] = kwparams;
-      obj["sourceWindow"] = sourceWindow;
-      obj["clientId"] = clientId;
-      obj["version"] = version;
-      obj["isBackgroundConnection"] = isBackgroundConnection;
-
-      return obj;
+      method.clear() ;
+      params.clear() ;
+      kwparams.clear() ;
    }
 };
 
@@ -194,151 +168,907 @@ bool parseJsonRpcRequestForMethod(const std::string& input,
 //
    
 
-inline core::Error readParam(const Array& params,
+inline core::Error readParam(const json::Array& params, 
                              unsigned int index, 
-                             Value* pValue)
+                             json::Value* pValue)
 {
-   if (index >= params.getSize())
-      return core::Error(json::errc::ParamMissing, ERROR_LOCATION);
+   if (index >= params.size())
+      return core::Error(errc::ParamMissing, ERROR_LOCATION);
    
    *pValue = params[index] ;
    return Success();
 }
 
 template <typename T>
-core::Error readParam(const Array& params, unsigned int index, T* pValue)
+core::Error readParam(const json::Array& params, unsigned int index, T* pValue)
 {
-   if (index >= params.getSize())
-      return core::Error(json::errc::ParamMissing, ERROR_LOCATION);
+   if (index >= params.size())
+      return core::Error(errc::ParamMissing, ERROR_LOCATION);
 
    if (!isType<T>(params[index]))
-      return core::Error(json::errc::ParamTypeMismatch, ERROR_LOCATION) ;
+      return core::Error(errc::ParamTypeMismatch, ERROR_LOCATION) ;
 
-   *pValue = params[index].getValue<T>();
+   *pValue = params[index].get_value<T>();
 
    return Success() ;
 }
-
-template <typename T, typename... Args>
-core::Error readParams(const Array& params, T* pValue, Args... args)
-{
-   unsigned int index = 0;
-
-   Error error = readParam(params, index++, pValue);
-   if (error)
-      return error;
-
-   error = readParams(params, index, args...);
-   if (error)
-      return error;
-
-   return Success();
-}
    
-template <typename T, typename... Args>
-core::Error readParams(const Array& params, unsigned int index, T* pValue, Args... args)
-{
-   Error error = readParam(params, index++, pValue);
-   if (error)
-      return error;
-
-   error = readParams(params, index, args...);
-   if (error)
-      return error;
-
-   return Success();
-}
-
-template <typename T>
-core::Error readParams(const Array& params, unsigned int index, T* pValue)
-{
-   return readParam(params, index, pValue);
-}
-
 template <typename T1>
 core::Error readParams(const json::Array& params, T1* pValue1)
 {
    return readParam(params, 0, pValue1) ;
 }
 
+template <typename T1, typename T2>
+core::Error readParams(const json::Array& params, T1* pValue1, T2* pValue2)
+{
+   core::Error error = readParam(params, 0, pValue1) ;
+   if (error)
+      return error ;
+
+   return readParam(params, 1, pValue2) ;
+}
+
+template <typename T1, typename T2, typename T3>
+core::Error readParams(const json::Array& params, 
+                        T1* pValue1, 
+                        T2* pValue2, 
+                        T3* pValue3)
+{
+   core::Error error = readParams(params, pValue1, pValue2) ;
+   if (error)
+      return error ;
+
+   return readParam(params, 2, pValue3) ;
+}
+
+template <typename T1, typename T2, typename T3, typename T4>
+core::Error readParams(const json::Array& params, 
+                       T1* pValue1, 
+                       T2* pValue2, 
+                       T3* pValue3,
+                       T4* pValue4)
+{
+   core::Error error = readParams(params, pValue1, pValue2, pValue3) ;
+   if (error)
+      return error ;
+   
+   return readParam(params, 3, pValue4) ;
+}
+
+   
+template <typename T1, typename T2, typename T3, typename T4, typename T5>
+core::Error readParams(const json::Array& params, 
+                       T1* pValue1, 
+                       T2* pValue2, 
+                       T3* pValue3,
+                       T4* pValue4,
+                       T5* pValue5)
+{
+   core::Error error = readParams(params, pValue1, pValue2, pValue3, pValue4) ;
+   if (error)
+      return error ;
+   
+   return readParam(params, 4, pValue5) ;
+}
+
+template <typename T1, typename T2, typename T3, typename T4, typename T5,
+          typename T6>
+core::Error readParams(const json::Array& params,
+                       T1* pValue1,
+                       T2* pValue2,
+                       T3* pValue3,
+                       T4* pValue4,
+                       T5* pValue5,
+                       T6* pValue6)
+{
+   core::Error error = readParams(params,
+                                  pValue1,
+                                  pValue2,
+                                  pValue3, 
+                                  pValue4,
+                                  pValue5) ;
+   if (error)
+      return error ;
+   
+   return readParam(params, 5, pValue6) ;
+}   
+   
+template <typename T1, typename T2, typename T3, typename T4, typename T5,
+typename T6, typename T7>
+core::Error readParams(const json::Array& params,
+                       T1* pValue1,
+                       T2* pValue2,
+                       T3* pValue3,
+                       T4* pValue4,
+                       T5* pValue5,
+                       T6* pValue6,
+                       T7* pValue7)
+{
+   core::Error error = readParams(params,
+                                  pValue1,
+                                  pValue2,
+                                  pValue3,
+                                  pValue4,
+                                  pValue5,
+                                  pValue6) ;
+   if (error)
+      return error ;
+
+   return readParam(params, 6, pValue7) ;
+}
+
+template <typename T1, typename T2, typename T3, typename T4, typename T5,
+typename T6, typename T7, typename T8>
+core::Error readParams(const json::Array& params,
+                       T1* pValue1,
+                       T2* pValue2,
+                       T3* pValue3,
+                       T4* pValue4,
+                       T5* pValue5,
+                       T6* pValue6,
+                       T7* pValue7,
+                       T8* pValue8)
+{
+   core::Error error = readParams(params,
+                                  pValue1,
+                                  pValue2,
+                                  pValue3,
+                                  pValue4,
+                                  pValue5,
+                                  pValue6,
+                                  pValue7) ;
+   if (error)
+      return error ;
+
+   return readParam(params, 7, pValue8) ;
+}
+
+template <typename T1, typename T2, typename T3, typename T4, typename T5,
+typename T6, typename T7, typename T8, typename T9>
+core::Error readParams(const json::Array& params,
+                       T1* pValue1,
+                       T2* pValue2,
+                       T3* pValue3,
+                       T4* pValue4,
+                       T5* pValue5,
+                       T6* pValue6,
+                       T7* pValue7,
+                       T8* pValue8,
+                       T9* pValue9)
+{
+   core::Error error = readParams(params,
+                                  pValue1,
+                                  pValue2,
+                                  pValue3,
+                                  pValue4,
+                                  pValue5,
+                                  pValue6,
+                                  pValue7,
+                                  pValue8) ;
+   if (error)
+      return error ;
+
+   return readParam(params, 8, pValue9) ;
+}
+
+template <typename T1, typename T2, typename T3, typename T4, typename T5,
+typename T6, typename T7, typename T8, typename T9, typename T10>
+core::Error readParams(const json::Array& params,
+                       T1* pValue1,
+                       T2* pValue2,
+                       T3* pValue3,
+                       T4* pValue4,
+                       T5* pValue5,
+                       T6* pValue6,
+                       T7* pValue7,
+                       T8* pValue8,
+                       T9* pValue9,
+                       T10* pValue10)
+{
+   core::Error error = readParams(params,
+                                  pValue1,
+                                  pValue2,
+                                  pValue3,
+                                  pValue4,
+                                  pValue5,
+                                  pValue6,
+                                  pValue7,
+                                  pValue8,
+                                  pValue9) ;
+   if (error)
+      return error ;
+
+   return readParam(params, 9, pValue10) ;
+}
+
+template <typename T1, typename T2, typename T3, typename T4, typename T5,
+typename T6, typename T7, typename T8, typename T9, typename T10, typename T11>
+core::Error readParams(const json::Array& params,
+                       T1* pValue1,
+                       T2* pValue2,
+                       T3* pValue3,
+                       T4* pValue4,
+                       T5* pValue5,
+                       T6* pValue6,
+                       T7* pValue7,
+                       T8* pValue8,
+                       T9* pValue9,
+                       T10* pValue10,
+                       T11* pValue11)
+{
+   core::Error error = readParams(params,
+                                  pValue1,
+                                  pValue2,
+                                  pValue3,
+                                  pValue4,
+                                  pValue5,
+                                  pValue6,
+                                  pValue7,
+                                  pValue8,
+                                  pValue9,
+                                  pValue10) ;
+   if (error)
+      return error ;
+
+   return readParam(params, 10, pValue11) ;
+}
+
+template <typename T1, typename T2, typename T3, typename T4, typename T5,
+typename T6, typename T7, typename T8, typename T9, typename T10, typename T11,
+typename T12>
+core::Error readParams(const json::Array& params,
+                       T1* pValue1,
+                       T2* pValue2,
+                       T3* pValue3,
+                       T4* pValue4,
+                       T5* pValue5,
+                       T6* pValue6,
+                       T7* pValue7,
+                       T8* pValue8,
+                       T9* pValue9,
+                       T10* pValue10,
+                       T11* pValue11,
+                       T12* pValue12)
+{
+   core::Error error = readParams(params,
+                                  pValue1,
+                                  pValue2,
+                                  pValue3,
+                                  pValue4,
+                                  pValue5,
+                                  pValue6,
+                                  pValue7,
+                                  pValue8,
+                                  pValue9,
+                                  pValue10,
+                                  pValue11) ;
+   if (error)
+      return error ;
+
+   return readParam(params, 11, pValue12) ;
+}
+
+template <typename T1, typename T2, typename T3, typename T4, typename T5,
+typename T6, typename T7, typename T8, typename T9, typename T10, typename T11,
+typename T12, typename T13>
+core::Error readParams(const json::Array& params,
+                       T1* pValue1,
+                       T2* pValue2,
+                       T3* pValue3,
+                       T4* pValue4,
+                       T5* pValue5,
+                       T6* pValue6,
+                       T7* pValue7,
+                       T8* pValue8,
+                       T9* pValue9,
+                       T10* pValue10,
+                       T11* pValue11,
+                       T12* pValue12,
+                       T13* pValue13)
+{
+   core::Error error = readParams(params,
+                                  pValue1,
+                                  pValue2,
+                                  pValue3,
+                                  pValue4,
+                                  pValue5,
+                                  pValue6,
+                                  pValue7,
+                                  pValue8,
+                                  pValue9,
+                                  pValue10,
+                                  pValue11,
+                                  pValue12) ;
+   if (error)
+      return error ;
+
+   return readParam(params, 12, pValue13) ;
+}
 namespace errors {
 
 inline Error paramMissing(const std::string& name,
                           const ErrorLocation& location)
 {
-   Error error(json::errc::ParamTypeMismatch, location);
+   Error error(errc::ParamTypeMismatch, location);
    error.addProperty("description", "no such parameter '" + name + "'");
    return error;
 }
 
-inline Error typeMismatch(const Value& value,
-                          Type expectedType,
+inline Error typeMismatch(const json::Value& value,
+                          const json_spirit::Value_type expectedType,
                           const ErrorLocation& location)
 {
-   Error error(json::errc::ParamTypeMismatch, location);
+   Error error(errc::ParamTypeMismatch, location);
    
    std::string description = std::string("expected ") +
-         "'" + typeAsString(expectedType) + "'" +
+         "'" + json::typeAsString(expectedType) + "'" +
          "; got " +
-         "'" + typeAsString(value.getType()) + "'";
+         "'" + json::typeAsString(value.type()) + "'";
    error.addProperty("description", description);
    return error;
 }
 
 } // namespace errors
 
-template <typename T, typename... Args>
-core::Error readObjectParam(const Array& params,
-                            unsigned int index,
-                            const std::string& name,
-                            T* pValue,
-                            Args... args)
+template <typename T>
+core::Error readObject(const json::Object& object, 
+                       const std::string& name, 
+                       T* pValue)
 {
-   Error error = readObjectParam(params, index, name, pValue);
+   json::Object::const_iterator it = object.find(name);
+   if (it == object.end())
+      return errors::paramMissing(name, ERROR_LOCATION);
+
+   if (!isType<T>(it->second))
+      return errors::typeMismatch(
+               it->second,
+               json::asJsonType(*pValue),
+               ERROR_LOCATION);
+
+   *pValue = it->second.get_value<T>();
+
+   return Success() ;
+}
+
+inline core::Error readObject(const json::Object& object,
+                              const std::string& name,
+                              json::Array* pArray)
+{
+   return readObject<json::Array>(object, name, pArray);
+}
+
+template <typename T>
+core::Error readObject(
+      const json::Object& object,
+      const std::string& name,
+      std::vector<T>* pVector)
+{
+   core::Error error;
+   
+   json::Array array;
+   error = readObject(object, name, &array);
    if (error)
       return error;
-
-   error = readObjectParam(params, index, args...);
-   if (error)
-      return error;
-
+   
+   for (std::size_t i = 0, n = array.size(); i < n; ++i)
+   {
+      const json::Value& el = array[i];
+      if (!isType<T>(el))
+         return errors::typeMismatch(
+                  el,
+                  json::asJsonType(T()),
+                  ERROR_LOCATION);
+      
+      pVector->push_back(el.get_value<T>());
+   }
+   
    return Success();
 }
 
 template <typename T>
-core::Error readObjectParam(const Array& params,
+core::Error readObject(const json::Object& object,
+                       const std::string& name,
+                       const T& defaultValue,
+                       T* pValue)
+{
+   json::Object::const_iterator it = object.find(name) ;
+   if (it == object.end())
+   {
+      *pValue = defaultValue;
+      return Success();
+   }
+
+   if (!isType<T>(it->second))
+      return errors::typeMismatch(
+               it->second,
+               json::asJsonType(*pValue),
+               ERROR_LOCATION);
+
+   *pValue = it->second.get_value<T>() ;
+
+   return Success() ;
+}
+
+template <typename T>
+core::Error readObjectParam(const json::Array& params,
                             unsigned int index, 
                             const std::string& name, 
                             T* pValue)
 {
-   Object object;
-   Error error = readParam(params, index, &object);
+   json::Object object;
+   Error error = json::readParam(params, index, &object);
    if (error)
       return error;
    
-   return readObject(object, name, *pValue);
+   return readObject(object, name, pValue);
+}
+   
+
+template <typename T1, typename T2>
+core::Error readObject(const json::Object& object, 
+                       const std::string& name1, T1* pValue1,
+                       const std::string& name2, T2* pValue2)
+{
+   Error error = readObject(object, name1, pValue1);
+   if (error)
+      return error;
+   
+   return readObject(object, name2, pValue2);
+}
+   
+template <typename T1, typename T2>
+core::Error readObjectParam(const json::Array& params, 
+                            unsigned int index,
+                            const std::string& name1, T1* pValue1,
+                            const std::string& name2, T2* pValue2)
+{
+   json::Object object;
+   Error error = json::readParam(params, index, &object);
+   if (error)
+      return error;
+   
+   return readObject(object, name1, pValue1, name2, pValue2);
 }
 
-template <typename T>
-core::Error getOptionalParam(const Object& json, const std::string& param,
-                             const T& defaultValue, T* outParam)
+template <typename T1, typename T2, typename T3>
+core::Error readObject(const json::Object& object, 
+                       const std::string& name1, T1* pValue1,
+                       const std::string& name2, T2* pValue2,
+                       const std::string& name3, T3* pValue3)
 {
-   boost::optional<T> paramVal;
-   Error error = readObject(json, param, paramVal);
+   Error error = readObject(object, name1, pValue1, name2, pValue2);
+   if (error)
+      return error;
+   
+   return readObject(object, name3, pValue3);
+}
+   
+template <typename T1, typename T2, typename T3>
+core::Error readObjectParam(const json::Array& params,
+                            unsigned int index,
+                            const std::string& name1, T1* pValue1,
+                            const std::string& name2, T2* pValue2,
+                            const std::string& name3, T3* pValue3)
+{
+   json::Object object;
+   Error error = json::readParam(params, index, &object);
    if (error)
       return error;
 
-   *outParam = paramVal.get_value_or(defaultValue);
-
-   return Success();
+   return readObject(object, name1, pValue1, name2, pValue2, name3, pValue3);
+}
+   
+template <typename T1, typename T2, typename T3, typename T4>
+core::Error readObject(const json::Object& object, 
+                       const std::string& name1, T1* pValue1,
+                       const std::string& name2, T2* pValue2,
+                       const std::string& name3, T3* pValue3,
+                       const std::string& name4, T4* pValue4)
+{
+   Error error = readObject(object, 
+                            name1, pValue1, 
+                            name2, pValue2,
+                            name3, pValue3);
+   if (error)
+      return error;
+   
+   return readObject(object, name4, pValue4);
+}
+   
+template <typename T1, typename T2, typename T3, typename T4>
+core::Error readObjectParam(const json::Array& params,
+                            unsigned int index,
+                            const std::string& name1, T1* pValue1,
+                            const std::string& name2, T2* pValue2,
+                            const std::string& name3, T3* pValue3,
+                            const std::string& name4, T4* pValue4)
+{
+   json::Object object;
+   Error error = json::readParam(params, index, &object);
+   if (error)
+      return error;
+   
+   return readObject(object, 
+                     name1, pValue1, 
+                     name2, pValue2, 
+                     name3, pValue3,
+                     name4, pValue4);
 }
 
-template <typename T>
-core::Error getOptionalParam(const Object& json,
-                             const std::string& param,
-                             boost::optional<T>* pOutParam)
+
+template <typename T1, typename T2, typename T3, typename T4, typename T5>
+core::Error readObject(const json::Object& object,
+                       const std::string& name1, T1* pValue1,
+                       const std::string& name2, T2* pValue2,
+                       const std::string& name3, T3* pValue3,
+                       const std::string& name4, T4* pValue4,
+                       const std::string& name5, T5* pValue5)
 {
-   return readObject(json, param, *pOutParam);
+   Error error = readObject(object,
+                            name1, pValue1,
+                            name2, pValue2,
+                            name3, pValue3,
+                            name4, pValue4);
+   if (error)
+      return error;
+
+   return readObject(object, name5, pValue5);
+}
+
+template <typename T1, typename T2, typename T3, typename T4, typename T5>
+core::Error readObjectParam(const json::Array& params,
+                            unsigned int index,
+                            const std::string& name1, T1* pValue1,
+                            const std::string& name2, T2* pValue2,
+                            const std::string& name3, T3* pValue3,
+                            const std::string& name4, T4* pValue4,
+                            const std::string& name5, T5* pValue5)
+{
+   json::Object object;
+   Error error = json::readParam(params, index, &object);
+   if (error)
+      return error;
+
+   return readObject(object,
+                     name1, pValue1,
+                     name2, pValue2,
+                     name3, pValue3,
+                     name4, pValue4,
+                     name5, pValue5);
+}
+
+
+template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6>
+core::Error readObject(const json::Object& object,
+                       const std::string& name1, T1* pValue1,
+                       const std::string& name2, T2* pValue2,
+                       const std::string& name3, T3* pValue3,
+                       const std::string& name4, T4* pValue4,
+                       const std::string& name5, T5* pValue5,
+                       const std::string& name6, T6* pValue6)
+{
+   Error error = readObject(object,
+                            name1, pValue1,
+                            name2, pValue2,
+                            name3, pValue3,
+                            name4, pValue4,
+                            name5, pValue5);
+   if (error)
+      return error;
+
+   return readObject(object, name6, pValue6);
+}
+
+
+template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6>
+core::Error readObjectParam(const json::Array& params,
+                            unsigned int index,
+                            const std::string& name1, T1* pValue1,
+                            const std::string& name2, T2* pValue2,
+                            const std::string& name3, T3* pValue3,
+                            const std::string& name4, T4* pValue4,
+                            const std::string& name5, T5* pValue5,
+                            const std::string& name6, T6* pValue6)
+{
+   json::Object object;
+   Error error = json::readParam(params, index, &object);
+   if (error)
+      return error;
+
+   return readObject(object,
+                     name1, pValue1,
+                     name2, pValue2,
+                     name3, pValue3,
+                     name4, pValue4,
+                     name5, pValue5,
+                     name6, pValue6);
+}
+
+
+template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7>
+core::Error readObject(const json::Object& object,
+                       const std::string& name1, T1* pValue1,
+                       const std::string& name2, T2* pValue2,
+                       const std::string& name3, T3* pValue3,
+                       const std::string& name4, T4* pValue4,
+                       const std::string& name5, T5* pValue5,
+                       const std::string& name6, T6* pValue6,
+                       const std::string& name7, T7* pValue7)
+{
+   Error error = readObject(object,
+                            name1, pValue1,
+                            name2, pValue2,
+                            name3, pValue3,
+                            name4, pValue4,
+                            name5, pValue5,
+                            name6, pValue6);
+   if (error)
+      return error;
+
+   return readObject(object, name7, pValue7);
+}
+
+template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7>
+core::Error readObjectParam(const json::Array& params,
+                            unsigned int index,
+                            const std::string& name1, T1* pValue1,
+                            const std::string& name2, T2* pValue2,
+                            const std::string& name3, T3* pValue3,
+                            const std::string& name4, T4* pValue4,
+                            const std::string& name5, T5* pValue5,
+                            const std::string& name6, T6* pValue6,
+                            const std::string& name7, T7* pValue7)
+{
+   json::Object object;
+   Error error = json::readParam(params, index, &object);
+   if (error)
+      return error;
+
+   return readObject(object,
+                     name1, pValue1,
+                     name2, pValue2,
+                     name3, pValue3,
+                     name4, pValue4,
+                     name5, pValue5,
+                     name6, pValue6,
+                     name7, pValue7);
+}
+
+template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8>
+core::Error readObject(const json::Object& object,
+                       const std::string& name1, T1* pValue1,
+                       const std::string& name2, T2* pValue2,
+                       const std::string& name3, T3* pValue3,
+                       const std::string& name4, T4* pValue4,
+                       const std::string& name5, T5* pValue5,
+                       const std::string& name6, T6* pValue6,
+                       const std::string& name7, T7* pValue7,
+                       const std::string& name8, T8* pValue8)
+{
+   Error error = readObject(object,
+                            name1, pValue1,
+                            name2, pValue2,
+                            name3, pValue3,
+                            name4, pValue4,
+                            name5, pValue5,
+                            name6, pValue6,
+                            name7, pValue7);
+   if (error)
+      return error;
+
+   return readObject(object, name8, pValue8);
+}
+
+template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8>
+core::Error readObjectParam(const json::Array& params,
+                            unsigned int index,
+                            const std::string& name1, T1* pValue1,
+                            const std::string& name2, T2* pValue2,
+                            const std::string& name3, T3* pValue3,
+                            const std::string& name4, T4* pValue4,
+                            const std::string& name5, T5* pValue5,
+                            const std::string& name6, T6* pValue6,
+                            const std::string& name7, T7* pValue7,
+                            const std::string& name8, T8* pValue8)
+{
+   json::Object object;
+   Error error = json::readParam(params, index, &object);
+   if (error)
+      return error;
+
+   return readObject(object,
+                     name1, pValue1,
+                     name2, pValue2,
+                     name3, pValue3,
+                     name4, pValue4,
+                     name5, pValue5,
+                     name6, pValue6,
+                     name7, pValue7,
+                     name8, pValue8);
+}
+
+template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8, typename T9>
+core::Error readObject(const json::Object& object,
+                       const std::string& name1, T1* pValue1,
+                       const std::string& name2, T2* pValue2,
+                       const std::string& name3, T3* pValue3,
+                       const std::string& name4, T4* pValue4,
+                       const std::string& name5, T5* pValue5,
+                       const std::string& name6, T6* pValue6,
+                       const std::string& name7, T7* pValue7,
+                       const std::string& name8, T8* pValue8,
+                       const std::string& name9, T9* pValue9)
+{
+   Error error = readObject(object,
+                            name1, pValue1,
+                            name2, pValue2,
+                            name3, pValue3,
+                            name4, pValue4,
+                            name5, pValue5,
+                            name6, pValue6,
+                            name7, pValue7,
+                            name8, pValue8);
+   if (error)
+      return error;
+
+   return readObject(object, name9, pValue9);
+}
+
+template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8, typename T9>
+core::Error readObjectParam(const json::Array& params,
+                            unsigned int index,
+                            const std::string& name1, T1* pValue1,
+                            const std::string& name2, T2* pValue2,
+                            const std::string& name3, T3* pValue3,
+                            const std::string& name4, T4* pValue4,
+                            const std::string& name5, T5* pValue5,
+                            const std::string& name6, T6* pValue6,
+                            const std::string& name7, T7* pValue7,
+                            const std::string& name8, T8* pValue8,
+                            const std::string& name9, T9* pValue9)
+{
+   json::Object object;
+   Error error = json::readParam(params, index, &object);
+   if (error)
+      return error;
+
+   return readObject(object,
+                     name1, pValue1,
+                     name2, pValue2,
+                     name3, pValue3,
+                     name4, pValue4,
+                     name5, pValue5,
+                     name6, pValue6,
+                     name7, pValue7,
+                     name8, pValue8,
+                     name9, pValue9);
+}
+
+template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8, typename T9, typename T10>
+core::Error readObject(const json::Object& object,
+                       const std::string& name1, T1* pValue1,
+                       const std::string& name2, T2* pValue2,
+                       const std::string& name3, T3* pValue3,
+                       const std::string& name4, T4* pValue4,
+                       const std::string& name5, T5* pValue5,
+                       const std::string& name6, T6* pValue6,
+                       const std::string& name7, T7* pValue7,
+                       const std::string& name8, T8* pValue8,
+                       const std::string& name9, T9* pValue9,
+                       const std::string& name10, T10* pValue10)
+{
+   Error error = readObject(object,
+                            name1, pValue1,
+                            name2, pValue2,
+                            name3, pValue3,
+                            name4, pValue4,
+                            name5, pValue5,
+                            name6, pValue6,
+                            name7, pValue7,
+                            name8, pValue8,
+                            name9, pValue9);
+   if (error)
+      return error;
+
+   return readObject(object, name10, pValue10);
+}
+
+template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8, typename T9, typename T10>
+core::Error readObjectParam(const json::Array& params,
+                            unsigned int index,
+                            const std::string& name1, T1* pValue1,
+                            const std::string& name2, T2* pValue2,
+                            const std::string& name3, T3* pValue3,
+                            const std::string& name4, T4* pValue4,
+                            const std::string& name5, T5* pValue5,
+                            const std::string& name6, T6* pValue6,
+                            const std::string& name7, T7* pValue7,
+                            const std::string& name8, T8* pValue8,
+                            const std::string& name9, T9* pValue9,
+                            const std::string& name10, T10* pValue10)
+{
+   json::Object object;
+   Error error = json::readParam(params, index, &object);
+   if (error)
+      return error;
+
+   return readObject(object,
+                     name1, pValue1,
+                     name2, pValue2,
+                     name3, pValue3,
+                     name4, pValue4,
+                     name5, pValue5,
+                     name6, pValue6,
+                     name7, pValue7,
+                     name8, pValue8,
+                     name9, pValue9,
+                     name10, pValue10);
+}
+
+
+template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8, typename T9, typename T10, typename T11>
+core::Error readObject(const json::Object& object,
+                       const std::string& name1, T1* pValue1,
+                       const std::string& name2, T2* pValue2,
+                       const std::string& name3, T3* pValue3,
+                       const std::string& name4, T4* pValue4,
+                       const std::string& name5, T5* pValue5,
+                       const std::string& name6, T6* pValue6,
+                       const std::string& name7, T7* pValue7,
+                       const std::string& name8, T8* pValue8,
+                       const std::string& name9, T9* pValue9,
+                       const std::string& name10, T10* pValue10,
+                       const std::string& name11, T11* pValue11)
+{
+   Error error = readObject(object,
+                            name1, pValue1,
+                            name2, pValue2,
+                            name3, pValue3,
+                            name4, pValue4,
+                            name5, pValue5,
+                            name6, pValue6,
+                            name7, pValue7,
+                            name8, pValue8,
+                            name9, pValue9,
+                            name10, pValue10);
+   if (error)
+      return error;
+
+   return readObject(object, name11, pValue11);
+}
+
+template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8, typename T9, typename T10, typename T11, typename T12>
+core::Error readObject(const json::Object& object,
+                       const std::string& name1, T1* pValue1,
+                       const std::string& name2, T2* pValue2,
+                       const std::string& name3, T3* pValue3,
+                       const std::string& name4, T4* pValue4,
+                       const std::string& name5, T5* pValue5,
+                       const std::string& name6, T6* pValue6,
+                       const std::string& name7, T7* pValue7,
+                       const std::string& name8, T8* pValue8,
+                       const std::string& name9, T9* pValue9,
+                       const std::string& name10, T10* pValue10,
+                       const std::string& name11, T11* pValue11,
+                       const std::string& name12, T12* pValue12)
+{
+   Error error = readObject(object,
+                            name1, pValue1,
+                            name2, pValue2,
+                            name3, pValue3,
+                            name4, pValue4,
+                            name5, pValue5,
+                            name6, pValue6,
+                            name7, pValue7,
+                            name8, pValue8,
+                            name9, pValue9,
+                            name10, pValue10,
+                            name11, pValue11);
+   if (error)
+      return error;
+
+   return readObject(object, name12, pValue12);
 }
 
 // json rpc response
@@ -348,7 +1078,7 @@ class JsonRpcResponse
 public:
    JsonRpcResponse() : suppressDetectChanges_(false)
    {
-      setResult(Value());
+      setResult(json::Value());
    };
 
    // COPYING: via compiler (copyable members)
@@ -358,43 +1088,24 @@ public:
    template <typename T>
    void setResult(const T& result)
    {
-      setField(json::kRpcResult, result);
+      setField(kRpcResult, result);
    }
 
-   Value result()
+   json::Value& result()
    {
-      return response_[json::kRpcResult];
-   }
-
-   Value error()
-   {
-      return response_[json::kRpcError];
+      return response_[kRpcResult];
    }
    
-   void setError(const core::Error& error,
-                 bool includeErrorProperties = false);
-   
-   void setError(const core::Error& error,
-                 const char* message,
-                 bool includeErrorProperties = false);
-   
-   void setError(const core::Error& error,
-                 const std::string& message,
-                 bool includeErrorProperties = false);
+   void setError(const core::Error& error);
 
-   void setError(const core::Error& error,
-                 const Value& clientInfo,
-                 bool includeErrorProperties = false);
+   void setError(const core::Error& error, const json::Value& clientInfo);
 
    void setError(const boost::system::error_code& ec,
-                 const Value& clientInfo = Value());
-
-   void setRedirectError(const core::Error& error,
-                         const std::string& redirectUrl);
+                 const json::Value& clientInfo = json::Value());
 
    void setAsyncHandle(const std::string& handle);
 
-   void setField(const std::string& name, const Value& value)
+   void setField(const std::string& name, const json::Value& value) 
    { 
       response_[name] = value;
    }             
@@ -402,18 +1113,11 @@ public:
    template <typename T>
    void setField(const std::string& name, const T& value) 
    { 
-      setField(name, Value(value));
-   }
-
-   template <typename T>
-   Error getField(const std::string& name,
-                 T* pValue)
-   {
-      return readObject(response_, name, *pValue);
+      setField(name, json::Value(value));
    }
    
    // low level hook to set the full response
-   void setResponse(const Object& response)
+   void setResponse(const json::Object& response)
    {
       response_ = response;
    }
@@ -429,18 +1133,12 @@ public:
       suppressDetectChanges_ = suppress;
    }
 
-   Object getRawResponse();
+   json::Object getRawResponse();
    
    void write(std::ostream& os) const;
-
-   static bool parse(const std::string& input,
-                     JsonRpcResponse* pResponse);
-
-   static bool parse(const Value& value,
-                     JsonRpcResponse* pResponse);
    
 private:
-   Object response_;
+   json::Object response_;
    boost::function<void()> afterResponse_ ;
    bool suppressDetectChanges_;
 };
@@ -468,28 +1166,18 @@ void setJsonRpcResult(const T& result, http::Response* pResponse)
 }   
 
 template <typename T>
-void setJsonRpcError(const T& error, core::http::Response* pResponse, bool includeErrorProperties = false)
+void setJsonRpcError(const T& error, core::http::Response* pResponse)
 {   
    JsonRpcResponse jsonRpcResponse ;
-   jsonRpcResponse.setError(error, includeErrorProperties);
-   setJsonRpcResponse(jsonRpcResponse, pResponse);
-}
-
-template <typename T>
-void setJsonRpcRedirectError(const T& error,
-                             const std::string& redirectUrl,
-                             core::http::Response* pResponse)
-{
-   JsonRpcResponse jsonRpcResponse;
-   jsonRpcResponse.setRedirectError(error, redirectUrl);
+   jsonRpcResponse.setError(error);
    setJsonRpcResponse(jsonRpcResponse, pResponse);
 }
 
 
 // convenience typedefs for managing a map of json rpc functions
-typedef boost::function<core::Error(const JsonRpcRequest&, JsonRpcResponse*)>
+typedef boost::function<core::Error(const core::json::JsonRpcRequest&, core::json::JsonRpcResponse*)>
       JsonRpcFunction ;
-typedef std::pair<std::string,JsonRpcFunction>
+typedef std::pair<std::string,core::json::JsonRpcFunction>
       JsonRpcMethod ;
 typedef boost::unordered_map<std::string,JsonRpcFunction>
       JsonRpcMethods;
@@ -504,9 +1192,9 @@ typedef boost::unordered_map<std::string,JsonRpcFunction>
 
 // JsonRpcFunctionContinuation is what a JsonRpcAsyncFunction needs to call
 // when its work is complete
-typedef boost::function<void(const core::Error&, JsonRpcResponse*)>
+typedef boost::function<void(const core::Error&, core::json::JsonRpcResponse*)>
       JsonRpcFunctionContinuation ;
-typedef boost::function<void(const JsonRpcRequest&, const JsonRpcFunctionContinuation&)>
+typedef boost::function<void(const core::json::JsonRpcRequest&, const JsonRpcFunctionContinuation&)>
       JsonRpcAsyncFunction ;
 // The bool in the next two typedefs specifies whether the function wants the
 // HTTP connection to stay open until the method finishes executing (direct return),
@@ -515,7 +1203,7 @@ typedef boost::function<void(const JsonRpcRequest&, const JsonRpcFunctionContinu
 // return). Direct return provides lower latency for short operations, and indirect
 // return must be used for longer-running operations to prevent the browser from
 // being starved of available HTTP connections to the server.
-typedef std::pair<std::string,std::pair<bool, JsonRpcAsyncFunction> >
+typedef std::pair<std::string,std::pair<bool, core::json::JsonRpcAsyncFunction> >
       JsonRpcAsyncMethod ;
 typedef boost::unordered_map<std::string,std::pair<bool, JsonRpcAsyncFunction> >
       JsonRpcAsyncMethods ;
@@ -529,5 +1217,5 @@ JsonRpcAsyncMethod adaptMethodToAsync(JsonRpcMethod synchronousMethod);
 
 
 
-#endif // CORE_JSON_RPC_HPP
+#endif // CORE_JSON_JSON_RPC_HPP
 

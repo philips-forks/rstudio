@@ -1,7 +1,7 @@
 /*
  * DesktopWebView.hpp
  *
- * Copyright (C) 2009-17 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -17,7 +17,8 @@
 #define DESKTOP_WEB_VIEW_HPP
 
 #include <QtGui>
-#include <QWebEngineView>
+#include <QWebView>
+#include <QWebInspector>
 
 #include "DesktopWebPage.hpp"
 
@@ -26,52 +27,45 @@ namespace desktop {
 
 class MainWindow;
 
-class WebView : public QWebEngineView
+class WebView : public ::QWebView
 {
    Q_OBJECT
 
 public:
    explicit WebView(QUrl baseUrl = QUrl(),
-                    QWidget *parent = nullptr,
-                    bool allowExternalNavigate = false);
-
-   explicit WebView(QWebEngineProfile *profile,
-                    QUrl baseUrl = QUrl(),
-                    QWidget *parent = nullptr,
+                    QWidget *parent = NULL,
                     bool allowExternalNavigate = false);
 
    void setBaseUrl(const QUrl& baseUrl);
-   QUrl baseUrl();
 
    void activateSatelliteWindow(QString name);
    void prepareForWindow(const PendingWindow& pendingWnd);
-
-   bool event(QEvent* event) override;
+   void setDpiAwareZoomFactor(qreal factor);
+   qreal dpiAwareZoomFactor();
 
    WebPage* webPage() const { return pWebPage_; }
 
-   void contextMenuEvent(QContextMenuEvent* event) override;
-
-Q_SIGNALS:
+signals:
   void onCloseWindowShortcut();
-  void onClose();
 
-public Q_SLOTS:
+public slots:
 
 protected:
    QString promptForFilename(const QNetworkRequest& request,
                              QNetworkReply* pReply);
-   void keyPressEvent(QKeyEvent* pEvent) override;
-   void closeEvent(QCloseEvent* pEv) override;
+   void keyPressEvent(QKeyEvent* pEv);
+   void closeEvent(QCloseEvent* pEv);
 
-protected Q_SLOTS:
+protected slots:
+   void downloadRequested(const QNetworkRequest&);
+   void unsupportedContent(QNetworkReply*);
    void openFile(QString file);
 
 private:
-   void init();
-
    QUrl baseUrl_;
+   QWebInspector* pWebInspector_;
    WebPage* pWebPage_;
+   double dpiZoomScaling_;
 };
 
 } // namespace desktop

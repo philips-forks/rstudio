@@ -1,7 +1,7 @@
 /*
  * SessionPersistentState.cpp
  *
- * Copyright (C) 2009-18 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -16,19 +16,13 @@
 #include <session/SessionPersistentState.hpp>
 
 #include <core/Log.hpp>
-#include <shared_core/Error.hpp>
-#include <shared_core/FilePath.hpp>
+#include <core/Error.hpp>
+#include <core/FilePath.hpp>
 #include <core/FileSerializer.hpp>
 #include <core/system/System.hpp>
 
 #include <session/SessionOptions.hpp>
 #include <session/SessionModuleContext.hpp>
-
-#include "session-config.h"
-
-#ifdef RSTUDIO_SERVER
-#include <server_core/UrlPorts.hpp>
-#endif
 
 using namespace rstudio::core ;
 
@@ -57,14 +51,14 @@ Error PersistentState::initialize()
 
    // scoped/project settings
    FilePath scratchPath = module_context::scopedScratchPath();
-   FilePath statePath = scratchPath.completePath("persistent-state");
+   FilePath statePath = scratchPath.complete("persistent-state");
    Error error = settings_.initialize(statePath);
    if (error)
       return error;
 
    // session settings
    scratchPath = module_context::sessionScratchPath();
-   statePath = scratchPath.completePath("session-persistent-state");
+   statePath = scratchPath.complete("session-persistent-state");
    return sessionSettings_.initialize(statePath);
 }
 
@@ -96,16 +90,6 @@ std::string PersistentState::newActiveClientId()
    {
       return desktopClientId_;
    }
-}
-
-std::string PersistentState::activeClientUrl() const
-{
-   return settings_.get("activeClientUrl", "");
-}
-
-void PersistentState::setActiveClientUrl(const std::string& url)
-{
-   settings_.set("activeClientUrl", url);
 }
 
 // abend tracking only applies to server mode
@@ -140,26 +124,6 @@ void PersistentState::setActiveEnvironmentName(std::string environmentName)
    settings_.set("activeEnvironmentName", environmentName);
 }
 
-
-std::string PersistentState::portToken() const
-{
-   return settings_.get("portToken", 
-#ifdef RSTUDIO_SERVER
-   // on RStudio Server, we have a fallback default so that we're guaranteed to have a port token to
-   // work with (better a predictable obfuscated value than a raw or busted one)
-   kDefaultPortToken
-#else
-   // Desktop doesn't use port tokens
-   ""
-#endif
-   );
-}
-
-void PersistentState::setPortToken(const std::string& token)
-{
-   settings_.set("portToken", token);
-}
-
 std::string PersistentState::getStoredHash(const std::string& hashName) const
 {
    return settings_.get(hashName + "Hash", "");
@@ -169,16 +133,6 @@ void PersistentState::setStoredHash(const std::string& hashName,
                                     const std::string& hashValue)
 {
    settings_.set(hashName + "Hash", hashValue);
-}
-
-bool PersistentState::environmentMonitoring() const
-{
-   return settings_.getBool("environmentMonitoring", true);
-}
-
-void PersistentState::setEnvironmentMonitoring(bool monitoring)
-{
-   return settings_.set("environmentMonitoring", monitoring);
 }
 
 } // namespace session

@@ -1,7 +1,7 @@
 /*
  * DuplicateHelper.java
  *
- * Copyright (C) 2009-12 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -218,7 +218,7 @@ public class DuplicateHelper
          {
             ArrayList<String> pathElementList = pathElementListList.get(i);
 
-            if (pathElementList.isEmpty())
+            if (pathElementList.size() == 0)
             {
                int trueIndex = indices.get(i);
                String path = FileSystemItem.createFile(fullPaths.get(trueIndex))

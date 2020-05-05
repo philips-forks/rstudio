@@ -1,7 +1,7 @@
 /*
  * DesktopBrowserWindow.hpp
  *
- * Copyright (C) 2009-17 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -18,14 +18,16 @@
 
 #include <QAction>
 #include <QMainWindow>
+#include <QtWebKitWidgets/QWebView>
 #include <QLineEdit>
 
 #include "DesktopWebView.hpp"
+#include "DesktopGwtCallbackOwner.hpp"
 
 namespace rstudio {
 namespace desktop {
 
-class BrowserWindow : public QMainWindow
+class BrowserWindow : public QMainWindow, public GwtCallbackOwner
 {
     Q_OBJECT
 public:
@@ -33,26 +35,34 @@ public:
                            bool adjustTitle,
                            QString name,
                            QUrl baseUrl = QUrl(),
-                           QWidget *parent = nullptr,
-                           WebPage *pOpener = nullptr,
+                           QWidget *parent = NULL,
+                           WebPage *pOpener = NULL,
                            bool allowExternalNavigate = false);
     WebView* webView();
 
-protected Q_SLOTS:
+protected slots:
 
      void adjustTitle();
      void setProgress(int p);
      virtual void finishLoading(bool);
+     virtual void onJavaScriptWindowObjectCleared();
+     void printRequested(QWebFrame* frame);
 
-public:
+protected:
      void avoidMoveCursorIfNecessary();
 
-     QWidget* asWidget();
-     WebPage* webPage();
-     void postWebViewEvent(QEvent *event);
-     void triggerPageAction(QWebEnginePage::WebAction action);
-     void closeEvent(QCloseEvent *event) override;
-     WebPage* opener();
+     // implement GwtCallbackOwner
+     virtual QWidget* asWidget();
+     virtual WebPage* webPage();
+     virtual void postWebViewEvent(QEvent *event);
+     virtual void triggerPageAction(QWebPage::WebAction action);
+     virtual void closeEvent(QCloseEvent *event);
+
+     // hooks for subclasses
+     virtual QSize printDialogMinimumSize()
+     {
+         return QSize(0,0);
+     }
 
 protected:
      WebView* pView_;

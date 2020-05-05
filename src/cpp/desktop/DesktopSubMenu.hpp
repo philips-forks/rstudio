@@ -1,7 +1,7 @@
 /*
  * DesktopSubMenu.hpp
  *
- * Copyright (C) 2009-17 by RStudio, PBC
+ * Copyright (C) 2009-14 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -29,9 +29,12 @@ class SubMenu : public QMenu
 {
    Q_OBJECT
 public:
-   explicit SubMenu(const QString& title, QWidget* parent = nullptr);
+   SubMenu(const QString& title, QWidget* parent = 0);
 
-protected Q_SLOTS:
+signals:
+   void manageCommandVisibility(QString,QAction*);
+
+protected slots:
    void onAboutToShow();
 };
 

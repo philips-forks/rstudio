@@ -1,7 +1,7 @@
 /*
  * SessionConsoleProcess.hpp
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-17 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -20,15 +20,14 @@
 #include <deque>
 
 #include <boost/regex.hpp>
+#include <boost/signals.hpp>
 #include <boost/circular_buffer.hpp>
 #include <boost/enable_shared_from_this.hpp>
-#include <boost/thread/mutex.hpp>
 
-#include <core/BoostSignals.hpp>
 #include <core/system/Process.hpp>
 #include <core/terminal/PrivateCommand.hpp>
 
-#include <session/SessionConsoleProcessConnectionCallbacks.hpp>
+#include <session/SessionConsoleProcessSocket.hpp>
 
 namespace rstudio {
 namespace core {
@@ -136,9 +135,9 @@ public:
    // was actually configured (e.g. what did 'default' get mapped to?).
    static core::system::ProcessOptions createTerminalProcOptions(
          const ConsoleProcessInfo& procInfo,
-         TerminalShell::ShellType *pSelectedShellType);
+         TerminalShell::TerminalShellType *pSelectedShellType);
 
-   virtual ~ConsoleProcess() = default;
+   virtual ~ConsoleProcess() {}
 
    // set a custom prompt handler -- return true to indicate the prompt
    // was handled and false to let it pass. return empty input to
@@ -147,7 +146,7 @@ public:
    void setPromptHandler(
          const boost::function<bool(const std::string&, Input*)>& onPrompt);
 
-   RSTUDIO_BOOST_SIGNAL<void(int)>& onExit() { return onExit_; }
+   boost::signal<void(int)>& onExit() { return onExit_; }
 
    std::string handle() const { return procInfo_->getHandle(); }
    InteractionMode interactionMode() const { return procInfo_->getInteractionMode(); }
@@ -160,6 +159,7 @@ public:
    void interrupt();
    void interruptChild();
    void resize(int cols, int rows);
+   void onSuspend();
    bool isStarted() const { return started_; }
    void setCaption(std::string& caption) { procInfo_->setCaption(caption); }
    std::string getCaption() const { return procInfo_->getCaption(); }
@@ -182,7 +182,9 @@ public:
    boost::optional<int> getExitCode() const { return procInfo_->getExitCode(); }
 
    std::string getShellName() const;
-   TerminalShell::ShellType getShellType() const { return procInfo_->getShellType(); }
+   TerminalShell::TerminalShellType getShellType() const {
+      return procInfo_->getShellType();
+   }
 
    // Used to downgrade to RPC mode after failed attempt to connect websocket
    void setRpcMode();
@@ -196,8 +198,8 @@ public:
 
    void setShowOnOutput(bool showOnOutput) const { procInfo_->setShowOnOutput(showOnOutput); }
 
-   core::json::Object toJson(SerializationMode serialMode) const;
-   static ConsoleProcessPtr fromJson(const core::json::Object& obj);
+   core::json::Object toJson() const;
+   static ConsoleProcessPtr fromJson( core::json::Object& obj);
 
    void onReceivedInput(const std::string& input);
 
@@ -238,38 +240,38 @@ private:
    boost::shared_ptr<ConsoleProcessInfo> procInfo_;
 
    // Whether the process should be stopped
-   bool interrupt_ = false;
+   bool interrupt_;
 
    // Whether to send pty interrupt
-   bool interruptChild_ = false;
+   bool interruptChild_;
    
    // Whether the tty should be notified of a resize
-   int newCols_ = -1; // -1 = no change
-   int newRows_ = -1; // -1 = no change
+   int newCols_; // -1 = no change
+   int newRows_; // -1 = no change
 
    // Last known PID of associated process
-   PidType pid_ = -1;
+   PidType pid_;
 
    // Has client been notified of state of childProcs_ at least once?
-   bool childProcsSent_ = false;
+   bool childProcsSent_;
 
    // Is there a child process matching the whitelist?
-   bool whitelistChildProc_ = false;
+   bool whitelistChildProc_;
 
    // Pending input (writes or ptyInterrupts)
    std::deque<Input> inputQueue_;
-   int lastInputSequence_ = kIgnoreSequence;
+   int lastInputSequence_;
    boost::mutex inputOutputQueueMutex_;
 
    boost::function<bool(const std::string&, Input*)> onPrompt_;
-   RSTUDIO_BOOST_SIGNAL<void(int)> onExit_;
+   boost::signal<void(int)> onExit_;
 
    // regex for prompt detection
    boost::regex controlCharsPattern_;
    boost::regex promptPattern_;
 
    // is the underlying process started?
-   bool started_ = false;
+   bool started_;
 
    // cached pointer to process operations, for use in websocket thread callbacks
    boost::weak_ptr<core::system::ProcessOperations> pOps_;
@@ -279,7 +281,7 @@ private:
    core::terminal::PrivateCommand envCaptureCmd_;
 };
 
-core::json::Array processesAsJson(SerializationMode serialMode);
+core::json::Array processesAsJson();
 core::Error initialize();
 
 } // namespace console_process

@@ -1,7 +1,7 @@
 /*
  * TokenIterator.java
  *
- * Copyright (C) 2009-12 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -43,37 +43,7 @@ public class TokenIterator extends JavaScriptObject
    public native final Token stepBackward() /*-{
       return this.stepBackward();
    }-*/;
-   
-   public final boolean moveToNextToken()
-   {
-      Token token = stepForward();
-      return token != null;
-   }
-   
-   public final boolean moveToPreviousToken()
-   {
-      Token token = stepBackward();
-      return token != null;
-   }
-   
-   public native final Token peekFwd(int offset) /*-{
-      return this.peekFwd(offset);
-   }-*/;
-   
-   public final Token peekFwd()
-   {
-      return peekFwd(1);
-   }
-   
-   public native final Token peekBwd(int offset) /*-{
-      return this.peekBwd(offset);
-   }-*/;
 
-   public final Token peekBwd()
-   {
-      return peekBwd(1);
-   }
-   
    public native final Token getCurrentToken() /*-{
       return this.getCurrentToken();
    }-*/;
@@ -90,26 +60,6 @@ public class TokenIterator extends JavaScriptObject
       return this.getCurrentTokenColumn();
    }-*/;
    
-   public native final boolean findTokenTypeBwd(String token, boolean skipMatching)
-   /*-{
-      return this.findTokenTypeBwd(token, skipMatching);
-   }-*/;
-   
-   public native final boolean findTokenTypeFwd(String token, boolean skipMatching)
-   /*-{
-      return this.findTokenTypeFwd(token, skipMatching);
-   }-*/;
-   
-   public native final boolean findTokenValueBwd(String token, boolean skipMatching)
-   /*-{
-      return this.findTokenValueBwd(token, skipMatching);
-   }-*/;
-   
-   public native final boolean findTokenValueFwd(String token, boolean skipMatching)
-   /*-{
-      return this.findTokenValueFwd(token, skipMatching);
-   }-*/;
-   
    public native final boolean fwdToMatchingToken() /*-{
       return this.fwdToMatchingToken();
    }-*/;
@@ -123,11 +73,7 @@ public class TokenIterator extends JavaScriptObject
    }-*/;
    
    public native final Token moveToPosition(Position pos) /*-{
-      return this.moveToPosition(pos, false);
-   }-*/;
-   
-   public native final Token moveToPosition(Position pos, boolean seekForward) /*-{
-      return this.moveToPosition(pos, seekForward);
+      return this.moveToPosition(pos);
    }-*/;
    
    public final Token moveToPosition(int row, int column)
@@ -135,44 +81,7 @@ public class TokenIterator extends JavaScriptObject
       return moveToPosition(Position.create(row, column));
    }
    
-   public final native Token moveToStartOfRow() /*-{
-      return this.moveToStartOfRow();
-   }-*/;
-   
    public final native Token moveToEndOfRow() /*-{
       return this.moveToEndOfRow();
    }-*/;
-   
-   public final boolean moveToNextSignificantToken()
-   {
-      if (!moveToNextToken())
-         return false;
-      
-      return skipWhitespaceAndComments();
-   }
-   
-   public final boolean skipWhitespaceAndComments()
-   {
-      Token token = getCurrentToken();
-      
-      for (; token != null; token = stepForward())
-      {
-         if (token.hasType("comment") || token.valueMatches("\\s*"))
-            continue;
-         
-         break;
-      }
-      
-      return token != null;
-   }
-   
-   public final boolean valueEquals(String value)
-   {
-      Token token = getCurrentToken();
-      if (token == null)
-         return false;
-      
-      return token.valueEquals(value);
-   }
-   
 }

@@ -1,7 +1,7 @@
 /*
  * RemoteServerEventListener.java
  *
- * Copyright (C) 2009-12 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -20,7 +20,6 @@ import com.google.gwt.user.client.Timer;
 import com.google.gwt.user.client.Window;
 import com.google.gwt.user.client.Window.ClosingEvent;
 import com.google.gwt.user.client.Window.ClosingHandler;
-
 import org.rstudio.core.client.jsonrpc.RpcError;
 import org.rstudio.core.client.jsonrpc.RpcRequest;
 import org.rstudio.core.client.jsonrpc.RpcRequestCallback;
@@ -115,7 +114,7 @@ class RemoteServerEventListener
       // receive an event twice (because the reset to -1 causes us to never
       // confirm receipt of the event with the server). in practice this
       // would a) be very unlikely; b) not be that big of a deal; and c) is
-      // judged preferable than doing something more complex in this code
+      // judged preferrable than doing something more complex in this code
       // which might avoid dupes but cause other bugs (such as missing events
       // from the server). note also that when we go multi-user we'll be 
       // revisiting this mechanism again so there will be an opportunity to 
@@ -198,8 +197,9 @@ class RemoteServerEventListener
         //   2) the user navigates Back within a Frame 
         //
         // can only imagine that it could happen in other scenarios!
+   
         if (!watchdog_.isRunning())
-           watchdog_.schedule(kWatchdogIntervalMs);
+          watchdog_.run(kWatchdogIntervalMs);
      }
    }
    
@@ -219,7 +219,7 @@ class RemoteServerEventListener
       //  1) perpetual "Loading..." indicator displayed to user (user can
       //     also then "cancel" the event request!); and
       //
-      //  2) termination of the request without warning by the browser when
+      //  2) terimation of the request without warning by the browser when
       //     the user hits the Back button within a frame hosted on the page
       //     (note in this case we get no error so think the request is still
       //     running -- see Watchdog for workaround to this general class of 
@@ -254,11 +254,11 @@ class RemoteServerEventListener
          public void onResponseReceived(JsArray<ClientEvent> events)
          {
             // keep watchdog appraised of successful receipt of events
-            watchdog_.cancel();
+            watchdog_.notifyResponseReceived();
             
             try
             {
-               // only process events if we are still listening
+               // only processs events if we are still listening
                if (isListening_ && (events != null))
                {
                   for (int i=0; i<events.length(); i++)
@@ -270,7 +270,7 @@ class RemoteServerEventListener
                      if (!isListening_)
                         return;
                      
-                     // dispatch event
+                     // disppatch event
                      ClientEvent event = events.get(i);
                      dispatchEvent(event);
                      lastEventId_ = event.getId();
@@ -338,11 +338,6 @@ class RemoteServerEventListener
             // and all state is reset correctly
             restart();
          }
-
-         public void onModifiedRetry(RpcRequest modifiedRequest)
-         {
-            restart();
-         }
          
          public void onError(RpcError error)
          {
@@ -353,10 +348,6 @@ class RemoteServerEventListener
             stop();
          }
       };
-      
-      // bump the watchdog timer if it's running
-      if (watchdog_.isRunning())
-         watchdog_.schedule(kWatchdogIntervalMs);
       
       // send request
       activeRequest_ = server_.getEvents(lastEventId_, 
@@ -371,7 +362,7 @@ class RemoteServerEventListener
       String type = event.getType();
       
       // we handle async completions directly
-      if (type == ClientEvent.AsyncCompletion)
+      if (type.equals(ClientEvent.AsyncCompletion))
       {
          AsyncCompletion completion = event.getData();
          String handle = completion.getHandle();
@@ -394,7 +385,7 @@ class RemoteServerEventListener
          // if there is a quit event then we set an internal flag to avoid 
          // ensureListening/ensureEvents calls trying to spark the event 
          // stream back up after the user has quit
-         if (type == ClientEvent.Quit)
+         if (type.equals(ClientEvent.Quit))
             sessionWasQuit_ = true;
         
          // perform standard handling
@@ -410,28 +401,56 @@ class RemoteServerEventListener
    // NOTE: the design of the Watchdog likely results in more restarts of
    // the event service than is optimal. when an rpc call reports that 
    // events are pending and the Watchdog is invoked it is very likely
-   // that the events have already been delivered in response to the
+   // that the events have already been delievered in response to the 
    // previous poll. In this case the Watchdog "misses" those events which
    // were already delivered and subsequently assumes that the service
    // needs to be restarted
    
-   private class Watchdog extends Timer
+   private class Watchdog
    {  
-      @Override
-      public void run()
+      public void run(int waitMs)
       {
-         try
-         {
-            // ensure that the workbench wasn't closed while we
-            // were waiting for the timer to run
-            if (!sessionWasQuit_)
-               restart();
-         }
-         catch(Throwable e)
-         {
-            GWT.log("Error restarting event source", e);
-         }
+         isRunning_ = true;
+         responseReceived_ = false ;
+         
+         Timer timer = new Timer() {
+            public void run()
+            {
+               try
+               {
+                  if (!responseReceived_)
+                  {
+                     // ensure that the workbench wasn't closed while we
+                     // were waiting for the timer to run
+                     if (!sessionWasQuit_) 
+                        restart();
+                  }
+               }
+               catch(Throwable e)
+               {
+                  GWT.log("Error restarting event source", e);
+               }
+               
+               isRunning_ = false;
+               responseReceived_ = false ;
+            }
+          
+         };
+         timer.schedule(waitMs);
       }
+      
+      public boolean isRunning()
+      {
+         return isRunning_ ;
+      }
+      
+      public void notifyResponseReceived()
+      {
+         responseReceived_ = true;
+      }
+      
+      private boolean isRunning_ = false;
+      private boolean responseReceived_ = false;
    }
 
    public void registerAsyncHandle(String asyncHandle,
@@ -463,12 +482,12 @@ class RemoteServerEventListener
    private final int kSecondListenBounceMs = 250;
        
    private boolean isListening_;
-   private int lastEventId_;
-   private int listenCount_;
-   private int listenErrorCount_;
-   private boolean sessionWasQuit_;
+   private int lastEventId_ ;
+   private int listenCount_ ;
+   private int listenErrorCount_ ;
+   private boolean sessionWasQuit_ ;
    
-   private RpcRequest activeRequest_;
+   private RpcRequest activeRequest_ ;
    private ServerRequestCallback<JsArray<ClientEvent>> activeRequestCallback_;
 
    private final ClientEventDispatcher eventDispatcher_;

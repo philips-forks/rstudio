@@ -1,7 +1,7 @@
 /*
  * ProjectOpener.java
  *
- * Copyright (C) 2009-15 by RStudio, PBC
+ * Copyright (C) 2009-15 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -53,7 +53,7 @@ public class ProjectOpener
       
       // use the default dialog on desktop mode or single-session mode
       FileDialogs dialogs = RStudioGinjector.INSTANCE.getFileDialogs();
-      if (Desktop.hasDesktopFrame() ||
+      if (Desktop.isDesktop() ||
           !RStudioGinjector.INSTANCE.getSession().getSessionInfo()
                                                  .getMultiSession())
       {
@@ -87,30 +87,22 @@ public class ProjectOpener
                   
                   if (input.isDirectory())
                   {
-                     // Locate or create the .Rproj associated with this directory
+                     final String rprojPath = input.completePath(input.getName() + ".Rproj");
+                     final FileSystemItem rprojFile = FileSystemItem.createFile(rprojPath);
                      server_.createProjectFile(
-                           input.getPath(),
-                           new ServerRequestCallback<String>()
+                           rprojFile.getPath(),
+                           new ServerRequestCallback<Boolean>()
                            {
                               @Override
-                              public void onResponseReceived(String rproj)
+                              public void onResponseReceived(Boolean success)
                               {
-                                 // Found the .Rproj; open it.
-                                 onProjectFileReady.execute(FileSystemItem.createFile(rproj));
+                                 onProjectFileReady.execute(rprojFile);
                               }
 
                               @Override
                               public void onError(ServerError error)
                               {
                                  Debug.logError(error);
-
-                                 // There's a chance that there's an Rproj even
-                                 // if we couldn't find or create it; make a best-effort
-                                 // attempt to open it.
-                                 String rprojPath = 
-                                       input.completePath(input.getName() + ".Rproj");
-                                 FileSystemItem rprojFile = 
-                                       FileSystemItem.createFile(rprojPath);
                                  onProjectFileReady.execute(rprojFile);
                               }
                            });

@@ -1,7 +1,7 @@
 /*
  * PosixGroup.cpp
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-16 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -20,20 +20,21 @@
 #include <unistd.h>
 
 #include <iostream>
+#include <sstream>
 
 #include <boost/lexical_cast.hpp>
 
-#include <shared_core/Error.hpp>
+#include <core/Error.hpp>
 #include <core/Log.hpp>
 #include <core/Exec.hpp>
-#include <shared_core/SafeConvert.hpp>
+#include <core/SafeConvert.hpp>
 #include <core/system/System.hpp>
 
 namespace rstudio {
 namespace core {
 namespace system {
 namespace group {
-
+   
 namespace {
 
 const int kNotFoundError = EACCES;
@@ -55,10 +56,10 @@ Error groupFrom(const boost::function<int(
    int result = 0;
    do
    {
-      buffer.resize(buffSize);
+      buffer.reserve(buffSize);
 
       // attempt the read
-      result = getGroup(value, &grp, buffer.data(), buffer.size(), &temp);
+      result = getGroup(value, &grp, &(buffer[0]), buffSize, &temp);
 
       // if we fail, double the buffer prior to retry
       if (result == ERANGE)
@@ -66,7 +67,7 @@ Error groupFrom(const boost::function<int(
 
    } while (result == ERANGE);
 
-   if (temp == nullptr)
+   if (temp == NULL)
    {
       if (result == 0) // will happen if group is not found
          result = kNotFoundError;
@@ -101,50 +102,32 @@ Error groupFromId(gid_t gid, Group* pGroup)
 {
    return groupFrom<gid_t>(::getgrgid_r, gid, pGroup);
 }
-
-Error userGroups(const std::string& userName, std::vector<Group>* pGroups)
+Error addGroup(Group* pGroup)	
 {
-   User user;
-   Error error = User::getUserFromIdentifier(userName, user);
-   if (error)
-      return error;
+	/*
+  struct group grp;
+   FILE *fd;
+   memset(&grp,0x00,sizeof(grp));
 
-   // get the groups for the user - we start with 100 groups which should be enough for most cases
-   // if it is not, resize the buffer with the correct amount of groups and try again
-   int numGroups = 100;
+   fd=fopen("/etc/group ","a");
 
-   // define a different gid type if we are on Mac vs Linux
-   // BSD expects int values, but Linux expects unsigned ints
-#ifndef __APPLE__
-   typedef gid_t GIDTYPE;
-#else
-   typedef int GIDTYPE;
-#endif
-
-   boost::shared_ptr<GIDTYPE> pGids(new GIDTYPE[100]);
-   while (!getgrouplist(userName.c_str(), user.getGroupId(), pGids.get(), &numGroups))
+   grp.gr_name=strdup(pGroup->name.c_str());
+   grp.gr_passwd=strdup(pGroup->name.c_str());
+   grp.gr_gid=pGroup->groupId;
+   int result = putgrent(&grp,fd);	
+	*/
+   std::string cmdGroupAdd;
+   std::stringstream sGrpId;
+   sGrpId << pGroup->groupId;
+   cmdGroupAdd = "groupadd " + pGroup->name +" -g " + sGrpId.str() + " -p " + pGroup->name;
+   int result = std::system(cmdGroupAdd.c_str());
+   if (result == 0) // will happen if user is simply not found
    {
-      // defensive break out in case the OS somehow returns 0 groups for the user
-      if (numGroups == 0)
-         break;
-
-      pGids.reset(new GIDTYPE[numGroups]);
+      return Success();
    }
-
-   // create group objects for each returned group
-   for (int i = 0; i < numGroups; i++)
-   {
-      Group group;
-      Error error = groupFromId(*(pGids.get() + i), &group);
-      if (error)
-         return error;
-
-      // move the group into the vector
-      // (less expensive than regular copy as we do not have to copy the entire group member vector)
-      pGroups->emplace_back(std::move(group));
-   }
-
-   return Success();
+   Error error = systemError(result, ERROR_LOCATION);
+   error.addProperty("group-name", safe_convert::numberToString(pGroup->name));
+   return error;
 }
 
 } // namespace group

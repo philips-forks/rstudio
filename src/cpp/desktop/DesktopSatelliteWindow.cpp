@@ -1,7 +1,7 @@
 /*
  * DesktopSatelliteWindow.cpp
  *
- * Copyright (C) 2009-18 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -15,46 +15,48 @@
 
 #include "DesktopSatelliteWindow.hpp"
 
+#include <QWebFrame>
 #include <QShortcut>
-#include <QWebChannel>
 
-#include "DesktopMainWindow.hpp"
+#include "DesktopGwtCallback.hpp"
 
 namespace rstudio {
 namespace desktop {
 
 
-SatelliteWindow::SatelliteWindow(MainWindow* pMainWindow, QString name, WebPage* opener) :
-    GwtWindow(false, true, name, QUrl(), nullptr, opener, pMainWindow->isRemoteDesktop()),
-    gwtCallback_(pMainWindow, this, pMainWindow->isRemoteDesktop()),
-    close_(CloseStageOpen)
+SatelliteWindow::SatelliteWindow(MainWindow* pMainWindow, QString name) :
+    GwtWindow(false, true, name),
+    gwtCallback_(pMainWindow, this)
 {
-   setAttribute(Qt::WA_QuitOnClose, true);
+   setAttribute(Qt::WA_QuitOnClose, false);
    setAttribute(Qt::WA_DeleteOnClose, true);
 
    setWindowIcon(QIcon(QString::fromUtf8(":/icons/RStudio.ico")));
 
-   // bind GWT callbacks
-   auto* channel = webPage()->webChannel();
-   channel->registerObject(QStringLiteral("desktop"), &gwtCallback_);
-   if (pMainWindow->isRemoteDesktop())
-      channel->registerObject(QStringLiteral("remoteDesktop"), &gwtCallback_);
-   
    // satellites don't have a menu, so connect zoom keyboard shortcuts
    // directly
-   // NOTE: CTRL implies META on macOS
-   QShortcut* zoomActualSizeShortcut = new QShortcut(Qt::CTRL + Qt::Key_0, this);
-#ifdef Q_OS_MAC
-   QShortcut* zoomInShortcut = new QShortcut(Qt::CTRL + Qt::Key_Equal, this);
-#else
    QShortcut* zoomInShortcut = new QShortcut(QKeySequence::ZoomIn, this);
-#endif
-   
    QShortcut* zoomOutShortcut = new QShortcut(QKeySequence::ZoomOut, this);
-   
-   connect(zoomActualSizeShortcut, SIGNAL(activated()), this, SLOT(zoomActualSize()));
    connect(zoomInShortcut, SIGNAL(activated()), this, SLOT(zoomIn()));
    connect(zoomOutShortcut, SIGNAL(activated()), this, SLOT(zoomOut()));
+}
+
+void SatelliteWindow::onJavaScriptWindowObjectCleared()
+{
+   GwtWindow::onJavaScriptWindowObjectCleared();
+
+   webView()->page()->mainFrame()->addToJavaScriptWindowObject(
+         QString::fromUtf8("desktop"),
+         &gwtCallback_,
+         QWebFrame::QtOwnership);
+
+   connect(webView(), SIGNAL(onCloseWindowShortcut()),
+           this, SLOT(onCloseWindowShortcut()));
+}
+
+void SatelliteWindow::onCloseWindowShortcut()
+{
+   close();
 }
 
 void SatelliteWindow::finishLoading(bool ok)
@@ -62,76 +64,38 @@ void SatelliteWindow::finishLoading(bool ok)
    BrowserWindow::finishLoading(ok);
 
    if (ok)
-   {
       avoidMoveCursorIfNecessary();
-      connect(webView(), SIGNAL(onCloseWindowShortcut()), this,
-              SLOT(onCloseWindowShortcut()));
-   }
-}
-
-void SatelliteWindow::closeSatellite(QCloseEvent *event)
-{
-   webPage()->runJavaScript(
-      QStringLiteral(
-          "if (window.notifyRStudioSatelliteClosing) "
-          "   window.notifyRStudioSatelliteClosing();"));
-   webView()->event(event);
 }
 
 void SatelliteWindow::closeEvent(QCloseEvent *event)
 {
-   // the source window has special close semantics; if we're not currently closing, then invoke
-   // custom close handlers. 
-   //
-   // we only do this for spontaneous (user-initiated) closures; when the window gets shut down by
-   // its parent or by the OS, we don't prompt since in those cases unsaved document accumulation
-   // and prompting is handled by the parent.
-   if (getName().startsWith(QString::fromUtf8(SOURCE_WINDOW_PREFIX)) &&
-       close_ == CloseStageOpen &&
-       event->spontaneous())
-   {
-      // ignore this event; we need to make sure the window can be
-      // closed ourselves
-      event->ignore();
-      close_ = CloseStagePending;
+   QWebFrame* pFrame = webView()->page()->mainFrame();
 
-      webPage()->runJavaScript(
-               QStringLiteral("window.rstudioReadyToClose"),
-               [&](QVariant qReadyToClose)
-      {
-         bool readyToClose = qReadyToClose.toBool();
-         if (readyToClose)
-         {
-            // all clear, close the window
-            close_ = CloseStageAccepted;
-            close();
-         }
-         else
-         {
-            // not ready to close, revert close stage and take care of business
-            close_ = CloseStageOpen;
-            webPage()->runJavaScript(
-                     QStringLiteral("window.rstudioCloseSourceWindow()"),
-                     [&](QVariant ignored)
-            {
-               // no work to do here
-            });
-         }
-      });
-   }
-   else
+   // the source window has special close semantics
+   if (getName().startsWith(QString::fromUtf8(SOURCE_WINDOW_PREFIX)))
    {
-      // not a  source window, just close it
-      closeSatellite(event);
+     if (!pFrame->evaluateJavaScript(
+            QString::fromUtf8("window.rstudioReadyToClose")).toBool())
+     {
+        pFrame->evaluateJavaScript(
+            QString::fromUtf8("window.rstudioCloseSourceWindow();"));
+        event->ignore();
+        return;
+     }
    }
+   pFrame->evaluateJavaScript(QString::fromUtf8(
+        "if (window.notifyRStudioSatelliteClosing) "
+        "   window.notifyRStudioSatelliteClosing();"));
+
+   // forward the close event to the web view
+   webView()->event(event);
 }
 
 void SatelliteWindow::onActivated()
 {
-   webView()->webPage()->runJavaScript(
-            QString::fromUtf8(
-               "if (window.notifyRStudioSatelliteReactivated) "
-               "   window.notifyRStudioSatelliteReactivated(null);"));
+   webView()->page()->mainFrame()->evaluateJavaScript(QString::fromUtf8(
+         "if (window.notifyRStudioSatelliteReactivated) "
+         "   window.notifyRStudioSatelliteReactivated(null);"));
 }
 
 

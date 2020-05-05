@@ -1,7 +1,7 @@
 /*
  * NewProjectWizard.java
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -16,7 +16,6 @@ package org.rstudio.studio.client.projects.ui.newproject;
 
 import java.util.ArrayList;
 
-import com.google.gwt.aria.client.Roles;
 import org.rstudio.core.client.widget.ProgressOperationWithInput;
 import org.rstudio.core.client.widget.Wizard;
 import org.rstudio.core.client.widget.WizardNavigationPage;
@@ -28,7 +27,7 @@ import org.rstudio.core.client.widget.WizardPage;
 import org.rstudio.studio.client.projects.model.NewProjectResult;
 import org.rstudio.studio.client.workbench.WorkbenchContext;
 import org.rstudio.studio.client.workbench.model.SessionInfo;
-import org.rstudio.studio.client.workbench.prefs.model.UserPrefs;
+import org.rstudio.studio.client.workbench.prefs.model.UIPrefs;
 
 import com.google.gwt.dom.client.Style.Unit;
 import com.google.gwt.user.client.ui.CheckBox;
@@ -38,15 +37,14 @@ public class NewProjectWizard extends Wizard<NewProjectInput,NewProjectResult>
 {
    public NewProjectWizard(
          SessionInfo sessionInfo,
-         UserPrefs uiPrefs,
+         UIPrefs uiPrefs,
          WorkbenchContext workbenchContext,
          NewProjectInput input,
          boolean allowOpenInNewWindow,
          ProgressOperationWithInput<NewProjectResult> operation)
    {
-      super("New Project Wizard", 
+      super("New Project", 
             "Create Project",
-            Roles.getDialogRole(), 
             input, 
             createFirstPage(sessionInfo),
             operation);
@@ -65,8 +63,7 @@ public class NewProjectWizard extends Wizard<NewProjectInput,NewProjectResult>
            false);
          RVersionSpec rVersion = RVersionSpec.create(
                rVersions.getDefaultRVersion(),
-               rVersions.getDefaultRVersionHome(),
-               rVersions.getRVersionLabel());
+               rVersions.getDefaultRVersionHome());
          rVersionSelector_.setRVersion(rVersion);
          addLeftWidget(rVersionSelector_);
          rVersionSelector_.getElement().getStyle().setMarginRight(8, Unit.PX);
@@ -99,7 +96,7 @@ public class NewProjectWizard extends Wizard<NewProjectInput,NewProjectResult>
    }
    
    @Override
-   protected NewProjectResult amendInput(NewProjectResult result)
+   protected NewProjectResult ammendInput(NewProjectResult result)
    {
       if (result != null)
       {
@@ -117,7 +114,7 @@ public class NewProjectWizard extends Wizard<NewProjectInput,NewProjectResult>
    private static WizardPage<NewProjectInput, NewProjectResult> createFirstPage(
          SessionInfo sessionInfo)
    {
-      return new WizardNavigationPage<>(
+      return new WizardNavigationPage<NewProjectInput, NewProjectResult>(
             "New Project", "Create project from:", "Create Project", 
             null, null, createSubPages(sessionInfo));
    }
@@ -125,12 +122,13 @@ public class NewProjectWizard extends Wizard<NewProjectInput,NewProjectResult>
    private static ArrayList<WizardPage<NewProjectInput, NewProjectResult>> createSubPages(
          SessionInfo sessionInfo)
    {
-      ArrayList<WizardPage<NewProjectInput, NewProjectResult>> subPages = new ArrayList<>();
+      ArrayList<WizardPage<NewProjectInput, NewProjectResult>> subPages = 
+            new ArrayList<WizardPage<NewProjectInput, NewProjectResult>>();
       subPages.add(new NewDirectoryNavigationPage(sessionInfo));
       subPages.add(new ExistingDirectoryPage());
 
       if (sessionInfo.getAllowVcs())
-         subPages.add(new VersionControlNavigationPage());
+         subPages.add(new VersionControlNavigationPage(sessionInfo));
 
       return subPages;
    }

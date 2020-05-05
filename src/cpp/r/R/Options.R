@@ -1,7 +1,7 @@
 #
 # Options.R
 #
-# Copyright (C) 2009-11 by RStudio, PBC
+# Copyright (C) 2009-11 by RStudio, Inc.
 #
 # Unless you have received this program directly from RStudio pursuant
 # to the terms of a commercial license agreement with RStudio, then
@@ -43,7 +43,7 @@ if (is.null(getOption("viewer"))) {
 
 # default page_viewer option if not already set
 if (is.null(getOption("page_viewer"))) {
-   options(page_viewer = function(url, title = "RStudio Viewer", self_contained = FALSE)
+   options(page_viewer = function(url, title = "RStudio Viewer")
    {
       if (!is.character(url) || (length(url) != 1))
          stop("url must be a single element character vector.", call. = FALSE)
@@ -51,10 +51,7 @@ if (is.null(getOption("page_viewer"))) {
       if (!is.character(title) || (length(title) != 1))
          stop("title must be a single element character vector.", call. = FALSE)
       
-      if (!is.logical(self_contained) || (length(self_contained) != 1))
-         stop("self_contained must be a single element logical vector.", call. = FALSE)
-      
-      invisible(.Call("rs_showPageViewer", url, title, self_contained))
+      invisible(.Call("rs_showPageViewer", url, title))
    })
 }
 
@@ -89,9 +86,6 @@ if (is.null(getOption("shinygadgets.showdialog"))) {
 
 # provide askpass function
 options(askpass = .rs.askForPassword)
-
-# provide asksecret function
-options(asksecret = .rs.askForSecret)
 
 # provide restart function
 options(restart = .rs.restartR)
@@ -139,9 +133,3 @@ options(profvis.output_path = NULL)
 
 # configure profvis to not delete generated profiles
 options(profvis.keep_output = TRUE)
-
-# indicate that we're not in a notebook by default
-options(rstudio.notebook.executing = FALSE)
-
-# provide a custom HTTP user agent
-.rs.initHttpUserAgent()

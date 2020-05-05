@@ -1,7 +1,7 @@
 /*
  * SessionEnvironment.hpp
  *
- * Copyright (C) 2009-17 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -16,7 +16,7 @@
 #ifndef SESSION_SESSION_ENVIRONMENT_HPP
 #define SESSION_SESSION_ENVIRONMENT_HPP
 
-#include <shared_core/json/Json.hpp>
+#include <core/json/Json.hpp>
 
 namespace rstudio {
 namespace core {
@@ -30,10 +30,6 @@ namespace modules {
 namespace environment {
 
 core::json::Value environmentStateAsJson();
-
-bool monitoring();
-
-bool isSuspendable();
 
 core::Error initialize();
    

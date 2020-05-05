@@ -1,7 +1,7 @@
 /*
  * WorkbenchPane.java
  *
- * Copyright (C) 2009-20 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -15,10 +15,7 @@
 package org.rstudio.studio.client.workbench.ui;
 
 import com.google.gwt.user.client.Command;
-import org.rstudio.core.client.StringUtil;
-import org.rstudio.studio.client.application.events.EventBus;
 import org.rstudio.studio.client.workbench.WorkbenchView;
-import org.rstudio.studio.client.workbench.events.ActivatePaneEvent;
 
 public abstract class WorkbenchPane extends ToolbarPane
                                  implements WorkbenchView,
@@ -26,14 +23,7 @@ public abstract class WorkbenchPane extends ToolbarPane
 {
    protected WorkbenchPane(String title)
    {
-      title_ = title;
-      events_ = null;
-   }
-
-   protected WorkbenchPane(String title, EventBus events)
-   {
-      title_ = title;
-      events_ = events;
+      title_ = title ;
    }
 
    public void prefetch(Command continuation)
@@ -43,7 +33,7 @@ public abstract class WorkbenchPane extends ToolbarPane
 
    public String getTitle()
    {
-      return title_;
+      return title_ ;
    }
 
    // hook for subclasses to be notified right before & after they are selected
@@ -75,14 +65,5 @@ public abstract class WorkbenchPane extends ToolbarPane
       onConfirmed.execute();
    }
 
-   @Override
-   public void bringToFront()
-   {
-      if (events_ != null && !StringUtil.isNullOrEmpty(title_))
-         events_.fireEvent(new ActivatePaneEvent(title_));
-      super.bringToFront();
-   }
-
    private String title_;
-   protected final EventBus events_;
 }

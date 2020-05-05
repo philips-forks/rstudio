@@ -1,7 +1,7 @@
 /*
  * DesktopOptions.cpp
  *
- * Copyright (C) 2009-20 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -19,11 +19,11 @@
 #include <QApplication>
 #include <QDesktopWidget>
 
+#include <core/Error.hpp>
 #include <core/Random.hpp>
 #include <core/system/System.hpp>
 #include <core/system/Environment.hpp>
 
-#include "DesktopInfo.hpp"
 #include "DesktopUtils.hpp"
 
 using namespace rstudio::core;
@@ -36,10 +36,6 @@ namespace desktop {
 QString binDirToHomeDir(QString binDir);
 #endif
 
-#define kMainWindowGeometry (QStringLiteral("mainwindow/geometry"))
-#define kFixedWidthFont     (QStringLiteral("font.fixedWidth"))
-#define kProportionalFont   (QStringLiteral("font.proportional"))
-
 QString scratchPath;
 
 Options& options()
@@ -48,105 +44,37 @@ Options& options()
    return singleton;
 }
 
-Options::Options() :
-   settings_(FORMAT,
-             QSettings::UserScope,
-             QString::fromUtf8("RStudio"),
-             QString::fromUtf8("desktop")),
-   runDiagnostics_(false)
-{
-#ifndef _WIN32
-   // ensure that the options file is only readable by this user
-   FilePath optionsFile(settings_.fileName().toStdString());
-   if (!optionsFile.exists())
-   {
-      // file doesn't yet exist - QT can lazily write to the settings file
-      // create an empty file so we can set its permissions before it's created by QT
-      std::shared_ptr<std::ostream> pOfs;
-      Error error = optionsFile.openForWrite(pOfs, false);
-      if (error)
-         LOG_ERROR(error);
-   }
-
-   Error error = optionsFile.changeFileMode(FileMode::USER_READ_WRITE);
-   if (error)
-      LOG_ERROR(error);
-#endif
-}
-
 void Options::initFromCommandLine(const QStringList& arguments)
 {
    for (int i=1; i<arguments.size(); i++)
    {
-      const QString &arg = arguments.at(i);
+      QString arg = arguments.at(i);
       if (arg == QString::fromUtf8(kRunDiagnosticsOption))
          runDiagnostics_ = true;
    }
-
-   // synchronize zoom level with desktop frame
-   desktopInfo().setZoomLevel(zoomLevel());
 }
 
 void Options::restoreMainWindowBounds(QMainWindow* win)
 {
-   // NOTE: on macOS, if the display configuration has changed, the attempt to
-   // restore window geometry can fail and the use can be left with a tiny
-   // RStudio window.
-   //
-   // to avoid this, we always first attempt to resize to a 'good' size, and
-   // then restore a saved window geometry (which may just silently fail if the
-   // display configuration has indeed changed)
-   //
-   // https://github.com/rstudio/rstudio/issues/3498
-   // https://github.com/rstudio/rstudio/issues/3159
-   //
-   
-   QSize size = QSize(1200, 900).boundedTo(
-            QApplication::primaryScreen()->availableGeometry().size());
-   if (size.width() > 800 && size.height() > 500)
+   QString key = QString::fromUtf8("mainwindow/geometry");
+   if (settings_.contains(key))
+      win->restoreGeometry(settings_.value(key).toByteArray());
+   else
    {
-      // Only use default size if it seems sane; otherwise let Qt set it
-      win->resize(size);
-   }
-
-   if (settings_.contains(kMainWindowGeometry))
-   {
-      // try to restore the geometry
-      win->restoreGeometry(settings_.value(kMainWindowGeometry).toByteArray());
-
-      // double-check that we haven't accidentally restored a geometry that
-      // places the Window off-screen (can happen if the screen configuration
-      // changes between the time geometry was saved and loaded)
-      QRect desktopRect = QApplication::primaryScreen()->availableGeometry();
-      QRect winRect = win->geometry();
-      
-      // shrink the window rectangle a bit just to capture cases like RStudio
-      // too close to edge of window and hardly showing at all
-      QRect checkRect(
-               winRect.topLeft() + QPoint(5, 5),
-               winRect.bottomRight() - QPoint(5, 5));
-      
-      // check for intersection
-      if (!desktopRect.intersects(checkRect))
+      QSize size = QSize(1024, 768).boundedTo(
+            QApplication::desktop()->availableGeometry().size());
+      if (size.width() > 800 && size.height() > 500)
       {
-         // restore size and center the window
+         // Only use default size if it seems sane; otherwise let Qt set it
          win->resize(size);
-         win->move(
-                  desktopRect.width() / 2 - size.width() / 2,
-                  desktopRect.height() / 2 - size.height() / 2);
       }
    }
-   
-   // ensure a minimum width, height for the window on restore
-   win->resize(
-            std::max(300, win->width()),
-            std::max(200, win->height()));
-      
 }
 
 void Options::saveMainWindowBounds(QMainWindow* win)
 {
-   settings_.setValue(kMainWindowGeometry, win->saveGeometry());
+   settings_.setValue(QString::fromUtf8("mainwindow/geometry"),
+                      win->saveGeometry());
 }
 
 QString Options::portNumber() const
@@ -164,9 +92,13 @@ QString Options::portNumber() const
 #ifdef _WIN32
       QString localPeer = QString::fromUtf8("\\\\.\\pipe\\") +
                           portNumber_ + QString::fromUtf8("-rsession");
+#else
+      QString localPeer = QDir(QDir::tempPath()).absolutePath() +
+                          QString::fromUtf8("/") + portNumber_ +
+                          QString::fromUtf8("-rsession");
+#endif
       localPeer_ = localPeer.toUtf8().constData();
       core::system::setenv("RS_LOCAL_PEER", localPeer_);
-#endif
    }
 
    return portNumber_;
@@ -183,18 +115,8 @@ std::string Options::localPeer() const
    return localPeer_;
 }
 
-QString Options::desktopRenderingEngine() const
-{
-   return settings_.value(QStringLiteral("desktop.renderingEngine")).toString();
-}
-
-void Options::setDesktopRenderingEngine(QString engine)
-{
-   settings_.setValue(QStringLiteral("desktop.renderingEngine"), engine);
-}
 
 namespace {
-
 QString findFirstMatchingFont(const QStringList& fonts,
                               QString defaultFont,
                               bool fixedWidthOnly)
@@ -208,28 +130,14 @@ QString findFirstMatchingFont(const QStringList& fonts,
    }
    return defaultFont;
 }
-
 } // anonymous namespace
-
-void Options::setFont(QString key, QString font)
-{
-   if (font.isEmpty())
-      settings_.remove(key);
-   else
-      settings_.setValue(key, font);
-}
-
-void Options::setProportionalFont(QString font)
-{
-   setFont(kProportionalFont, font);
-}
 
 QString Options::proportionalFont() const
 {
    static QString detectedFont;
 
    QString font =
-         settings_.value(kProportionalFont).toString();
+         settings_.value(QString::fromUtf8("font.proportional")).toString();
    if (!font.isEmpty())
    {
       return font;
@@ -258,22 +166,18 @@ QString Options::proportionalFont() const
            QString::fromUtf8("Segoe UI") << QString::fromUtf8("Verdana") <<  // Windows
            QString::fromUtf8("Helvetica");
 #endif
-
-   QString sansSerif = QStringLiteral("sans-serif");
-   QString selectedFont = findFirstMatchingFont(fontList, sansSerif, false);
-
-   // NOTE: browsers will refuse to render a default font if the name is in
-   // quotes; e.g. "sans-serif" is a signal to look for a font called sans-serif
-   // rather than use the default sans-serif font!
-   if (selectedFont == sansSerif)
-      return sansSerif;
-   else
-      return QStringLiteral("\"%1\"").arg(selectedFont);
+   return QString::fromUtf8("\"") +
+         findFirstMatchingFont(fontList, QString::fromUtf8("sans-serif"), false) +
+         QString::fromUtf8("\"");
 }
 
 void Options::setFixedWidthFont(QString font)
 {
-   setFont(kFixedWidthFont, font);
+   if (font.isEmpty())
+      settings_.remove(QString::fromUtf8("font.fixedWidth"));
+   else
+      settings_.setValue(QString::fromUtf8("font.fixedWidth"),
+                         font);
 }
 
 QString Options::fixedWidthFont() const
@@ -281,7 +185,7 @@ QString Options::fixedWidthFont() const
    static QString detectedFont;
 
    QString font =
-         settings_.value(kFixedWidthFont).toString();
+         settings_.value(QString::fromUtf8("font.fixedWidth")).toString();
    if (!font.isEmpty())
    {
       return QString::fromUtf8("\"") + font + QString::fromUtf8("\"");
@@ -301,15 +205,12 @@ QString Options::fixedWidthFont() const
 #endif
            ;
 
-   // NOTE: browsers will refuse to render a default font if the name is in
-   // quotes; e.g. "monospace" is a signal to look for a font called monospace
-   // rather than use the default monospace font!
-   QString monospace = QStringLiteral("monospace");
-   QString matchingFont = findFirstMatchingFont(fontList, monospace, true);
-   if (matchingFont == monospace)
-      return monospace;
-   else
-      return QStringLiteral("\"%1\"").arg(matchingFont);
+   // The fallback font is Courier, not monospace, because QtWebKit doesn't
+   // actually provide a monospace font (appears to use Helvetica)
+
+   return detectedFont = QString::fromUtf8("\"") +
+         findFirstMatchingFont(fontList, QString::fromUtf8("Courier"), true) +
+         QString::fromUtf8("\"");
 }
 
 
@@ -321,64 +222,10 @@ double Options::zoomLevel() const
 
 void Options::setZoomLevel(double zoomLevel)
 {
-   desktopInfo().setZoomLevel(zoomLevel);
    settings_.setValue(QString::fromUtf8("view.zoomLevel"), zoomLevel);
 }
 
-bool Options::enableAccessibility() const
-{
-   QVariant accessibility = settings_.value(QString::fromUtf8("view.accessibility"), false);
-   return accessibility.toBool();
-}
 
-void Options::setEnableAccessibility(bool enable)
-{
-   settings_.setValue(QString::fromUtf8("view.accessibility"), enable);
-}
-
-bool Options::clipboardMonitoring() const
-{
-   QVariant monitoring = settings_.value(QString::fromUtf8("clipboard.monitoring"), true);
-   return monitoring.toBool();
-}
-
-void Options::setClipboardMonitoring(bool monitoring)
-{
-   settings_.setValue(QString::fromUtf8("clipboard.monitoring"), monitoring);
-}
-
-bool Options::ignoreGpuBlacklist() const
-{
-   QVariant ignore = settings_.value(QStringLiteral("general.ignoreGpuBlacklist"), false);
-   return ignore.toBool();
-}
-
-void Options::setIgnoreGpuBlacklist(bool ignore)
-{
-   settings_.setValue(QStringLiteral("general.ignoreGpuBlacklist"), ignore);
-}
-
-bool Options::disableGpuDriverBugWorkarounds() const
-{
-   QVariant disable = settings_.value(QStringLiteral("general.disableGpuDriverBugWorkarounds"), false);
-   return disable.toBool();
-}
-
-void Options::setDisableGpuDriverBugWorkarounds(bool disable)
-{
-   settings_.setValue(QStringLiteral("general.disableGpuDriverBugWorkarounds"), disable);
-}
-
-bool Options::useFontConfigDatabase() const
-{
-   QVariant use = settings_.value(QStringLiteral("general.useFontConfigDatabase"), true);
-   return use.toBool();
-}
-
-void Options::setUseFontConfigDatabase(bool use)
-{
-   settings_.setValue(QStringLiteral("general.useFontConfigDatabase"), use);
-}
 
 #ifdef _WIN32
 QString Options::rBinDir() const
@@ -389,7 +236,7 @@ QString Options::rBinDir() const
    // should be ignored) and the other case by using null for this case and
    // empty string for the other.
    if (!settings_.contains(QString::fromUtf8("RBinDir")))
-      return QString();
+      return QString::null;
 
    QString value = settings_.value(QString::fromUtf8("RBinDir")).toString();
    return value.isNull() ? QString() : value;
@@ -421,6 +268,7 @@ FilePath Options::scriptsPath() const
    return scriptsPath_;
 }
 
+
 void Options::setScriptsPath(const FilePath& scriptsPath)
 {
    scriptsPath_ = scriptsPath;
@@ -428,7 +276,7 @@ void Options::setScriptsPath(const FilePath& scriptsPath)
 
 FilePath Options::executablePath() const
 {
-   if (executablePath_.isEmpty())
+   if (executablePath_.empty())
    {
       Error error = core::system::executablePath(QApplication::arguments().at(0).toUtf8(),
                                                  &executablePath_);
@@ -440,7 +288,7 @@ FilePath Options::executablePath() const
 
 FilePath Options::supportingFilePath() const
 {
-   if (supportingFilePath_.isEmpty())
+   if (supportingFilePath_.empty())
    {
       // default to install path
       core::system::installPath("..",
@@ -449,40 +297,22 @@ FilePath Options::supportingFilePath() const
 
       // adapt for OSX resource bundles
 #ifdef __APPLE__
-         if (supportingFilePath_.completePath("Info.plist").exists())
-            supportingFilePath_ = supportingFilePath_.completePath("Resources");
+         if (supportingFilePath_.complete("Info.plist").exists())
+            supportingFilePath_ = supportingFilePath_.complete("Resources");
 #endif
    }
    return supportingFilePath_;
 }
 
-FilePath Options::resourcesPath() const
-{
-   if (resourcesPath_.isEmpty())
-   {
-#ifdef RSTUDIO_PACKAGE_BUILD
-      // release configuration: the 'resources' folder is
-      // part of the supporting files folder
-      resourcesPath_ = supportingFilePath().completePath("resources");
-#else
-      // developer configuration: the 'resources' folder is
-      // a sibling of the RStudio executable
-      resourcesPath_ = scriptsPath().completePath("resources");
-#endif
-   }
-
-   return resourcesPath_;
-}
-
 FilePath Options::wwwDocsPath() const
 {
    FilePath supportingFilePath = desktop::options().supportingFilePath();
-   FilePath wwwDocsPath = supportingFilePath.completePath("www/docs");
+   FilePath wwwDocsPath = supportingFilePath.complete("www/docs");
    if (!wwwDocsPath.exists())
-      wwwDocsPath = supportingFilePath.completePath("../gwt/www/docs");
+      wwwDocsPath = supportingFilePath.complete("../gwt/www/docs");
 #ifdef __APPLE__
    if (!wwwDocsPath.exists())
-      wwwDocsPath = supportingFilePath.completePath("../../../../../gwt/www/docs");
+      wwwDocsPath = supportingFilePath.complete("../../../../../gwt/www/docs");
 #endif
    return wwwDocsPath;
 }
@@ -494,10 +324,10 @@ FilePath Options::urlopenerPath() const
    FilePath parentDir = scriptsPath();
 
    // detect dev configuration
-   if (parentDir.getFilename() == "desktop")
-      parentDir = parentDir.completePath("urlopener");
+   if (parentDir.filename() == "desktop")
+      parentDir = parentDir.complete("urlopener");
 
-   return parentDir.completePath("urlopener.exe");
+   return parentDir.complete("urlopener.exe");
 }
 
 FilePath Options::rsinversePath() const
@@ -505,10 +335,10 @@ FilePath Options::rsinversePath() const
    FilePath parentDir = scriptsPath();
 
    // detect dev configuration
-   if (parentDir.getFilename() == "desktop")
-      parentDir = parentDir.completePath("synctex/rsinverse");
+   if (parentDir.filename() == "desktop")
+      parentDir = parentDir.complete("synctex/rsinverse");
 
-   return parentDir.completePath("rsinverse.exe");
+   return parentDir.complete("rsinverse.exe");
 }
 
 #endif
@@ -527,9 +357,9 @@ core::FilePath Options::scratchTempDir(core::FilePath defaultPath)
 {
    core::FilePath dir(scratchPath.toUtf8().constData());
 
-   if (!dir.isEmpty() && dir.exists())
+   if (!dir.empty() && dir.exists())
    {
-      dir = dir.completeChildPath("tmp");
+      dir = dir.childPath("tmp");
       core::Error error = dir.ensureDirectory();
       if (!error)
          return dir;
@@ -540,75 +370,9 @@ core::FilePath Options::scratchTempDir(core::FilePath defaultPath)
 void Options::cleanUpScratchTempDir()
 {
    core::FilePath temp = scratchTempDir(core::FilePath());
-   if (!temp.isEmpty())
+   if (!temp.empty())
       temp.removeIfExists();
-}
-
-QString Options::lastRemoteSessionUrl(const QString& serverUrl)
-{
-   settings_.beginGroup(QString::fromUtf8("remote-sessions-list"));
-   QString sessionUrl = settings_.value(serverUrl).toString();
-   settings_.endGroup();
-   return sessionUrl;
-}
-
-void Options::setLastRemoteSessionUrl(const QString& serverUrl, const QString& sessionUrl)
-{
-   settings_.beginGroup(QString::fromUtf8("remote-sessions-list"));
-   settings_.setValue(serverUrl, sessionUrl);
-   settings_.endGroup();
-}
-
-QList<QNetworkCookie> Options::cookiesFromList(const QStringList& cookieStrs) const
-{
-   QList<QNetworkCookie> cookies;
-
-   for (const QString& cookieStr : cookieStrs)
-   {
-      QByteArray cookieArr = QByteArray::fromStdString(cookieStr.toStdString());
-      QList<QNetworkCookie> innerCookies = QNetworkCookie::parseCookies(cookieArr);
-      for (const QNetworkCookie& cookie : innerCookies)
-      {
-         cookies.push_back(cookie);
-      }
-   }
-
-   return cookies;
-}
-
-QList<QNetworkCookie> Options::authCookies() const
-{
-   QStringList cookieStrs = settings_.value(QString::fromUtf8("cookies"), QStringList()).toStringList();
-   return cookiesFromList(cookieStrs);
-}
-
-QList<QNetworkCookie> Options::tempAuthCookies() const
-{
-   QStringList cookieStrs = settings_.value(QString::fromUtf8("temp-auth-cookies"), QStringList()).toStringList();
-   return cookiesFromList(cookieStrs);
-}
-
-QStringList Options::cookiesToList(const QList<QNetworkCookie>& cookies) const
-{
-   QStringList cookieStrs;
-   for (const QNetworkCookie& cookie : cookies)
-   {
-      cookieStrs.push_back(QString::fromStdString(cookie.toRawForm().toStdString()));
-   }
-
-   return cookieStrs;
-}
-
-void Options::setAuthCookies(const QList<QNetworkCookie>& cookies)
-{
-   settings_.setValue(QString::fromUtf8("cookies"), cookiesToList(cookies));
-}
-
-void Options::setTempAuthCookies(const QList<QNetworkCookie>& cookies)
-{
-   settings_.setValue(QString::fromUtf8("temp-auth-cookies"), cookiesToList(cookies));
 }
 
 } // namespace desktop
 } // namespace rstudio
-

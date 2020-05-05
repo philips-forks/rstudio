@@ -1,7 +1,7 @@
 /*
  * SessionOverlay.cpp
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -15,7 +15,7 @@
 
 #include "SessionOverlay.hpp"
 
-#include <shared_core/Error.hpp>
+#include <core/Error.hpp>
 
 using namespace rstudio::core ;
 
@@ -32,25 +32,6 @@ Error initialize()
 bool isSuspendable()
 {
    return true;
-}
-
-bool launcherJobsFeatureDisplayed()
-{
-   return false;
-}
-
-void streamLauncherOutput(const std::string& jobId,
-                          bool listening)
-{
-}
-
-int verifyInstallation()
-{
-   return EXIT_SUCCESS;
-}
-
-void initMonitorClient()
-{
 }
 
 } // namespace overlay

@@ -1,7 +1,7 @@
 /*
  * DesktopGwtWindow.cpp
  *
- * Copyright (C) 2009-20 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -24,63 +24,59 @@ GwtWindow::GwtWindow(bool showToolbar,
                      bool adjustTitle,
                      QString name,
                      QUrl baseUrl,
-                     QWidget* pParent,
-                     WebPage* opener,
-                     bool isRemoteDesktop) :
-   BrowserWindow(showToolbar, adjustTitle, name, baseUrl, pParent, opener, isRemoteDesktop)
+                     QWidget* pParent) :
+   BrowserWindow(showToolbar, adjustTitle, name, baseUrl, pParent),
+   zoomLevel_(options().zoomLevel())
 {
-   // initialize zoom levels (synchronize with AppearancePreferencesPane.java)
-   double levels[] = {
-      0.25, 0.50, 0.75, 0.80, 0.90,
-      1.00, 1.10, 1.25, 1.50, 1.75,
-      2.00, 2.50, 3.00, 4.00, 5.00
-   };
-   
-   for (double level : levels)
-      zoomLevels_.push_back(level);
-   
-   lastZoomTimer_.start();
-}
-
-void GwtWindow::zoomActualSize()
-{
-   options().setZoomLevel(1);
-   webView()->setZoomFactor(1);
-}
-
-void GwtWindow::setZoomLevel(double zoomLevel)
-{
-   options().setZoomLevel(zoomLevel);
-   webView()->setZoomFactor(zoomLevel);
+   // initialize zoom levels
+   zoomLevels_.push_back(1.0);
+   zoomLevels_.push_back(1.1);
+   zoomLevels_.push_back(1.20);
+   zoomLevels_.push_back(1.30);
+   zoomLevels_.push_back(1.40);
+   zoomLevels_.push_back(1.50);
+   zoomLevels_.push_back(1.75);
+   zoomLevels_.push_back(2.00);
 }
 
 void GwtWindow::zoomIn()
 {
    // get next greatest value
-   double zoomLevel = options().zoomLevel();
-   auto it = std::upper_bound(zoomLevels_.begin(), zoomLevels_.end(), zoomLevel);
+   std::vector<double>::const_iterator it = std::upper_bound(
+            zoomLevels_.begin(), zoomLevels_.end(), getZoomLevel());
    if (it != zoomLevels_.end())
    {
-      options().setZoomLevel(*it);
-      webView()->setZoomFactor(*it);
+      setZoomLevel(*it);
+      webView()->reload();
    }
 }
 
 void GwtWindow::zoomOut()
 {
    // get next smallest value
-   double zoomLevel = options().zoomLevel();
-   auto it = std::lower_bound(zoomLevels_.begin(), zoomLevels_.end(), zoomLevel);
+   std::vector<double>::const_iterator it = std::lower_bound(
+            zoomLevels_.begin(), zoomLevels_.end(), getZoomLevel());
    if (it != zoomLevels_.begin() && it != zoomLevels_.end())
    {
-      options().setZoomLevel(*(it - 1));
-      webView()->setZoomFactor(*(it - 1));
+      setZoomLevel(*(it-1));
+      webView()->reload();
    }
 }
 
-void GwtWindow::finishLoading(bool succeeded)
+void GwtWindow::onJavaScriptWindowObjectCleared()
 {
-   BrowserWindow::finishLoading(succeeded);
+   if (getZoomLevel() != webView()->dpiAwareZoomFactor())
+      webView()->setDpiAwareZoomFactor(getZoomLevel());
+}
+
+double GwtWindow::getZoomLevel()
+{
+   return zoomLevel_;
+}
+
+void GwtWindow::setZoomLevel(double zoomLevel)
+{
+   zoomLevel_ = zoomLevel;
 }
 
 bool GwtWindow::event(QEvent* pEvent)
@@ -89,22 +85,6 @@ bool GwtWindow::event(QEvent* pEvent)
       onActivated();
 
    return BrowserWindow::event(pEvent);
-}
-
-void GwtWindow::onCloseWindowShortcut()
-{
-   // check to see if the window has desktop hooks (not all GWT windows do); if it does, check to
-   // see whether it has a closeSourceDoc() command we should be executing instead
-   webPage()->runJavaScript(
-            QStringLiteral(
-               "if (window.desktopHooks) "
-               " window.desktopHooks.isCommandEnabled('closeSourceDoc');"
-               "else false"),
-            [&](QVariant closeSourceDocEnabled)
-   {
-      if (!closeSourceDocEnabled.toBool())
-         close();
-   });
 }
 
 

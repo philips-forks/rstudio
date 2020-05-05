@@ -1,7 +1,7 @@
 /*
  * ConsoleTabPanel.java
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-17 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -16,21 +16,24 @@ package org.rstudio.studio.client.workbench.ui;
 
 import java.util.ArrayList;
 
-import com.google.gwt.user.client.Command;
+import org.rstudio.core.client.events.EnsureHiddenEvent;
+import org.rstudio.core.client.events.EnsureHiddenHandler;
+import org.rstudio.core.client.events.EnsureVisibleEvent;
+import org.rstudio.core.client.events.EnsureVisibleHandler;
 import org.rstudio.core.client.layout.LogicalWindow;
 import org.rstudio.core.client.theme.PrimaryWindowFrame;
 import org.rstudio.core.client.theme.res.ThemeResources;
 import org.rstudio.core.client.widget.ToolbarButton;
 import org.rstudio.studio.client.RStudioGinjector;
-import org.rstudio.studio.client.application.Desktop;
 import org.rstudio.studio.client.application.events.EventBus;
 import org.rstudio.studio.client.workbench.model.Session;
-import org.rstudio.studio.client.workbench.prefs.model.UserPrefs;
+import org.rstudio.studio.client.workbench.prefs.model.UIPrefs;
 import org.rstudio.studio.client.workbench.views.console.ConsoleClearButton;
 import org.rstudio.studio.client.workbench.views.console.ConsoleInterruptButton;
 import org.rstudio.studio.client.workbench.views.console.ConsoleInterruptProfilerButton;
 import org.rstudio.studio.client.workbench.views.console.ConsolePane;
 import org.rstudio.studio.client.workbench.views.console.events.WorkingDirChangedEvent;
+import org.rstudio.studio.client.workbench.views.console.events.WorkingDirChangedHandler;
 import org.rstudio.studio.client.workbench.views.output.find.FindOutputTab;
 import org.rstudio.studio.client.workbench.views.output.markers.MarkersOutputTab;
 
@@ -43,13 +46,13 @@ public class ConsoleTabPanel extends WorkbenchTabPanel
    public void initialize(ConsoleInterruptButton consoleInterrupt,
                           ConsoleInterruptProfilerButton consoleInterruptProfiler,
                           ConsoleClearButton consoleClearButton,
-                          UserPrefs uiPrefs,
+                          UIPrefs uiPrefs,
                           Session session)
    {
       consoleInterrupt_ = consoleInterrupt;
       consoleInterruptProfiler_ = consoleInterruptProfiler;
       consoleClearButton_ = consoleClearButton;
-      userPrefs_ = uiPrefs;
+      uiPrefs_ = uiPrefs;
       session_ = session;
    }
    
@@ -64,13 +67,9 @@ public class ConsoleTabPanel extends WorkbenchTabPanel
                           MarkersOutputTab markersTab,
                           WorkbenchTab terminalTab,
                           EventBus events,
-                          ToolbarButton goToWorkingDirButton,
-                          WorkbenchTab testsTab,
-                          WorkbenchTab dataTab,
-                          WorkbenchTab jobsTab,
-                          WorkbenchTab launcherJobsTab)
+                          ToolbarButton goToWorkingDirButton)
    {
-      super(owner, parentWindow, "ConsoleTabSet");
+      super(owner, parentWindow);
       owner_ = owner;
       consolePane_ = consolePane;
       compilePdfTab_ = compilePdfTab;
@@ -81,272 +80,195 @@ public class ConsoleTabPanel extends WorkbenchTabPanel
       deployContentTab_ = deployContentTab;
       markersTab_ = markersTab;
       terminalTab_ = terminalTab;
-      testsTab_ = testsTab;
-      dataTab_ = dataTab;
-      jobsTab_ = jobsTab;
-      launcherJobsTab_ = launcherJobsTab;
       
       RStudioGinjector.INSTANCE.injectMembers(this);
 
-      compilePdfTab.addEnsureVisibleHandler(ensureVisibleEvent ->
+      compilePdfTab.addEnsureVisibleHandler(new EnsureVisibleHandler()
       {
-         compilePdfTabVisible_ = true;
-         managePanels();
-         if (ensureVisibleEvent.getActivate())
-            selectTab(compilePdfTab_);
+         @Override
+         public void onEnsureVisible(EnsureVisibleEvent event)
+         {
+            compilePdfTabVisible_ = true;
+            managePanels();
+            if (event.getActivate())
+               selectTab(compilePdfTab_);
+         }
       });
-      compilePdfTab.addEnsureHiddenHandler(ensureHiddenEvent ->
+      compilePdfTab.addEnsureHiddenHandler(new EnsureHiddenHandler()
       {
-         compilePdfTabVisible_ = false;
-         managePanels();
-         if (!consoleOnly_)
-            selectTab(0);
+         @Override
+         public void onEnsureHidden(EnsureHiddenEvent event)
+         {
+            compilePdfTabVisible_ = false;
+            managePanels();
+            if (!consoleOnly_)
+               selectTab(0);
+         }
       });
 
-      findResultsTab.addEnsureVisibleHandler(ensureVisibleEvent ->
+      findResultsTab.addEnsureVisibleHandler(new EnsureVisibleHandler()
       {
-         findResultsTabVisible_ = true;
-         managePanels();
-         if (ensureVisibleEvent.getActivate())
-            selectTab(findResultsTab_);
+         @Override
+         public void onEnsureVisible(EnsureVisibleEvent event)
+         {
+            findResultsTabVisible_ = true;
+            managePanels();
+            if (event.getActivate())
+               selectTab(findResultsTab_);
+         }
       });
-      findResultsTab.addEnsureHiddenHandler(ensureHiddenEvent ->
+      findResultsTab.addEnsureHiddenHandler(new EnsureHiddenHandler()
       {
-         findResultsTab_.onDismiss();
-         findResultsTabVisible_ = false;
-         managePanels();
-         if (!consoleOnly_)
-            selectTab(0);
+         @Override
+         public void onEnsureHidden(EnsureHiddenEvent event)
+         {
+            findResultsTab_.onDismiss();
+            findResultsTabVisible_ = false;
+            managePanels();
+            if (!consoleOnly_)
+               selectTab(0);
+         }
       });
       
-      sourceCppTab.addEnsureVisibleHandler(ensureVisibleEvent ->
+      sourceCppTab.addEnsureVisibleHandler(new EnsureVisibleHandler()
       {
-         sourceCppTabVisible_ = true;
-         managePanels();
-         if (ensureVisibleEvent.getActivate())
-            selectTab(sourceCppTab_);
+         @Override
+         public void onEnsureVisible(EnsureVisibleEvent event)
+         {
+            sourceCppTabVisible_ = true;
+            managePanels();
+            if (event.getActivate())
+               selectTab(sourceCppTab_);
+         }
       });
-      sourceCppTab.addEnsureHiddenHandler(ensureHiddenEvent ->
+      sourceCppTab.addEnsureHiddenHandler(new EnsureHiddenHandler()
       {
-         sourceCppTabVisible_ = false;
-         managePanels();
-         if (!consoleOnly_)
-            selectTab(0);
-      });
-
-      renderRmdTab.addEnsureVisibleHandler(ensureVisibleEvent ->
-      {
-         renderRmdTabVisible_ = true;
-         managePanels();
-         if (ensureVisibleEvent.getActivate())
-            selectTab(renderRmdTab_);
-      });
-      renderRmdTab.addEnsureHiddenHandler(ensureHiddenEvent ->
-      {
-         renderRmdTabVisible_ = false;
-         managePanels();
-         if (!consoleOnly_)
-            selectTab(0);
+         @Override
+         public void onEnsureHidden(EnsureHiddenEvent event)
+         {
+            sourceCppTabVisible_ = false;
+            managePanels();
+            if (!consoleOnly_)
+               selectTab(0);
+         }
       });
 
-      testsTab.addEnsureVisibleHandler(ensureVisibleEvent ->
+      renderRmdTab.addEnsureVisibleHandler(new EnsureVisibleHandler()
       {
-         testsTabVisible_ = true;
-         managePanels();
-         if (ensureVisibleEvent.getActivate())
-            selectTab(testsTab_);
+         @Override
+         public void onEnsureVisible(EnsureVisibleEvent event)
+         {
+            renderRmdTabVisible_ = true;
+            managePanels();
+            if (event.getActivate())
+               selectTab(renderRmdTab_);
+         }
       });
-      testsTab.addEnsureHiddenHandler(ensureHiddenEvent ->
+      renderRmdTab.addEnsureHiddenHandler(new EnsureHiddenHandler()
       {
-         testsTabVisible_ = false;
-         managePanels();
-         if (!consoleOnly_)
-            selectTab(0);
-      });
-
-      dataTab.addEnsureVisibleHandler(ensureVisibleEvent ->
-      {
-         dataTabVisible_ = true;
-         managePanels();
-         if (ensureVisibleEvent.getActivate())
-            selectTab(dataTab_);
-      });
-      dataTab.addEnsureHiddenHandler(ensureHiddenEvent ->
-      {
-         dataTabVisible_ = false;
-         managePanels();
-         if (!consoleOnly_)
-            selectTab(0);
+         @Override
+         public void onEnsureHidden(EnsureHiddenEvent event)
+         {
+            renderRmdTabVisible_ = false;
+            managePanels();
+            if (!consoleOnly_)
+               selectTab(0);
+         }
       });
 
-      deployContentTab.addEnsureVisibleHandler(ensureVisibleEvent ->
+      deployContentTab.addEnsureVisibleHandler(new EnsureVisibleHandler()
       {
-         deployContentTabVisible_ = true;
-         managePanels();
-         if (ensureVisibleEvent.getActivate())
-            selectTab(deployContentTab_);
+         @Override
+         public void onEnsureVisible(EnsureVisibleEvent event)
+         {
+            deployContentTabVisible_ = true;
+            managePanels();
+            if (event.getActivate())
+               selectTab(deployContentTab_);
+         }
       });
-      deployContentTab.addEnsureHiddenHandler(ensureHiddenEvent ->
+      deployContentTab.addEnsureHiddenHandler(new EnsureHiddenHandler()
       {
-         deployContentTabVisible_ = false;
-         managePanels();
-         if (!consoleOnly_)
-            selectTab(0);
+         @Override
+         public void onEnsureHidden(EnsureHiddenEvent event)
+         {
+            deployContentTabVisible_ = false;
+            managePanels();
+            if (!consoleOnly_)
+               selectTab(0);
+         }
       });
       
-      markersTab.addEnsureVisibleHandler(ensureVisibleEvent ->
+      markersTab.addEnsureVisibleHandler(new EnsureVisibleHandler()
       {
-         markersTabVisible_ = true;
-         managePanels();
-         if (ensureVisibleEvent.getActivate())
-            selectTab(markersTab_);
+         @Override
+         public void onEnsureVisible(EnsureVisibleEvent event)
+         {
+            markersTabVisible_ = true;
+            managePanels();
+            if (event.getActivate())
+               selectTab(markersTab_);
+         }
       });
-      markersTab.addEnsureHiddenHandler(ensureHiddenEvent ->
+      markersTab.addEnsureHiddenHandler(new EnsureHiddenHandler()
       {
-         markersTab_.onDismiss();
-         markersTabVisible_ = false;
-         managePanels();
-         if (!consoleOnly_)
-            selectTab(0);
-      });
-
-      terminalTab.addEnsureVisibleHandler(ensureVisibleEvent ->
-      {
-         terminalTabVisible_ = true;
-         managePanels();
-         if (ensureVisibleEvent.getActivate())
-            selectTab(terminalTab_);
-      });
-      terminalTab.addEnsureHiddenHandler(ensureHiddenEvent ->
-      {
-         terminalTabVisible_ = false;
-         managePanels();
-         if (!consoleOnly_)
-            selectTab(0);
+         @Override
+         public void onEnsureHidden(EnsureHiddenEvent event)
+         {
+            markersTab_.onDismiss();
+            markersTabVisible_ = false;
+            managePanels();
+            if (!consoleOnly_)
+               selectTab(0);
+         }
       });
 
-      jobsTab.addEnsureVisibleHandler(ensureVisibleEvent ->
+      terminalTab.addEnsureVisibleHandler(new EnsureVisibleHandler()
       {
-         jobsTabVisible_ = true;
-         managePanels();
-         if (ensureVisibleEvent.getActivate())
-            selectTab(jobsTab_);
+         @Override
+         public void onEnsureVisible(EnsureVisibleEvent event)
+         {
+            terminalTabVisible_ = true;
+            managePanels();
+            if (event.getActivate())
+               selectTab(terminalTab_);
+         }
       });
-      jobsTab.addEnsureHiddenHandler(ensureHiddenEvent ->
+      terminalTab.addEnsureHiddenHandler(new EnsureHiddenHandler()
       {
-         jobsTabVisible_ = false;
-         managePanels();
-         if (!consoleOnly_)
-            selectTab(0);
+         @Override
+         public void onEnsureHidden(EnsureHiddenEvent event)
+         {
+            terminalTabVisible_ = false;
+            managePanels();
+            if (!consoleOnly_)
+               selectTab(0);
+         }
       });
 
-      launcherJobsTab.addEnsureVisibleHandler(ensureVisibleEvent ->
+      events.addHandler(WorkingDirChangedEvent.TYPE, new WorkingDirChangedHandler()
       {
-         launcherJobsTabVisible_ = true;
-         managePanels();
-         if (ensureVisibleEvent.getActivate())
-            selectTab(launcherJobsTab_);
-      });
-      launcherJobsTab.addEnsureHiddenHandler(ensureHiddenEvent ->
-      {
-         launcherJobsTabVisible_ = false;
-         managePanels();
-         if (!consoleOnly_)
-            selectTab(0);
-      });
-      
-      events.addHandler(WorkingDirChangedEvent.TYPE, workingDirChangedEvent ->
-      {
-         String path = workingDirChangedEvent.getPath();
-         if (!path.endsWith("/"))
-            path += "/";
-         consolePane_.setWorkingDirectory(path);
-         owner.setSubtitle(path);
+         @Override
+         public void onWorkingDirChanged(WorkingDirChangedEvent event)
+         {
+            String path = event.getPath();
+            if (!path.endsWith("/"))
+               path += "/";
+            consolePane_.setWorkingDirectory(path);
+            owner.setSubtitle(path);
+         }
       });
 
       // Determine initial visibility of terminal tab
-      terminalTabVisible_ = userPrefs_.showTerminalTab().getValue();
+      terminalTabVisible_ = uiPrefs_.showTerminalTab().getValue();
       if (terminalTabVisible_ && !session_.getSessionInfo().getAllowShell())
       {
          terminalTabVisible_ = false;
       }
-      
-      // Determine initial visibility of local jobs and launcher jobs tabs
-      String jobsTabVisibilitySetting = userPrefs_.jobsTabVisibility().getValue();
-      Command showLauncherTab = () ->
-      {
-         launcherJobsTabVisible_ = userPrefs_.showLauncherJobsTab().getValue();
-
-         // By default, we don't show the Jobs tab when Launcher tab is visible.
-         // However, if user has explicitly shown or hidden Jobs, we'll
-         // honor that independent of Launcher tabs visibility.
-         switch (jobsTabVisibilitySetting)
-         {
-            default:
-            case UserPrefs.JOBS_TAB_VISIBILITY_DEFAULT:
-               jobsTabVisible_ = !launcherJobsTabVisible_;
-               break;
-
-            case UserPrefs.JOBS_TAB_VISIBILITY_CLOSED:
-               jobsTabVisible_ = false;
-               break;
-
-            case UserPrefs.JOBS_TAB_VISIBILITY_SHOWN:
-               jobsTabVisible_ = true;
-               break;
-         }
-      };
-
-
-      if (session_.getSessionInfo().getLauncherJobsEnabled())
-      {
-         showLauncherTab.execute();
-      }
-      else
-      {
-         Command hideLauncherTab = () ->
-         {
-            launcherJobsTabVisible_ = false;
-            switch (jobsTabVisibilitySetting)
-            {
-               default:
-               case UserPrefs.JOBS_TAB_VISIBILITY_DEFAULT:
-               case UserPrefs.JOBS_TAB_VISIBILITY_SHOWN:
-                  jobsTabVisible_ = true;
-                  break;
-
-               case UserPrefs.JOBS_TAB_VISIBILITY_CLOSED:
-                  jobsTabVisible_ = false;
-                  break;
-            }
-         };
-
-         if (Desktop.hasDesktopFrame())
-         {
-            // if there are session servers defined, we will show the launcher tab
-            Desktop.getFrame().getSessionServers(servers ->
-            {
-               if (servers.length() > 0)
-               {
-                  showLauncherTab.execute();
-                  managePanels();
-               }
-               else
-               {
-                  hideLauncherTab.execute();
-                  managePanels();
-               }
-            });
-         }
-         else
-         {
-            hideLauncherTab.execute();
-         }
-      }
 
       // This ensures the logic in managePanels() works whether starting
       // up with terminal tab on by default or not.
-      consoleOnly_ = terminalTabVisible_ || jobsTabVisible_ || launcherJobsTabVisible_;
+      consoleOnly_ = terminalTabVisible_;
       managePanels();
    }
 
@@ -358,11 +280,7 @@ public class ConsoleTabPanel extends WorkbenchTabPanel
                             !sourceCppTabVisible_ &&
                             !renderRmdTabVisible_ &&
                             !deployContentTabVisible_ &&
-                            !markersTabVisible_ &&
-                            !testsTabVisible_ &&
-                            !dataTabVisible_ &&
-                            !jobsTabVisible_ &&
-                            !launcherJobsTabVisible_;
+                            !markersTabVisible_;
       
       if (consoleOnly)
          owner_.addStyleName(ThemeResources.INSTANCE.themeStyles().consoleOnlyWindowFrame());
@@ -371,7 +289,7 @@ public class ConsoleTabPanel extends WorkbenchTabPanel
       
       if (!consoleOnly)
       {
-         ArrayList<WorkbenchTab> tabs = new ArrayList<>();
+         ArrayList<WorkbenchTab> tabs = new ArrayList<WorkbenchTab>();
          tabs.add(consolePane_);
          if (terminalTabVisible_)
             tabs.add(terminalTab_);
@@ -387,14 +305,6 @@ public class ConsoleTabPanel extends WorkbenchTabPanel
             tabs.add(deployContentTab_);
          if (markersTabVisible_)
             tabs.add(markersTab_);
-         if (testsTabVisible_)
-            tabs.add(testsTab_);
-         if (dataTabVisible_)
-            tabs.add(dataTab_);
-         if (jobsTabVisible_)
-            tabs.add(jobsTab_);
-         if (launcherJobsTabVisible_)
-            tabs.add(launcherJobsTab_);
 
          setTabs(tabs);
       }
@@ -489,14 +399,6 @@ public class ConsoleTabPanel extends WorkbenchTabPanel
    private final ToolbarButton goToWorkingDirButton_;
    private boolean findResultsTabVisible_;
    private boolean consoleOnly_;
-   private UserPrefs userPrefs_;
+   private UIPrefs uiPrefs_;
    private Session session_;
-   private final WorkbenchTab testsTab_;
-   private boolean testsTabVisible_;
-   private final WorkbenchTab dataTab_;
-   private boolean dataTabVisible_;
-   private final WorkbenchTab jobsTab_;
-   private boolean jobsTabVisible_;
-   private final WorkbenchTab launcherJobsTab_;
-   private boolean launcherJobsTabVisible_;
 }

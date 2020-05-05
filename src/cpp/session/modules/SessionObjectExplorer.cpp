@@ -1,7 +1,7 @@
 /*
  * SessionObjectExplorer.cpp
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-17 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -18,9 +18,10 @@
 #include "SessionObjectExplorer.hpp"
 
 #include <boost/bind.hpp>
+#include <boost/foreach.hpp>
 
 #include <core/Algorithm.hpp>
-#include <shared_core/Error.hpp>
+#include <core/Error.hpp>
 #include <core/Exec.hpp>
 
 #include <r/RExec.hpp>
@@ -42,12 +43,13 @@ const char * const kExplorerCacheDir = "explorer-cache";
 
 FilePath explorerCacheDir() 
 {
-   return module_context::sessionScratchPath().completeChildPath(kExplorerCacheDir);
+   return module_context::sessionScratchPath()
+         .childPath(kExplorerCacheDir);
 }
 
 std::string explorerCacheDirSystem()
 {
-   return string_utils::utf8ToSystem(explorerCacheDir().getAbsolutePath());
+   return string_utils::utf8ToSystem(explorerCacheDir().absolutePath());
 }
 
 void removeOrphanedCacheItems()
@@ -72,10 +74,10 @@ void removeOrphanedCacheItems()
    typedef boost::shared_ptr<SourceDocument> Document;
    
    std::vector<Document> documents;
-   for (const FilePath& docPath : docPaths)
+   BOOST_FOREACH(const FilePath& docPath, docPaths)
    {
       Document pDoc(new SourceDocument());
-      Error error = source_database::get(docPath.getFilename(), false, pDoc);
+      Error error = source_database::get(docPath.filename(), false, pDoc);
       if (error)
       {
          LOG_ERROR(error);
@@ -86,7 +88,7 @@ void removeOrphanedCacheItems()
    
    // list objects in explorer cache
    std::vector<FilePath> cachedFiles;
-   error = explorerCacheDir().getChildren(cachedFiles);
+   error = explorerCacheDir().children(&cachedFiles);
    if (error)
    {
       LOG_ERROR(error);
@@ -95,12 +97,12 @@ void removeOrphanedCacheItems()
    
    // remove any objects for which we don't have an associated
    // source document available
-   for (const FilePath& cacheFile : cachedFiles)
+   BOOST_FOREACH(const FilePath& cacheFile, cachedFiles)
    {
-      std::string id = cacheFile.getFilename();
+      std::string id = cacheFile.filename();
       
       bool foundId = false;
-      for (Document pDoc : documents)
+      BOOST_FOREACH(Document pDoc, documents)
       {
          if (id == pDoc->getProperty("id"))
          {
@@ -152,7 +154,7 @@ void onDocPendingRemove(boost::shared_ptr<source_database::SourceDocument> pDoc)
    if (id.empty())
       return;
    
-   FilePath cachePath = explorerCacheDir().completeChildPath(id);
+   FilePath cachePath = explorerCacheDir().childPath(id);
    error = cachePath.removeIfExists();
    if (error)
    {

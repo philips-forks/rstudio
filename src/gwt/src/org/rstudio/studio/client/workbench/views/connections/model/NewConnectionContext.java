@@ -1,7 +1,7 @@
 /*
  * NewConnectionContext.java
  *
- * Copyright (C) 2009-12 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -24,6 +24,49 @@ public class NewConnectionContext extends JavaScriptObject
 {
    protected NewConnectionContext()
    {
+   }
+
+   public static class NewConnectionInfo extends JavaScriptObject
+   {
+      protected NewConnectionInfo()
+      {
+      }
+
+      public final native String getPackage() /*-{
+         return this["package"];
+      }-*/;
+
+      public final native String getVersion() /*-{
+         return this["version"];
+      }-*/;
+
+      public final native String getName() /*-{
+         return this["name"];
+      }-*/;
+
+      public final native String getSource() /*-{
+         return this["source"];
+      }-*/;
+
+      public final native String getType() /*-{
+         return this["type"];
+      }-*/;
+
+      public final native String getHelp() /*-{
+         return this["help"];
+      }-*/;
+
+      public final native String getSnippet() /*-{
+         return this["snippet"];
+      }-*/;
+
+      public final native String iconData() /*-{
+         return this["iconData"];
+      }-*/;
+
+      public final native boolean getLicensed() /*-{
+         return this["licensed"];
+      }-*/;
    }
 
    public final native int getConnectionsLength() /*-{

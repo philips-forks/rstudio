@@ -1,7 +1,7 @@
 /*
  * SessionShiny.cpp
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-15 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -16,8 +16,10 @@
 #include "SessionShiny.hpp"
 
 #include <boost/algorithm/string/predicate.hpp>
+#include <boost/foreach.hpp>
 
 #include <core/Algorithm.hpp>
+#include <core/Error.hpp>
 #include <core/Exec.hpp>
 #include <core/FileSerializer.hpp>
 #include <core/YamlUtil.hpp>
@@ -28,10 +30,6 @@
 #include <session/SessionRUtil.hpp>
 #include <session/SessionOptions.hpp>
 #include <session/SessionModuleContext.hpp>
-#include <session/SessionUrlPorts.hpp>
-
-#include <shared_core/Error.hpp>
-#include <shared_core/FilePath.hpp>
 
 #define kShinyTypeNone       "none"
 #define kShinyTypeDirectory  "shiny-dir"
@@ -71,13 +69,13 @@ void onPackageLoaded(const std::string& pkgname)
 
 bool isShinyAppDir(const FilePath& filePath)
 {
-   bool hasServer = filePath.completeChildPath("server.R").exists() ||
-                    filePath.completeChildPath("server.r").exists();
+   bool hasServer = filePath.childPath("server.R").exists() ||
+                    filePath.childPath("server.r").exists();
    if (hasServer)
    {
-      bool hasUI = filePath.completeChildPath("ui.R").exists() ||
-                   filePath.completeChildPath("ui.r").exists() ||
-                   filePath.completeChildPath("www").exists();
+      bool hasUI = filePath.childPath("ui.R").exists() ||
+                   filePath.childPath("ui.r").exists() ||
+                   filePath.childPath("www").exists();
 
       return hasUI;
    }
@@ -90,14 +88,14 @@ bool isShinyAppDir(const FilePath& filePath)
 std::string onDetectShinySourceType(
       boost::shared_ptr<source_database::SourceDocument> pDoc)
 {
-   if (!pDoc->path().empty() && pDoc->canContainRCode())
+   if (!pDoc->path().empty())
    {
       FilePath filePath = module_context::resolveAliasedPath(pDoc->path());
       ShinyFileType type = getShinyFileType(filePath, pDoc->contents());
       switch(type)
       {
          case ShinyNone:
-            return std::string();
+            return kShinyTypeNone;
          case ShinyDirectory:
             return kShinyTypeDirectory;
          case ShinySingleFile:
@@ -131,26 +129,10 @@ std::string getLastFunction(const std::string& fileContents)
 {
    std::string function;
 
-   // discard all the comments in the file. we used to use boost::regex here
-   // but it can barf on some user input
-   std::string contents = fileContents;
-   size_t position = 0;
-   while (true)
-   {
-      auto commentIndex = contents.find('#', position);
-      if (commentIndex == std::string::npos)
-         break;
-      
-      auto newlineIndex = contents.find('\n', commentIndex);
-      if (newlineIndex == std::string::npos)
-         newlineIndex = contents.size();
-      
-      position = commentIndex;
-      contents.erase(
-               contents.begin() + commentIndex,
-               contents.begin() + newlineIndex);
-   }
-   
+   // discard all the comments in the file
+   std::string contents = 
+      boost::regex_replace(fileContents, boost::regex("#[^\n]*\n"), "");
+
    // if there aren't enough characters to form a valid function call, bail
    // out early
    if (contents.size() < 3) 
@@ -160,12 +142,10 @@ std::string getLastFunction(const std::string& fileContents)
    size_t lastParenPos = std::string::npos;
    for (size_t i = contents.size() - 1; i > 1; i--)
    {
-      if (isspace(contents.at(i)))
+      if (std::isspace(contents.at(i)))
          continue;
-      
       if (contents.at(i) == ')')
          lastParenPos = i;
-      
       break;
    }
 
@@ -199,7 +179,7 @@ std::string getLastFunction(const std::string& fileContents)
       return function;
 
    // skip any whitespace between function paren and name
-   while (isspace(contents.at(functionEndPos)) && functionEndPos > 0)
+   while (std::isspace(contents.at(functionEndPos)) && functionEndPos > 0)
       functionEndPos--;
 
    // now work backward again to find the function name 
@@ -207,7 +187,7 @@ std::string getLastFunction(const std::string& fileContents)
    for (size_t i = functionEndPos; i > 0; i--)
    {
       char ch = contents.at(i);
-      if (!(isalnum(ch) || ch == '_' || ch == '.')) {
+      if (!(std::isalnum(ch) || ch == '_' || ch == '.')) {
          functionStartPos = i + 1;
          break;
       }
@@ -225,7 +205,7 @@ const char * const kShinyAppTypeMultiFile =  "type_multi_file";
 
 FilePath shinyTemplatePath(const std::string& name)
 {
-   return session::options().rResourcesPath().completeChildPath("templates/shiny/" + name);
+   return session::options().rResourcesPath().childPath("templates/shiny/" + name);
 }
 
 Error copyTemplateFile(const std::string& templateFileName,
@@ -261,7 +241,7 @@ Error createShinyApp(const json::JsonRpcRequest& request,
    }
    
    FilePath appDir = module_context::resolveAliasedPath(appDirString);
-   FilePath shinyDir = appDir.completePath(appName);
+   FilePath shinyDir = appDir.complete(appName);
    
    // if shinyDir exists and is not an empty directory, bail
    if (shinyDir.exists())
@@ -270,13 +250,13 @@ Error createShinyApp(const json::JsonRpcRequest& request,
       {
          pResponse->setError(
                   fileExistsError(ERROR_LOCATION),
-                  json::Value("The directory '" + module_context::createAliasedPath(shinyDir) + "' already exists "
-                  "and is not a directory"));
+                  "The directory '" + module_context::createAliasedPath(shinyDir) + "' already exists "
+                  "and is not a directory");
          return Success();
       }
       
       std::vector<FilePath> children;
-      Error error = shinyDir.getChildren(children);
+      Error error = shinyDir.children(&children);
       if (error)
          LOG_ERROR(error);
       
@@ -284,8 +264,8 @@ Error createShinyApp(const json::JsonRpcRequest& request,
       {
          pResponse->setError(
                   fileExistsError(ERROR_LOCATION),
-                  json::Value("The directory '" + module_context::createAliasedPath(shinyDir) + "' already exists "
-                  "and is not empty"));
+                  "The directory '" + module_context::createAliasedPath(shinyDir) + "' already exists "
+                  "and is not empty");
          return Success();
       }
    }
@@ -313,10 +293,10 @@ Error createShinyApp(const json::JsonRpcRequest& request,
    
    // if any files already exist, report that as an error
    std::vector<std::string> existingFiles;
-   for (const std::string& fileName : templateFiles)
+   BOOST_FOREACH(const std::string& fileName, templateFiles)
    {
-      FilePath filePath = shinyDir.completePath(fileName);
-      std::string aliasedPath = module_context::createAliasedPath(shinyDir.completePath(fileName));
+      FilePath filePath = shinyDir.complete(fileName);
+      std::string aliasedPath = module_context::createAliasedPath(shinyDir.complete(fileName));
       
       if (filePath.exists())
          existingFiles.push_back(aliasedPath);
@@ -341,19 +321,19 @@ Error createShinyApp(const json::JsonRpcRequest& request,
       
       pResponse->setError(
                fileExistsError(ERROR_LOCATION),
-               json::Value(message));
+               message);
       return Success();
    }
    
    // copy the files (updates success in 'result')
-   for (const std::string& fileName : templateFiles)
+   BOOST_FOREACH(const std::string& fileName, templateFiles)
    {
-      FilePath target = shinyDir.completePath(fileName);
+      FilePath target = shinyDir.complete(fileName);
       Error error = copyTemplateFile(fileName, target);
       if (error)
       {
          std::string aliasedPath = module_context::createAliasedPath(target);
-         pResponse->setError(error, json::Value("Failed to write '" + aliasedPath + "'"));
+         pResponse->setError(error, "Failed to write '" + aliasedPath + "'");
          return Success();
       }
    }
@@ -372,7 +352,7 @@ SEXP rs_showShinyGadgetDialog(SEXP captionSEXP,
 
    // get transformed URL
    std::string url = r::sexp::safeAsString(urlSEXP);
-   url = url_ports::mapUrlPorts(url);
+   url = module_context::mapUrlPorts(url);
 
    // get preferred width and height
    int preferredWidth = r::sexp::asInteger(preferredWidthSEXP);
@@ -407,7 +387,7 @@ ShinyFileType shinyTypeFromExtendedType(const std::string& extendedType)
 }
 
 ShinyFileType getShinyFileType(const FilePath& filePath,
-                               const std::string& contents)
+                     const std::string& contents)
 {
    static const boost::regex reRuntimeShiny("runtime:\\s*shiny");
    
@@ -416,7 +396,7 @@ ShinyFileType getShinyFileType(const FilePath& filePath,
    if (regex_utils::search(yamlHeader.begin(), yamlHeader.end(), reRuntimeShiny))
       return ShinyDocument;
    
-   std::string filename = filePath.getFilename();
+   std::string filename = filePath.filename();
 
    if (boost::algorithm::iequals(filename, "ui.r") &&
        boost::algorithm::icontains(contents, "shinyUI"))
@@ -436,7 +416,7 @@ ShinyFileType getShinyFileType(const FilePath& filePath,
    else if ((boost::algorithm::iequals(filename, "global.r") ||
              boost::algorithm::iequals(filename, "ui.r") ||
              boost::algorithm::iequals(filename, "server.r")) &&
-            isShinyAppDir(filePath.getParent()))
+            isShinyAppDir(filePath.parent()))
    {
       return ShinyDirectory;
    }
@@ -486,8 +466,12 @@ Error initialize()
 {
    using namespace module_context;
    using boost::bind;
-
-   RS_REGISTER_CALL_METHOD(rs_showShinyGadgetDialog);
+   
+   R_CallMethodDef methodDef ;
+   methodDef.name = "rs_showShinyGadgetDialog" ;
+   methodDef.fun = (DL_FUNC)rs_showShinyGadgetDialog ;
+   methodDef.numArgs = 4;
+   r::routines::addCallMethod(methodDef);
 
    events().onPackageLoaded.connect(onPackageLoaded);
 

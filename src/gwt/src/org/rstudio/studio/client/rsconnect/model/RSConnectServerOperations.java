@@ -1,7 +1,7 @@
 /*
  * RSConnectServerOperations.java
  *
- * Copyright (C) 2009-14 by RStudio, PBC
+ * Copyright (C) 2009-14 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -14,6 +14,7 @@
  */
 package org.rstudio.studio.client.rsconnect.model;
 
+import org.rstudio.studio.client.server.Int;
 import org.rstudio.studio.client.server.ServerRequestCallback;
 import org.rstudio.studio.client.server.Void;
 
@@ -40,10 +41,6 @@ public interface RSConnectServerOperations
    void getRSConnectDeployments(String sourceFile, String outputFile,
                ServerRequestCallback<JsArray<RSConnectDeploymentRecord>> requestCallback); 
    
-   void forgetRSConnectDeployments(String sourceFile,
-                                   String outputFile,
-                                   ServerRequestCallback<Void> requestCallback);
-   
    void getDeploymentFiles (String target, 
                boolean asMultipleRmd,
                ServerRequestCallback<RSConnectDeploymentFiles> requestCallback);
@@ -52,8 +49,6 @@ public interface RSConnectServerOperations
                String account, String server, String appName, String appTitle, String appId,
                RSConnectPublishSettings settings,
                ServerRequestCallback<Boolean> requestCallback);
-   
-   void cancelPublish(ServerRequestCallback<Boolean> requestCallback);
    
    void getServerUrls(
                ServerRequestCallback<JsArray<RSConnectServerEntry>> requestCallback);
@@ -77,7 +72,7 @@ public interface RSConnectServerOperations
    void getRmdPublishDetails(String target,
                 ServerRequestCallback<RmdPublishDetails> resultCallback);
    
-   void hasOrphanedAccounts(ServerRequestCallback<Double> resultCallback);
+   void hasOrphanedAccounts(ServerRequestCallback<Int> resultCallback);
    
    void getEditPublishedDocs(String appPath,
                 ServerRequestCallback<JsArrayString> resultCallback);

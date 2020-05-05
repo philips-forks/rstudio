@@ -1,7 +1,7 @@
 /*
  * CodeSearchDialog.java
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -14,7 +14,6 @@
  */
 package org.rstudio.studio.client.workbench.codesearch.ui;
 
-import com.google.gwt.aria.client.Roles;
 import org.rstudio.core.client.widget.CanFocus;
 import org.rstudio.core.client.widget.ModalDialogBase;
 import org.rstudio.studio.client.workbench.codesearch.CodeSearch;
@@ -33,7 +32,7 @@ public class CodeSearchDialog extends ModalDialogBase
 {
    public CodeSearchDialog(Provider<CodeSearch> pCodeSearch)
    {
-      super(Roles.getDialogRole());
+      super();
       
       setGlassEnabled(false);
       setAutoHideEnabled(true);
@@ -72,7 +71,7 @@ public class CodeSearchDialog extends ModalDialogBase
    }
    
    @Override
-   protected void focusInitialControl()
+   protected void onDialogShown()
    { 
       ((CanFocus)codeSearch_.getSearchWidget()).focus();
    }

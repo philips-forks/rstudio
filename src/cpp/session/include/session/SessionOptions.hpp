@@ -1,7 +1,7 @@
 /*
  * SessionOptions.hpp
  *
- * Copyright (C) 2009-20 by RStudio, PBC
+ * Copyright (C) 2009-17 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -20,8 +20,8 @@
 
 #include <boost/utility.hpp>
 
-#include <shared_core/SafeConvert.hpp>
-#include <shared_core/FilePath.hpp>
+#include <core/SafeConvert.hpp>
+#include <core/FilePath.hpp>
 #include <core/system/System.hpp>
 #include <core/StringUtils.hpp>
 #include <core/ProgramOptions.hpp>
@@ -35,7 +35,6 @@
 namespace rstudio {
 namespace core {
    class ProgramStatus;
-   class FilePath;
 }
 }
 
@@ -66,11 +65,6 @@ public:
    {
       return runTests_;
    }
-
-   std::string runScript() const
-   {
-      return runScript_;
-   }
    
    bool verifyInstallation() const
    {
@@ -98,6 +92,15 @@ public:
    bool logStderr() const
    {
       return logStderr_;
+   }
+   
+   // agreement
+   core::FilePath agreementFilePath() const
+   { 
+      if (!agreementFilePath_.empty())
+         return core::FilePath(agreementFilePath_.c_str());
+      else
+         return core::FilePath();
    }
 
    // docs
@@ -138,8 +141,6 @@ public:
    }
 
    int timeoutMinutes() const { return timeoutMinutes_; }
-
-   bool timeoutSuspend() const { return timeoutSuspend_; }
 
    int disconnectedTimeoutMinutes() { return disconnectedTimeoutMinutes_; }
 
@@ -192,24 +193,9 @@ public:
       return std::string(rLibsUser_.c_str());
    }
 
-   std::string rCRANUrl() const
+   std::string rCRANRepos() const
    {
-      return std::string(rCRANUrl_.c_str());
-   }
-
-   std::string rCRANMultipleRepos() const
-   {
-      return rCRANMultipleRepos_;
-   }
-
-   std::string rCRANReposUrl() const
-   {
-      return std::string(rCRANReposUrl_.c_str());
-   }
-
-   std::string rCRANReposFile() const
-   {
-      return std::string(rCRANReposFile_.c_str());
+      return std::string(rCRANRepos_.c_str());
    }
 
    int rCompatibleGraphicsEngineVersion() const
@@ -230,16 +216,6 @@ public:
    std::string rDocDirOverride()
    {
       return std::string(rDocDirOverride_.c_str());
-   }
-
-   int rRestoreWorkspace()
-   {
-      return rRestoreWorkspace_;
-   }
-
-   int rRunRprofile()
-   {
-      return rRunRprofile_;
    }
    
    std::string defaultRVersion()
@@ -348,11 +324,6 @@ public:
       return allowOverlay() || allowShell_;
    }
 
-   std::string terminalPort() const
-   {
-      return terminalPort_;
-   }
-
    bool allowTerminalWebsockets() const
    {
       return allowOverlay() || allowTerminalWebsockets_;
@@ -398,21 +369,14 @@ public:
       return allowOverlay() || allowPublish_;
    }
 
-   bool supportsDriversLicensing() const;
+   bool supportsDriversLicensing() const
+   {
+      return !allowOverlay();
+   }
 
    bool allowPresentationCommands() const
    {
       return allowPresentationCommands_;
-   }
-
-   bool allowFullUI() const
-   {
-      return allowOverlay() || allowFullUI_;
-   }
-
-   bool allowLauncherJobs() const
-   {
-      return allowOverlay() || allowLauncherJobs_;
    }
 
    // user info
@@ -469,7 +433,7 @@ public:
 
    core::FilePath userLogPath() const
    {
-      return userScratchPath().completeChildPath("log");
+      return userScratchPath().childPath("log");
    }
 
    core::FilePath initialWorkingDirOverride()
@@ -539,31 +503,6 @@ public:
       return defaultRSConnectServer_;
    }
 
-   int webSocketPingInterval() const
-   {
-      return webSocketPingSeconds_;
-   }
-
-   int webSocketConnectTimeout() const
-   {
-      return webSocketConnectTimeout_;
-   }
-   
-   int webSocketLogLevel() const
-   {
-      return webSocketLogLevel_;
-   }
-   
-   int webSocketHandshakeTimeoutMs() const
-   {
-      return webSocketHandshakeTimeoutMs_;
-
-   }
-   bool packageOutputInPackageFolder() const
-   {
-      return packageOutputToPackageFolder_;   
-   }
-
    std::string getOverlayOption(const std::string& name)
    {
       return overlayOptions_[name];
@@ -580,63 +519,6 @@ public:
    {
       return firstProjectTemplatePath_;
    }
-
-   const std::string& signingKey() const
-   {
-      return signingKey_;
-   }
-
-   bool verifySignatures() const
-   {
-      return verifySignatures_;
-   }
-
-   std::string sessionRsaPublicKey() const
-   {
-      return sessionRsaPublicKey_;
-   }
-
-   std::string sessionRsaPrivateKey() const
-   {
-      return sessionRsaPrivateKey_;
-   }
-
-   bool useSecureCookies() const
-   {
-      return useSecureCookies_;
-   }
-
-   bool iFrameEmbedding() const
-   {
-      return iFrameEmbedding_;
-   }
-
-   bool legacyCookies() const
-   {
-      return legacyCookies_;
-   }
-
-   bool iFrameLegacyCookies() const
-   {
-      return iFrameEmbedding_ && legacyCookies_;
-   }
-
-   bool restrictDirectoryView() const
-   {
-      return restrictDirectoryView_;
-   }
-   
-   std::string directoryViewWhitelist() const
-   {
-      return directoryViewWhitelist_;
-   }
-
-   std::string envVarSaveBlacklist() const
-   {
-      return envVarSaveBlacklist_;
-   }
-
-   static std::string parseReposConfig(core::FilePath reposFile);
 
 private:
    void resolvePath(const core::FilePath& resourcePath,
@@ -655,7 +537,6 @@ private:
 private:
    // tests
    bool runTests_;
-   std::string runScript_;
    
    // verify
    bool verifyInstallation_;
@@ -667,6 +548,9 @@ private:
 
    // log
    bool logStderr_;
+
+   // agreement
+   std::string agreementFilePath_;
 
    // docs
    std::string docsURL_;
@@ -681,7 +565,6 @@ private:
    std::string secret_;
    std::string preflightScript_;
    int timeoutMinutes_;
-   bool timeoutSuspend_;
    int disconnectedTimeoutMinutes_;
    bool createProfile_;
    bool createPublicFolder_;
@@ -698,20 +581,6 @@ private:
    bool defaultCliColorForce_;
    bool quitChildProcessesOnExit_;
    std::string firstProjectTemplatePath_;
-   std::string signingKey_;
-   bool verifySignatures_;
-   int webSocketPingSeconds_;
-   int webSocketConnectTimeout_;
-   int webSocketLogLevel_;
-   int webSocketHandshakeTimeoutMs_;
-   bool packageOutputToPackageFolder_;
-   std::string terminalPort_;
-   bool useSecureCookies_;
-   bool iFrameEmbedding_;
-   bool legacyCookies_;
-   bool restrictDirectoryView_;
-   std::string directoryViewWhitelist_;
-   std::string envVarSaveBlacklist_;
 
    // r
    std::string coreRSourcePath_;
@@ -719,10 +588,7 @@ private:
    std::string sessionLibraryPath_;
    std::string sessionPackageArchivesPath_;
    std::string rLibsUser_;
-   std::string rCRANUrl_;
-   std::string rCRANMultipleRepos_;
-   std::string rCRANReposUrl_;
-   std::string rCRANReposFile_;
+   std::string rCRANRepos_;
    bool autoReloadSource_ ;
    int rCompatibleGraphicsEngineVersion_;
    std::string rResourcesPath_;
@@ -730,8 +596,6 @@ private:
    std::string rDocDirOverride_;
    std::string defaultRVersion_;
    std::string defaultRVersionHome_;
-   int rRestoreWorkspace_;
-   int rRunRprofile_;
    
    // limits
    int limitFileUploadSizeMb_;
@@ -773,8 +637,6 @@ private:
    bool allowExternalPublish_;
    bool allowPublish_;
    bool allowPresentationCommands_;
-   bool allowFullUI_;
-   bool allowLauncherJobs_;
 
    // user info
    bool showUserIdentity_;
@@ -800,10 +662,6 @@ private:
 
    // connect
    std::string defaultRSConnectServer_;
-
-   // in-session generated RSA keys
-   std::string sessionRsaPublicKey_;
-   std::string sessionRsaPrivateKey_;
 
    // overlay options
    std::map<std::string,std::string> overlayOptions_;

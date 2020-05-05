@@ -1,7 +1,7 @@
 /*
  * DesktopTextInput.java
  *
- * Copyright (C) 2009-18 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -27,46 +27,44 @@ public class DesktopTextInput implements TextInput
    public void promptForText(String title,
                              String label,
                              String initialValue,
-                             int type,
+                             boolean usePasswordMask,
+                             boolean numbersOnly,
                              int selectionStart,
                              int selectionLength,
                              String okButtonCaption,
                              ProgressOperationWithInput<String> okOperation,
                              Operation cancelOperation)
    {
-      Desktop.getFrame().promptForText(
-            StringUtil.notNull(title),
-            StringUtil.notNull(label),
-            StringUtil.notNull(initialValue),
-            type,
-            "", // extraOptionPrompt
-            false, // rememberByDefault
-            selectionStart,
-            selectionLength,
-            StringUtil.notNull(okButtonCaption),
-            result ->
-            {
-               if (StringUtil.isNullOrEmpty(result))
-               {
-                  if (cancelOperation != null)
-                     cancelOperation.execute();
-               }
-               else
-               {
-                  String[] lines = result.split("\\n");
-                  okOperation.execute(lines[0],
-                        RStudioGinjector.INSTANCE
-                        .getGlobalDisplay()
-                        .getProgressIndicator("Error"));
-               }
-            });
+      String result = Desktop.getFrame().promptForText(title,
+                                                       label,
+                                                       initialValue,
+                                                       usePasswordMask,
+                                                       "",
+                                                       false,
+                                                       numbersOnly,
+                                                       selectionStart,
+                                                       selectionLength,
+                                                       okButtonCaption);
+      if (StringUtil.isNullOrEmpty(result))
+      {
+         if (cancelOperation != null)
+            cancelOperation.execute();
+      }
+      else
+      {
+         String[] lines = result.split("\\n");
+         okOperation.execute(lines[0],
+                             RStudioGinjector.INSTANCE
+                                   .getGlobalDisplay()
+                                   .getProgressIndicator("Error"));
+      }
    }
 
    @Override
    public void promptForTextWithOption(String title,
                                  String label,
                                  String initialValue,
-                                 int type,
+                                 boolean usePasswordMask,
                                  String extraOptionPrompt,
                                  boolean extraOptionDefault,
                                  int selectionStart,
@@ -75,34 +73,31 @@ public class DesktopTextInput implements TextInput
                                  ProgressOperationWithInput<PromptWithOptionResult> okOperation,
                                  Operation cancelOperation)
    {
-      Desktop.getFrame().promptForText(
-            StringUtil.notNull(title),
-            StringUtil.notNull(label),
-            StringUtil.notNull(initialValue),
-            type,
-            StringUtil.notNull(extraOptionPrompt),
-            extraOptionDefault,
-            selectionStart,
-            selectionLength,
-            StringUtil.notNull(okButtonCaption),
-            result ->
-            {
-               if (StringUtil.isNullOrEmpty(result))
-               {
-                  if (cancelOperation != null)
-                     cancelOperation.execute();
-               }
-               else
-               {
-                  PromptWithOptionResult presult = new PromptWithOptionResult();
-                  String[] lines = result.split("\\n");
-                  presult.input = lines[0];
-                  presult.extraOption = "1".equals(lines[1]);
-                  okOperation.execute(presult,
-                        RStudioGinjector.INSTANCE
-                        .getGlobalDisplay()
-                        .getProgressIndicator("Error"));
-               }
-            });
+      String result = Desktop.getFrame().promptForText(title,
+                                                       label,
+                                                       initialValue,
+                                                       usePasswordMask,
+                                                       extraOptionPrompt,
+                                                       extraOptionDefault,
+                                                       false,
+                                                       selectionStart,
+                                                       selectionLength,
+                                                       okButtonCaption);
+      if (StringUtil.isNullOrEmpty(result))
+      {
+         if (cancelOperation != null)
+            cancelOperation.execute();
+      }
+      else
+      {
+         PromptWithOptionResult presult = new PromptWithOptionResult();
+         String[] lines = result.split("\\n");
+         presult.input = lines[0];
+         presult.extraOption = "1".equals(lines[1]);
+         okOperation.execute(presult,
+                             RStudioGinjector.INSTANCE
+                                   .getGlobalDisplay()
+                                   .getProgressIndicator("Error"));
+      }
    }
 }

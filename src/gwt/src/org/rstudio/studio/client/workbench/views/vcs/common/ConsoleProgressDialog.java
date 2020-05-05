@@ -1,7 +1,7 @@
 /*
  * ConsoleProgressDialog.java
  *
- * Copyright (C) 2009-20 by RStudio, PBC
+ * Copyright (C) 2009-17 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -14,7 +14,6 @@
  */
 package org.rstudio.studio.client.workbench.views.vcs.common;
 
-import com.google.gwt.aria.client.Roles;
 import com.google.gwt.dom.client.Style;
 import com.google.gwt.dom.client.Style.Unit;
 import com.google.gwt.event.dom.client.ClickEvent;
@@ -26,10 +25,6 @@ import com.google.gwt.user.client.ui.*;
 import org.rstudio.core.client.CommandWithArg;
 import org.rstudio.core.client.StringUtil;
 import org.rstudio.core.client.widget.*;
-import org.rstudio.studio.client.RStudioGinjector;
-import org.rstudio.studio.client.application.AriaLiveService;
-import org.rstudio.studio.client.application.events.AriaLiveStatusEvent.Severity;
-import org.rstudio.studio.client.application.events.AriaLiveStatusEvent.Timing;
 import org.rstudio.studio.client.common.SimpleRequestCallback;
 import org.rstudio.studio.client.common.console.ConsoleOutputEvent;
 import org.rstudio.studio.client.common.console.ConsolePromptEvent;
@@ -74,16 +69,13 @@ public class ConsoleProgressDialog extends ProgressDialog
                                 Integer exitCode,
                                 CryptoServerOperations server)
    {
-      super(title, Roles.getDialogRole());
+      super(title);
       
       if (consoleProcess == null && exitCode == null)
       {
          throw new IllegalArgumentException(
                "Invalid combination of arguments to ConsoleProgressDialog");
       }
-
-      // save console process so that we can compute interaction mode below
-      consoleProcess_ = consoleProcess;
       
       if (getInteractionMode() != ConsoleProcessInfo.INTERACTION_NEVER)
       {
@@ -203,14 +195,7 @@ public class ConsoleProgressDialog extends ProgressDialog
          return false;
       }
    }
-
-   @Override
-   protected void announceCompletion(String message)
-   {
-      RStudioGinjector.INSTANCE.getAriaLiveService().announce(
-            AriaLiveService.PROGRESS_COMPLETION, message, Timing.IMMEDIATE, Severity.STATUS);
-   }
-
+   
    public void writeOutput(String output)
    {
       maybeShowOnOutput(output);

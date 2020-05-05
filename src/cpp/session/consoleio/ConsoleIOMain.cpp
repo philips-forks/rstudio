@@ -1,7 +1,7 @@
 /*
  * ConsoleIOMain.cpp
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -15,7 +15,6 @@
 #include <iostream>
 #include <string>
 #include <vector>
-#include <gsl/gsl>
 
 #include <stdio.h>
 #include <windows.h>
@@ -24,7 +23,7 @@
 
 #define BOOST_THREAD_USE_LIB
 #include <core/BoostThread.hpp>
-#include <shared_core/Error.hpp>
+#include <core/Error.hpp>
 
 using namespace rstudio;
 using namespace rstudio::core;
@@ -222,7 +221,7 @@ BOOL capture_console_output(HANDLE hConsoleOut, std::string* pOutput)
 BOOL write_to_handle(const std::string& output, HANDLE hOutput)
 {
    const CHAR* pData = output.c_str();
-   DWORD bytesToWrite = gsl::narrow_cast<DWORD>(output.size());
+   DWORD bytesToWrite = output.size();
    while (bytesToWrite > 0)
    {
       DWORD bytesWritten;
@@ -230,7 +229,7 @@ BOOL write_to_handle(const std::string& output, HANDLE hOutput)
                        pData,
                        bytesToWrite,
                        &bytesWritten,
-                       nullptr))
+                       NULL))
       {
          return false;
       }
@@ -291,7 +290,7 @@ void transferStdInToConsole(HANDLE hConIn)
 
    while (true)
    {
-      if (!::ReadFile(hStdIn, &(buf[0]), gsl::narrow_cast<DWORD>(buf.size()), &bytesRead, nullptr))
+      if (!::ReadFile(hStdIn, &(buf[0]), buf.size(), &bytesRead, NULL))
          break;
 
       send_console_input(hConIn, buf.begin(), buf.begin() + bytesRead);
@@ -360,7 +359,7 @@ int main(int argc, char** argv)
                                 &sa,
                                 OPEN_EXISTING,
                                 0,
-                                nullptr);
+                                NULL);
    if (hConIn == INVALID_HANDLE_VALUE)
    {
       print_error("CreateFile");
@@ -373,7 +372,7 @@ int main(int argc, char** argv)
                                  &sa,
                                  OPEN_EXISTING,
                                  0,
-                                 nullptr);
+                                 NULL);
    if (hConOut == INVALID_HANDLE_VALUE)
    {
       print_error("CreateFile");
@@ -411,14 +410,14 @@ int main(int argc, char** argv)
 
    PROCESS_INFORMATION pi = {0};
 
-   if (!::CreateProcess(nullptr,
+   if (!::CreateProcess(NULL,
                         &(cmdBuf[0]),
-                        nullptr,
-                        nullptr,
+                        NULL,
+                        NULL,
                         TRUE,
                         0,
-                        nullptr,
-                        nullptr,
+                        NULL,
+                        NULL,
                         &si,
                         &pi))
    {
@@ -426,7 +425,7 @@ int main(int argc, char** argv)
       return 1;
    }
 
-   hReadyForExitEvent = ::CreateEvent(nullptr, true, true, nullptr);
+   hReadyForExitEvent = ::CreateEvent(NULL, true, true, NULL);
    if (hReadyForExitEvent == INVALID_HANDLE_VALUE)
    {
       print_error("CreateEvent");

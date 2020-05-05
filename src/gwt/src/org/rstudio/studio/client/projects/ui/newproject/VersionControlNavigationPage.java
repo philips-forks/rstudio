@@ -1,7 +1,7 @@
 /*
  * VersionControlNavigationPage.java
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -21,27 +21,34 @@ import org.rstudio.core.client.widget.WizardNavigationPage;
 import org.rstudio.core.client.widget.WizardPage;
 import org.rstudio.studio.client.projects.model.NewProjectInput;
 import org.rstudio.studio.client.projects.model.NewProjectResult;
+import org.rstudio.studio.client.workbench.model.SessionInfo;
 
 public class VersionControlNavigationPage 
             extends WizardNavigationPage<NewProjectInput,NewProjectResult>
 {
-   public VersionControlNavigationPage()
+
+   public VersionControlNavigationPage(SessionInfo sessionInfo)
    {
       super("Version Control", 
             "Checkout a project from a version control repository",
             "Create Project from Version Control",
             new ImageResource2x(NewProjectResources.INSTANCE.projectFromRepositoryIcon2x()),
             new ImageResource2x(NewProjectResources.INSTANCE.projectFromRepositoryIconLarge2x()),
-            createPages());
+            createPages(sessionInfo));
    }
 
-   private static ArrayList<WizardPage<NewProjectInput, NewProjectResult>> createPages()
+  
+   private static ArrayList<WizardPage<NewProjectInput, NewProjectResult>>
+                                         createPages(SessionInfo sessionInfo)
    {   
-      ArrayList<WizardPage<NewProjectInput, NewProjectResult>> pages = new  ArrayList<>();
+      ArrayList<WizardPage<NewProjectInput, NewProjectResult>> pages = 
+            new  ArrayList<WizardPage<NewProjectInput, NewProjectResult>>();
       
       pages.add(new GitPage());
       pages.add(new SvnPage());
       
       return pages;
    }
+   
+
 }

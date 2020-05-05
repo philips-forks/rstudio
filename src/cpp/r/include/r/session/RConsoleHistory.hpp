@@ -1,7 +1,7 @@
 /*
  * RConsoleHistory.hpp
  *
- * Copyright (C) 2009-18 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -20,9 +20,9 @@
 
 #include <boost/utility.hpp>
 #include <boost/circular_buffer.hpp>
+#include <boost/signal.hpp>
 
-#include <core/BoostSignals.hpp>
-#include <shared_core/json/Json.hpp>
+#include <core/json/Json.hpp>
 
 namespace rstudio {
 namespace core {
@@ -44,7 +44,7 @@ class ConsoleHistory : boost::noncopyable
 public:
    typedef boost::circular_buffer<std::string>::value_type value_type;
    typedef boost::circular_buffer<std::string>::const_iterator const_iterator;
-   typedef RSTUDIO_BOOST_SIGNAL<void (const std::string&)> AddSignal;
+   typedef boost::signal<void (const std::string&)> AddSignal;
 
 private:
    ConsoleHistory();
@@ -58,7 +58,7 @@ public:
 
    int capacity() const
    {
-      return static_cast<int>(historyBuffer_.capacity());
+      return historyBuffer_.capacity();
    }
 
    void setRemoveDuplicates(bool removeDuplicates);
@@ -70,7 +70,7 @@ public:
    
    int size() const
    {
-      return static_cast<int>(historyBuffer_.size());
+      return historyBuffer_.size();
    }
 
    void clear();
@@ -86,7 +86,8 @@ public:
    core::Error loadFromFile(const core::FilePath& filePath, bool verifyFile);
    core::Error saveToFile(const core::FilePath& filePath) const;
    
-   RSTUDIO_BOOST_CONNECTION connectOnAdd(const AddSignal::slot_function_type& slot)
+   boost::signals::connection connectOnAdd(
+                                 const AddSignal::slot_function_type& slot)
    {
       return onAdd_.connect(slot);
    }

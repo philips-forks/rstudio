@@ -2,7 +2,7 @@
  * 
  * DocTabLayoutPanel.java
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-15 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -38,11 +38,8 @@ import org.rstudio.core.client.resources.ImageResource2x;
 import org.rstudio.core.client.theme.res.ThemeResources;
 import org.rstudio.core.client.theme.res.ThemeStyles;
 import org.rstudio.studio.client.RStudioGinjector;
-import org.rstudio.studio.client.application.Desktop;
 import org.rstudio.studio.client.application.events.EventBus;
-import org.rstudio.studio.client.common.filetypes.FileIcon;
 import org.rstudio.studio.client.common.satellite.Satellite;
-import org.rstudio.studio.client.workbench.commands.Commands;
 import org.rstudio.studio.client.workbench.views.source.SourceWindowManager;
 import org.rstudio.studio.client.workbench.views.source.events.DocTabDragInitiatedEvent;
 import org.rstudio.studio.client.workbench.views.source.events.DocTabDragStartedEvent;
@@ -67,6 +64,7 @@ import com.google.gwt.dom.client.Style.Unit;
 import com.google.gwt.event.dom.client.DragStartEvent;
 import com.google.gwt.event.dom.client.DragStartHandler;
 import com.google.gwt.event.shared.HandlerRegistration;
+import com.google.gwt.resources.client.ImageResource;
 import com.google.gwt.user.client.Command;
 import com.google.gwt.user.client.DOM;
 import com.google.gwt.user.client.Event;
@@ -105,7 +103,7 @@ public class DocTabLayoutPanel
                             int padding,
                             int rightMargin)
    {
-      super(BAR_HEIGHT, Style.Unit.PX, "Documents");
+      super(BAR_HEIGHT, Style.Unit.PX);
       closeableTabs_ = closeableTabs;
       padding_ = padding;
       rightMargin_ = rightMargin;
@@ -114,11 +112,10 @@ public class DocTabLayoutPanel
       addStyleName(styles_.moduleTabPanel());
       dragManager_ = new DragManager();
       
-      // listen for global drag events (these are broadcast from other windows
+      // listen for global drag events (these are broadcasted from other windows
       // to notify us of incoming drags)
       events_ = RStudioGinjector.INSTANCE.getEventBus();
       events_.addHandler(DocTabDragStartedEvent.TYPE, dragManager_);
-      commands_ = RStudioGinjector.INSTANCE.getCommands();
 
       // sink drag-related events on the tab bar element; unfortunately
       // GWT does not provide bits for the drag-related events, and 
@@ -152,7 +149,7 @@ public class DocTabLayoutPanel
    }
    
    public void add(final Widget child,
-                   FileIcon icon,
+                   ImageResource icon,
                    String docId,
                    final String text,
                    String tooltip,
@@ -237,17 +234,8 @@ public class DocTabLayoutPanel
    @Override
    public void selectTab(int index)
    {
-      // select the tab, but don't fire events (we need to fire our own)
-      super.selectTab(index, false);
-      
-      // determine whether focus is currently inside the container
-      boolean focused = DomUtils.contains(getElement(), DomUtils.getActiveElement());
-     
-      // fire our own selection event
-      fireEvent(new DocTabSelectionEvent(index, focused));
-      
-      // ensure the newly selected tab is visible
-      ensureSelectedTabIsVisible(!RStudioGinjector.INSTANCE.getUserPrefs().reducedMotion().getValue());
+      super.selectTab(index);
+      ensureSelectedTabIsVisible(true);
    }
 
    public void ensureSelectedTabIsVisible(boolean animate)
@@ -372,7 +360,7 @@ public class DocTabLayoutPanel
          return false;
 
       fireEvent(new TabClosedEvent(index));
-      ensureSelectedTabIsVisible(!RStudioGinjector.INSTANCE.getUserPrefs().reducedMotion().getValue());
+      ensureSelectedTabIsVisible(true);
       return true;
    }
 
@@ -453,7 +441,7 @@ public class DocTabLayoutPanel
 
             // cache the drop point for 250ms (see comments in event handler for
             // dragenter)
-            dropPoint_ = Point.create(event.getClientX(), event.getClientY());
+            dropPoint_ = new Point(event.getClientX(), event.getClientY());
             Scheduler.get().scheduleFixedDelay(new Scheduler.RepeatingCommand()
             {
                @Override
@@ -515,12 +503,13 @@ public class DocTabLayoutPanel
             JsObject evt = event.cast();
             double delta = evt.getDouble(event.getType() == "wheel" ?
                   "deltaY" : "wheelDeltaY");
-
-            // translate wheel scroll into tab selection
-            if (delta > 0)
-               commands_.nextTab().execute();
-            else if (delta < 0)
-               commands_.previousTab().execute();
+            
+            // translate wheel scroll into tab selection; don't wrap
+            int idx = getSelectedIndex();
+            if (delta > 0 && idx < (getWidgetCount() - 1))
+               selectTab(idx + 1);
+            else if (delta < 0 && idx > 0)
+               selectTab(idx - 1);
          }
       }
 
@@ -785,7 +774,8 @@ public class DocTabLayoutPanel
 
             // skip the element we're dragging and elements that are not tabs
             Element ele = (Element)node;
-            if (ele == dragElement_ || !ele.getClassName().contains("gwt-TabLayoutPanelTab"))
+            if (ele == dragElement_ || 
+                ele.getClassName().indexOf("gwt-TabLayoutPanelTab") < 0)
             {
                continue;
             }
@@ -933,70 +923,42 @@ public class DocTabLayoutPanel
                   initDragParams_, null, destPos_));
          }
          
-         if (Desktop.hasDesktopFrame())
+         // this is the case when our own drag ends; if it ended outside our
+         // window and outside all satellites, treat it as a tab tear-off
+         if (dragElement_ != null && evt != null && action == ACTION_CANCEL)
          {
-            // on desktop, we call back to discover whether the cursor is
-            // currently outside of any RStudio window; in such a case we
-            // perform a pop-out.
-            if (dragElement_ != null &&
-                  evt != null &&
-                  StringUtil.equals(evt.getType(), "dragend"))
+            // if this is the last tab in satellite, we don't want to tear
+            // it out
+            boolean isLastSatelliteTab = getWidgetCount() == 1 && 
+                  Satellite.isCurrentWindowSatellite();
+
+            // did the user drag the tab outside this doc?
+            if (!isLastSatelliteTab &&
+                DomUtils.elementFromPoint(evt.getClientX(), 
+                  evt.getClientY()) == null)
             {
-               Desktop.getFrame().doesWindowExistAtCursorPosition((Boolean hasWindow) ->
+               // did it end in any RStudio satellite window?
+               String targetWindowName;
+               Satellite satellite = RStudioGinjector.INSTANCE.getSatellite();
+               if (Satellite.isCurrentWindowSatellite())
                {
-                  if (hasWindow)
-                     return;
-
-                  Desktop.getFrame().getCursorPosition((Point cursorPosition) ->
-                  {
-                     events_.fireEvent(
-                           new PopoutDocInitiatedEvent(
-                                 initDragParams_.getDocId(),
-                                 cursorPosition));
-                  });
-               });
-            }
-         }
-         else
-         {
-
-            // this is the case when our own drag ends; if it ended outside our
-            // window and outside all satellites, treat it as a tab tear-off
-            if (dragElement_ != null && evt != null && action == ACTION_CANCEL)
-            {
-               // if this is the last tab in satellite, we don't want to tear
-               // it out
-               boolean isLastSatelliteTab = getWidgetCount() == 1 && 
-                     Satellite.isCurrentWindowSatellite();
-
-               // did the user drag the tab outside this doc?
-               if (!isLastSatelliteTab &&
-                     DomUtils.elementFromPoint(evt.getClientX(), 
-                           evt.getClientY()) == null)
+                  // this is a satellite, ask the main window 
+                  targetWindowName = satellite.getWindowAtPoint(
+                        evt.getScreenX(), evt.getScreenY());
+               }
+               else
                {
-                  // did it end in any RStudio satellite window?
-                  String targetWindowName;
-                  Satellite satellite = RStudioGinjector.INSTANCE.getSatellite();
-                  if (Satellite.isCurrentWindowSatellite())
-                  {
-                     // this is a satellite, ask the main window 
-                     targetWindowName = satellite.getWindowAtPoint(
-                           evt.getScreenX(), evt.getScreenY());
-                  }
-                  else
-                  {
-                     // this is the main window, query our own satellites
-                     targetWindowName = 
-                           RStudioGinjector.INSTANCE.getSatelliteManager()
-                           .getWindowAtPoint(evt.getScreenX(), evt.getScreenY());
-                  }
-                  if (targetWindowName == null)
-                  {
-                     // it was dragged over nothing RStudio owns--pop it out
-                     events_.fireEvent(new PopoutDocInitiatedEvent(
-                           initDragParams_.getDocId(), Point.create(
-                                 evt.getScreenX(), evt.getScreenY())));
-                  }
+                  // this is the main window, query our own satellites
+                  targetWindowName = 
+                     RStudioGinjector.INSTANCE.getSatelliteManager()
+                         .getWindowAtPoint(evt.getScreenX(), evt.getScreenY());
+               }
+               if (targetWindowName == null)
+               {
+                  // it was dragged over nothing RStudio owns--pop it out
+                  events_.fireEvent(new PopoutDocInitiatedEvent(
+                        initDragParams_.getDocId(), new Point(
+                              evt.getScreenX(), evt.getScreenY())));
                }
             }
          }
@@ -1047,7 +1009,7 @@ public class DocTabLayoutPanel
 
    private class DocTab extends Composite
    {
-      private DocTab(FileIcon icon,
+      private DocTab(ImageResource icon,
                      String docId,
                      String title,
                      String tooltip,
@@ -1094,7 +1056,7 @@ public class DocTabLayoutPanel
 
          contentPanel_ = new HorizontalPanel();
          contentPanel_.setTitle(tooltip);
-         contentPanel_.setStylePrimaryName(styles_.rstheme_tabLayoutCenter());
+         contentPanel_.setStylePrimaryName(styles_.tabLayoutCenter());
          contentPanel_.setVerticalAlignment(HasVerticalAlignment.ALIGN_MIDDLE);
 
          if (icon != null) {
@@ -1115,7 +1077,6 @@ public class DocTabLayoutPanel
          Image img = new Image(new ImageResource2x(ThemeResources.INSTANCE.closeTab2x()));
          img.setStylePrimaryName(styles_.closeTabButton());
          img.addStyleName(ThemeStyles.INSTANCE.handCursor());
-         img.setAltText("Close document tab");
          contentPanel_.add(img);
 
          layoutPanel.add(contentPanel_);
@@ -1126,7 +1087,7 @@ public class DocTabLayoutPanel
 
          initWidget(layoutPanel);
 
-         sinkEvents(Event.ONMOUSEDOWN | Event.ONMOUSEUP);
+         this.sinkEvents(Event.ONCLICK);
          closeHandler_ = closeHandler;
          closeElement_ = img.getElement();
       }
@@ -1148,7 +1109,7 @@ public class DocTabLayoutPanel
          contentPanel_.setTitle(tooltip);
       }
 
-      public void replaceIcon(FileIcon icon)
+      public void replaceIcon(ImageResource icon)
       {
          if (contentPanel_.getWidget(0) instanceof Image)
             contentPanel_.remove(0);
@@ -1160,48 +1121,39 @@ public class DocTabLayoutPanel
          return docId_;
       }
       
-      private Image imageForIcon(FileIcon icon)
+      private Image imageForIcon(ImageResource icon)
       {
-         Image image = new Image(icon.getImageResource());
+         Image image = new Image(icon);
          image.setStylePrimaryName(styles_.docTabIcon());
-         image.setAltText(icon.getDescription());
          return image;
       }
 
       @Override
       public void onBrowserEvent(Event event) 
       {  
-         switch (DOM.eventGetType(event))
+         switch(DOM.eventGetType(event))
          {
-         
-         case Event.ONMOUSEDOWN:
-            clickTarget_ = Element.as(event.getEventTarget());
-            break;
-
-         case Event.ONMOUSEUP:
-            if (Element.as(event.getEventTarget()) != clickTarget_)
-               break;
-            
-            boolean isCloseRequest =
-                  event.getButton() == Event.BUTTON_MIDDLE ||
-                  (event.getButton() == Event.BUTTON_LEFT && clickTarget_ == closeElement_);
-
-            if (isCloseRequest)
+            case Event.ONCLICK:
             {
-               event.stopPropagation();
-               event.preventDefault();
-               closeHandler_.onTabClose();
+               // tabs can be closed by (a) middle mouse (anywhere), or (b)
+               // left click on close element
+               if (event.getButton() == Event.BUTTON_MIDDLE || 
+                   (Element.as(event.getEventTarget()) == closeElement_ &&
+                    event.getButton() == Event.BUTTON_LEFT))
+               {
+                  closeHandler_.onTabClose();
+                  event.stopPropagation();
+                  event.preventDefault();
+               }
+               break;   
             }
-            break;
-            
          }
-         
          super.onBrowserEvent(event);
       }
+
       
-      private final TabCloseObserver closeHandler_;
-      private final Element closeElement_;
-      private Element clickTarget_;
+      private TabCloseObserver closeHandler_;
+      private Element closeElement_;
       private final Label label_;
       private final String docId_;
 
@@ -1209,7 +1161,7 @@ public class DocTabLayoutPanel
    }
 
    public void replaceDocName(int index,
-                              FileIcon icon,
+                              ImageResource icon,
                               String title,
                               String tooltip)
    {
@@ -1298,7 +1250,7 @@ public class DocTabLayoutPanel
    {
       // IE only supports textual data; for other browsers, though, use our own
       // format so it doesn't activate text drag targets in other apps
-      if (BrowseCap.isInternetExplorer()) 
+      if (BrowseCap.INSTANCE.isInternetExplorer()) 
          return "text";
       else
          return "application/rstudio-tab";
@@ -1308,11 +1260,10 @@ public class DocTabLayoutPanel
 
    private final boolean closeableTabs_;
    private final EventBus events_;
-   private final Commands commands_;
    
-   private final int padding_;
-   private final int rightMargin_;
+   private int padding_;
+   private int rightMargin_;
    private final ThemeStyles styles_;
    private Animation currentAnimation_;
-   private final DragManager dragManager_;
+   private DragManager dragManager_;
 }

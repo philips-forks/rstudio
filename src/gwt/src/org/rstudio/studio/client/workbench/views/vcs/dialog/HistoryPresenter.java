@@ -1,7 +1,7 @@
 /*
  * HistoryPresenter.java
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -279,7 +279,6 @@ public class HistoryPresenter
                         viewFilePanel.getToolbar().addRightWidget(
                                                          new ToolbarButton(
                               "Show History",
-                              ToolbarButton.NoTitle,
                               commands.goToWorkingDir().getImageResource(),
                               new ClickHandler() {
 
@@ -326,7 +325,7 @@ public class HistoryPresenter
 
       if (!noSizeWarning
           && commitInfo != null
-          && commitInfo.getId() == commitShowing_)
+          && commitInfo.getId().equals(commitShowing_))
       {
          return;
       }

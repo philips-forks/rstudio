@@ -1,7 +1,7 @@
 /*
  * SessionHistory.cpp
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -19,7 +19,6 @@
 #include <sstream>
 #include <vector>
 #include <algorithm>
-#include <gsl/gsl>
 
 #include <boost/utility.hpp>
 #include <boost/bind.hpp>
@@ -29,9 +28,9 @@
 #include <boost/algorithm/string/trim.hpp>
 #include <boost/algorithm/string/predicate.hpp>
 
-#include <shared_core/Error.hpp>
+#include <core/Error.hpp>
 #include <core/Exec.hpp>
-#include <shared_core/FilePath.hpp>
+#include <core/FilePath.hpp>
 #include <core/DateTime.hpp>
 
 #include <core/json/JsonRpc.hpp>
@@ -83,7 +82,7 @@ Error setJsonResultFromHistory(int startIndex,
    const std::vector<HistoryEntry>& allEntries = historyArchive().entries();
 
    // validate indexes
-   int historySize = gsl::narrow_cast<int>(allEntries.size());
+   int historySize = allEntries.size();
    if ( (startIndex < 0)               ||
         (startIndex > historySize)     ||
         (endIndex < 0)                 ||
@@ -207,12 +206,12 @@ Error removeHistoryItems(const json::JsonRpcRequest& request,
    // convert to top indexes
    int historySize = r::session::consoleHistory().size();
    std::vector<int> indexes;
-   for (std::size_t i=0; i<bottomIndexesJson.getSize(); i++)
+   for (std::size_t i=0; i<bottomIndexesJson.size(); i++)
    {  
       const json::Value& value = bottomIndexesJson[i];
       if (json::isType<int>(value))
       {
-         int bottomIndex = value.getInt();
+         int bottomIndex = value.get_int();
          int topIndex = historySize - 1 - bottomIndex;
          indexes.push_back(topIndex);
       }
@@ -248,7 +247,7 @@ Error getHistoryArchiveItems(const json::JsonRpcRequest& request,
       return error;
    
    // truncate indexes if necessary
-   int historySize = gsl::narrow_cast<int>(historyArchive().entries().size());
+   int historySize = historyArchive().entries().size();
    startIndex = std::min(startIndex, historySize);
    endIndex = std::min(endIndex, historySize);
    
@@ -428,7 +427,11 @@ Error initialize()
    r::session::consoleHistory().connectOnAdd(onHistoryAdd);
 
    // register timestamp function
-   RS_REGISTER_CALL_METHOD(rs_timestamp);
+   R_CallMethodDef methodDef;
+   methodDef.name = "rs_timestamp" ;
+   methodDef.fun = (DL_FUNC) rs_timestamp;
+   methodDef.numArgs = 1;
+   r::routines::addCallMethod(methodDef);   
 
    // install handlers
    using boost::bind;

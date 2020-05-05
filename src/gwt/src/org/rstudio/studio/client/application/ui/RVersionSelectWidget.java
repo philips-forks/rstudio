@@ -1,7 +1,7 @@
 /*
  * RVersionSelectWidget.java
  *
- * Copyright (C) 2009-20 by RStudio, PBC
+ * Copyright (C) 2009-14 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -17,13 +17,11 @@ package org.rstudio.studio.client.application.ui;
 
 import java.util.ArrayList;
 
-import org.rstudio.core.client.StringUtil;
 import org.rstudio.core.client.widget.HelpButton;
 import org.rstudio.core.client.widget.SelectWidget;
 import org.rstudio.studio.client.application.model.RVersionSpec;
 
 import com.google.gwt.core.client.JsArray;
-import com.google.gwt.core.client.JsArrayString;
 
 public class RVersionSelectWidget extends SelectWidget
 {
@@ -46,7 +44,7 @@ public class RVersionSelectWidget extends SelectWidget
             false,
             fillContainer);
       if (includeHelpButton)
-         HelpButton.addHelpButton(this, "multiple_r_versions", "Help on R versions");
+         HelpButton.addHelpButton(this, "multiple_r_versions");
    }
    
    public void setRVersion(RVersionSpec version)
@@ -80,8 +78,6 @@ public class RVersionSelectWidget extends SelectWidget
          String choice = "R version " + version.getVersion();
          if (disambiguate)
             choice = choice + " (" + version.getRHome() + ")";
-         if (!version.getLabel().isEmpty())
-            choice += " (" + version.getLabel() + ")";
          choices.add(choice);
       }
 
@@ -106,14 +102,13 @@ public class RVersionSelectWidget extends SelectWidget
    {
       if (str != null)
       {
-         JsArrayString values = StringUtil.split(str, SEP);
-         if (values.length() == 3)
+         int loc = str.indexOf(SEP);
+         if (loc != -1)
          {
-            String version = values.get(0);
-            String rHomeDir = values.get(1);
-            String label = values.get(2);
+            String version = str.substring(0, loc);
+            String rHomeDir = str.substring(loc + SEP.length());
             if (version.length() > 0 && rHomeDir.length() > 0)
-               return RVersionSpec.create(version, rHomeDir, label);
+               return RVersionSpec.create(version, rHomeDir);
          }
       }
       
@@ -126,7 +121,7 @@ public class RVersionSelectWidget extends SelectWidget
       if (version.getVersion().length() == 0)
          return "";
       else
-         return version.getVersion() + SEP + version.getRHome() + SEP + version.getLabel();
+         return version.getVersion() + SEP + version.getRHome();
    }
 
    private final static String USE_DEFAULT_VERSION = "(Use System Default)";

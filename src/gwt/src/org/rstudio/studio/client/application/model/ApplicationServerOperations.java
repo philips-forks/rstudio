@@ -1,7 +1,7 @@
 /*
  * ApplicationServerOperations.java
  *
- * Copyright (C) 2009-20 by RStudio, PBC
+ * Copyright (C) 2009-17 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -14,10 +14,10 @@
  */
 package org.rstudio.studio.client.application.model;
 
-import com.google.gwt.core.client.JavaScriptObject;
 import org.rstudio.core.client.files.FileSystemItem;
 import org.rstudio.studio.client.server.ServerRequestCallback;
 import org.rstudio.studio.client.server.Void;
+import org.rstudio.studio.client.workbench.model.Agreement;
 import org.rstudio.studio.client.workbench.model.SessionInfo;
 import org.rstudio.studio.client.workbench.prefs.model.PrefsServerOperations;
 
@@ -26,12 +26,7 @@ import com.google.gwt.core.client.JsArray;
 public interface ApplicationServerOperations extends PrefsServerOperations
 {   
    // establish new session for this client
-   void clientInit(String baseURL, 
-           SessionInitOptions options,
-           ServerRequestCallback<SessionInfo> requestCallback);
-
-   // get current connection status for a session job
-   void getJobConnectionStatus(ServerRequestCallback<String> requestCallback);
+   void clientInit(ServerRequestCallback<SessionInfo> requestCallback);
 
    // interrupt the current session
    void interrupt(ServerRequestCallback<Void> requestCallback);
@@ -39,10 +34,14 @@ public interface ApplicationServerOperations extends PrefsServerOperations
    // abort the current session
    void abort(String nextSessionProject,
               ServerRequestCallback<Void> requestCallback);
-
+     
+   // agree to the application agreement
+   void acceptAgreement(Agreement agreement, 
+                        ServerRequestCallback<Void> requestCallback);
+   
    // suspend the current session
    void suspendSession(boolean force,
-                       ServerRequestCallback<Void> requestCallback);
+                       ServerRequestCallback<Void> requestCallback) ;
 
    // handle unsaved changes completed
    void handleUnsavedChangesCompleted(
@@ -72,20 +71,17 @@ public interface ApplicationServerOperations extends PrefsServerOperations
                           ServerRequestCallback<Void> requestCallback);
    void ping(ServerRequestCallback<Void> requestCallback);
 
-   void checkForUpdates(
+   public void checkForUpdates(
          boolean manual,
          ServerRequestCallback<UpdateCheckResult> requestCallback);
 
-   void getProductInfo(
+   public void getProductInfo(
          ServerRequestCallback<ProductInfo> requestCallback);
-
-   void getProductNotice(ServerRequestCallback<ProductNotice> requestCallback);
-
+   
    void getNewSessionUrl(String hostPageUrl,
          boolean isProject, 
          String directory,
          RVersionSpec rVersion,
-         JavaScriptObject launchSpec, // LaunchSpec object as JavaScriptObject
          ServerRequestCallback<String> callback);
    
    void getActiveSessions(
@@ -105,10 +101,4 @@ public interface ApplicationServerOperations extends PrefsServerOperations
    
    void setSessionLabel(String label,
          ServerRequestCallback<Void> requestCallback);
-   
-   void deleteSessionDir(String sessionId,
-                         ServerRequestCallback<Void> requestCallback);
-   
-   void findProjectInFolder(String folder,
-         ServerRequestCallback<String> requestCallback);
 }

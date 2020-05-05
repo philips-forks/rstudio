@@ -1,7 +1,7 @@
 /*
  * RActiveSessions.hpp
  *
- * Copyright (C) 2009-16 by RStudio, PBC
+ * Copyright (C) 2009-16 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -19,12 +19,12 @@
 
 #include <boost/noncopyable.hpp>
 
-#include <shared_core/Error.hpp>
-#include <shared_core/FilePath.hpp>
+#include <core/Error.hpp>
+#include <core/FilePath.hpp>
 #include <core/Log.hpp>
 #include <core/Settings.hpp>
 #include <core/DateTime.hpp>
-#include <shared_core/SafeConvert.hpp>
+#include <core/SafeConvert.hpp>
 
 #include <core/r_util/RSessionContext.hpp>
 #include <core/r_util/RProjectFile.hpp>
@@ -50,7 +50,7 @@ private:
       if (error)
          LOG_ERROR(error);
 
-      propertiesPath_ = scratchPath_.completeChildPath("properites");
+      propertiesPath_ = scratchPath_.childPath("properites");
       error = propertiesPath_.ensureDirectory();
       if (error)
          LOG_ERROR(error);
@@ -58,7 +58,7 @@ private:
 
 public:
 
-   bool empty() const { return scratchPath_.isEmpty(); }
+   bool empty() const { return scratchPath_.empty(); }
 
    std::string id() const { return id_; }
 
@@ -103,12 +103,7 @@ public:
             return false;
       }
       else
-      {
-         // if empty, we are likely in desktop mode (as we have no specified scratch path)
-         // in this default case, we want initial to be true, since every time the session
-         // is started, we should start in the default working directory
-         return true;
-      }
+         return false;
    }
 
    void setInitial(bool initial)
@@ -215,14 +210,6 @@ public:
          return std::string();
    }
 
-   std::string rVersionLabel()
-   {
-      if (!empty())
-         return readProperty("r-version-label");
-      else
-         return std::string();
-   }
-
    std::string rVersionHome()
    {
       if (!empty())
@@ -232,14 +219,12 @@ public:
    }
 
    void setRVersion(const std::string& rVersion,
-                    const std::string& rVersionHome,
-                    const std::string& rVersionLabel = "")
+                    const std::string& rVersionHome)
    {
       if (!empty())
       {
          writeProperty("r-version", rVersion);
          writeProperty("r-version-home", rVersionHome);
-         writeProperty("r-version-label", rVersionLabel);
       }
    }
 
@@ -258,12 +243,11 @@ public:
    }
 
    void beginSession(const std::string& rVersion,
-                     const std::string& rVersionHome,
-                     const std::string& rVersionLabel = "")
+                     const std::string& rVersionHome)
    {
       setLastUsed();
       setRunning(true);
-      setRVersion(rVersion, rVersionHome, rVersionLabel);
+      setRVersion(rVersion, rVersionHome);
    }
 
    void endSession()
@@ -275,11 +259,11 @@ public:
 
    uintmax_t suspendSize()
    {
-      FilePath suspendPath = scratchPath_.completePath("suspended-session-data");
+      FilePath suspendPath = scratchPath_.complete("suspended-session-data");
       if (!suspendPath.exists())
          return 0;
 
-      return suspendPath.getSizeRecursive();
+      return suspendPath.sizeRecursive();
    }
 
    core::Error destroy()
@@ -318,7 +302,7 @@ public:
         // if we got this far the scope is valid, do one final check for
         // trying to open a shared project if sharing is disabled
         if (!projectSharingEnabled &&
-            r_util::isSharedPath(projectPath.getAbsolutePath(), userHomePath))
+            r_util::isSharedPath(projectPath.absolutePath(), userHomePath))
            return false;
       }
 
@@ -352,7 +336,7 @@ class ActiveSessions : boost::noncopyable
 public:
    explicit ActiveSessions(const FilePath& rootStoragePath)
    {
-      storagePath_ = rootStoragePath.completeChildPath("sessions/active");
+      storagePath_ = rootStoragePath.childPath("sessions/active");
       Error error = storagePath_.ensureDirectory();
       if (error)
          LOG_ERROR(error);
@@ -362,7 +346,7 @@ public:
                       const std::string& working,
                       std::string* pId) const
    {
-      return create(project, working, true, pId);
+      return create(project, working, false, pId);
    }
 
    core::Error create(const std::string& project,

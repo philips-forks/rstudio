@@ -1,7 +1,7 @@
 /*
  * CommitListTable.java
  *
- * Copyright (C) 2009-12 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -121,7 +121,7 @@ public class CommitListTable extends MultiSelectCellTable<CommitInfo>
       @Override
       public SafeHtml render(CommitInfo object)
       {
-         if (lastGraphImg_ != null && object.getGraph() == lastGraph_)
+         if (lastGraphImg_ != null && object.getGraph().equals(lastGraph_))
             return lastGraphImg_;
 
          lastGraph_ = object.getGraph();
@@ -161,7 +161,7 @@ public class CommitListTable extends MultiSelectCellTable<CommitInfo>
                ref = ref.substring("refs/remotes/".length());
                style += " " + styles_.remote();
             }
-            else if (ref == "HEAD")
+            else if (ref.equals("HEAD"))
             {
                style += " " + styles_.head();
             }
@@ -227,7 +227,7 @@ public class CommitListTable extends MultiSelectCellTable<CommitInfo>
          @Override
          public String getValue(CommitInfo object)
          {
-            return object.getId().substring(0, 8);
+            return object.getId();
          }
       };
       addColumn(idCol, idColName);
@@ -286,7 +286,7 @@ public class CommitListTable extends MultiSelectCellTable<CommitInfo>
          {
             if (getVisibleItemCount() > 0
                 && (selectionModel_.getSelectedObject() == null ||
-                    selectionModel_.getSelectedObject().getId() == getVisibleItem(0).getId()))
+                    selectionModel_.getSelectedObject().getId().equals(getVisibleItem(0).getId())))
             {
                selectionModel_.setSelected(getVisibleItem(0), true);
             }

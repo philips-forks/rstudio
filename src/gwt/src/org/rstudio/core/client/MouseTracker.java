@@ -1,7 +1,7 @@
 /*
  * MouseTracker.java
  *
- * Copyright (C) 2009-17 by RStudio, PBC
+ * Copyright (C) 2009-17 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -59,7 +59,7 @@ public class MouseTracker
    private boolean isSafariModifierKeyCausingMouseEvent(NativeEvent event,
                                                         int type)
    {
-      if (!BrowseCap.isSafari())
+      if (!IS_SAFARI)
          return false;
       
       // If the last event was a key event, and we just got a mouse event,
@@ -103,4 +103,7 @@ public class MouseTracker
    
    private int lastEventType_;
    private boolean suppressing_;
+   
+   private static final boolean IS_SAFARI =
+         BrowseCap.isSafari() || BrowseCap.isMacintoshDesktop();
 }

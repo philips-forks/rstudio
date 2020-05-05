@@ -1,7 +1,7 @@
 /*
  * utils.js
  *
- * Copyright (C) 2009-12 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -17,12 +17,18 @@ define("mode/utils", ["require", "exports", "module"], function(require, exports
 
 var Range = require("ace/range").Range;
 var TokenIterator = require("ace/token_iterator").TokenIterator;
-var unicode = require("ace/unicode");
+var Unicode = require("ace/unicode").packages;
 
 (function() {
 
    var that = this;
-   var reWordCharacter = new RegExp("^[" + unicode.wordChars + "._]+", "");
+   var reWordCharacter = new RegExp(
+         "^[" +
+         Unicode.L +
+         Unicode.Mn + Unicode.Mc +
+         Unicode.Nd +
+         Unicode.Pc +
+         "._]+", "");
 
    // Simulate 'new Foo([args])'; ie, construction of an
    // object from an array of arguments

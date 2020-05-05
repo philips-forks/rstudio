@@ -1,7 +1,7 @@
 /*
  * GitPresenter.java
  *
- * Copyright (C) 2009-12 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -248,12 +248,6 @@ public class GitPresenter extends BaseVcsPresenter implements IsWidget
    {
       gitPresenterCore_.onVcsPull();
    }
-   
-   @Override
-   public void onVcsPullRebase()
-   {
-      gitPresenterCore_.onVcsPullRebase();
-   }
 
    @Override
    public void onVcsPush()
@@ -280,7 +274,7 @@ public class GitPresenter extends BaseVcsPresenter implements IsWidget
       ArrayList<StatusAndPath> diffList = new ArrayList<StatusAndPath>();
       for (StatusAndPath item :  gitState_.getStatus())
       {
-         if (item.getRawPath() == file.getPath())
+         if (item.getRawPath().equals(file.getPath()))
          {
             diffList.add(item);
             break;
@@ -308,7 +302,7 @@ public class GitPresenter extends BaseVcsPresenter implements IsWidget
       ArrayList<String> revertList = new ArrayList<String>();
       for (StatusAndPath item :  gitState_.getStatus())
       {
-         if (item.getRawPath() == file.getPath())
+         if (item.getRawPath().equals(file.getPath()))
          {
             revertList.add(item.getPath());
             break;
@@ -379,7 +373,7 @@ public class GitPresenter extends BaseVcsPresenter implements IsWidget
                globalDisplay_.showErrorMessage(
                      "Error", 
                      "Unable to view " + path + " on GitHub.\n\n" +
-                     "Are you sure that this file is on GitHub and is " +
+                     "Are you sure that this file is on GithHub and is " + 
                      "contained in the currently active project?");
             }
             else

@@ -1,7 +1,7 @@
 /*
  * SessionData.cpp
  *
- * Copyright (C) 2009-12 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -60,7 +60,7 @@ private:
    FilePath pathFromModulesSource(std::string sourceFile)
    {
       FilePath modulesPath = session::options().modulesRSourcePath();
-      FilePath srcPath = modulesPath.completePath(sourceFile);
+      FilePath srcPath = modulesPath.complete(sourceFile);
 
       return srcPath;
    }
@@ -68,7 +68,7 @@ private:
    FilePath pathFromSource(std::string sourceFile)
    {
       FilePath sourcesPath = session::options().coreRSourcePath();
-      FilePath srcPath = sourcesPath.completePath(sourceFile);
+      FilePath srcPath = sourcesPath.complete(sourceFile);
 
       return srcPath;
    }
@@ -87,8 +87,8 @@ private:
 
    void start()
    {
-      inputLocation_ = module_context::tempFile("input", "rds").getAbsolutePath();
-      outputLocation_ = module_context::tempFile("output", "rds").getAbsolutePath();
+      inputLocation_ = module_context::tempFile("input", "rds").absolutePath();
+      outputLocation_ = module_context::tempFile("output", "rds").absolutePath();
 
       Error err = saveRDS(request_);
       if (err)
@@ -240,7 +240,6 @@ Error initialize()
       (data::viewer::initialize)
       (bind(sourceModuleRFile, "SessionDataImport.R"))
       (bind(sourceModuleRFile, "SessionDataImportV2.R"))
-      (bind(sourceModuleRFile, "SessionDataPreview.R"))
       (bind(registerAsyncRpcMethod, "preview_data_import_async", getPreviewDataImportAsync))
       (bind(registerRpcMethod, "preview_data_import_async_abort", abortPreviewDataImportAsync));
 

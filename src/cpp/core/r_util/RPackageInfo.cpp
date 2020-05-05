@@ -1,7 +1,7 @@
 /*
  * RPackageInfo.cpp
  *
- * Copyright (C) 2009-18 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -17,10 +17,9 @@
 
 #include <boost/format.hpp>
 
-#include <core/Log.hpp>
-#include <core/text/DcfParser.hpp>
+#include <core/Error.hpp>
 
-#include <shared_core/Error.hpp>
+#include <core/text/DcfParser.hpp>
 
 namespace rstudio {
 namespace core {
@@ -28,13 +27,15 @@ namespace r_util {
 
 namespace {
 
+const char * const kPackageType = "Package";
+
 Error fieldNotFoundError(const FilePath& descFilePath,
                          const std::string& fieldName,
                          const ErrorLocation& location)
 {
    return systemError(
             boost::system::errc::protocol_error,
-            fieldName + " field not found in " + descFilePath.getAbsolutePath(),
+            fieldName + " field not found in " + descFilePath.absolutePath(),
             location);
 }
 
@@ -72,7 +73,7 @@ void readField(const Container& container,
 Error RPackageInfo::read(const FilePath& packageDir)
 {
    // parse DCF file
-   FilePath descFilePath = packageDir.completeChildPath("DESCRIPTION");
+   FilePath descFilePath = packageDir.childPath("DESCRIPTION");
    if (!descFilePath.exists())
       return core::fileNotFoundError(descFilePath, ERROR_LOCATION);
    std::string errMsg;
@@ -111,38 +112,21 @@ std::string RPackageInfo::packageFilename(const std::string& extension) const
 
 bool isPackageDirectory(const FilePath& dir)
 {
-   if (dir.completeChildPath("DESCRIPTION").exists())
-   {
-      RPackageInfo pkgInfo;
-      Error error = pkgInfo.read(dir);
-      if (error)
-         return false;
-
-      return pkgInfo.type() == kPackageType;
-   }
-   else
-   {
-      return false;
-   }
-}
-
-std::string packageNameFromDirectory(const FilePath& dir)
-{
-   if (dir.completeChildPath("DESCRIPTION").exists())
+   if (dir.childPath("DESCRIPTION").exists())
    {
       RPackageInfo pkgInfo;
       Error error = pkgInfo.read(dir);
       if (error)
       {
          LOG_ERROR(error);
-         return "";
+         return false;
       }
 
-      return pkgInfo.name(); 
+      return pkgInfo.type() == kPackageType;
    }
    else
    {
-      return "";
+      return false;
    }
 }
 

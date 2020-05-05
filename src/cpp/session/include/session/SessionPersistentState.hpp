@@ -1,7 +1,7 @@
 /*
  * SessionPersistentState.hpp
  *
- * Copyright (C) 2009-18 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -43,10 +43,6 @@ public:
    // active-client-id
    std::string activeClientId();
    std::string newActiveClientId();
-
-   // browser-facing url of active client
-   std::string activeClientUrl() const;
-   void setActiveClientUrl(const std::string& url);
    
    // abend
    bool hadAbend();
@@ -56,18 +52,10 @@ public:
    std::string activeEnvironmentName() const;
    void setActiveEnvironmentName(std::string environmentName);
 
-   // environment monitor state
-   bool environmentMonitoring() const;
-   void setEnvironmentMonitoring(bool monitoring);
-
    // resolved hashes (for Packrat libraries and lockfiles)
    std::string getStoredHash(const std::string& hashName) const;
    void setStoredHash(const std::string& hashName, 
                       const std::string& hashValue);
-
-   // port scrambling token
-   std::string portToken() const;
-   void setPortToken(const std::string& token);
 
    // get underlying settings
    core::Settings& settings() { return settings_; }

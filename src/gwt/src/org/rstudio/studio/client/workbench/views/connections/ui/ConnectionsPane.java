@@ -1,11 +1,9 @@
 /*
  * ConnectionsPane.java
  *
- * Copyright (C) 2009-20 by RStudio, PBC
+ * Copyright (C) 2009-16 by RStudio, Inc.
  *
- * Unless you have received this program directly from RStudio pursuant
- * to the terms of a commercial license agreement with RStudio, then
- * this program is licensed to you under the terms of version 3 of the
+ * This program is licensed to you under the terms of version 3 of the
  * GNU Affero General Public License. This program is distributed WITHOUT
  * ANY EXPRESS OR IMPLIED WARRANTY, INCLUDING THOSE OF NON-INFRINGEMENT,
  * MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE. Please refer to the
@@ -28,12 +26,16 @@ import com.google.gwt.event.dom.client.ClickHandler;
 import com.google.gwt.event.dom.client.HasClickHandlers;
 import com.google.gwt.event.logical.shared.ValueChangeHandler;
 import com.google.gwt.event.shared.HandlerRegistration;
+import com.google.gwt.layout.client.Layout.AnimationCallback;
+import com.google.gwt.layout.client.Layout.Layer;
 import com.google.gwt.resources.client.ImageResource;
 import com.google.gwt.user.cellview.client.Column;
 import com.google.gwt.user.cellview.client.DataGrid;
 import com.google.gwt.user.cellview.client.TextColumn;
 import com.google.gwt.user.cellview.client.TextHeader;
+import com.google.gwt.user.client.Command;
 import com.google.gwt.user.client.ui.Image;
+import com.google.gwt.user.client.ui.LayoutPanel;
 import com.google.gwt.user.client.ui.MenuItem;
 import com.google.gwt.user.client.ui.SuggestOracle;
 import com.google.gwt.user.client.ui.Widget;
@@ -53,20 +55,15 @@ import org.rstudio.core.client.theme.RStudioDataGridResources;
 import org.rstudio.core.client.theme.RStudioDataGridStyle;
 import org.rstudio.core.client.theme.res.ThemeStyles;
 import org.rstudio.core.client.widget.Base64ImageCell;
-import org.rstudio.core.client.widget.DecorativeImage;
 import org.rstudio.core.client.widget.OperationWithInput;
-import org.rstudio.core.client.widget.RStudioDataGrid;
 import org.rstudio.core.client.widget.SearchWidget;
 import org.rstudio.core.client.widget.SecondaryToolbar;
-import org.rstudio.core.client.widget.SlidingLayoutPanel;
 import org.rstudio.core.client.widget.Toolbar;
 import org.rstudio.core.client.widget.ToolbarButton;
 import org.rstudio.core.client.widget.ToolbarLabel;
-import org.rstudio.core.client.widget.ToolbarMenuButton;
 import org.rstudio.core.client.widget.ToolbarPopupMenu;
 import org.rstudio.studio.client.application.events.EventBus;
 import org.rstudio.studio.client.workbench.commands.Commands;
-import org.rstudio.studio.client.workbench.prefs.model.UserPrefs;
 import org.rstudio.studio.client.workbench.ui.WorkbenchPane;
 import org.rstudio.studio.client.workbench.views.connections.ConnectionsPresenter;
 import org.rstudio.studio.client.workbench.views.connections.events.ActiveConnectionsChangedEvent;
@@ -84,15 +81,19 @@ public class ConnectionsPane extends WorkbenchPane
                                         ActiveConnectionsChangedEvent.Handler
 {
    @Inject
-   public ConnectionsPane(Commands commands, EventBus eventBus, UserPrefs userPrefs)
+   public ConnectionsPane(Commands commands, EventBus eventBus)
    {
       // initialize
-      super("Connections", eventBus);
+      super("Connections");
       commands_ = commands;
-      userPrefs_ = userPrefs;
+      eventBus_ = eventBus;
 
       // track activation events to update the toolbar
-      events_.addHandler(ActiveConnectionsChangedEvent.TYPE, this);
+      eventBus_.addHandler(ActiveConnectionsChangedEvent.TYPE, this);
+      
+      // create main panel
+      mainPanel_ = new LayoutPanel();
+      mainPanel_.addStyleName("ace_editor_theme");
       
       // create data grid
       keyProvider_ = new ProvidesKey<Connection>() {
@@ -104,7 +105,7 @@ public class ConnectionsPane extends WorkbenchPane
       };
       
       selectionModel_ = new SingleSelectionModel<Connection>();
-      connectionsDataGrid_ = new RStudioDataGrid<Connection>(1000, RES, keyProvider_);
+      connectionsDataGrid_ = new DataGrid<Connection>(1000, RES, keyProvider_);
       connectionsDataGrid_.setSelectionModel(selectionModel_);
       selectionModel_.addSelectionChangeHandler(new SelectionChangeEvent.Handler()
       {
@@ -179,13 +180,19 @@ public class ConnectionsPane extends WorkbenchPane
       dataProvider_ = new ListDataProvider<Connection>();
       dataProvider_.addDataDisplay(connectionsDataGrid_);
       
+      // add data grid to main panel
+      mainPanel_.add(connectionsDataGrid_);
+      mainPanel_.setWidgetTopBottom(connectionsDataGrid_, 0, Unit.PX, 0, Unit.PX);
+      mainPanel_.setWidgetLeftRight(connectionsDataGrid_, 0, Unit.PX, 0, Unit.PX);
+
+      
       // create connection explorer, add it, and hide it
       connectionExplorer_ = new ConnectionExplorer();
       connectionExplorer_.setSize("100%", "100%");
       
-      // create main panel
-      mainPanel_ = new SlidingLayoutPanel(connectionsDataGrid_, connectionExplorer_);
-      mainPanel_.addStyleName("ace_editor_theme");
+      mainPanel_.add(connectionExplorer_);
+      mainPanel_.setWidgetTopBottom(connectionExplorer_, 0, Unit.PX, 0, Unit.PX);
+      mainPanel_.setWidgetLeftRight(connectionExplorer_, -5000, Unit.PX, 5000, Unit.PX);
   
       // create widget
       ensureWidget();
@@ -258,13 +265,19 @@ public class ConnectionsPane extends WorkbenchPane
       setConnection(connection, connectVia);
       
       installConnectionExplorerToolbar(connection);
-
-      // show the right panel (connection explorer)
-      mainPanel_.slideWidgets(
-            SlidingLayoutPanel.Direction.SlideRight, !userPrefs_.reducedMotion().getValue(), () ->
-            {
-               connectionExplorer_.onResize();
-            });
+      
+      transitionMainPanel(
+              connectionsDataGrid_,
+              connectionExplorer_,
+              true,
+              true,
+              new Command() {
+               @Override
+               public void execute()
+               {
+                  connectionExplorer_.onResize();
+               }
+      });
    }
    
    @Override
@@ -297,9 +310,19 @@ public class ConnectionsPane extends WorkbenchPane
  
       installConnectionsToolbar();
       
-      // show the left panel (connection explorer)
-      mainPanel_.slideWidgets(
-            SlidingLayoutPanel.Direction.SlideLeft, animate, () -> {});
+      transitionMainPanel(
+              connectionExplorer_,
+              connectionsDataGrid_,
+              false,
+              animate,
+              new Command() {
+                @Override
+                public void execute()
+                {
+                   
+                  
+                }
+             });
    }
    
    
@@ -336,9 +359,9 @@ public class ConnectionsPane extends WorkbenchPane
    @Override
    protected Toolbar createMainToolbar()
    {
-      toolbar_ = new Toolbar("Connections Tab");
+      toolbar_ = new Toolbar();
    
-      searchWidget_ = new SearchWidget("Filter by connection", new SuggestOracle() {
+      searchWidget_ = new SearchWidget(new SuggestOracle() {
          @Override
          public void requestSuggestions(Request request, Callback callback)
          {
@@ -348,25 +371,10 @@ public class ConnectionsPane extends WorkbenchPane
                   new Response(new ArrayList<Suggestion>()));
          }
       });
-
-      objectSearchWidget_ = new SearchWidget("Filter by object", new SuggestOracle() {
-         @Override
-         public void requestSuggestions(Request request, Callback callback)
-         {
-            // no suggestions
-            callback.onSuggestionsReady(
-                  request,
-                  new Response(new ArrayList<Suggestion>()));
-         }
-      });
-
-      objectSearchWidget_.addValueChangeHandler(event -> 
-         connectionExplorer_.setFilterText(event.getValue()));
       
       backToConnectionsButton_ = new ToolbarButton(
-            ToolbarButton.NoText,
-            "View all connections",
-            commands_.helpBack().getImageResource());
+            commands_.helpBack().getImageResource(), (ClickHandler)null);
+      backToConnectionsButton_.setTitle("View all connections");
        
       // connect meuu
       ToolbarPopupMenu connectMenu = new ToolbarPopupMenu();
@@ -391,9 +399,8 @@ public class ConnectionsPane extends WorkbenchPane
                "Copy to Clipboard",
                ConnectionOptions.CONNECT_COPY_TO_CLIPBOARD));
       }
-      connectMenuButton_ = new ToolbarMenuButton(
-            "Connect",
-            ToolbarButton.NoTitle,
+      connectMenuButton_ = new ToolbarButton(
+            "Connect", 
             commands_.newConnection().getImageResource(), 
             connectMenu);
       
@@ -417,12 +424,11 @@ public class ConnectionsPane extends WorkbenchPane
    @Override
    protected SecondaryToolbar createSecondaryToolbar()
    {
-      secondaryToolbar_ = new SecondaryToolbar("Connections Tab Connection");
+      secondaryToolbar_ = new SecondaryToolbar();
       secondaryToolbar_.addLeftWidget(connectionName_ = new ToolbarLabel());
       connectionIcon_ = new Image();
       connectionIcon_.setWidth("16px");
       connectionIcon_.setHeight("16px");
-      connectionIcon_.setAltText(""); // decorative image
       connectionType_ = new ToolbarLabel();
       connectionType_.getElement().getStyle().setMarginLeft(5, Unit.PX);
       connectionType_.getElement().getStyle().setMarginRight(10, Unit.PX);
@@ -460,7 +466,7 @@ public class ConnectionsPane extends WorkbenchPane
                @Override
                public void execute()
                {
-                  events_.fireEvent(
+                  eventBus_.fireEvent(
                         new PerformConnectionEvent(
                               connectVia, 
                               connectionExplorer_.getConnectCode()));    
@@ -468,6 +474,68 @@ public class ConnectionsPane extends WorkbenchPane
             });
    }
 
+   
+   private void transitionMainPanel(
+                        final Widget from,
+                        final Widget to,
+                        boolean rightToLeft,
+                        boolean animate,
+                        final Command onComplete)
+   {
+      assert from != to;
+
+      int width = getOffsetWidth();
+
+      mainPanel_.setWidgetLeftWidth(from,
+            0, Unit.PX,
+            width, Unit.PX);
+      mainPanel_.setWidgetLeftWidth(to,
+            rightToLeft ? width : -width, Unit.PX,
+                  width, Unit.PX);
+      mainPanel_.forceLayout();
+
+      mainPanel_.setWidgetLeftWidth(from,
+            rightToLeft ? -width : width, Unit.PX,
+                  width, Unit.PX);
+      mainPanel_.setWidgetLeftWidth(to,
+            0, Unit.PX,
+            width, Unit.PX);
+
+      to.setVisible(true);
+      from.setVisible(true);
+      
+      final Command completeLayout = new Command() {
+
+         @Override
+         public void execute()
+         {
+            mainPanel_.setWidgetLeftRight(to, 0, Unit.PX, 0, Unit.PX);
+            from.setVisible(false);
+            mainPanel_.forceLayout();
+            onComplete.execute();
+         }
+         
+      };
+      
+      if (animate)
+      {
+         mainPanel_.animate(300, new AnimationCallback()
+         {
+            public void onAnimationComplete()
+            {
+               completeLayout.execute();
+            }
+   
+            public void onLayout(Layer layer, double progress)
+            {
+            }
+         });
+      }
+      else
+      {
+         completeLayout.execute();
+      }
+   }
    
    private void installConnectionsToolbar()
    {
@@ -501,9 +569,9 @@ public class ConnectionsPane extends WorkbenchPane
             final ConnectionAction action = connection.getActions().get(i);
 
             // use the supplied base64 icon data if it was provided
-            DecorativeImage icon = StringUtil.isNullOrEmpty(action.getIconData()) ?
+            Image icon = StringUtil.isNullOrEmpty(action.getIconData()) ?
                   null :
-                  new DecorativeImage(action.getIconData());
+                  new Image(action.getIconData());
             
             // force to 20x18
             if (icon != null)
@@ -512,8 +580,7 @@ public class ConnectionsPane extends WorkbenchPane
                icon.setHeight("18px");
             }
              
-            ToolbarButton button = new ToolbarButton(action.getName(),
-                  ToolbarButton.NoTitle,
+            ToolbarButton button = new ToolbarButton(action.getName(), 
                   icon, // left image
                   null, // right image
                   // invoke the action when the button is clicked
@@ -547,9 +614,6 @@ public class ConnectionsPane extends WorkbenchPane
       connectionName_.setText(connection.getDisplayName());
       connectionIcon_.setUrl(connection.getIconData());
       connectionType_.setText(connection.getId().getType());
-
-      toolbar_.addRightWidget(objectSearchWidget_);
-      
       setSecondaryToolbarVisible(true);
    }
    
@@ -577,7 +641,7 @@ public class ConnectionsPane extends WorkbenchPane
    
    
    private Toolbar toolbar_;
-   private final SlidingLayoutPanel mainPanel_;
+   private final LayoutPanel mainPanel_;
    private final DataGrid<Connection> connectionsDataGrid_; 
    private final SingleSelectionModel<Connection> selectionModel_;
    private final ConnectionExplorer connectionExplorer_;
@@ -593,9 +657,8 @@ public class ConnectionsPane extends WorkbenchPane
    private List<ConnectionId> activeConnections_ = new ArrayList<ConnectionId>();
    
    private SearchWidget searchWidget_;
-   private SearchWidget objectSearchWidget_;
    private ToolbarButton backToConnectionsButton_;
-   private ToolbarMenuButton connectMenuButton_;
+   private ToolbarButton connectMenuButton_;
    
    private SecondaryToolbar secondaryToolbar_;
    private ToolbarLabel connectionName_;
@@ -603,7 +666,7 @@ public class ConnectionsPane extends WorkbenchPane
    private ToolbarLabel connectionType_;
    
    private final Commands commands_;
-   private final UserPrefs userPrefs_;
+   private final EventBus eventBus_;
    
    // Resources, etc ----
    public interface Resources extends RStudioDataGridResources

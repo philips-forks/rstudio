@@ -1,7 +1,7 @@
 /*
  * RSConnect.java
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-15 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -17,7 +17,6 @@ package org.rstudio.studio.client.rsconnect;
 import java.util.ArrayList;
 import java.util.List;
 
-import com.google.gwt.aria.client.Roles;
 import org.rstudio.core.client.CommandWithArg;
 import org.rstudio.core.client.JsArrayUtil;
 import org.rstudio.core.client.StringUtil;
@@ -44,7 +43,6 @@ import org.rstudio.studio.client.common.rpubs.ui.RPubsUploadDialog;
 import org.rstudio.studio.client.common.satellite.Satellite;
 import org.rstudio.studio.client.rsconnect.events.RSConnectActionEvent;
 import org.rstudio.studio.client.rsconnect.events.RSConnectDeployInitiatedEvent;
-import org.rstudio.studio.client.rsconnect.events.RSConnectDeploymentCancelledEvent;
 import org.rstudio.studio.client.rsconnect.events.RSConnectDeploymentCompletedEvent;
 import org.rstudio.studio.client.rsconnect.events.RSConnectDeploymentFailedEvent;
 import org.rstudio.studio.client.rsconnect.events.RSConnectDeploymentStartedEvent;
@@ -71,8 +69,7 @@ import org.rstudio.studio.client.workbench.model.ClientState;
 import org.rstudio.studio.client.workbench.model.Session;
 import org.rstudio.studio.client.workbench.model.SessionUtils;
 import org.rstudio.studio.client.workbench.model.helper.JSObjectStateValue;
-import org.rstudio.studio.client.workbench.prefs.model.UserPrefs;
-import org.rstudio.studio.client.workbench.prefs.model.UserState;
+import org.rstudio.studio.client.workbench.prefs.model.UIPrefs;
 import org.rstudio.studio.client.workbench.views.source.model.SourceServerOperations;
 
 import com.google.gwt.core.client.JavaScriptObject;
@@ -94,8 +91,7 @@ public class RSConnect implements SessionInitHandler,
                                   RSConnectActionEvent.Handler,
                                   RSConnectDeployInitiatedEvent.Handler,
                                   RSConnectDeploymentCompletedEvent.Handler,
-                                  RSConnectDeploymentFailedEvent.Handler,
-                                  RSConnectDeploymentCancelledEvent.Handler
+                                  RSConnectDeploymentFailedEvent.Handler
 {
    public interface Binder
            extends CommandBinder<Commands, RSConnect> {}
@@ -111,8 +107,7 @@ public class RSConnect implements SessionInitHandler,
                     SourceServerOperations sourceServer,
                     RPubsServerOperations rpubsServer,
                     RSAccountConnector connector,
-                    Provider<UserPrefs> pUserPrefs,
-                    Provider<UserState> pUserState,
+                    Provider<UIPrefs> pUiPrefs,
                     PlotPublishMRUList plotMru)
    {
       commands_ = commands;
@@ -124,8 +119,7 @@ public class RSConnect implements SessionInitHandler,
       rpubsServer_ = rpubsServer;
       events_ = events;
       connector_ = connector;
-      pUserPrefs_ = pUserPrefs;
-      pUserState_ = pUserState;
+      pUiPrefs_ = pUiPrefs;
       plotMru_ = plotMru;
 
       binder.bind(commands, this);
@@ -135,7 +129,6 @@ public class RSConnect implements SessionInitHandler,
       events.addHandler(RSConnectDeployInitiatedEvent.TYPE, this); 
       events.addHandler(RSConnectDeploymentCompletedEvent.TYPE, this); 
       events.addHandler(RSConnectDeploymentFailedEvent.TYPE, this);
-      events.addHandler(RSConnectDeploymentCancelledEvent.TYPE, this);
       
       // satellite windows don't get session init events, so initialize the
       // session here
@@ -177,45 +170,9 @@ public class RSConnect implements SessionInitHandler,
             }
          });  
    }
-
-   private boolean supportedRPubsDocExtension(String filename)
-   {
-      if (StringUtil.isNullOrEmpty(filename))
-         return false;
-      
-      String extension = FileSystemItem.getExtensionFromPath(filename).toLowerCase();
-      return StringUtil.equals(extension, ".html") || 
-             StringUtil.equals(extension, ".htm") ||
-             StringUtil.equals(extension, ".nb.html");
-   }
-
+   
    private void publishAsRPubs(RSConnectActionEvent event)
    {
-      // If previously published but the rendered file is now missing, give a warning instead
-      // of trying to republish.
-      if (event.getFromPrevious() != null && 
-            !StringUtil.isNullOrEmpty(event.getFromPrevious().getBundleId()) &&
-            StringUtil.isNullOrEmpty(event.getHtmlFile()))
-      {
-         display_.showErrorMessage("Republish Document",
-               "Only rendered documents can be republished to RPubs. " +
-               "To republish this document, click Knit or Preview to render it to HTML, then " +
-               "click the Republish button above the rendered document.");
-         return;
-      }
-      
-      // If we don't have an html file, can't publish to RPubs, e.g. create a generic markdown
-      // file (.md), don't preview it, and try to publish it to RPubs. Also, prevent publishing
-      // unsupported output formats; relatively easy to get in this state; e.g. Knit and
-      // publish HTML to RPubs, then Knit as PDF and try to republish.
-      if (StringUtil.isNullOrEmpty(event.getHtmlFile()) ||
-            (event.getContentType() == CONTENT_TYPE_DOCUMENT && 
-                  !supportedRPubsDocExtension(event.getHtmlFile())))
-      {
-         showUnsupportedRPubsFormatMessage();
-         return;         
-      }
-
       String ctx = "Publish " + contentTypeDesc(event.getContentType());
       RPubsUploadDialog dlg = new RPubsUploadDialog(
             "Publish Wizard", 
@@ -236,7 +193,7 @@ public class RSConnect implements SessionInitHandler,
       // set these inside the wizard input so we don't need to pass around
       // session/prefs
       input.setConnectUIEnabled(
-            pUserState_.get().enableRsconnectPublishUi().getGlobalValue());
+            pUiPrefs_.get().enableRStudioConnect().getGlobalValue());
       input.setExternalUIEnabled(
             session_.getSessionInfo().getAllowExternalPublish());
       input.setDescription(event.getDescription());
@@ -254,7 +211,7 @@ public class RSConnect implements SessionInitHandler,
          case CONTENT_TYPE_HTML:
          case CONTENT_TYPE_DOCUMENT:
          case CONTENT_TYPE_WEBSITE:
-            if (event.getFromPrevious().getServer() == "rpubs.com")
+            if (event.getFromPrevious().getServer().equals("rpubs.com"))
             {
                publishAsRPubs(event);
             }
@@ -274,7 +231,6 @@ public class RSConnect implements SessionInitHandler,
                               new RSConnectPublishSource(event.getPath(), 
                                     event.getHtmlFile(), 
                                     arg.getWebsiteDir(),
-                                    arg.getWebsiteOutputDir(),
                                     arg.isSelfContained(), 
                                     true,
                                     arg.isShiny(),
@@ -287,9 +243,6 @@ public class RSConnect implements SessionInitHandler,
                });
             }
             break;
-            case CONTENT_TYPE_PLUMBER_API:
-               publishAsCode(event, null, false);
-               break;
          }
       }
       else 
@@ -344,8 +297,7 @@ public class RSConnect implements SessionInitHandler,
             publishAsStatic(input);
          }
       }
-      else if (input.getContentType() == CONTENT_TYPE_WEBSITE ||
-               (input.getContentType() == CONTENT_TYPE_DOCUMENT && input.isWebsiteRmd()))
+      else if (input.getContentType() == CONTENT_TYPE_WEBSITE)
       {
          if (input.hasDocOutput())
          {
@@ -375,21 +327,30 @@ public class RSConnect implements SessionInitHandler,
          {
             if (input.isConnectUIEnabled())
             {
-               // need to disambiguate between code/output and/or
-               // single/multi page
-               publishWithWizard(input);
+               if (input.hasDocOutput() || 
+                   (input.isMultiRmd() && !input.isWebsiteRmd()))
+               {
+                  // need to disambiguate between code/output and/or
+                  // single/multi page
+                  publishWithWizard(input);
+               }
+               else
+               {
+                  // we don't have output, always publish the code
+                  publishAsCode(event, input.getWebsiteDir(), false);
+               }
             }
-            else if (!input.isSelfContained())
+            else if (input.isSelfContained() && input.hasDocOutput())
+            {
+               // RStudio Connect is disabled, go straight to RPubs
+               publishAsRPubs(event);
+            }
+            else 
             {
                // we should generally hide the button in this case
                display_.showErrorMessage("Content Not Publishable", 
                      "Only self-contained documents can currently be " + 
                      "published to RPubs.");
-            }
-            else
-            {
-               // RStudio Connect is disabled, go straight to RPubs
-               publishAsRPubs(event);
             }
          }
       }
@@ -398,46 +359,30 @@ public class RSConnect implements SessionInitHandler,
       {
          publishAsCode(event, null, true);
       }
-      else if (input.getContentType() == CONTENT_TYPE_PLUMBER_API)
-      {
-         if (!input.isConnectUIEnabled())
-         {
-            display_.showErrorMessage("API Not Publishable",
-                     "Publishing to RStudio Connect is disabled in the Publishing options.");
-         }
-         else
-         {
-            publishAsCode(event, null, false);
-         }
-      }
    }
    
-   private void publishAsCode(RSConnectActionEvent event, String websiteDir, boolean isShiny)
+   private void publishAsCode(RSConnectActionEvent event, String websiteDir,
+         boolean isShiny)
    {
-      boolean isAPI = event.getContentType() == CONTENT_TYPE_PLUMBER_API;
-      
       RSConnectPublishSource source = null;
       if (event.getContentType() == CONTENT_TYPE_APP ||
-          event.getContentType() == CONTENT_TYPE_APP_SINGLE ||
-          isAPI)
+          event.getContentType() == CONTENT_TYPE_APP_SINGLE)
       {
          if (StringUtil.getExtension(event.getPath()).equalsIgnoreCase("r"))
          {
             FileSystemItem rFile = FileSystemItem.createFile(event.getPath());
-            // use the directory for the deployment record when publishing APIs or
-            // directory-based apps; use the file itself when publishing
+            // use the directory for the deployment record when publishing 
+            // directory-based apps; use the file itself when publishing 
             // single-file apps
             source = new RSConnectPublishSource(rFile.getParentPathString(),
-                  event.getContentType() == CONTENT_TYPE_APP_SINGLE ?
-                        rFile.getName() :
-                        rFile.getParentPathString(),
-                        isAPI);
+                  event.getContentType() == CONTENT_TYPE_APP ? 
+                        rFile.getParentPathString() :
+                        rFile.getName());
          }
          else
          {
             source = new RSConnectPublishSource(event.getPath(),
-                  event.getPath(),
-                  isAPI);
+                  event.getPath());
          }
       }
       else
@@ -621,43 +566,6 @@ public class RSConnect implements SessionInitHandler,
          display_.openWindow(event.getUrl());
       }
    }
-   
-   @Override
-   public void onRSConnectDeploymentCancelled(
-         RSConnectDeploymentCancelledEvent event)
-   {
-      display_.showYesNoMessage(GlobalDisplay.MSG_QUESTION, 
-            "Stop deployment?", 
-            "Do you want to stop the deployment process? If the server has already " +
-            "received the content, it will still be published.",
-            false, // include cancel
-            () -> {
-                server_.cancelPublish(new ServerRequestCallback<Boolean>()
-                {
-                  @Override
-                  public void onError(ServerError error)
-                  {
-                     display_.showErrorMessage("Error Stopping Deployment", 
-                           error.getMessage());
-                  }
-
-                  @Override
-                  public void onResponseReceived(Boolean result)
-                  {
-                     if (!result)
-                     {
-                       display_.showErrorMessage("Could not cancel deployment", 
-                             "The deployment could not be cancelled; it is not running, or termination failed.");
-                     }
-                  }
-                });
-            }, 
-            null, 
-            null, 
-            "Stop deployment", 
-            "Cancel", 
-            false);
-   }
 
    @Override
    public void onRSConnectDeploymentFailed(
@@ -678,7 +586,7 @@ public class RSConnect implements SessionInitHandler,
       }
       final String serverUrl = failedPath;
       
-      new ModalDialogBase(Roles.getAlertdialogRole())
+      new ModalDialogBase()
       {
          @Override
          protected Widget createMainWidget()
@@ -721,7 +629,7 @@ public class RSConnect implements SessionInitHandler,
       // "Manage accounts" can be invoked any time we're permitted to
       // publish 
       commands_.rsconnectManageAccounts().setVisible(
-            SessionUtils.showPublishUi(session_, pUserState_.get()));
+            SessionUtils.showPublishUi(session_, pUiPrefs_.get()));
       
       // This object keeps track of the most recent deployment we made of each
       // directory, and is used to default directory deployments to last-used
@@ -805,8 +713,6 @@ public class RSConnect implements SessionInitHandler,
          return "Presentation";
       case RSConnect.CONTENT_TYPE_WEBSITE:
          return "Website";
-      case RSConnect.CONTENT_TYPE_PLUMBER_API:
-         return "API";
       }
       return "Content";
    }
@@ -840,7 +746,7 @@ public class RSConnect implements SessionInitHandler,
 
          // we can't raise the main window if we aren't in desktop mode, so show
          // a dialog to guide the user there
-         if (!Desktop.hasDesktopFrame())
+         if (!Desktop.isDesktop())
          {
             display_.showMessage(GlobalDisplay.MSG_INFO, "Deployment Started",
                   "RStudio is deploying " + result.getAppName() + ". " + 
@@ -861,37 +767,11 @@ public class RSConnect implements SessionInitHandler,
    }
    
    // Private methods ---------------------------------------------------------
-   private void showUnsupportedRPubsFormatMessage()
-   {
-      display_.showErrorMessage("Unsupported Document Format",
-            "Only documents rendered to HTML can be published to RPubs. " +
-            "To publish this document, click Knit or Preview to render it to HTML, then " +
-            "click the Publish button above the rendered document.");         
-   }
-
+   
    private void uploadToRPubs(RSConnectPublishInput input, 
          RSConnectPublishResult result,
          final ProgressIndicator indicator)
    {
-      if (input.getContentType() == CONTENT_TYPE_DOCUMENT)
-      {
-         if (!input.hasDocOutput())
-         {
-            display_.showErrorMessage("Publish Document",
-                  "Only rendered documents can be published to RPubs. " +
-                  "To publish this document, click Knit or Preview to render it to HTML, then " +
-                  "click the Publish button above the rendered document.");
-            indicator.onCompleted();
-            return;
-         }
-         else if (!supportedRPubsDocExtension(input.getDocOutput()))
-         {
-            showUnsupportedRPubsFormatMessage();
-            indicator.onCompleted();
-            return;
-         }
-      }
-      
       RPubsUploader uploader = new RPubsUploader(rpubsServer_, display_, 
             events_, "rpubs-" + rpubsCount_++);
       String contentType = contentTypeDesc(input.getContentType());
@@ -1034,7 +914,7 @@ public class RSConnect implements SessionInitHandler,
          }
          else
          {
-            if (record.getUrl() == lastRecord.getUrl())
+            if (record.getUrl().equals(lastRecord.getUrl()))
                recordList.set(0, record);
          }
       }
@@ -1070,7 +950,7 @@ public class RSConnect implements SessionInitHandler,
          for (int j = 0; j < apps.length(); j++)
          {
             RSConnectApplicationInfo candidate = apps.get(j);
-            if (candidate.getName() == records.get(i).getName())
+            if (candidate.getName().equals(records.get(i).getName()))
             {
                // show the management ui
                display_.openWindow(candidate.getConfigUrl());
@@ -1109,7 +989,7 @@ public class RSConnect implements SessionInitHandler,
    {
       // this can be invoked by a satellite, so bring the main frame to the
       // front if we can
-      if (Desktop.hasDesktopFrame())
+      if (Desktop.isDesktop())
          Desktop.getFrame().bringMainFrameToFront();
       else
          WindowEx.get().focus();
@@ -1141,19 +1021,19 @@ public class RSConnect implements SessionInitHandler,
                @Override
                public void onResponseReceived(RmdPublishDetails details)
                {
-                  input.setIsMultiRmd(details.is_multi_rmd);
-                  input.setIsShiny(details.is_shiny_rmd);
-                  input.setIsSelfContained(details.is_self_contained);
-                  input.setHasConnectAccount(details.has_connect_account);
-                  input.setWebsiteDir(details.website_dir);
-                  input.setWebsiteOutputDir(details.website_output_dir);
+                  input.setIsMultiRmd(details.isMultiRmd());
+                  input.setIsShiny(details.isShinyRmd());
+                  input.setIsSelfContained(details.isSelfContained());
+                  input.setHasConnectAccount(details.hasConnectAccount());
+                  input.setWebsiteDir(details.websiteDir());
                   if (StringUtil.isNullOrEmpty(input.getDescription()))
                   {
-                     if (!StringUtil.isNullOrEmpty(details.title))
+                     if (details.getTitle() != null && 
+                         !details.getTitle().isEmpty())
                      {
                         // set the description from the document title, if we
                         // have it
-                        input.setDescription(details.title);
+                        input.setDescription(details.getTitle());
                      }
                      else
                      {
@@ -1187,8 +1067,7 @@ public class RSConnect implements SessionInitHandler,
    private final DependencyManager dependencyManager_;
    private final EventBus events_;
    private final RSAccountConnector connector_;
-   private final Provider<UserPrefs> pUserPrefs_;
-   private final Provider<UserState> pUserState_;
+   private final Provider<UIPrefs> pUiPrefs_;
    private final PlotPublishMRUList plotMru_;
    
    private boolean launchBrowser_ = false;
@@ -1205,33 +1084,29 @@ public class RSConnect implements SessionInitHandler,
    public final static String CLOUD_SERVICE_NAME = "ShinyApps.io";
    
    // No/unknown content type 
-   public final static int CONTENT_TYPE_NONE           = 0;
+   public final static int CONTENT_TYPE_NONE       = 0;
    
    // A single HTML file representing a plot
-   public final static int CONTENT_TYPE_PLOT           = 1;
+   public final static int CONTENT_TYPE_PLOT       = 1;
    
    // A document (.Rmd, .md, etc.), 
-   public final static int CONTENT_TYPE_DOCUMENT       = 2;
+   public final static int CONTENT_TYPE_DOCUMENT   = 2;
    
    // A Shiny application
-   public final static int CONTENT_TYPE_APP            = 3;
+   public final static int CONTENT_TYPE_APP        = 3;
    
    // A single-file Shiny application
-   public final static int CONTENT_TYPE_APP_SINGLE     = 4;
+   public final static int CONTENT_TYPE_APP_SINGLE = 4;
    
    // Standalone HTML (from HTML widgets/viewer pane, etc.)
-   public final static int CONTENT_TYPE_HTML           = 5;
+   public final static int CONTENT_TYPE_HTML       = 5;
    
    // A .Rpres presentation
-   public final static int CONTENT_TYPE_PRES           = 6;
+   public final static int CONTENT_TYPE_PRES       = 6;
    
    // A page in an R Markdown website
-   public final static int CONTENT_TYPE_WEBSITE        = 7;
-   
-   // Plumber API
-   public final static int CONTENT_TYPE_PLUMBER_API    = 8;
+   public final static int CONTENT_TYPE_WEBSITE    = 7;
    
    public final static String CONTENT_CATEGORY_PLOT = "plot";
    public final static String CONTENT_CATEGORY_SITE = "site";
-   public final static String CONTENT_CATEGORY_API = "api";
 }

@@ -1,7 +1,7 @@
 /*
  * BrowseCap.java
  *
- * Copyright (C) 2009-20 by RStudio, PBC
+ * Copyright (C) 2009-17 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -35,13 +35,18 @@ public class BrowseCap
          else
             return 0.4;
       }
-      else if ((!Desktop.hasDesktopFrame()) && isWindows())
+      else if (!Desktop.isDesktop() && isWindows())
          return 0.4;
       else
          return 0;
    }
 
    public static final BrowseCap INSTANCE = GWT.create(BrowseCap.class);
+
+   public boolean suppressBraceHighlighting()
+   {
+      return false;
+   }
 
    public boolean aceVerticalScrollBarIssue()
    {
@@ -60,14 +65,20 @@ public class BrowseCap
    
    public boolean canCopyToClipboard()
    {
-      return (Desktop.hasDesktopFrame()) || !isSafari();
+      return Desktop.isDesktop() || !isSafari();
    }
    
-   public static boolean isInternetExplorer()
+   
+   public boolean isInternetExplorer()
    {
       return isUserAgent("trident");
    }
-
+    
+   public boolean isInternetExplorer10()
+   {
+      return false;
+   }
+   
    public static boolean hasMetaKey()
    {
       return isMacintosh();
@@ -80,15 +91,14 @@ public class BrowseCap
    
    public static boolean isMacintoshDesktop()
    {
-      return (Desktop.hasDesktopFrame()) && isMacintosh();
+      return Desktop.isDesktop() && isMacintosh();
    }
    
-   public static boolean isMacintoshDesktopMojave()
+   public static boolean isCocoaDesktop()
    {
-      return isMacintoshDesktop() && isUserAgent("mac os x 10_14");
-            
+      return Desktop.isDesktop() && Desktop.getFrame().isCocoa();
    }
-  
+   
    public static boolean isWindows()
    {
       return OPERATING_SYSTEM.equals("windows");
@@ -96,7 +106,7 @@ public class BrowseCap
    
    public static boolean isWindowsDesktop()
    {
-      return (Desktop.hasDesktopFrame()) && isWindows();
+      return Desktop.isDesktop() && isWindows();
    }
 
    public static boolean isLinux()
@@ -106,7 +116,7 @@ public class BrowseCap
    
    public static boolean isLinuxDesktop()
    {
-      return (Desktop.hasDesktopFrame()) && isLinux();
+      return Desktop.isDesktop() && isLinux();
    }
    
    public static boolean hasUbuntuFonts()
@@ -117,11 +127,6 @@ public class BrowseCap
    public static boolean isChrome()
    {
       return isUserAgent("chrome");
-   }
-   
-   public static boolean isChromeServer()
-   {
-      return isChrome() && !Desktop.hasDesktopFrame();
    }
    
    public static boolean isSafari()
@@ -139,11 +144,6 @@ public class BrowseCap
       return isUserAgent("firefox");
    }
    
-   public static boolean isSafariOrFirefox()
-   {
-      return isSafari() || isFirefox();
-   }
-   
    public static boolean isChromeFrame()
    {
       return isUserAgent("chromeframe");
@@ -151,9 +151,10 @@ public class BrowseCap
    
    public static double devicePixelRatio() 
    {
-      // TODO: validate that we can rely on browser to report even
-      // on desktop clients
-      return getDevicePixelRatio();
+      if (Desktop.isDesktop())
+         return Desktop.getFrame().devicePixelRatio();
+      else
+         return getDevicePixelRatio();
    }
 
    public static String getPlatformName()
@@ -176,15 +177,10 @@ public class BrowseCap
          return "Firefox";
       else if (BrowseCap.isSafari())
          return "Safari";
-      else if (BrowseCap.isInternetExplorer())
+      else if (BrowseCap.INSTANCE.isInternetExplorer())
          return "IE";
       else
          return "Unknown";
-   }
-   
-   public static String operatingSystem()
-   {
-      return OPERATING_SYSTEM;
    }
    
    private static native final double getDevicePixelRatio() /*-{
@@ -229,7 +225,7 @@ public class BrowseCap
          
          // in desktop mode we'll get an exact match whereas in web mode
          // we'll get a list of fonts so we need to do an additional probe
-         if (Desktop.hasDesktopFrame())
+         if (Desktop.isDesktop())
             return StringUtil.notNull(fixedWidthFont).equals("\"Ubuntu Mono\"");
          else
             return FontDetector.isFontSupported("Ubuntu Mono");
@@ -247,16 +243,9 @@ public class BrowseCap
    {
       Document.get().getBody().addClassName(OPERATING_SYSTEM);
 
-      if (isWindowsDesktop())
+      if (isWindowsDesktop() && Desktop.getFrame().getDisplayDpi() >= 192)
       {
-         Desktop.getFrame().getDisplayDpi(dpiString ->
-         {
-            Integer dpi = StringUtil.parseInt(dpiString, 96);
-            if (dpi >= 192)
-            {
-               Document.get().getBody().addClassName("windows-highdpi");
-            }
-         });
+         Document.get().getBody().addClassName("windows-highdpi");
       }
 
       if (FIXED_UBUNTU_MONO)

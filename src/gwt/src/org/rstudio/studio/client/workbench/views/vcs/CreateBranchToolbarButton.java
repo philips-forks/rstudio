@@ -1,7 +1,7 @@
 /*
  * CreateBranchToolbarButton.java
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-17 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -18,7 +18,6 @@ import java.util.ArrayList;
 import java.util.List;
 
 import org.rstudio.core.client.Debug;
-import org.rstudio.core.client.ElementIds;
 import org.rstudio.core.client.Functional;
 import org.rstudio.core.client.js.JsUtil;
 import org.rstudio.core.client.resources.ImageResource2x;
@@ -51,7 +50,6 @@ public class CreateBranchToolbarButton extends ToolbarButton
                                     GitServerOperations gitServer)
    {
       super("New Branch",
-            ToolbarButton.NoTitle,
             new ImageResource2x(StandardIcons.INSTANCE.mermaid2x()),
             (ClickHandler) null);
       
@@ -179,7 +177,7 @@ public class CreateBranchToolbarButton extends ToolbarButton
       boolean hasBranch = false;
       for (String branch : JsUtil.asIterable(branchesInfo.getBranches()))
       {
-         if (branch == input.getBranch())
+         if (branch.equals(input.getBranch()))
          {
             hasBranch = true;
             break;
@@ -192,17 +190,12 @@ public class CreateBranchToolbarButton extends ToolbarButton
                "A local branch named '" + input.getBranch() + "' already exists. " +
                "Would you like to check out that branch, or overwrite it?";
          
-         List<String> labels = new ArrayList<>();
+         List<String> labels = new ArrayList<String>();
          labels.add("Checkout");
          labels.add("Overwrite");
          labels.add("Cancel");
          
-         List<String> elementIds = new ArrayList<>();
-         elementIds.add(ElementIds.DIALOG_YES_BUTTON);
-         elementIds.add(ElementIds.DIALOG_NO_BUTTON);
-         elementIds.add(ElementIds.DIALOG_CANCEL_BUTTON);
-         
-         List<Operation> operations = new ArrayList<>();
+         List<Operation> operations = new ArrayList<Operation>();
          operations.add(new Operation()
          {
             @Override
@@ -234,7 +227,6 @@ public class CreateBranchToolbarButton extends ToolbarButton
                "Local Branch Already Exists",
                message,
                labels,
-               elementIds,
                operations,
                2);
       }
@@ -254,7 +246,7 @@ public class CreateBranchToolbarButton extends ToolbarButton
                @Override
                public boolean test(String branch)
                {
-                  return branch == targetBranch;
+                  return branch.equals(targetBranch);
                }
             });
       
@@ -265,15 +257,11 @@ public class CreateBranchToolbarButton extends ToolbarButton
                "on the remote repository '" + input.getRemote() + "'. Would you like " +
                "to check out that branch?";
          
-         List<String> labels = new ArrayList<>();
+         List<String> labels = new ArrayList<String>();
          labels.add("Checkout");
          labels.add("Cancel");
-
-         List<String> elementIds = new ArrayList<>();
-         elementIds.add(ElementIds.DIALOG_OK_BUTTON);
-         elementIds.add(ElementIds.DIALOG_CANCEL_BUTTON);
          
-         List<Operation> operations = new ArrayList<>();
+         List<Operation> operations = new ArrayList<Operation>();
          operations.add(new Operation()
          {
             @Override
@@ -296,7 +284,6 @@ public class CreateBranchToolbarButton extends ToolbarButton
                "Remote Branch Already Exists",
                message,
                labels,
-               elementIds,
                operations,
                1);
       }

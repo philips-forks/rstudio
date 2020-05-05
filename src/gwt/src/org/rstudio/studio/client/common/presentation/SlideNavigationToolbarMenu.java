@@ -1,7 +1,7 @@
 /*
  * SlideNavigationToolbarMenu.java
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -47,10 +47,8 @@ public class SlideNavigationToolbarMenu
 
       Commands commands = RStudioGinjector.INSTANCE.getCommands();
       AppCommand presHome = commands.presentationHome();
-      homeButton_ = new ToolbarButton(
-            ToolbarButton.NoText,
-            presHome.getTooltip(),
-            presHome.getImageResource());
+      homeButton_ = new ToolbarButton(presHome.getImageResource(), null);
+      homeButton_.setTitle(presHome.getTooltip());
       toolbar.addLeftWidget(homeButton_);
       homeSeparatorWidget_ = toolbar.addLeftSeparator();
       
@@ -64,8 +62,8 @@ public class SlideNavigationToolbarMenu
      
       AppCommand presEdit = commands.presentationEdit();
       editSeparatorWidget_ = toolbar.addLeftSeparator();
-      editButton_ = new ToolbarButton(ToolbarButton.NoText, presEdit.getTooltip(), presEdit.getImageResource());
-      toolbar.addLeftWidget(editButton_); 
+      editButton_ = new ToolbarButton(presEdit.getImageResource(), null);
+      toolbar.addLeftWidget(editButton_);    
       
       if (separatorAfter)
          separatorWidget_ = toolbar.addLeftSeparator();
@@ -146,7 +144,7 @@ public class SlideNavigationToolbarMenu
       @Override
       protected int getMaxHeight()
       {
-         if (BrowseCap.isInternetExplorer())
+         if (BrowseCap.INSTANCE.isInternetExplorer())
          {
             return 300;
          }
@@ -166,5 +164,5 @@ public class SlideNavigationToolbarMenu
    private SlidesPopupMenu slidesMenu_ = new SlidesPopupMenu();
    private Widget menuWidget_;
    private Widget separatorWidget_ = null;
-   private final int heightOffset_;
+   private final int heightOffset_ ;
 }

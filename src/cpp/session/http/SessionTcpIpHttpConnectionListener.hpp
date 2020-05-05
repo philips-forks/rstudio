@@ -1,7 +1,7 @@
 /*
  * SessionTcpIpHttpConnectionListener.hpp
  *
- * Copyright (C) 2009-11 by RStudio, PBC
+ * Copyright (C) 2009-11 by RStudio, Inc.
  *
  * This program is licensed to you under the terms of version 3 of the
  * GNU Affero General Public License. This program is distributed WITHOUT
@@ -13,7 +13,7 @@
 
 #include <boost/algorithm/string/predicate.hpp>
 
-#include <shared_core/Error.hpp>
+#include <core/Error.hpp>
 
 #include <core/http/TcpIpSocketUtils.hpp>
 
@@ -38,11 +38,6 @@ public:
    {
    }
 
-   boost::asio::ip::tcp::endpoint getLocalEndpoint() const
-   {
-      return localEndpoint_;
-   }
-
 protected:
 
    bool authenticate(boost::shared_ptr<HttpConnection> ptrConnection)
@@ -55,12 +50,7 @@ private:
    virtual Error initializeAcceptor(
       http::SocketAcceptorService<boost::asio::ip::tcp>* pAcceptor)
    {
-      Error error = http::initTcpIpAcceptor(*pAcceptor, address_, port_);
-      if (error)
-         return error;
-
-      localEndpoint_ = pAcceptor->acceptor().local_endpoint();
-      return Success();
+      return http::initTcpIpAcceptor(*pAcceptor, address_, port_);
    }
 
    virtual bool validateConnection(
@@ -80,7 +70,6 @@ private:
    std::string address_;
    std::string port_;
    std::string secret_;
-   boost::asio::ip::tcp::endpoint localEndpoint_;
 };
 
 } // namespace session

@@ -1,7 +1,7 @@
 /*
  * Commands.java
  *
- * Copyright (C) 2009-20 by RStudio, PBC
+ * Copyright (C) 2009-17 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -32,39 +32,24 @@ public abstract class
    public abstract AppCommand newSourceDoc();
    public abstract AppCommand newRNotebook();
    public abstract AppCommand newTextDoc();
-   public abstract AppCommand newCDoc();
    public abstract AppCommand newCppDoc();
-   public abstract AppCommand newHeaderDoc();
-   public abstract AppCommand newMarkdownDoc();
-   public abstract AppCommand newPythonDoc();
-   public abstract AppCommand newShellDoc();
-   public abstract AppCommand newStanDoc();
-   public abstract AppCommand newHtmlDoc();
-   public abstract AppCommand newJavaScriptDoc();
-   public abstract AppCommand newCssDoc();
-   public abstract AppCommand newD3Doc();
    public abstract AppCommand newSweaveDoc();
    public abstract AppCommand newRMarkdownDoc();
    public abstract AppCommand newRShinyApp();
    public abstract AppCommand newRHTMLDoc();
    public abstract AppCommand newRDocumentationDoc();
    public abstract AppCommand newRPresentationDoc();
-   public abstract AppCommand newSqlDoc();
-   public abstract AppCommand newRPlumberDoc();
    public abstract AppCommand openSourceDoc();
    public abstract AppCommand reopenSourceDocWithEncoding();
    public abstract AppCommand saveSourceDoc();
    public abstract AppCommand saveSourceDocAs();
    public abstract AppCommand saveSourceDocWithEncoding();
    public abstract AppCommand saveAllSourceDocs();
-   public abstract AppCommand renameSourceDoc();
    public abstract AppCommand closeSourceDoc();
    public abstract AppCommand closeOtherSourceDocs();
    public abstract AppCommand closeAllSourceDocs();
    public abstract AppCommand executeAllCode();
    public abstract AppCommand sourceFile();
-   public abstract AppCommand previewJS();
-   public abstract AppCommand previewSql();
    public abstract AppCommand sourceActiveDocument();
    public abstract AppCommand sourceActiveDocumentWithEcho();
    public abstract AppCommand executeCode();
@@ -81,7 +66,6 @@ public abstract class
    public abstract AppCommand insertChunk();
    public abstract AppCommand insertChunkR();
    public abstract AppCommand insertChunkBash();
-   public abstract AppCommand insertChunkD3();
    public abstract AppCommand insertChunkPython();
    public abstract AppCommand insertChunkRCPP();
    public abstract AppCommand insertChunkStan(); 
@@ -99,7 +83,7 @@ public abstract class
    public abstract AppCommand executeNextChunk();
    public abstract AppCommand executeSetupChunk();
    public abstract AppCommand goToHelp();
-   public abstract AppCommand goToDefinition();
+   public abstract AppCommand goToFunctionDefinition();
    public abstract AppCommand sourceNavigateBack();
    public abstract AppCommand sourceNavigateForward();
    public abstract AppCommand markdownHelp();
@@ -114,10 +98,6 @@ public abstract class
    public abstract AppCommand openShinyCheatSheet();
    public abstract AppCommand openRoxygenQuickReference();
    public abstract AppCommand openSparklyrCheatSheet();
-   public abstract AppCommand openPurrrCheatSheet();
-   public abstract AppCommand browseCheatSheets();
-   public abstract AppCommand toggleRmdVisualMode();
-   public abstract AppCommand enableProsemirrorDevTools();
    public abstract AppCommand knitDocument();
    public abstract AppCommand previewHTML();
    public abstract AppCommand publishHTML();
@@ -141,7 +121,6 @@ public abstract class
    public abstract AppCommand findAll();
    public abstract AppCommand replaceAndFind();
    public abstract AppCommand findInFiles();
-   public abstract AppCommand activateFindInFiles();
    public abstract AppCommand fold();
    public abstract AppCommand unfold();
    public abstract AppCommand foldAll();
@@ -151,14 +130,7 @@ public abstract class
    public abstract AppCommand expandToMatching();
    public abstract AppCommand addCursorAbove();
    public abstract AppCommand addCursorBelow();
-   public abstract AppCommand moveLinesUp();
-   public abstract AppCommand moveLinesDown();
-   public abstract AppCommand expandToLine();
-   public abstract AppCommand copyLinesDown();
-   public abstract AppCommand joinLines();
-   public abstract AppCommand removeLine();
    public abstract AppCommand splitIntoLines();
-   public abstract AppCommand editLinesFromStart();
    public abstract AppCommand toggleDocumentOutline();
    public abstract AppCommand expandSelection();
    public abstract AppCommand shrinkSelection();
@@ -172,8 +144,6 @@ public abstract class
    public abstract AppCommand extractFunction();
    public abstract AppCommand extractLocalVariable();
    public abstract AppCommand commentUncomment();
-   public abstract AppCommand blockIndent();
-   public abstract AppCommand blockOutdent();
    public abstract AppCommand reindent();
    public abstract AppCommand reflowComment();
    public abstract AppCommand setWorkingDirToActiveDoc();
@@ -199,7 +169,6 @@ public abstract class
    public abstract AppCommand insertPipeOperator();
    public abstract AppCommand openNextFileOnFilesystem();
    public abstract AppCommand openPreviousFileOnFilesystem();
-   public abstract AppCommand toggleSoftWrapMode();
  
    // Projects
    public abstract AppCommand newProject();
@@ -256,7 +225,6 @@ public abstract class
    public abstract AppCommand layoutZoomFiles();
    public abstract AppCommand goToWorkingDir();
    public abstract AppCommand setAsWorkingDir();
-   public abstract AppCommand copyFilesPaneCurrentDirectory();
    public abstract AppCommand setWorkingDirToFilesPane();
    public abstract AppCommand showFolder();
  
@@ -272,7 +240,6 @@ public abstract class
    public abstract AppCommand vcsOpen();
    public abstract AppCommand vcsIgnore();
    public abstract AppCommand vcsPull();
-   public abstract AppCommand vcsPullRebase();
    public abstract AppCommand vcsPush();
    public abstract AppCommand vcsCleanup();
    public abstract AppCommand vcsAddFiles();
@@ -301,6 +268,7 @@ public abstract class
    public abstract AppCommand presentationViewInBrowser();
    public abstract AppCommand presentationSaveAsStandalone();
    public abstract AppCommand activatePresentation();
+   public abstract AppCommand tutorialFeedback();
    public abstract AppCommand clearPresentationCache();
    
    // View
@@ -356,6 +324,11 @@ public abstract class
    public abstract AppCommand importDatasetFromSAS();
    public abstract AppCommand importDatasetFromStata();
    public abstract AppCommand importDatasetFromXLS();
+   public abstract AppCommand importDatasetFromXML();
+   public abstract AppCommand importDatasetFromJSON();
+   public abstract AppCommand importDatasetFromJDBC();
+   public abstract AppCommand importDatasetFromODBC();
+   public abstract AppCommand importDatasetFromMongo();
 
    // Environment
    public abstract AppCommand activateEnvironment();
@@ -383,18 +356,13 @@ public abstract class
    public abstract AppCommand activatePackages();
    public abstract AppCommand layoutZoomPackages();
    
-   // packrat
+   // // packrat
    public abstract AppCommand packratBootstrap();
    public abstract AppCommand packratOptions();
    public abstract AppCommand packratBundle();
    public abstract AppCommand packratHelp();
    public abstract AppCommand packratClean();
    public abstract AppCommand packratCheckStatus();
-   
-   // renv
-   public abstract AppCommand renvHelp();
-   public abstract AppCommand renvSnapshot();
-   public abstract AppCommand renvRestore();
 
    // Version control
    public abstract AppCommand versionControlHelp();
@@ -411,7 +379,6 @@ public abstract class
    public abstract AppCommand openProfile();
    public abstract AppCommand profileHelp();
    public abstract AppCommand gotoProfileSource();
-   public abstract AppCommand openProfileInBrowser();
    
    // Tools
    public abstract AppCommand showShellDialog();
@@ -424,7 +391,6 @@ public abstract class
    public abstract AppCommand activateTerminal();
    public abstract AppCommand renameTerminal();
    public abstract AppCommand closeTerminal();
-   public abstract AppCommand closeAllTerminals();
    public abstract AppCommand clearTerminalScrollbackBuffer();
    public abstract AppCommand previousTerminal();
    public abstract AppCommand nextTerminal();
@@ -432,17 +398,11 @@ public abstract class
    public abstract AppCommand interruptTerminal();
    public abstract AppCommand sendTerminalToEditor();
    public abstract AppCommand sendToTerminal();
-   public abstract AppCommand showTerminalOptions();
-   public abstract AppCommand openNewTerminalAtEditorLocation();
-   public abstract AppCommand openNewTerminalAtFilePaneLocation();
-   public abstract AppCommand sendFilenameToTerminal();
-   public abstract AppCommand setTerminalToCurrentDirectory();
-
+    
    // Help
    public abstract AppCommand helpBack();
    public abstract AppCommand helpForward();
    public abstract AppCommand helpHome();
-   public abstract AppCommand helpSearch();
    public abstract AppCommand printHelp();
    public abstract AppCommand clearHelpHistory();
    public abstract AppCommand helpPopout();
@@ -452,7 +412,6 @@ public abstract class
    public abstract AppCommand activateHelp();
    public abstract AppCommand layoutZoomHelp();
    public abstract AppCommand showAboutDialog();
-   public abstract AppCommand showLicenseDialog();
    public abstract AppCommand checkForUpdates();
    public abstract AppCommand helpUsingRStudio();
    public abstract AppCommand helpKeyboardShortcuts();
@@ -462,21 +421,6 @@ public abstract class
    public abstract AppCommand debugImportDump();
    public abstract AppCommand refreshSuperDevMode();
    public abstract AppCommand viewShortcuts();
-   public abstract AppCommand editUserPrefs();
-   public abstract AppCommand viewAllPrefs();
-   public abstract AppCommand clearUserPrefs();
-   
-   // Tutorial
-   public abstract AppCommand activateTutorial();
-   public abstract AppCommand layoutZoomTutorial();
-   public abstract AppCommand tutorialPopout();
-   public abstract AppCommand tutorialBack(); 
-   public abstract AppCommand tutorialForward();
-   public abstract AppCommand tutorialZoom();
-   public abstract AppCommand tutorialRefresh();
-   public abstract AppCommand tutorialStop();
-   public abstract AppCommand tutorialHome();
-   
    
    // Viewer
    public abstract AppCommand activateViewer();
@@ -498,19 +442,13 @@ public abstract class
    public abstract AppCommand newSession();
    public abstract AppCommand suspendSession();
    public abstract AppCommand quitSession();
-   public abstract AppCommand forceQuitSession();
    public abstract AppCommand updateCredentials();
    public abstract AppCommand diagnosticsReport();
-   public abstract AppCommand openDeveloperConsole();
-   public abstract AppCommand reloadUi();
-   public abstract AppCommand showGpuDiagnostics();
    public abstract AppCommand showLogFiles();
    public abstract AppCommand rstudioSupport();
-   public abstract AppCommand rstudioCommunityForum();
    public abstract AppCommand rstudioAgreement();
-   public abstract AppCommand showSessionServerOptionsDialog();
+
    public abstract AppCommand showWarningBar();
-   public abstract AppCommand signOut();
  
    // Build
    public abstract AppCommand buildAll();
@@ -522,8 +460,6 @@ public abstract class
    public abstract AppCommand roxygenizePackage();
    public abstract AppCommand checkPackage();
    public abstract AppCommand testPackage();
-   public abstract AppCommand testTestthatFile();
-   public abstract AppCommand testShinytestFile();
    public abstract AppCommand stopBuild();
    public abstract AppCommand buildToolsProjectSetup();
    public abstract AppCommand activateBuild();
@@ -541,9 +477,7 @@ public abstract class
    public abstract AppCommand cutDummy();
    public abstract AppCommand copyDummy();
    public abstract AppCommand pasteDummy();
-   public abstract AppCommand pasteWithIndentDummy();
 
-   // Placeholder for most recently used files
    public abstract AppCommand mru0();
    public abstract AppCommand mru1();
    public abstract AppCommand mru2();
@@ -581,16 +515,7 @@ public abstract class
    public abstract AppCommand shinyRunInPane();
    public abstract AppCommand shinyRunInViewer();
    public abstract AppCommand shinyRunInBrowser();
-   public abstract AppCommand shinyRecordTest();
-   public abstract AppCommand shinyRunAllTests();
-   public abstract AppCommand shinyCompareTest();
    
-   // Plumber IDE features
-   public abstract AppCommand reloadPlumberAPI();
-   public abstract AppCommand plumberRunInPane();
-   public abstract AppCommand plumberRunInViewer();
-   public abstract AppCommand plumberRunInBrowser();
-
    // RSConnect connectivity
    public abstract AppCommand rsconnectDeploy();
    public abstract AppCommand rsconnectConfigure();
@@ -598,25 +523,9 @@ public abstract class
    
    // Addins
    public abstract AppCommand browseAddins();
-   
-   // Jobs
-   public abstract AppCommand startJob();
-   public abstract AppCommand sourceAsJob();
-   public abstract AppCommand clearJobs();
-   public abstract AppCommand activateJobs();
-   public abstract AppCommand runSelectionAsJob();
-
-   // Launcher Jobs
-   public abstract AppCommand startLauncherJob();
-   public abstract AppCommand sourceAsLauncherJob();
-   public abstract AppCommand runSelectionAsLauncherJob();
-   public abstract AppCommand activateLauncherJobs();
-   public abstract AppCommand sortLauncherJobsRecorded();
-   public abstract AppCommand sortLauncherJobsState();
 
    // Other
-   public abstract AppCommand checkSpelling();
-   public abstract AppCommand wordCount();
+   public abstract AppCommand checkSpelling();   
    public abstract AppCommand layoutZoomCurrentPane();
    public abstract AppCommand layoutEndZoom();
    public abstract AppCommand layoutConsoleOnLeft();
@@ -624,36 +533,7 @@ public abstract class
    public abstract AppCommand paneLayout();
    public abstract AppCommand maximizeConsole();
    public abstract AppCommand toggleEditorTokenInfo();
-   public abstract AppCommand layoutZoomLeftColumn();
-   public abstract AppCommand layoutZoomRightColumn();
-   public abstract AppCommand focusLeftSeparator();
-   public abstract AppCommand focusRightSeparator();
-   public abstract AppCommand focusCenterSeparator();
    
-
-   // Main menu (server)
-   public abstract AppCommand showFileMenu();
-   public abstract AppCommand showEditMenu();
-   public abstract AppCommand showCodeMenu();
-   public abstract AppCommand showViewMenu();
-   public abstract AppCommand showPlotsMenu();
-   public abstract AppCommand showSessionMenu();
-   public abstract AppCommand showBuildMenu();
-   public abstract AppCommand showDebugMenu();
-   public abstract AppCommand showProfileMenu();
-   public abstract AppCommand showToolsMenu();
-   public abstract AppCommand showHelpMenu();
-
-   // Accessibility
-   public abstract AppCommand toggleScreenReaderSupport();
-   public abstract AppCommand toggleTabKeyMovesFocus();
-   public abstract AppCommand showAccessibilityOptions();
-   public abstract AppCommand focusMainToolbar();
-   public abstract AppCommand speakEditorLocation();
-   public abstract AppCommand focusConsoleOutputEnd();
-   public abstract AppCommand showAccessibilityHelp();
-
-   // Internal
-   public abstract AppCommand showDomElements();
-   public abstract AppCommand showShortcutCommand();
+   public static final String KEYBINDINGS_PATH =
+         "~/.R/keybindings/rstudio_commands.json";
 }

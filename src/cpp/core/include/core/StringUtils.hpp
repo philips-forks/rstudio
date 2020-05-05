@@ -1,7 +1,7 @@
 /*
  * StringUtils.hpp
  *
- * Copyright (C) 2009-20 by RStudio, PBC
+ * Copyright (C) 2009-17 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -17,11 +17,8 @@
 #define CORE_STRING_UTILS_HPP
 
 #include <string>
-#include <cctype>
-
-#include <shared_core/Error.hpp>
-#include <shared_core/FilePath.hpp>
-#include <shared_core/system/Win32StringUtils.hpp>
+#include <core/Error.hpp>
+#include <core/FilePath.hpp>
 
 namespace rstudio {
 namespace core {
@@ -50,9 +47,6 @@ public:
 private:
    std::string needle_;
 };
-
-bool isTruthy(const std::string& string,
-              bool valueIfEmpty = false);
 
 bool isSubsequence(std::string const& self,
                    std::string const& other);
@@ -166,6 +160,9 @@ Error utf8Advance(InputIterator begin,
    *pResult = begin;
    return Success();
 }
+std::string wideToUtf8(const std::wstring& value);
+std::wstring utf8ToWide(const std::string& value,
+                        const std::string& context = std::string());
 
 template <typename Iterator, typename InputIterator>
 Error utf8Clean(Iterator begin,
@@ -286,90 +283,8 @@ inline std::wstring trimWhitespace(const std::wstring& string)
 }
 
 std::string makeRandomByteString(std::size_t n);
-bool extractCommentHeader(const std::string& contents,
-                          const std::string& reCommentPrefix,
-                          std::string* pHeader);
-
-std::string extractIndent(const std::string& line);
 
 } // namespace string_utils
-
-// wrappers for functions in <cctype>, as those functions normally
-// require one to cast arguments from char to unsigned char, otherwise
-// one risks bumping into undefined behavior (which MSVC is strict about)
-// see e.g. http://en.cppreference.com/w/cpp/string/byte/toupper for
-// motivation
-
-inline int isalnum(char ch)
-{
-   return std::isalnum(static_cast<unsigned char>(ch));
-}
-
-inline int isalpha(char ch)
-{
-   return std::isalpha(static_cast<unsigned char>(ch));
-}
-
-inline int islower(char ch)
-{
-   return std::islower(static_cast<unsigned char>(ch));
-}
-
-inline int isupper(char ch)
-{
-   return std::isupper(static_cast<unsigned char>(ch));
-}
-
-inline int isdigit(char ch)
-{
-   return std::isdigit(static_cast<unsigned char>(ch));
-}
-
-inline int isxdigit(char ch)
-{
-   return std::isxdigit(static_cast<unsigned char>(ch));
-}
-
-inline int iscntrl(char ch)
-{
-   return std::iscntrl(static_cast<unsigned char>(ch));
-}
-
-inline int isgraph(char ch)
-{
-   return std::isgraph(static_cast<unsigned char>(ch));
-}
-
-inline int isspace(char ch)
-{
-   return std::isspace(static_cast<unsigned char>(ch));
-}
-
-inline int isblank(char ch)
-{
-   return std::isblank(static_cast<unsigned char>(ch));
-}
-
-inline int isprint(char ch)
-{
-   return std::isprint(static_cast<unsigned char>(ch));
-}
-
-inline int ispunct(char ch)
-{
-   return std::ispunct(static_cast<unsigned char>(ch));
-}
-
-inline int tolower(char ch)
-{
-   return std::tolower(static_cast<unsigned char>(ch));
-}
-
-inline int toupper(char ch)
-{
-   return std::toupper(static_cast<unsigned char>(ch));
-}
-
 } // namespace core 
 } // namespace rstudio
 

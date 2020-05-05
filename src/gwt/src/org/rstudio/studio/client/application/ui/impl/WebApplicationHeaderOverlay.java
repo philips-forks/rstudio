@@ -1,7 +1,7 @@
 /*
  * WebApplicationHeaderOverlay.java
  *
- * Copyright (C) 2009-17 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -36,7 +36,6 @@ public class WebApplicationHeaderOverlay
       Widget addProjectCommandSeparator();
       void addProjectRightCommand(Widget widget);
       Widget addProjectRightCommandSeparator();
-      void addUserCommand(Widget widget);
       AppMenuBar getMainMenu();
    }
    
@@ -50,18 +49,6 @@ public class WebApplicationHeaderOverlay
    {
    }
    
-   public void addRVersionsToolbar(Context context)
-   {
-   }
-
-   public void addConnectionStatusToolbar(Context context)
-   {
-   }
-
-   public void addSessionsToolbar(Context context)
-   {
-   }
-
    public void addCommands(Context context)
    {
       context.addLeftCommand(new HTML(), "100%");

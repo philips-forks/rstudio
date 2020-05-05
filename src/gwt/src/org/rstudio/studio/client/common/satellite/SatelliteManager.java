@@ -1,7 +1,7 @@
 /*
  * SatelliteManager.java
  *
- * Copyright (C) 2009-18 by RStudio, PBC
+ * Copyright (C) 2009-17 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -35,6 +35,8 @@ import org.rstudio.studio.client.application.ApplicationUncaughtExceptionHandler
 import org.rstudio.studio.client.application.Desktop;
 import org.rstudio.studio.client.application.events.CrossWindowEvent;
 import org.rstudio.studio.client.application.events.EventBus;
+import org.rstudio.studio.client.application.events.ThemeChangedEvent;
+import org.rstudio.studio.client.application.ui.RStudioThemes;
 import org.rstudio.studio.client.common.GlobalDisplay.NewWindowOptions;
 import org.rstudio.studio.client.common.satellite.events.AllSatellitesClosingEvent;
 import org.rstudio.studio.client.common.satellite.events.SatelliteClosedEvent;
@@ -42,7 +44,7 @@ import org.rstudio.studio.client.common.satellite.events.WindowClosedEvent;
 import org.rstudio.studio.client.common.satellite.events.WindowOpenedEvent;
 import org.rstudio.studio.client.workbench.model.Session;
 import org.rstudio.studio.client.workbench.model.SessionInfo;
-import org.rstudio.studio.client.workbench.prefs.model.UserPrefs;
+import org.rstudio.studio.client.workbench.prefs.model.UIPrefs;
 import org.rstudio.studio.client.workbench.views.source.SourceWindowManager;
 
 import com.google.gwt.core.client.JavaScriptObject;
@@ -62,7 +64,7 @@ public class SatelliteManager implements CloseHandler<Window>
          EventBus events,
          Provider<SourceWindowManager> pSourceWindowManager,
          Provider<ApplicationUncaughtExceptionHandler> pUncaughtExceptionHandler,
-         Provider<UserPrefs> pUIPrefs)
+         Provider<UIPrefs> pUIPrefs)
    {
       session_ = session;
       events_ = events;
@@ -140,14 +142,14 @@ public class SatelliteManager implements CloseHandler<Window>
       // check for a re-activation of an existing window
       for (ActiveSatellite satellite : satellites_)
       {
-         if (satellite.getName() == name)
+         if (satellite.getName().equals(name))
          {
             WindowEx window = satellite.getWindow();
             if (!window.isClosed())
             {
                // for web mode bring the window to the front, notify
                // it that it has been reactivated, then exit. 
-               if (!Desktop.hasDesktopFrame())
+               if (!Desktop.isDesktop())
                {
                   // don't do this for chrome (since it doesn't allow
                   // window.focus). for chrome we'll just fall through
@@ -173,7 +175,7 @@ public class SatelliteManager implements CloseHandler<Window>
                   if (activate) 
                   {
                      Desktop.getFrame().activateSatelliteWindow(
-                       StringUtil.notNull(SatelliteUtils.getSatelliteWindowName(satellite.getName())));
+                       SatelliteUtils.getSatelliteWindowName(satellite.getName()));
                   }
                   callNotifyReactivated(window, params);
                   return;
@@ -225,7 +227,7 @@ public class SatelliteManager implements CloseHandler<Window>
       Point preferredPos = null;
       for (ActiveSatellite satellite : satellites_)
       {
-         if (satellite.getName() == name && 
+         if (satellite.getName().equals(name) && 
              !satellite.getWindow().isClosed())
          {
             // save the window's geometry so we can restore it after the window 
@@ -233,7 +235,7 @@ public class SatelliteManager implements CloseHandler<Window>
             final WindowEx win = satellite.getWindow();
             Document doc = win.getDocument();
             preferredSize = new Size(doc.getClientWidth(), doc.getClientHeight());
-            preferredPos = Point.create(win.getLeft(), win.getTop());
+            preferredPos = new Point(win.getLeft(), win.getTop());
             callNotifyPendingReactivate(win);
             satellite.close();
             break;
@@ -259,7 +261,7 @@ public class SatelliteManager implements CloseHandler<Window>
    public WindowEx getSatelliteWindowObject(String name)
    {
       for (ActiveSatellite satellite : satellites_)
-         if (satellite.getName() == name && 
+         if (satellite.getName().equals(name) && 
              !satellite.getWindow().isClosed())
             return satellite.getWindow();
             
@@ -268,16 +270,16 @@ public class SatelliteManager implements CloseHandler<Window>
    
    public void activateSatelliteWindow(String name)
    {
-      if (Desktop.hasDesktopFrame())
+      if (Desktop.isDesktop())
       {
          Desktop.getFrame().activateSatelliteWindow(
-               SatelliteUtils.getSatelliteWindowName(StringUtil.notNull(name)));
+               SatelliteUtils.getSatelliteWindowName(name));
       }
       else
       {
          for (ActiveSatellite satellite : satellites_)
          {
-            if (satellite.getName() == name && 
+            if (satellite.getName().equals(name) && 
                 !satellite.getWindow().isClosed())
             {
                satellite.getWindow().focus();
@@ -334,7 +336,7 @@ public class SatelliteManager implements CloseHandler<Window>
    {
       for (ActiveSatellite satellite : satellites_)
       {
-         if (satellite.getName() == name && 
+         if (satellite.getName().equals(name) && 
              !satellite.getWindow().isClosed())
          {
             satellite.close();
@@ -470,6 +472,11 @@ public class SatelliteManager implements CloseHandler<Window>
       JavaScriptObject params = satelliteParams_.get(name);
       if (params != null)
          callSetParams(satelliteWnd, params);
+
+      // set themes
+      events_.fireEventToSatellite(new ThemeChangedEvent(
+         RStudioThemes.getThemeFromUiPrefs(pUIPrefs_.get())),
+         satelliteWnd);
    }
    
    // called to register child windows (not necessarily full-fledged 
@@ -512,7 +519,7 @@ public class SatelliteManager implements CloseHandler<Window>
       for (ActiveSatellite satellite :
                                     new ArrayList<ActiveSatellite>(satellites_))
       {
-         if (satellite.getName() == name
+         if (satellite.getName().equals(name)
              && !satellite.getWindow().isClosed())
          {
             for (JavaScriptObject evt : events)
@@ -706,7 +713,7 @@ public class SatelliteManager implements CloseHandler<Window>
          
          ActiveSatellite otherSatellite = (ActiveSatellite)other;
          
-         return getName() == otherSatellite.getName() &&
+         return getName().equals(otherSatellite.getName()) &&
                 getWindow().equals(otherSatellite.getWindow());
       }
       
@@ -714,7 +721,7 @@ public class SatelliteManager implements CloseHandler<Window>
       private final WindowEx window_;
    }
  
-   private final Provider<UserPrefs> pUIPrefs_;
+   private final Provider<UIPrefs> pUIPrefs_;
 }
 
 

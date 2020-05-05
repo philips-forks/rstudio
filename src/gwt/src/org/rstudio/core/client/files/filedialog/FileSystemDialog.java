@@ -1,7 +1,7 @@
 /*
  * FileSystemDialog.java
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-15 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -14,8 +14,8 @@
  */
 package org.rstudio.core.client.files.filedialog;
 
-import com.google.gwt.aria.client.DialogRole;
 import com.google.gwt.core.client.Scheduler;
+import com.google.gwt.core.client.Scheduler.ScheduledCommand;
 import com.google.gwt.event.dom.client.*;
 import com.google.gwt.event.logical.shared.SelectionEvent;
 import com.google.gwt.event.logical.shared.SelectionHandler;
@@ -24,9 +24,8 @@ import com.google.gwt.user.client.ui.*;
 
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.List;
+import java.util.Comparator;
 
-import org.rstudio.core.client.ElementIds;
 import org.rstudio.core.client.StringUtil;
 import org.rstudio.core.client.events.SelectionCommitEvent;
 import org.rstudio.core.client.events.SelectionCommitHandler;
@@ -98,54 +97,53 @@ public abstract class FileSystemDialog extends ModalDialogBase
 
    public FileSystemDialog(String title,
                            String caption,
-                           DialogRole role,
                            String buttonName,
                            FileSystemContext context,
                            String filter,
                            boolean allowFolderCreation,
                            ProgressOperationWithInput<FileSystemItem> operation)
    {
-      super(role);
       context_ = context;
       operation_ = operation;
       context_.setCallbacks(this);
-      filterExtensions_ = extractFilterExtensions(filter);
+      filterExtension_ = extractFilterExtension(filter);
 
       setTitle(caption);
       setText(title);
 
       if (allowFolderCreation)
       {
-         addLeftButton(new ThemedButton("New Folder", new NewFolderHandler()),
-               ElementIds.FILE_NEW_FOLDER_BUTTON);
+         addLeftButton(new ThemedButton("New Folder", new NewFolderHandler()));
       }
 
-      ThemedButton okButton = new ThemedButton(buttonName, event -> maybeAccept());
-      addOkButton(okButton,
-            ElementIds.FILE_ACCEPT_BUTTON + "_" + ElementIds.idSafeString(buttonName));
-      
-      ThemedButton cancelButton = 
-         new ThemedButton("Cancel",
-         event -> {
+      addOkButton(new ThemedButton(buttonName, new ClickHandler()
+      {
+         public void onClick(ClickEvent event)
+         {
+            maybeAccept();
+         }
+      }));
+      addCancelButton(new ThemedButton("Cancel", new ClickHandler() {
+         public void onClick(ClickEvent event) {
             if (invokeOperationEvenOnCancel_)
             {
                operation_.execute(null, FileSystemDialog.this);
             }
             closeDialog();
-         });
-      addCancelButton(cancelButton,
-            ElementIds.FILE_CANCEL_BUTTON + "_" + ElementIds.idSafeString(buttonName));
+         }
+      }));
 
-      addDomHandler(event ->
+      addDomHandler(new KeyDownHandler() {
+         public void onKeyDown(KeyDownEvent event)
          {
-               if (event.getNativeKeyCode() == KeyCodes.KEY_ENTER)
-               {
-                  event.stopPropagation();
-                  event.preventDefault();
-                  maybeAccept();
-               }
-         },
-         KeyDownEvent.getType());
+            if (event.getNativeKeyCode() == KeyCodes.KEY_ENTER)
+            {
+               event.stopPropagation();
+               event.preventDefault();
+               maybeAccept();
+            }
+         }
+      }, KeyDownEvent.getType());
 
       progress_ = addProgressIndicator();
    }
@@ -189,12 +187,7 @@ public abstract class FileSystemDialog extends ModalDialogBase
 
    protected void accept()
    {
-      accept(getSelectedItem());
-   }
-   
-   protected void accept(FileSystemItem item)
-   {
-      operation_.execute(item, this);
+      operation_.execute(getSelectedItem(), this);
    }
 
    protected abstract FileSystemItem getSelectedItem();
@@ -203,7 +196,14 @@ public abstract class FileSystemDialog extends ModalDialogBase
    public void showModal()
    {
       super.showModal();
-      Scheduler.get().scheduleDeferred(() -> center());
+      
+      Scheduler.get().scheduleDeferred(new ScheduledCommand()
+      {
+         public void execute()
+         {
+            center();
+         }
+      });
    }
 
    /**
@@ -236,6 +236,11 @@ public abstract class FileSystemDialog extends ModalDialogBase
    public void onDirectoryCreated(FileSystemItem directory)
    {
       browser_.onDirectoryCreated(directory);
+   }
+
+   @Override
+   protected void onDialogShown()
+   {
    }
 
    @Override
@@ -307,22 +312,7 @@ public abstract class FileSystemDialog extends ModalDialogBase
    @Override
    public FileSystemItem[] ls()
    {
-      return listFilesWithExtensions(context_, filterExtensions_);
-   }
-   
-   public static FileSystemItem[] listFilesWithExtension(
-         FileSystemContext context, String extension)
-   {
-      List<String> filterExtensions = new ArrayList<>();
-      if (StringUtil.isNullOrEmpty(extension))
-         filterExtensions.add(extension);
-      return listFilesWithExtensions(context, filterExtensions);
-   }
-   
-   private static FileSystemItem[] listFilesWithExtensions(
-         FileSystemContext context, List<String> filterExtensions)
-   {
-      FileSystemItem[] items = context.ls();
+      FileSystemItem[] items = context_.ls();
       if (items == null)
          return new FileSystemItem[0];
       
@@ -331,13 +321,18 @@ public abstract class FileSystemDialog extends ModalDialogBase
       {
          if (items[i].isDirectory())
             filtered.add(items[i]);
-         else if (filterExtensions.isEmpty())
+         else if (filterExtension_ == null)
             filtered.add(items[i]);
-         else if (extensionMatchesFilters(items[i].getExtension(), filterExtensions))
+         else if (filterExtension_.equalsIgnoreCase(items[i].getExtension()))
             filtered.add(items[i]);
       }
        
-      Collections.sort(filtered, (o1, o2) -> o1.compareTo(o2));
+      Collections.sort(filtered, new Comparator<FileSystemItem>() {
+         public int compare(FileSystemItem o1, FileSystemItem o2)
+         {
+            return o1.compareTo(o2);
+         }
+       });
       FileSystemItem[] clone = new FileSystemItem[filtered.size()];
       return filtered.toArray(clone);
    }
@@ -346,43 +341,26 @@ public abstract class FileSystemDialog extends ModalDialogBase
    // desktop mode supports full multi-filetype, multi-extension filtering).
    // to support more sophisticated filtering we'd need to both add the 
    // UI as well as update this function to extract a list of filters
-   private List<String> extractFilterExtensions(String filter)
+   private String extractFilterExtension(String filter)
    {
-      List<String> filters = new ArrayList<>();
-      if (!StringUtil.isNullOrEmpty(filter))
+      if (StringUtil.isNullOrEmpty(filter))
       {
-         Pattern listPattern = Pattern.create("\\(([^)]+)\\)");
-         Pattern singlePattern = Pattern.create("\\*([^\\s]+)");
-         Match listMatch = listPattern.match(filter, 0);
-         while (listMatch != null)
-         {
-            Match singleMatch = singlePattern.match(listMatch.getGroup(1), 0);
-            while (singleMatch != null)
-            {
-               filters.add(singleMatch.getGroup(1));
-               singleMatch = singleMatch.nextMatch();
-            }
-            listMatch = listMatch.nextMatch();
-         }
+         return null;
       }
-      return filters;
-   }
-
-   private static boolean extensionMatchesFilters(String extension, List<String> filterExtensions)
-   {
-      if (filterExtensions.isEmpty())
-         return true;
-      
-      for (String filter: filterExtensions)
-         if (filter.equalsIgnoreCase(extension))
-            return true;
-      
-      return false;
+      else
+      {
+         Pattern p = Pattern.create("\\(\\*(\\.[^)]*)\\)$");
+         Match m = p.match(filter, 0);
+         if (m == null)
+            return null;
+         else
+            return m.getGroup(1);
+      }
    }
 
    protected final FileSystemContext context_;
    private final ProgressOperationWithInput<FileSystemItem> operation_;
-   private List<String> filterExtensions_;
+   private String filterExtension_;
    private boolean invokeOperationEvenOnCancel_;
    private final ProgressIndicator progress_;
    protected FileBrowserWidget browser_;

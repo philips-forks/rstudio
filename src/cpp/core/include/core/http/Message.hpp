@@ -1,7 +1,7 @@
 /*
  * Message.hpp
  *
- * Copyright (C) 2009-12 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -40,11 +40,8 @@ class FilePath;
 namespace http {
 
 // encodings
-extern const char * const kGzipEncoding;
-extern const char * const kDeflateEncoding;
-extern const char * const kTransferEncoding;
-extern const char * const kChunkedTransferEncoding;
-
+extern const char * const kGzipEncoding;         
+   
 class Response;
    
 class Message : boost::noncopyable
@@ -67,8 +64,8 @@ public:
    std::string contentType() const ;
    void setContentType(const std::string& contentType) ;
    
-   uintmax_t contentLength() const;
-   void setContentLength(uintmax_t contentLength);
+   std::size_t contentLength() const;
+   void setContentLength(int contentLength);
   
    bool containsHeader(const std::string& name) const ;
    std::string headerValue(const std::string& name) const ;
@@ -86,7 +83,6 @@ public:
    void setHeader(const Header& header);
    void setHeader(const std::string& name, const std::string& value) ;
    void setHeader(const std::string& name, int value);
-   void setHeader(const std::string& name, uintmax_t value);
 
    void removeHeader(const std::string& name) ;
 
@@ -97,9 +93,6 @@ public:
    void reset();
    
    std::vector<boost::asio::const_buffer> toBuffers(
-                              const Header& overrideHeader = Header()) const ;
-
-   std::vector<boost::asio::const_buffer> headerBuffers(
                               const Header& overrideHeader = Header()) const ;
    
 protected:
@@ -136,11 +129,7 @@ private:
 
    void setExtraHeader(const Header& header)
    {
-      // multiple Set-Cookie directives are allowed on the message
-      if (header.name == "Set-Cookie")
-         addHeader(header);
-      else
-         setHeader(header);
+      setHeader(header);
    }
    
 private:

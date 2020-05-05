@@ -1,7 +1,7 @@
 /*
  * DocsMenu.java
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -14,21 +14,18 @@
  */
 package org.rstudio.studio.client.workbench.views.source;
 
-import com.google.gwt.dom.client.Style.FontStyle;
+import com.google.gwt.resources.client.ImageResource;
 import com.google.gwt.user.client.Command;
 import com.google.gwt.user.client.ui.MenuItem;
 import com.google.gwt.user.client.ui.PopupPanel;
 import com.google.inject.Inject;
 
-import org.rstudio.core.client.StringUtil;
 import org.rstudio.core.client.command.AppCommand;
 import org.rstudio.core.client.command.AppMenuBar;
 import org.rstudio.core.client.command.DisabledMenuItem;
 import org.rstudio.core.client.files.FileSystemItem;
 import org.rstudio.studio.client.RStudioGinjector;
 import org.rstudio.studio.client.application.events.EventBus;
-import org.rstudio.studio.client.common.filetypes.FileIcon;
-import org.rstudio.studio.client.workbench.views.source.events.DocTabActivatedEvent;
 import org.rstudio.studio.client.workbench.views.source.events.DocTabsChangedEvent;
 import org.rstudio.studio.client.workbench.views.source.events.DocTabsChangedHandler;
 import org.rstudio.studio.client.workbench.views.source.events.SwitchToDocEvent;
@@ -56,21 +53,9 @@ public class DocsMenu extends AppMenuBar
             {
                public void onDocTabsChanged(DocTabsChangedEvent event)
                {
-                  setDocs(event.getIds(), event.getIcons(), event.getNames(), event.getPaths());
-                  refreshStyles(event.getActiveId());
+                  setDocs(event.getIcons(), event.getNames(), event.getPaths());
                }
-            });
-      
-      events_.addHandler(
-            DocTabActivatedEvent.TYPE,
-            new DocTabActivatedEvent.Handler()
-            {
-               @Override
-               public void onDocTabActivated(DocTabActivatedEvent event)
-               {
-                  refreshStyles(event.getId());
-               }
-            });
+            }) ;
    }
 
    public void setOwnerPopupPanel(PopupPanel panel)
@@ -78,11 +63,9 @@ public class DocsMenu extends AppMenuBar
       panel_ = panel;
    }
 
-   public void setDocs(String[] ids, FileIcon[] icons, String[] names, String[] paths)
+   public void setDocs(ImageResource[] icons, String[] names, String[] paths)
    {
       clearItems();
-      
-      ids_.clear();
       names_.clear();
       menuItems_.clear();
       
@@ -98,7 +81,7 @@ public class DocsMenu extends AppMenuBar
 
       for (int i = 0; i < icons.length; i++)
       {
-         String label = AppCommand.formatMenuLabel(icons[i].getImageResource(),
+         String label = AppCommand.formatMenuLabel(icons[i],
                                                    names[i] + "\u00A0\u00A0\u00A0",
                                                    null);
          final int tabIndex = i;
@@ -113,7 +96,6 @@ public class DocsMenu extends AppMenuBar
          });
          item.setTitle(paths[i]);
 
-         ids_.add(ids[i]);
          names_.add(names[i]);
          menuItems_.add(item);
       }
@@ -182,23 +164,7 @@ public class DocsMenu extends AppMenuBar
       
       return deduped;
    }
-   
-   private void refreshStyles(String activeId)
-   {
-      for (int i = 0, n = menuItems_.size(); i < n; i++)
-      {
-         if (StringUtil.equals(ids_.get(i), activeId))
-         {
-            menuItems_.get(i).getElement().getStyle().setFontStyle(FontStyle.OBLIQUE);
-         }
-         else
-         {
-            menuItems_.get(i).getElement().getStyle().setFontStyle(FontStyle.NORMAL);
-         }
-      }
-   }
 
-   private ArrayList<String> ids_ = new ArrayList<String>();
    private ArrayList<String> names_ = new ArrayList<String>();
    private ArrayList<MenuItem> menuItems_ = new ArrayList<MenuItem>();
    private EventBus events_;

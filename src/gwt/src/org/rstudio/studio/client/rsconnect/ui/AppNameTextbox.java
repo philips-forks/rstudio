@@ -1,7 +1,7 @@
 /*
  * AppNameTextbox.java
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-14 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -85,11 +85,6 @@ public class AppNameTextbox extends Composite
       return appTitle_.getText().trim();
    }
    
-   public TextBox getTextBox()
-   {
-      return appTitle_;
-   }
-   
    public String getName()
    {
       // return current title if no generated name is available
@@ -114,7 +109,7 @@ public class AppNameTextbox extends Composite
          if (validTitle_)
             name_ = app;
          else
-            error_.setText("The title must contain 4 - 64 alphanumeric " + 
+            error_.setText("The title must contain 3 - 64 alphanumeric " + 
                            "characters.");
          return;
       }

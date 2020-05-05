@@ -1,7 +1,7 @@
 /*
  * TextEntryModalDialog.java
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -14,16 +14,8 @@
  */
 package org.rstudio.core.client.widget;
 
-import com.google.gwt.aria.client.Roles;
 import com.google.gwt.dom.client.Style.Unit;
-
-import com.google.gwt.user.client.ui.CheckBox;
-import com.google.gwt.user.client.ui.PasswordTextBox;
-import com.google.gwt.user.client.ui.TextBox;
-import com.google.gwt.user.client.ui.VerticalPanel;
-import com.google.gwt.user.client.ui.Widget;
-import org.rstudio.core.client.ElementIds;
-import org.rstudio.core.client.MessageDisplay;
+import com.google.gwt.user.client.ui.*;
 import org.rstudio.core.client.StringUtil;
 import org.rstudio.core.client.dom.DomUtils;
 
@@ -32,34 +24,27 @@ public class TextEntryModalDialog extends ModalDialog<String>
    public TextEntryModalDialog(String title,
                                String caption,
                                String defaultValue,
-                               int type,
+                               boolean usePasswordMask,
                                String extraOptionPrompt,
                                boolean extraOptionDefault,
+                               boolean numbersOnly,
                                int selectionIndex,
                                int selectionLength, String okButtonCaption,
                                int width,
                                ProgressOperationWithInput<String> okOperation,
                                Operation cancelOperation)
    {
-      super(title, Roles.getDialogRole(), okOperation, cancelOperation);
-      type_ = type;
+      super(title, okOperation, cancelOperation);
+      numbersOnly_ = numbersOnly;
       selectionIndex_ = selectionIndex;
       selectionLength_ = selectionLength;
       width_ = width;
-      switch(type)
-      {
-         case MessageDisplay.INPUT_PASSWORD:
-            textBox_ = new PasswordTextBox();
-            break;
-         case MessageDisplay.INPUT_NUMERIC:
-            textBox_ = new NumericTextBox();
-            break;
-         default:
-            textBox_ = new TextBox();
-      }
+      textBox_ = usePasswordMask ? new PasswordTextBox() :
+                 numbersOnly ? new NumericTextBox() :
+                 new TextBox();
       textBox_.setWidth("100%");
       DomUtils.disableAutoBehavior(textBox_);
-      captionLabel_ = new FormLabel(caption, textBox_);
+      captionLabel_ = new Label(caption);
 
       extraOption_ = new CheckBox(StringUtil.notNull(extraOptionPrompt));
       extraOption_.setVisible(
@@ -74,7 +59,7 @@ public class TextEntryModalDialog extends ModalDialog<String>
    }
    
    @Override
-   protected void focusInitialControl()
+   protected void onDialogShown()
    {
       textBox_.setFocus(true);
       
@@ -115,18 +100,18 @@ public class TextEntryModalDialog extends ModalDialog<String>
    @Override
    protected boolean validate(String input)
    {
-      if (input.length() == 0 && type_ != MessageDisplay.INPUT_OPTIONAL_TEXT)
+      if (input.length() == 0)
       {
          MessageDialog dialog = new MessageDialog(MessageDialog.ERROR,
                                                   "Error",
                                                   "You must enter a value.");
-         dialog.addButton("OK", ElementIds.DIALOG_OK_BUTTON, (Operation)null, true, true);
+         dialog.addButton("OK", (Operation)null, true, true);
          dialog.showModal();
          textBox_.setFocus(true);
          return false;
       }
 
-      if (type_ == MessageDisplay.INPUT_NUMERIC)
+      if (numbersOnly_)
       {
          try
          {
@@ -137,7 +122,7 @@ public class TextEntryModalDialog extends ModalDialog<String>
             MessageDialog dialog = new MessageDialog(MessageDialog.ERROR,
                                                      "Error",
                                                      "Not a valid number.");
-            dialog.addButton("OK", ElementIds.DIALOG_OK_BUTTON, (Operation)null, true, true);
+            dialog.addButton("OK", (Operation)null, true, true);
             dialog.showModal();
             textBox_.setFocus(true);
             textBox_.selectAll();
@@ -145,7 +130,7 @@ public class TextEntryModalDialog extends ModalDialog<String>
          }
       }
 
-      return true;
+      return true ;
    }
 
    public boolean getExtraOption()
@@ -156,10 +141,10 @@ public class TextEntryModalDialog extends ModalDialog<String>
 
 
    private int width_;
-   private FormLabel captionLabel_;
+   private Label captionLabel_;
    private TextBox textBox_;
    private CheckBox extraOption_;
+   private final boolean numbersOnly_;
    private final int selectionIndex_;
    private final int selectionLength_;
-   private final int type_;
 }

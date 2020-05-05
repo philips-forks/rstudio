@@ -1,7 +1,7 @@
 /*
  * EventBus.java
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-15 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -35,7 +35,7 @@ import com.google.inject.Provider;
 import com.google.inject.Singleton;
 
 @Singleton
-public class EventBus extends HandlerManager implements FireEvents
+public class EventBus extends HandlerManager
 {
    @Inject
    public EventBus(Provider<Satellite> pSatellite,
@@ -52,11 +52,6 @@ public class EventBus extends HandlerManager implements FireEvents
    public void fireEvent(GwtEvent<?> event)
    {
       fireEvent(event, false);
-   }
-   
-   public void dispatchEvent(GwtEvent<?> event)
-   {
-      fireEvent(event, true);
    }
    
    private void fireEvent(GwtEvent<?> event, boolean fromOtherWindow)
@@ -77,7 +72,7 @@ public class EventBus extends HandlerManager implements FireEvents
             if (crossWindow.focusMode() == CrossWindowEvent.MODE_FOCUS)
                pSatellite_.get().focusMainWindow();
             else if (crossWindow.focusMode() == CrossWindowEvent.MODE_AUXILIARY &&
-                     Desktop.hasDesktopFrame())
+                     Desktop.isDesktop())
                Desktop.getFrame().bringMainFrameBehindActive();
 
             fireEventToMainWindow(jso, pSatellite_.get().getSatelliteName());
@@ -94,21 +89,18 @@ public class EventBus extends HandlerManager implements FireEvents
       
    }
    
-   @Override
    public void fireEventToAllSatellites(CrossWindowEvent<?> event)
    {
       pManager_.get().dispatchCrossWindowEvent(event);
    }
    
-   @Override
-   public void fireEventToSatellite(CrossWindowEvent<?> event,
-                                    WindowEx satelliteWindow)
+   public void fireEventToSatellite(CrossWindowEvent<?> event, 
+         WindowEx satelliteWindow)
    {
       fireEventToSatellite(serializer_.serialize(event), 
             satelliteWindow);
    }
    
-   @Override
    public void fireEventToMainWindow(CrossWindowEvent<?> event)
    {
       if (Satellite.isCurrentWindowSatellite())

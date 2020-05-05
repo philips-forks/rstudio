@@ -1,7 +1,7 @@
 /*
  * PackagesServerOperations.java
  *
- * Copyright (C) 2009-12 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -37,10 +37,6 @@ public interface PackagesServerOperations extends PackratServerOperations
    void isPackageLoaded(String packageName, String libName,
                         ServerRequestCallback<Boolean> requestCallback);
    
-   void isPackageInstalled(String packageName,
-                           String version,
-                           ServerRequestCallback<Boolean> requestCallback);
-   
    void checkForPackageUpdates(
             ServerRequestCallback<JsArray<PackageUpdate>> requestCallback);
 
@@ -55,9 +51,4 @@ public interface PackagesServerOperations extends PackratServerOperations
    
    void ignoreNextLoadedPackageCheck(
                         ServerRequestCallback<Void> requestCallback);
-   
-   void getPackageNewsUrl(
-                        String packageName,
-                        String libraryPath,
-                        ServerRequestCallback<String> requestCallback);
 }

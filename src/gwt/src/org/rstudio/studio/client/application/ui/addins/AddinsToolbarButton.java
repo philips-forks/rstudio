@@ -1,7 +1,7 @@
 /*
  * AddinsToolbarButton.java
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-17 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -15,12 +15,10 @@
 package org.rstudio.studio.client.application.ui.addins;
 
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import org.rstudio.core.client.ElementIds;
 import org.rstudio.core.client.MapUtil;
 import org.rstudio.core.client.js.JsUtil;
 import org.rstudio.core.client.resources.CoreResources;
@@ -29,13 +27,13 @@ import org.rstudio.core.client.widget.CustomMenuItemSeparator;
 import org.rstudio.core.client.widget.ScrollableToolbarPopupMenu;
 import org.rstudio.core.client.widget.SearchWidget;
 import org.rstudio.core.client.widget.ToolbarButton;
-import org.rstudio.core.client.widget.ToolbarMenuButton;
 import org.rstudio.core.client.widget.ToolbarPopupMenu;
 import org.rstudio.studio.client.RStudioGinjector;
 import org.rstudio.studio.client.workbench.addins.Addins.AddinExecutor;
 import org.rstudio.studio.client.workbench.addins.Addins.RAddin;
 import org.rstudio.studio.client.workbench.addins.Addins.RAddins;
 import org.rstudio.studio.client.workbench.addins.AddinsCommandManager;
+import org.rstudio.studio.client.workbench.commands.Commands;
 
 import com.google.gwt.core.client.Scheduler;
 import com.google.gwt.core.client.Scheduler.ScheduledCommand;
@@ -53,26 +51,17 @@ import com.google.gwt.user.client.ui.Label;
 import com.google.gwt.user.client.ui.MenuItem;
 import com.google.inject.Inject;
 
-public class AddinsToolbarButton extends ToolbarMenuButton
+public class AddinsToolbarButton extends ToolbarButton
 {
    public AddinsToolbarButton()
    {
       super("Addins",
-            ToolbarButton.NoTitle,
             CoreResources.INSTANCE.iconEmpty(),
-            new ScrollableToolbarPopupMenu() 
-            {
-               @Override
-               protected int getMaxHeight()
-               {
-                  return 500;
-               }
-            },
+            new ScrollableToolbarPopupMenu(),
             false);
       
       RStudioGinjector.INSTANCE.injectMembers(this);
       
-      ElementIds.assignElementId(this, ElementIds.ADDINS_TOOLBAR_BUTTON);
       menu_ = getMenu();
       
       menu_.setAutoHideRedundantSeparators(false);
@@ -102,7 +91,7 @@ public class AddinsToolbarButton extends ToolbarMenuButton
          }
       });
       
-      searchWidget_ = new SearchWidget("Search for addins");
+      searchWidget_ = new SearchWidget();
       searchValueChangeTimer_ = new Timer()
       {
          @Override
@@ -164,15 +153,6 @@ public class AddinsToolbarButton extends ToolbarMenuButton
                }
             });
             menu_.addSeparator();
-            
-            addins.sort(new Comparator<RAddin>()
-            {
-               @Override
-               public int compare(RAddin o1, RAddin o2)
-               {
-                  return Integer.compare(o1.getOrdinal(), o2.getOrdinal());
-               }
-            });
             
             for (RAddin addin : addins)
                menu_.addItem(menuItem(addin));
@@ -250,11 +230,9 @@ public class AddinsToolbarButton extends ToolbarMenuButton
       {
          RAddin addin = addins.get(key);
          
-         if (addin.getName().toLowerCase().indexOf(query) == -1 &&
-             addin.getPackage().toLowerCase().indexOf(query) == -1)
-         {
+         String name = addin.getName();
+         if (name.toLowerCase().indexOf(query) == -1)
             continue;
-         }
          
          String[] splat = key.split("::");
          String pkg = splat[0];
@@ -289,9 +267,11 @@ public class AddinsToolbarButton extends ToolbarMenuButton
    }
    
    @Inject
-   private void initialize(AddinsCommandManager manager,
+   private void initialize(Commands commands,
+                           AddinsCommandManager manager,
                            AddinExecutor executor)
    {
+      commands_ = commands;
       manager_ = manager;
       executor_ = executor;
    }
@@ -304,6 +284,7 @@ public class AddinsToolbarButton extends ToolbarMenuButton
    private int menuWidth_ = 0;
    
    // Injected ----
+   private Commands commands_;
    private AddinsCommandManager manager_;
    private AddinExecutor executor_;
    

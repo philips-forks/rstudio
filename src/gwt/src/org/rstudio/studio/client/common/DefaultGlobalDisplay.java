@@ -1,7 +1,7 @@
 /*
  * DefaultGlobalDisplay.java
  *
- * Copyright (C) 2009-18 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -20,9 +20,6 @@ import com.google.gwt.user.client.Command;
 import com.google.gwt.user.client.ui.RootLayoutPanel;
 import com.google.inject.Inject;
 import com.google.inject.Provider;
-
-import org.rstudio.core.client.MessageDisplay;
-import org.rstudio.core.client.StringUtil;
 import org.rstudio.core.client.command.AppCommand;
 import org.rstudio.core.client.command.CommandHandler;
 import org.rstudio.core.client.dom.WindowEx;
@@ -31,6 +28,7 @@ import org.rstudio.core.client.widget.*;
 import org.rstudio.studio.client.application.ApplicationView;
 import org.rstudio.studio.client.application.Desktop;
 import org.rstudio.studio.client.application.model.ApplicationServerOperations;
+import org.rstudio.core.client.widget.DialogBuilder;
 import org.rstudio.studio.client.common.dialog.DialogBuilderFactory;
 import org.rstudio.studio.client.workbench.commands.Commands;
 import org.rstudio.studio.client.workbench.model.Session;
@@ -64,27 +62,7 @@ public class DefaultGlobalDisplay extends GlobalDisplay
                              final OperationWithInput<String> operation)
    {
       ((TextInput)GWT.create(TextInput.class)).promptForText(
-            title, label, initialValue, MessageDisplay.INPUT_REQUIRED_TEXT,
-            -1, -1, null,
-            new ProgressOperationWithInput<String>()
-            {
-               public void execute(String input, ProgressIndicator indicator)
-               {
-                  indicator.onCompleted();
-                  operation.execute(input);
-               }
-            },
-            null);
-   }
-
-   @Override
-   public void promptForText(String title, 
-                             String label, 
-                             int type,
-                             OperationWithInput<String> operation)
-   {
-      ((TextInput)GWT.create(TextInput.class)).promptForText(
-            title, label, "", type, -1, -1, null,
+            title, label, initialValue, false, false, -1, -1, null,
             new ProgressOperationWithInput<String>()
             {
                public void execute(String input, ProgressIndicator indicator)
@@ -103,9 +81,7 @@ public class DefaultGlobalDisplay extends GlobalDisplay
                              ProgressOperationWithInput<String> operation)
    {
       ((TextInput)GWT.create(TextInput.class)).promptForText(
-            title, label, initialValue, 
-            MessageDisplay.INPUT_REQUIRED_TEXT,
-            -1, -1, null, operation, null);
+            title, label, initialValue, false, false, -1, -1, null, operation, null);
    }
 
    @Override
@@ -121,34 +97,13 @@ public class DefaultGlobalDisplay extends GlobalDisplay
             title,
             label,
             initialValue,
-            MessageDisplay.INPUT_REQUIRED_TEXT,
+            false,
+            false,
             selectionOffset,
             selectionLength,
             okButtonCaption,
             operation,
             null);
-   }
-
-   @Override
-   public void promptForText(String title,
-                             String label,
-                             String initialValue,
-                             int selectionOffset,
-                             int selectionLength,
-                             String okButtonCaption,
-                             ProgressOperationWithInput<String> operation,
-                             Operation cancelOperation)
-   {
-      ((TextInput)GWT.create(TextInput.class)).promptForText(
-            title,
-            label,
-            initialValue,
-            MessageDisplay.INPUT_REQUIRED_TEXT,
-            selectionOffset,
-            selectionLength,
-            okButtonCaption,
-            operation,
-            cancelOperation);
    }
 
    @Override
@@ -156,7 +111,7 @@ public class DefaultGlobalDisplay extends GlobalDisplay
                                  String title,
                                  String label,
                                  String initialValue,
-                                 int type,
+                                 boolean usePasswordMask,
                                  String extraOptionPrompt,
                                  boolean extraOptionDefault,
                                  ProgressOperationWithInput<PromptWithOptionResult> okOperation,
@@ -166,7 +121,7 @@ public class DefaultGlobalDisplay extends GlobalDisplay
             title,
             label,
             initialValue,
-            type,
+            usePasswordMask,
             extraOptionPrompt,
             extraOptionDefault,
             -1,
@@ -187,7 +142,8 @@ public class DefaultGlobalDisplay extends GlobalDisplay
             title,
             label,
             initialValue == null ? "" : initialValue.toString(),
-            MessageDisplay.INPUT_NUMERIC,
+            false,
+            true,
             -1,
             -1,
             null,
@@ -217,11 +173,6 @@ public class DefaultGlobalDisplay extends GlobalDisplay
       return SlideLabel.show(message, false, true, RootLayoutPanel.get());
    }
 
-   public void showLicenseWarningBar(boolean severe, String message)
-   {
-      view_.get().showLicenseWarning(severe, message);
-   }
-   
    public void showWarningBar(boolean severe, String message)
    {
       view_.get().showWarning(severe, message);
@@ -396,26 +347,12 @@ public class DefaultGlobalDisplay extends GlobalDisplay
    }
    
    @Override
-   public void bringWindowToFront(String name)
-   {
-      if (Desktop.isDesktop())
-         Desktop.getFrame().activateMinimalWindow(name);
-      else
-         bringWindowToFrontImpl(name);
-   }
-   
-   private static final native void bringWindowToFrontImpl(String name)
-   /*-{
-      $wnd.open("", name);
-   }-*/;
-   
-   @Override
    public void openRStudioLink(String linkName, boolean includeVersionInfo)
    {
       // build url
       final SessionInfo sessionInfo = session_.getSessionInfo();
-      String url = "https://www.rstudio.org/links/";
-      url += URL.encodePathSegment(linkName);
+      String url = "https://www.rstudio.org/links/" ;
+      url += URL.encodePathSegment(linkName) ;
       if (includeVersionInfo)
       {
          url += "?version=" + URL.encodeQueryString(sessionInfo.getRstudioVersion());
@@ -430,9 +367,7 @@ public class DefaultGlobalDisplay extends GlobalDisplay
    public void showHtmlFile(String path)
    {
       if (Desktop.isDesktop())
-         Desktop.getFrame().showFile(StringUtil.notNull(path));
-      else if (Desktop.isRemoteDesktop())
-         Desktop.getFrame().browseUrl(server_.getFileUrl(FileSystemItem.createFile(path)));
+         Desktop.getFrame().showFile(path);
       else
          openWindow(server_.getFileUrl(FileSystemItem.createFile(path)));
    }
@@ -441,16 +376,7 @@ public class DefaultGlobalDisplay extends GlobalDisplay
    public void showWordDoc(String path)
    {
       if (Desktop.isDesktop())
-         Desktop.getFrame().showWordDoc(StringUtil.notNull(path));
-      else
-         openWindow(server_.getFileUrl(FileSystemItem.createFile(path)));
-   }
-
-   @Override
-   public void showPptPresentation(String path)
-   {
-      if (Desktop.isDesktop())
-         Desktop.getFrame().showPptPresentation(StringUtil.notNull(path));
+         Desktop.getFrame().showWordDoc(path);
       else
          openWindow(server_.getFileUrl(FileSystemItem.createFile(path)));
    }
@@ -459,5 +385,6 @@ public class DefaultGlobalDisplay extends GlobalDisplay
    private final Session session_;
    private final ApplicationServerOperations server_;
    private final WindowOpener windowOpener_ = GWT.create(WindowOpener.class);
+  
 }
 

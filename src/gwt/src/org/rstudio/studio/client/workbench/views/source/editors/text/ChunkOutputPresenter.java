@@ -1,7 +1,7 @@
 /*
  * ChunkOutputPresenter.java
  *
- * Copyright (C) 2009-16 by RStudio, PBC
+ * Copyright (C) 2009-16 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -59,7 +59,6 @@ public interface ChunkOutputPresenter extends IsWidget, EditorThemeListener
    boolean hasOutput();
    boolean hasPlots();
    boolean hasErrors();
-   boolean hasHtmlWidgets();
    
    // notify of size changes
    void onResize();

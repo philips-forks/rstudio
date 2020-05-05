@@ -1,7 +1,7 @@
 /*
  * NewProjectResult.java
  *
- * Copyright (C) 2009-18 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -15,31 +15,28 @@
 package org.rstudio.studio.client.projects.model;
 
 import org.rstudio.studio.client.application.model.RVersionSpec;
-import org.rstudio.studio.client.application.model.TutorialApiCallContext;
 import org.rstudio.studio.client.common.vcs.VcsCloneOptions;
 
 public class NewProjectResult
 {
    public NewProjectResult(String projectFile, 
                            boolean createGitRepo,
-                           boolean useRenv,
+                           boolean usePackrat,
                            String newDefaultProjectLocation,
                            VcsCloneOptions vcsCloneOptions,
                            NewPackageOptions newPackageOptions,
                            NewShinyAppOptions newShinyAppOptions,
-                           ProjectTemplateOptions projectTemplateOptions,
-                           TutorialApiCallContext callContext)
+                           ProjectTemplateOptions projectTemplateOptions)
    {
       projectFile_ = projectFile;
       createGitRepo_ = createGitRepo;
-      useRenv_ = useRenv;
+      usePackrat_ = usePackrat;
       openInNewWindow_ = false;
       newDefaultProjectLocation_ = newDefaultProjectLocation;
       vcsCloneOptions_ = vcsCloneOptions;
       newPackageOptions_ = newPackageOptions;
       newShinyAppOptions_ = newShinyAppOptions;
       projectTemplateOptions_ = projectTemplateOptions;
-      callContext_ = callContext;
    }
    
    public String getProjectFile()
@@ -47,19 +44,14 @@ public class NewProjectResult
       return projectFile_;
    }
    
-   public void setProjectFile(String projectFile)
-   {
-      projectFile_ = projectFile;
-   }
-   
    public boolean getCreateGitRepo()
    {
       return createGitRepo_;
    }
    
-   public boolean getUseRenv() 
+   public boolean getUsePackrat() 
    {
-      return useRenv_;
+      return usePackrat_;
    }
    
    public boolean getOpenInNewWindow()
@@ -107,23 +99,14 @@ public class NewProjectResult
       return projectTemplateOptions_;
    }
 
-   /**
-    * @return If invoked via Tutorial Api, context info about the call, otherwise null
-    */
-   public TutorialApiCallContext getCallContext()
-   {
-      return callContext_;
-   }
-
    private final boolean createGitRepo_;
-   private final boolean useRenv_;
+   private final boolean usePackrat_;
    private boolean openInNewWindow_;
    private RVersionSpec rVersion_;
-   private String projectFile_;
+   private final String projectFile_;
    private final String newDefaultProjectLocation_;
    private final VcsCloneOptions vcsCloneOptions_;
    private final NewPackageOptions newPackageOptions_;
    private final NewShinyAppOptions newShinyAppOptions_;
    private final ProjectTemplateOptions projectTemplateOptions_;
-   private final TutorialApiCallContext callContext_;
 }

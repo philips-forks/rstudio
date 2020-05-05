@@ -1,7 +1,7 @@
 /*
  * SessionPostback.cpp
  *
- * Copyright (C) 2009-12 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -24,7 +24,8 @@ To create a new postback handler for an action 'foo' do the following:
  
 1) Create a shell script named 'rpostback-foo' (based on rpostback-pdfviewer)
  
-2) Ensure that the shell script is included in the installation
+2) Ensure that the shell script is included in the installation and registered
+   in the rsession apparmor profile
  
 3) Call module_context::registerPostbackHandler with 'foo' as the name param
    and the function you want called during the postback. The function will
@@ -41,8 +42,8 @@ To create a new postback handler for an action 'foo' do the following:
 
 #include <boost/function.hpp>
 
-#include <shared_core/Error.hpp>
-#include <shared_core/SafeConvert.hpp>
+#include <core/Error.hpp>
+#include <core/SafeConvert.hpp>
 
 #include <core/http/Request.hpp>
 #include <core/http/Response.hpp>
@@ -104,7 +105,7 @@ Error registerPostbackHandler(const std::string& name,
                                                     
    // compute the shell command required to invoke this handler and return it
    Options& options = session::options();
-   *pShellCommand = options.rpostbackPath().getAbsolutePath() + "-" + name ;
+   *pShellCommand = options.rpostbackPath().absolutePath() + "-" + name ;
    
    // return success
    return Success();

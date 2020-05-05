@@ -1,7 +1,7 @@
 /*
  * DesktopWordViewer.hpp
  *
- * Copyright (C) 2009-18 by RStudio, PBC
+ * Copyright (C) 2009-14 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -15,24 +15,35 @@
 #ifndef DESKTOPWORDVIEWER_HPP
 #define DESKTOPWORDVIEWER_HPP
 
-#include "DesktopOfficeViewer.hpp"
+#include <QString>
+
+#include <boost/utility.hpp>
+#include <core/Error.hpp>
+
+class IDispatch;
 
 namespace rstudio {
 namespace desktop {
 
-class WordViewer : public OfficeViewer
+class WordViewer : boost::noncopyable
 {
 public:
    WordViewer();
-
-   core::Error savePosition(IDispatch* source) override;
-   core::Error restorePosition(IDispatch* target) const override;
-   void resetPosition() override;
-   bool hasPosition() const override;
+   ~WordViewer();
+   core::Error showDocument(QString& path);
+   core::Error closeLastViewedDocument();
 
 private:
+   core::Error openDocument(QString& path, IDispatch* idispDocs,
+                            IDispatch** pidispDoc);
+   core::Error showWord();
+   core::Error getDocumentPosition(IDispatch* idispPos, int* pxPos, int* pyPos);
+   core::Error setDocumentPosition(IDispatch* idispPos, int xPos, int yPos);
+   core::Error getDocumentByPath(QString& path, IDispatch** pidispDoc);
+   IDispatch* idispWord_;
    int docScrollX_;
    int docScrollY_;
+   QString docPath_;
 };
 
 } // namespace desktop

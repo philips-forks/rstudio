@@ -1,7 +1,7 @@
 /*
  * ThemeChangedEvent.java
  *
- * Copyright (C) 2009-17 by RStudio, PBC
+ * Copyright (C) 2009-17 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -14,13 +14,12 @@
  */
 package org.rstudio.studio.client.application.events;
 
-import com.google.gwt.event.shared.GwtEvent;
 import org.rstudio.core.client.js.JavaScriptSerializable;
 
 import com.google.gwt.event.shared.EventHandler;
 
 @JavaScriptSerializable
-public class ThemeChangedEvent extends GwtEvent<ThemeChangedEvent.Handler>
+public class ThemeChangedEvent extends CrossWindowEvent<ThemeChangedEvent.Handler>
 {
    public interface Handler extends EventHandler
    {
@@ -29,6 +28,16 @@ public class ThemeChangedEvent extends GwtEvent<ThemeChangedEvent.Handler>
 
    public ThemeChangedEvent()
    {
+   }
+   
+   public ThemeChangedEvent(String themeName)
+   {
+      themeName_ = themeName;
+   }
+
+   public String getName()
+   {
+      return themeName_;
    }
 
    @Override
@@ -43,5 +52,6 @@ public class ThemeChangedEvent extends GwtEvent<ThemeChangedEvent.Handler>
       handler.onThemeChanged(this);
    }
 
-   public static final Type<Handler> TYPE = new Type<>();
+   private String themeName_;
+   public static final Type<Handler> TYPE = new Type<Handler>();
 }

@@ -1,7 +1,7 @@
 /*
  * ObjectExplorerEditingTargetWidget.java
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-17 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -25,8 +25,6 @@ import org.rstudio.studio.client.workbench.views.source.editors.explorer.model.O
 import org.rstudio.studio.client.workbench.views.source.model.SourceDocument;
 
 import com.google.gwt.core.client.GWT;
-import com.google.gwt.core.client.Scheduler;
-import com.google.gwt.core.client.Scheduler.ScheduledCommand;
 import com.google.gwt.dom.client.Style.Unit;
 import com.google.gwt.event.dom.client.ClickEvent;
 import com.google.gwt.event.dom.client.ClickHandler;
@@ -62,8 +60,6 @@ public class ObjectExplorerEditingTargetWidget extends Composite
       cbAttributes_ = new CheckBox();
       
       refreshButton_ = new ToolbarButton(
-            ToolbarButton.NoText,
-            "Refresh",
             RES.refresh2x(),
             new ClickHandler()
             {
@@ -74,7 +70,7 @@ public class ObjectExplorerEditingTargetWidget extends Composite
                }
             });
       
-      filterWidget_ = new SearchWidget("Search objects", new SuggestOracle()
+      filterWidget_ = new SearchWidget(new SuggestOracle()
       {
          @Override
          public void requestSuggestions(Request request, Callback callback)
@@ -101,14 +97,6 @@ public class ObjectExplorerEditingTargetWidget extends Composite
    public void onActivate()
    {
       grid_.redraw();
-      Scheduler.get().scheduleDeferred(new ScheduledCommand()
-      {
-         @Override
-         public void execute()
-         {
-            grid_.setFocus(true);
-         }
-      });
    }
    
    public void onDeactivate()
@@ -160,11 +148,6 @@ public class ObjectExplorerEditingTargetWidget extends Composite
       mainWidget_.setSize("100%", "100%");
       mainWidget_.addSouth(statusBar_, 16);
       mainWidget_.add(resizePanel_);
-   }
-   
-   public void refresh()
-   {
-      grid_.refresh();
    }
    
    public ObjectExplorerHandle getHandle()

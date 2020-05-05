@@ -1,7 +1,7 @@
 /*
  * EnvironmentUtils.hpp
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -13,7 +13,7 @@
  *
  */
 
-#include <shared_core/json/Json.hpp>
+#include <core/json/Json.hpp>
 #include <r/RSexp.hpp>
 
 namespace rstudio {
@@ -26,8 +26,6 @@ bool isUnevaluatedPromise(SEXP var);
 bool functionDiffersFromSource(SEXP srcRef, const std::string& functionCode);
 void sourceRefToJson(const SEXP srcref, core::json::Object* pObject);
 core::Error sourceFileFromRef(const SEXP srcref, std::string* pFileName);
-bool isAltrep(SEXP var);
-bool hasAltrep(SEXP var);
 
 } // namespace environment
 } // namespace modules

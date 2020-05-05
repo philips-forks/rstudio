@@ -1,7 +1,7 @@
 /*
  * FileSerializer.hpp
  *
- * Copyright (C) 2009-12 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -29,8 +29,8 @@
 #include <boost/function.hpp>
 #include <boost/algorithm/string/trim.hpp>
 
-#include <shared_core/Error.hpp>
-#include <shared_core/FilePath.hpp>
+#include <core/Error.hpp>
+#include <core/FilePath.hpp>
 #include <core/StringUtils.hpp>
 
 namespace rstudio {
@@ -47,8 +47,8 @@ Error writeCollectionToFile(
    using namespace boost::system::errc ;
    
    // open the file stream
-   std::shared_ptr<std::ostream> pOfs;
-   Error error = filePath.openForWrite(pOfs, true);
+   boost::shared_ptr<std::ostream> pOfs;
+   Error error = filePath.open_w(&pOfs, true);
    if (error)
       return error;
 
@@ -71,7 +71,7 @@ Error writeCollectionToFile(
       Error error = systemError(boost::system::errc::io_error,
                                 ERROR_LOCATION);
       error.addProperty("what", e.what());
-      error.addProperty("path", filePath.getAbsolutePath());
+      error.addProperty("path", filePath.absolutePath());
       return error;
    }
 
@@ -97,8 +97,8 @@ Error readCollectionFromFile(
    using namespace boost::system::errc ;
    
    // open the file stream
-   std::shared_ptr<std::istream> pIfs;
-   Error error = filePath.openForRead(pIfs);
+   boost::shared_ptr<std::istream> pIfs;
+   Error error = filePath.open_r(&pIfs);
    if (error)
       return error;
    
@@ -114,14 +114,8 @@ Error readCollectionFromFile(
       {
          // read the next line
          std::getline(*pIfs, nextLine) ;
-
          if (pIfs->eof())
-         {
-            // only exit here if we have nothing to process
-            // otherwise, exit after we have processed the data
-            if (nextLine.empty())
-               break;
-         }
+            break;
          else if (pIfs->fail())
             return systemError(io_error, ERROR_LOCATION);
 
@@ -148,10 +142,6 @@ Error readCollectionFromFile(
          {
             break; // exit read loop
          }
-
-         // if we've hit the end of the file, we're done reading
-         if (pIfs->eof())
-            break;
       }
    }
    catch(const std::exception& e)
@@ -159,7 +149,7 @@ Error readCollectionFromFile(
       Error error = systemError(boost::system::errc::io_error,
                                 ERROR_LOCATION);
       error.addProperty("what", e.what());
-      error.addProperty("path", filePath.getAbsolutePath());
+      error.addProperty("path", filePath.absolutePath());
       return error;
    }
    
@@ -173,8 +163,8 @@ Error appendToFile(const core::FilePath& filePath,
    using namespace boost::system::errc ;
    
    // open the file stream
-   std::shared_ptr<std::ostream> pOfs;
-   Error error = filePath.openForWrite(pOfs, false);
+   boost::shared_ptr<std::ostream> pOfs;
+   Error error = filePath.open_w(&pOfs, false);
    if (error)
       return error;
 
@@ -192,7 +182,7 @@ Error appendToFile(const core::FilePath& filePath,
       Error error = systemError(boost::system::errc::io_error,
                                 ERROR_LOCATION);
       error.addProperty("what", e.what());
-      error.addProperty("path", filePath.getAbsolutePath());
+      error.addProperty("path", filePath.absolutePath());
       return error;
    }
 
@@ -206,8 +196,8 @@ Error appendStructToFile(const core::FilePath& filePath,
    using namespace boost::system::errc ;
 
    // open the file stream
-   std::shared_ptr<std::ostream> pOfs;
-   Error error = filePath.openForWrite(pOfs, false);
+   boost::shared_ptr<std::ostream> pOfs;
+   Error error = filePath.open_w(&pOfs, false);
    if (error)
       return error;
 
@@ -225,7 +215,7 @@ Error appendStructToFile(const core::FilePath& filePath,
       Error error = systemError(boost::system::errc::io_error,
                                 ERROR_LOCATION);
       error.addProperty("what", e.what());
-      error.addProperty("path", filePath.getAbsolutePath());
+      error.addProperty("path", filePath.absolutePath());
       return error;
    }
 
@@ -239,8 +229,8 @@ Error readStructVectorFromFile(const core::FilePath& filePath,
    using namespace boost::system::errc ;
 
    // open the file stream
-   std::shared_ptr<std::istream> pIfs;
-   Error error = filePath.openForRead(pIfs);
+   boost::shared_ptr<std::istream> pIfs;
+   Error error = filePath.open_r(&pIfs);
    if (error)
       return error;
 
@@ -260,10 +250,10 @@ Error readStructVectorFromFile(const core::FilePath& filePath,
    }
    catch(const std::exception& e)
    {
-      error = systemError(boost::system::errc::io_error,
+      Error error = systemError(boost::system::errc::io_error,
                                 ERROR_LOCATION);
       error.addProperty("what", e.what());
-      error.addProperty("path", filePath.getAbsolutePath());
+      error.addProperty("path", filePath.absolutePath());
       return error;
    }
 
@@ -316,8 +306,8 @@ Error readStringFromFile(
    try
    {
       // open the file stream (report errors with exceptions)
-      std::shared_ptr<std::istream> pIfs;
-      Error error = filePath.openForRead(pIfs);
+      boost::shared_ptr<std::istream> pIfs;
+      Error error = filePath.open_r(&pIfs);
       if (error)
          return error;
       pIfs->exceptions(std::istream::failbit | std::istream::badbit);
@@ -343,7 +333,7 @@ Error readStringFromFile(
       Error error = systemError(boost::system::errc::io_error,
                                 ERROR_LOCATION);
       error.addProperty("what", e.what());
-      error.addProperty("path", filePath.getAbsolutePath());
+      error.addProperty("path", filePath.absolutePath());
       return error;
    }
 

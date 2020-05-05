@@ -1,7 +1,7 @@
 /*
  * TemplateFilter.cpp
  *
- * Copyright (C) 2009-12 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -15,7 +15,7 @@
 
 #include <core/text/TemplateFilter.hpp>
 
-#include <shared_core/FilePath.hpp>
+#include <core/FilePath.hpp>
 
 #include <core/http/Request.hpp>
 #include <core/http/Response.hpp>
@@ -44,44 +44,6 @@ void handleTemplateRequest(const FilePath& templatePath,
    pResponse->setFile(templatePath, request, templateFilter);
    pResponse->setContentType("text/html");
 
-}
-
-Error renderTemplate(const core::FilePath& templateFile,
-                     const std::map<std::string, std::string> &vars,
-                     std::ostream& os)
-{
-   // open input stream to template
-   std::shared_ptr<std::istream> pIfs;
-   Error error = templateFile.openForRead(pIfs);
-   if (error)
-      return error;
-
-   try
-   {
-      // ensure that errors are reported with exceptions (compatible
-      // with behavior of boost::iostreams::copy)
-      pIfs->exceptions(std::istream::failbit | std::istream::badbit);
-      os.exceptions(std::istream::failbit | std::istream::badbit);
-
-      // create a filtered stream w/ the template filter and std::ostream
-      boost::iostreams::filtering_ostream filteredStream ;
-      text::TemplateFilter templateFilter(vars);
-      filteredStream.push(templateFilter);
-      filteredStream.push(os);
-
-      // process the template
-      boost::iostreams::copy(*pIfs, filteredStream, 128);
-   }
-   catch(const std::exception& e)
-   {
-      Error error = systemError(boost::system::errc::io_error,
-                                ERROR_LOCATION);
-      error.addProperty("what", e.what());
-      error.addProperty("template-path", templateFile);
-      return error;
-   }
-
-   return Success();
 }
 
 void handleSecureTemplateRequest(const std::string& username,

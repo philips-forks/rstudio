@@ -1,7 +1,7 @@
 /*
  * NewDirectoryPage.java
  *
- * Copyright (C) 2009-20 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -14,37 +14,31 @@
  */
 package org.rstudio.studio.client.projects.ui.newproject;
 
-import com.google.gwt.aria.client.Roles;
-import org.rstudio.core.client.ElementIds;
-import org.rstudio.core.client.dom.DomUtils;
 import org.rstudio.core.client.files.FileSystemItem;
 import org.rstudio.core.client.resources.ImageResource2x;
 import org.rstudio.core.client.widget.DirectoryChooserTextBox;
-import org.rstudio.core.client.widget.FormLabel;
 import org.rstudio.core.client.widget.MessageDialog;
 import org.rstudio.studio.client.RStudioGinjector;
-import org.rstudio.studio.client.common.dependencies.DependencyManager;
 import org.rstudio.studio.client.common.vcs.VCSConstants;
-import org.rstudio.studio.client.projects.Projects;
 import org.rstudio.studio.client.projects.model.NewPackageOptions;
 import org.rstudio.studio.client.projects.model.NewProjectInput;
 import org.rstudio.studio.client.projects.model.NewProjectResult;
 import org.rstudio.studio.client.projects.model.NewShinyAppOptions;
 import org.rstudio.studio.client.projects.model.ProjectTemplateOptions;
 import org.rstudio.studio.client.workbench.model.SessionInfo;
-import org.rstudio.studio.client.workbench.prefs.model.UserPrefs;
+import org.rstudio.studio.client.workbench.prefs.model.UIPrefs;
 
 import com.google.gwt.dom.client.Style.Unit;
-import com.google.gwt.event.logical.shared.ValueChangeEvent;
 import com.google.gwt.resources.client.ImageResource;
 import com.google.gwt.user.client.ui.CheckBox;
 import com.google.gwt.user.client.ui.HorizontalPanel;
+import com.google.gwt.user.client.ui.Label;
 import com.google.gwt.user.client.ui.TextBox;
 import com.google.gwt.user.client.ui.VerticalPanel;
-import com.google.inject.Inject;
 
 public class NewDirectoryPage extends NewProjectWizardPage
 {
+
    public NewDirectoryPage()
    {
       this("New Project", 
@@ -61,15 +55,8 @@ public class NewDirectoryPage extends NewProjectWizardPage
                            ImageResource largeImage)
    {
       super(title, subTitle, pageCaption, image, largeImage);
-      
-      RStudioGinjector.INSTANCE.injectMembers(this);
    }
 
-   @Inject
-   private void initialize(DependencyManager dependencyManager)
-   {
-      dependencyManager_ = dependencyManager;
-   }
 
    @Override
    protected void onAddWidgets()
@@ -79,22 +66,20 @@ public class NewDirectoryPage extends NewProjectWizardPage
       HorizontalPanel panel = new HorizontalPanel();
       panel.addStyleName(styles.wizardMainColumn());
       
+      // create the dir name label
+      dirNameLabel_ = new Label("Directory name:");
+      dirNameLabel_.addStyleName(styles.wizardTextEntryLabel());
+      
       // top panel widgets
       onAddTopPanelWidgets(panel);
       
       // dir name
       VerticalPanel namePanel = new VerticalPanel();
       namePanel.addStyleName(styles.newProjectDirectoryName());
+      namePanel.add(dirNameLabel_);
       txtProjectName_ = new TextBox();
       txtProjectName_.setWidth("100%");
-      DomUtils.disableSpellcheck(txtProjectName_);
-      Roles.getTextboxRole().setAriaRequiredProperty(txtProjectName_.getElement(), true);
-
-      // create the dir name label
-      dirNameLabel_ = new FormLabel(getDirNameLabel(), txtProjectName_);
-      dirNameLabel_.addStyleName(styles.wizardTextEntryLabel());
-
-      namePanel.add(dirNameLabel_);
+      txtProjectName_.getElement().setAttribute("spellcheck", "false");
       namePanel.add(txtProjectName_);
       panel.add(namePanel);
       addWidget(panel);
@@ -105,13 +90,11 @@ public class NewDirectoryPage extends NewProjectWizardPage
       
       // project dir
       newProjectParent_ = new DirectoryChooserTextBox(
-            "Create project as subdirectory of:",
-            ElementIds.TextBoxButtonId.PROJECT_PARENT,
-            txtProjectName_);
+            "Create project as subdirectory of:", txtProjectName_);
       addWidget(newProjectParent_);
       
       // if git is available then add git init
-      UserPrefs userState = RStudioGinjector.INSTANCE.getUserPrefs();
+      UIPrefs uiPrefs = RStudioGinjector.INSTANCE.getUIPrefs();
       SessionInfo sessionInfo = 
          RStudioGinjector.INSTANCE.getSession().getSessionInfo();
       
@@ -123,7 +106,7 @@ public class NewDirectoryPage extends NewProjectWizardPage
       chkGitInit_.addStyleName(styles.wizardCheckbox());
       if (sessionInfo.isVcsAvailable(VCSConstants.GIT_ID))
       {  
-         chkGitInit_.setValue(userState.newProjGitInit().getValue());
+         chkGitInit_.setValue(uiPrefs.newProjGitInit().getValue());
          chkGitInit_.getElement().getStyle().setMarginRight(7, Unit.PX);
          if (optionsPanel != null)
          {
@@ -136,26 +119,22 @@ public class NewDirectoryPage extends NewProjectWizardPage
          }
       }
       
-      // Initialize project with renv
-      chkRenvInit_ = new CheckBox("Use renv with this project");
-      chkRenvInit_.addValueChangeHandler((ValueChangeEvent<Boolean> event) -> {
-         if (event.getValue())
-         {
-            dependencyManager_.withRenv("Using renv", (Boolean success) -> {
-               chkRenvInit_.setValue(success);
-            });
-         }
-         
-      });
+      // Initialize project with packrat
+      chkPackratInit_ = new CheckBox("Use packrat with this project");
+      if (!sessionInfo.getPackratAvailable())
+      {
+         chkPackratInit_.setValue(false);
+         chkPackratInit_.setVisible(false);
+      }
       
       if (optionsPanel != null)
       {
-         optionsPanel.add(chkRenvInit_);
+         optionsPanel.add(chkPackratInit_);
       }
       else
       {
          addSpacer();
-         addWidget(chkRenvInit_);
+         addWidget(chkPackratInit_);
       }
       
       
@@ -165,12 +144,7 @@ public class NewDirectoryPage extends NewProjectWizardPage
          addWidget(optionsPanel);
       }
    }
-
-   protected String getDirNameLabel()
-   {
-      return "Directory name:";
-   }
-
+   
    protected boolean getOptionsSideBySide()
    {
       return false;
@@ -205,6 +179,12 @@ public class NewDirectoryPage extends NewProjectWizardPage
       super.initialize(input);
           
       newProjectParent_.setText(input.getDefaultNewProjectLocation().getPath());
+      
+      if (!input.getContext().isPackratAvailable())
+      {
+         chkPackratInit_.setValue(false);
+         chkPackratInit_.setVisible(false);
+      }
    }
 
 
@@ -235,20 +215,19 @@ public class NewDirectoryPage extends NewProjectWizardPage
       if (name.length() > 0 && dir.length() > 0)
       {
          String projDir = FileSystemItem.createDir(dir).completePath(name);
-         String projFile = Projects.projFileFromDir(projDir);
+         String projFile = projFileFromDir(projDir);
          String newDefaultLocation = null;
-         if (dir != defaultNewProjectLocation_.getPath())
+         if (!dir.equals(defaultNewProjectLocation_))
             newDefaultLocation = dir;
          
          return new NewProjectResult(projFile, 
                                      chkGitInit_.getValue(), 
-                                     chkRenvInit_.getValue(), 
+                                     chkPackratInit_.getValue(), 
                                      newDefaultLocation,
                                      null,
                                      getNewPackageOptions(),
                                      getNewShinyAppOptions(),
-                                     getProjectTemplateOptions(),
-                                     null);
+                                     getProjectTemplateOptions());
       }
       else
       {
@@ -268,14 +247,11 @@ public class NewDirectoryPage extends NewProjectWizardPage
       return txtProjectName_.getText().trim();
    }
    
-   protected FormLabel dirNameLabel_;
+   protected Label dirNameLabel_;
    protected TextBox txtProjectName_;
    protected CheckBox chkGitInit_;
-   protected CheckBox chkRenvInit_;
+   protected CheckBox chkPackratInit_;
    
    private DirectoryChooserTextBox newProjectParent_;
-   
-   // Injected ----
-   private DependencyManager dependencyManager_;
 
 }

@@ -1,7 +1,7 @@
 /*
  * RMarkdownTemplates.cpp
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-17 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -13,13 +13,15 @@
  *
  */
 
+#include <boost/foreach.hpp>
+
 #include "RMarkdownTemplates.hpp"
 
-#include <shared_core/Error.hpp>
+#include <core/Error.hpp>
 #include <core/Exec.hpp>
-#include <shared_core/FilePath.hpp>
+#include <core/FilePath.hpp>
 #include <core/StringUtils.hpp>
-#include <shared_core/json/Json.hpp>
+#include <core/json/Json.hpp>
 #include <core/json/JsonRpc.hpp>
 
 #include <r/RSexp.hpp>
@@ -53,8 +55,8 @@ class Worker : public ppe::Worker
    void onWork(const std::string& pkgName, const FilePath& pkgPath)
    {
       // form the path to the template folder
-      FilePath templateRoot = pkgPath.completePath("rmarkdown")
-                                     .completePath("templates");
+      FilePath templateRoot = pkgPath.complete("rmarkdown")
+                                     .complete("templates");
 
       // skip if this folder doesn't exist or isn't a directory
       if (!templateRoot.exists() || !templateRoot.isDirectory())
@@ -62,7 +64,7 @@ class Worker : public ppe::Worker
 
       // get a list of all template folders under the root
       std::vector<FilePath> templateDirs;
-      Error error = templateRoot.getChildren(templateDirs);
+      Error error = templateRoot.children(&templateDirs);
       if (error)
       {
          LOG_ERROR(error);
@@ -70,7 +72,7 @@ class Worker : public ppe::Worker
       }
 
       // for each template folder found, look for a valid template inside
-      for (const FilePath& templateDir : templateDirs)
+      BOOST_FOREACH(const FilePath& templateDir, templateDirs)
       {
          // skip if not a directory
          if (!templateDir.isDirectory())
@@ -85,30 +87,38 @@ class Worker : public ppe::Worker
    {
       json::Object dataJson;
 
-      std::string templateYaml;
-      bool multiFile;
+      std::string name;
+      std::string description;
+      std::string createDir = "default";
 
-      SEXP templateFile;
+      SEXP templateDetails;
       r::sexp::Protect protect;
       Error error = r::exec::RFunction(
-         ".rs.getTemplateYamlFile", 
-           string_utils::utf8ToSystem(templateDir.getAbsolutePath()))
-         .call(&templateFile, &protect);
+         ".rs.getTemplateDetails", 
+           string_utils::utf8ToSystem(templateDir.absolutePath()))
+         .call(&templateDetails, &protect);
 
       // .rs.getTemplateDetails may return null if the template is not
       // well-formed
-      if (error || TYPEOF(templateFile) == NILSXP)
+      if (error || TYPEOF(templateDetails) == NILSXP)
          return;
 
-      r::sexp::getNamedListElement(templateFile,
-                                   "template_yaml", &templateYaml);
-      r::sexp::getNamedListElement(templateFile,
-                                   "multi_file", &multiFile);
+      r::sexp::getNamedListElement(templateDetails,
+                                   "name", &name);
+      r::sexp::getNamedListElement(templateDetails,
+                                   "description", &description);
+
+      bool createDirFlag = false;
+      error = r::sexp::getNamedListElement(templateDetails,
+                                           "create_dir",
+                                           &createDirFlag);
+      createDir = createDirFlag ? "true" : "false";
 
       dataJson["package_name"] = pkgName;
-      dataJson["path"] = templateDir.getAbsolutePath();
-      dataJson["template_yaml"] = templateYaml;
-      dataJson["multi_file"] = multiFile;
+      dataJson["path"] = templateDir.absolutePath();
+      dataJson["name"] = name;
+      dataJson["description"] = description;
+      dataJson["create_dir"] = createDir;
 
       s_templates.push_back(dataJson);
    }
@@ -127,62 +137,7 @@ public:
 Error getRmdTemplates(const json::JsonRpcRequest&,
                       json::JsonRpcResponse* pResponse)
 {
-   Error error;
-   json::Array result;
-   for (auto it: s_templates)
-   {
-      // skip if not an object type
-      if (!it.isObject())
-         continue;
-
-      // if we already know this template's name, no need to re-parse
-      json::Object item = it.getObject();
-      if (item.find("name") != item.end())
-      {
-         result.push_back(item);
-         continue;
-      }
-
-      // read filename and directory info
-      bool multiFile = false;
-      std::string templateYaml;
-      error = json::readObject(item, 
-            "multi_file",    multiFile,
-            "template_yaml", templateYaml);
-      if (error)
-         continue;
-
-      // read template details
-      SEXP templateDetails;
-      r::sexp::Protect protect;
-      error = r::exec::RFunction(
-         ".rs.getTemplateDetails", string_utils::utf8ToSystem(templateYaml))
-         .call(&templateDetails, &protect);
-      if (error)
-         continue;
-
-      // load template name/description
-      std::string name;
-      std::string description;
-      bool createDirFlag;
-      r::sexp::getNamedListElement(templateDetails,
-                                   "name", &name);
-      r::sexp::getNamedListElement(templateDetails,
-                                   "description", &description);
-      r::sexp::getNamedListElement(templateDetails,
-                                   "create_dir", &createDirFlag);
-
-      // append to metadata already known
-      item["name"] = name;
-      item["description"] = description;
-
-      // force directory creation if multi file
-      item["create_dir"] = (createDirFlag || multiFile) ? "true" : "false";
-
-      // save result to be delivered to client
-      result.push_back(item);
-   }
-   pResponse->setResult(result);
+   pResponse->setResult(s_templates);
    return Success();
 }
 

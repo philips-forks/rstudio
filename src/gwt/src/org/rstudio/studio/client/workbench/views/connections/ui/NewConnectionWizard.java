@@ -1,7 +1,7 @@
 /*
  * NewConnectionWizard.java
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -17,7 +17,6 @@ package org.rstudio.studio.client.workbench.views.connections.ui;
 
 import java.util.ArrayList;
 
-import com.google.gwt.aria.client.Roles;
 import org.rstudio.core.client.widget.ProgressOperationWithInput;
 import org.rstudio.core.client.widget.Wizard;
 import org.rstudio.core.client.widget.WizardPage;
@@ -25,8 +24,7 @@ import org.rstudio.studio.client.RStudioGinjector;
 import org.rstudio.studio.client.application.events.EventBus;
 import org.rstudio.studio.client.common.GlobalDisplay;
 import org.rstudio.studio.client.common.HelpLink;
-import org.rstudio.studio.client.workbench.prefs.model.UserPrefs;
-import org.rstudio.studio.client.workbench.views.connections.events.NewConnectionWizardRequestCloseEvent;
+import org.rstudio.studio.client.workbench.prefs.model.UIPrefs;
 import org.rstudio.studio.client.workbench.views.connections.model.ConnectionOptions;
 import org.rstudio.studio.client.workbench.views.connections.model.ConnectionsServerOperations;
 import org.rstudio.studio.client.workbench.views.connections.model.NewConnectionContext;
@@ -42,24 +40,21 @@ import com.google.inject.Inject;
 public class NewConnectionWizard extends Wizard<NewConnectionContext, ConnectionOptions>
 {
    @Inject
-   private void initialize(UserPrefs uiPrefs,
+   private void initialize(UIPrefs uiPrefs,
                            EventBus events,
                            GlobalDisplay globalDisplay,
                            ConnectionsServerOperations server)
    {
-      events.addHandler(NewConnectionWizardRequestCloseEvent.TYPE, (event) -> closeDialog());
    }
 
    public NewConnectionWizard(NewConnectionContext context,
-                              ProgressOperationWithInput<ConnectionOptions> operation,
-                              String warning)
+                              ProgressOperationWithInput<ConnectionOptions> operation)
    {
       super(
          "New Connection",
          "OK",
-            Roles.getDialogRole(),
          context,
-         createFirstPage(context, warning),
+         createFirstPage(context),
          operation
       );
 
@@ -70,7 +65,7 @@ public class NewConnectionWizard extends Wizard<NewConnectionContext, Connection
          true);
       setHelpLink(mainHelpLink_);
 
-      RStudioGinjector.INSTANCE.injectMembers(this);
+      RStudioGinjector.INSTANCE.injectMembers(this); 
    }
 
    @Override
@@ -91,7 +86,7 @@ public class NewConnectionWizard extends Wizard<NewConnectionContext, Connection
    @Override
    protected ArrayList<String> getWizardBodyStyles()
    {
-      ArrayList<String> classes = new ArrayList<>();
+      ArrayList<String> classes = new ArrayList<String>();
       classes.add(RES.styles().wizardBodyPanel());
       return classes;
    }
@@ -103,9 +98,9 @@ public class NewConnectionWizard extends Wizard<NewConnectionContext, Connection
    }
    
    private static WizardPage<NewConnectionContext, ConnectionOptions>
-      createFirstPage(NewConnectionContext input, String warning)
+      createFirstPage(NewConnectionContext input)
    {
-      return new NewConnectionNavigationPage("New Connection", "OK", null, input, warning);
+      return new NewConnectionNavigationPage("New Connection", "OK", null, input);
    }
 
    public interface Styles extends CssResource
@@ -130,5 +125,5 @@ public class NewConnectionWizard extends Wizard<NewConnectionContext, Connection
       RES.styles().ensureInjected();
    }
    
-   private HelpLink mainHelpLink_;
+   private HelpLink mainHelpLink_ = null;
 }

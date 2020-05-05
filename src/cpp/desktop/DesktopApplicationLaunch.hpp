@@ -1,7 +1,7 @@
 /*
  * DesktopApplicationLaunch.hpp
  *
- * Copyright (C) 2009-12 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -19,7 +19,6 @@
 #include <QObject>
 #include <QWidget>
 #include <QApplication>
-#include <QProcess>
 #include <boost/scoped_ptr.hpp>
 
 namespace rstudio {
@@ -43,9 +42,6 @@ public:
 
    QString startupOpenFileRequest() const;
 
-   void launchRStudio(const std::vector<std::string>& args = std::vector<std::string>(),
-                      const std::string& initialWorkingDir = std::string());
-
 protected:
     explicit ApplicationLaunch();
 #ifdef _WIN32
@@ -54,15 +50,14 @@ protected:
                      long * result);
 #endif
 
-Q_SIGNALS:
+signals:
     void openFileRequest(QString filename);
 
-public Q_SLOTS:
+public slots:
     bool sendMessage(QString filename);
 
 private:
     QWidget* pMainWindow_;
-    QProcessEnvironment launchEnv_;
 };
 
 } // namespace desktop

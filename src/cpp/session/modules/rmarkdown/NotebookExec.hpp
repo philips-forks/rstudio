@@ -1,7 +1,7 @@
 /*
  * NotebookExec.hpp
  *
- * Copyright (C) 2009-17 by RStudio, PBC
+ * Copyright (C) 2009-16 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -18,8 +18,9 @@
 
 #include <session/SessionModuleContext.hpp>
 
-#include <core/BoostSignals.hpp>
-#include <shared_core/json/Json.hpp>
+#include <boost/signal.hpp>
+
+#include <core/json/Json.hpp>
 
 #include <r/RSexp.hpp>
 
@@ -42,9 +43,6 @@ namespace modules {
 namespace rmarkdown {
 namespace notebook {
 
-core::Error copyLibDirForOutput(const core::FilePath& file,
-   const std::string& docId, const std::string& nbCtxId);
-
 class ChunkExecContext : public NotebookCapture
 {
 public:
@@ -60,10 +58,8 @@ public:
    ExecScope execScope();
    const ChunkOptions& options();
 
-   // inject console input/output manually
+   // inject console input manually
    void onConsoleInput(const std::string& input);
-   void onConsoleOutput(module_context::ConsoleOutputType type,
-         const std::string& output);
 
    // invoked to indicate that an expression has finished evaluating
    void onExprComplete();
@@ -74,6 +70,8 @@ public:
    void disconnect();
 
 private:
+   void onConsoleOutput(module_context::ConsoleOutputType type, 
+         const std::string& output);
    void onConsoleText(int type, const std::string& output, bool truncate);
    void onConsolePrompt(const std::string&);
    void onFileOutput(const core::FilePath& file, const core::FilePath& sidecar,
@@ -94,7 +92,6 @@ private:
    int pixelWidth_;
    int charWidth_;
    int prevCharWidth_;
-   int lastOutputType_;
    ExecScope execScope_;
    r::sexp::PreservedSEXP prevWarn_;
 
@@ -102,7 +99,7 @@ private:
    bool hasErrors_;
 
    std::vector<boost::shared_ptr<NotebookCapture> > captures_;
-   std::vector<RSTUDIO_BOOST_CONNECTION> connections_;
+   std::vector<boost::signals::connection> connections_;
 };
 
 } // namespace notebook

@@ -1,7 +1,7 @@
 /*
  * WindowEx.java
  *
- * Copyright (C) 2009-12 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -26,16 +26,11 @@ import com.google.gwt.event.shared.GwtEvent;
 import com.google.gwt.event.shared.HandlerManager;
 import com.google.gwt.event.shared.HandlerRegistration;
 import com.google.gwt.event.shared.HasHandlers;
-import com.google.gwt.user.client.Window;
 
 import org.rstudio.core.client.Point;
 
 public class WindowEx extends JavaScriptObject
 {
-   public static native Window getNative() /*-{
-      return $wnd;
-   }-*/;
-   
    public static native WindowEx get() /*-{
       return $wnd;
    }-*/;
@@ -43,29 +38,21 @@ public class WindowEx extends JavaScriptObject
    protected WindowEx()
    {
    }
-   
-   public final native String getName() /*-{
-      return this.name;
-   }-*/;
-   
-   public final native double getDevicePixelRatio() /*-{
-      return this.devicePixelRatio;
-   }-*/;
 
    public final native void focus() /*-{
       this.focus();
    }-*/;
 
    public final native void print() /*-{
-      this.print();
+      this.print() ;
    }-*/;
 
    public final native void back() /*-{
-      this.history.back();
+      this.history.back() ;
    }-*/;
    
    public final native void forward() /*-{
-      this.history.forward();
+      this.history.forward() ;
    }-*/;
    
    public final native void removeSelection() /*-{
@@ -88,7 +75,7 @@ public class WindowEx extends JavaScriptObject
    }-*/;
    
    public final native String getLocationHref() /*-{
-      return this.location.href;
+      return this.location.href ;
    }-*/;
    
    public final native boolean isSecure() /*-{
@@ -99,12 +86,12 @@ public class WindowEx extends JavaScriptObject
       this.location.reload(true);
    }-*/;
   
-   public final native void setLocationHref(String url) /*-{
-      this.location.href = url;
+   public final native void setLocationHref(String helpURL) /*-{
+      this.location.href = helpURL ;
    }-*/;
 
-   public final native void replaceLocationHref(String url) /*-{
-      this.location.replace(url);
+   public final native void replaceLocationHref(String helpURL) /*-{
+      this.location.replace(helpURL) ;
    }-*/;
    
    public final native void replaceHistoryState(String url) /*-{
@@ -114,7 +101,7 @@ public class WindowEx extends JavaScriptObject
    public final Point getScrollPosition()
    {
       JsArrayInteger pos = getScrollPositionInternal();
-      return Point.create(pos.get(0), pos.get(1));
+      return new Point(pos.get(0), pos.get(1));
    }
 
    public final void setScrollPosition(Point pos)

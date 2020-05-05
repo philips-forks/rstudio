@@ -1,7 +1,7 @@
 /*
  * RSConnectDeploy.css
  *
- * Copyright (C) 2009-15 by RStudio, PBC
+ * Copyright (C) 2009-15 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -14,11 +14,6 @@
  */
  
 @external .gwt-CheckBox;
-
-.deployIllustration
-{
-   margin-left: 0;
-}
 
 .sourceDestLabels
 {
@@ -134,7 +129,6 @@
 {
    height: 100px;
    width: 250px;
-   overflow: auto;
 }
 
 .accountList.accountListCondensed
@@ -151,7 +145,6 @@
    padding-bottom: 5px;
    border: 1px solid #999999;
    background-color: #fcfcfc;
-   overflow: auto;
 }
 
 .accountAnchor
@@ -180,7 +173,7 @@
    padding: 5px;
    margin: 0px;
    overflow: hidden;
-   width: 250px;
+   width: 238px;
 }
 
 .appDetailsPanel 
@@ -209,7 +202,7 @@
    width: 16px;
    height: 14px;
    margin-right: 5px;
-}
+}}
 
 .wizardDeployPage
 {

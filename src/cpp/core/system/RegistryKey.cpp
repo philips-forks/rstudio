@@ -1,7 +1,7 @@
 /*
  * RegistryKey.cpp
  *
- * Copyright (C) 2009-18 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -15,7 +15,7 @@
 #include <core/system/RegistryKey.hpp>
 
 #include <core/system/System.hpp>
-#include <shared_core/Error.hpp>
+#include <core/Error.hpp>
 #include <core/Log.hpp>
 
 namespace rstudio {
@@ -23,7 +23,7 @@ namespace core {
 namespace system {
 
 RegistryKey::RegistryKey()
-   : hKey_(nullptr)
+   : hKey_(NULL)
 {
 }
 
@@ -33,7 +33,7 @@ RegistryKey::~RegistryKey()
    {
       if (hKey_)
          ::RegCloseKey(hKey_);
-      hKey_ = nullptr;
+      hKey_ = NULL;
    }
    catch (...)
    {
@@ -44,12 +44,12 @@ Error RegistryKey::open(HKEY hKey, std::string subKey, REGSAM samDesired)
 {
    if (hKey_)
       ::RegCloseKey(hKey_);
-   hKey_ = nullptr;
+   hKey_ = NULL;
 
    LONG error = ::RegOpenKeyEx(hKey, subKey.c_str(), 0, samDesired, &hKey_);
    if (error != ERROR_SUCCESS)
    {
-      hKey_ = nullptr;
+      hKey_ = NULL;
       return systemError(error, ERROR_LOCATION);
    }
 
@@ -81,15 +81,16 @@ Error RegistryKey::getStringValue(std::string name, std::string *pValue)
    if (!hKey_)
       return systemError(ERROR_INVALID_HANDLE, ERROR_LOCATION);
 
-   std::vector<char> buffer(256);
+   std::vector<char> buffer;
+   buffer.reserve(260);
    while (true)
    {
       DWORD type;
-      DWORD size = static_cast<DWORD>(buffer.capacity());
+      DWORD size = buffer.capacity();
 
       LONG result = ::RegQueryValueEx(hKey_,
                                       name.c_str(),
-                                      nullptr,
+                                      NULL,
                                       &type,
                                       (LPBYTE)(&buffer[0]),
                                       &size);
@@ -136,8 +137,8 @@ std::vector<std::string> RegistryKey::keyNames()
    LONG result;
 
    DWORD subKeys, maxLen;
-   result = ::RegQueryInfoKey(hKey_, nullptr, nullptr, nullptr, &subKeys, &maxLen,
-                              nullptr, nullptr, nullptr, nullptr, nullptr, nullptr);
+   result = ::RegQueryInfoKey(hKey_, NULL, NULL, NULL, &subKeys, &maxLen,
+                              NULL, NULL, NULL, NULL, NULL, NULL);
 
 
    std::vector<char> nameBuffer(maxLen+2);
@@ -146,12 +147,12 @@ std::vector<std::string> RegistryKey::keyNames()
 
    for (DWORD i = 0; ; i++)
    {
-      DWORD size = static_cast<DWORD>(nameBuffer.capacity());
+      DWORD size = nameBuffer.capacity();
       LONG result = ::RegEnumKeyEx(hKey_,
                                    i,
                                    &nameBuffer[0],
                                    &size,
-                                   nullptr, nullptr, nullptr, nullptr);
+                                   NULL, NULL, NULL, NULL);
       switch (result)
       {
       case ERROR_SUCCESS:

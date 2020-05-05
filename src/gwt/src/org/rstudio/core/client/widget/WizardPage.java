@@ -1,7 +1,7 @@
 /*
  * WizardPage.java
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -21,6 +21,7 @@ import org.rstudio.studio.client.common.HelpLink;
 import com.google.gwt.dom.client.Style.Unit;
 import com.google.gwt.resources.client.ImageResource;
 import com.google.gwt.user.client.ui.Composite;
+import com.google.gwt.user.client.ui.Image;
 import com.google.gwt.user.client.ui.LayoutPanel;
 import com.google.gwt.user.client.ui.Widget;
 
@@ -59,7 +60,7 @@ public abstract class WizardPage<I,T> extends Composite
          
          if (largeImage_ != null)
          {
-            DecorativeImage pageImage = new DecorativeImage(largeImage_);
+            Image pageImage = new Image(largeImage_);
             layoutPanel.add(pageImage);
             layoutPanel.setWidgetLeftWidth(pageImage,
                                            8, Unit.PX, 
@@ -169,10 +170,6 @@ public abstract class WizardPage<I,T> extends Composite
    protected boolean acceptNavigation()
    {
       return true;
-   }
-
-   protected void setNextPageEnabled(OperationWithInput<Boolean> operation)
-   {
    }
    
    private final String title_;

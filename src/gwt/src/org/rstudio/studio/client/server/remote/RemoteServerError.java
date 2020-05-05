@@ -1,7 +1,7 @@
 /*
  * RemoteServerError.java
  *
- * Copyright (C) 2009-12 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -28,8 +28,6 @@ class RemoteServerError implements ServerError
    {
       code_ = codeFromRpcErrorCode(rpcError.getCode());
       message_ = rpcError.getMessage();
-      redirectUrl_ = rpcError.getRedirectUrl();
-      
       RpcUnderlyingError rpcErrorCause = rpcError.getError();
       if (rpcErrorCause != null)
       {
@@ -61,17 +59,12 @@ class RemoteServerError implements ServerError
    
    public String getMessage() 
    {
-      return message_;
-   }
-   
-   public String getRedirectUrl()
-   {
-      return redirectUrl_;
+      return message_ ;
    }
    
    public ServerErrorCause getCause()
    {
-      return cause_;
+      return cause_ ;
    }
    
    public String getUserMessage()
@@ -79,7 +72,7 @@ class RemoteServerError implements ServerError
       if (cause_ != null)
          return cause_.getMessage();
       else
-         return message_;
+         return message_ ;
    }
 
    @Override
@@ -118,19 +111,14 @@ class RemoteServerError implements ServerError
          
       case RpcError.TRANSMISSION_ERROR:
          return ServerError.TRANSMISSION;
-         
-      case RpcError.MAX_SESSIONS_REACHED:
-      case RpcError.MAX_USERS_REACHED:
-         return ServerError.LICENSE_USAGE_LIMIT;
                
       default:
          return ServerError.SUCCESS;
       }
    }
    
-   private int code_;
-   private String message_;
-   private String redirectUrl_;
-   private ServerErrorCause cause_;
+   private int code_ ;
+   private String message_ ;
+   private ServerErrorCause cause_ ;
    private JSONValue clientInfo_;
 }

@@ -1,7 +1,7 @@
 /*
  * NotebookQueue.cpp
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-16 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -29,6 +29,8 @@
 #include "NotebookCache.hpp"
 #include "NotebookAlternateEngines.hpp"
 #include "NotebookChunkOptions.hpp"
+
+#include <boost/foreach.hpp>
 
 #include <r/RCntxtUtils.hpp>
 #include <r/RInterface.hpp>
@@ -85,13 +87,10 @@ public:
       pInput_->enque(kThreadQuitCommand);
 
       // unregister handlers
-      for (RSTUDIO_BOOST_CONNECTION& connection : handlers_)
+      BOOST_FOREACH(boost::signals::connection connection, handlers_)
       {
          connection.disconnect();
       }
-
-      // clear queue state and any active execution contexts
-      clear();
    }
 
    bool complete()
@@ -181,7 +180,7 @@ public:
       const std::string& before)
    {
       // find the document queue corresponding to this unit
-      for (const boost::shared_ptr<NotebookDocQueue> queue : queue_)
+      BOOST_FOREACH(const boost::shared_ptr<NotebookDocQueue> queue, queue_)
       {
          if (queue->docId() == pUnit->docId())
          {
@@ -212,7 +211,7 @@ public:
 
    json::Value getDocQueue(const std::string& docId)
    {
-      for (boost::shared_ptr<NotebookDocQueue> pQueue : queue_)
+      BOOST_FOREACH(boost::shared_ptr<NotebookDocQueue> pQueue, queue_)
       {
          if (pQueue->docId() == docId)
             return pQueue->toJson();
@@ -260,7 +259,8 @@ private:
       {
          // get the chunk label to see if this is the setup chunk 
          std::string label;
-         json::readObject(execContext_->options().chunkOptions(), "label", label);
+         json::readObject(execContext_->options().chunkOptions(), "label", 
+               &label);
          if (label == "setup")
             saveSetupContext();
       }
@@ -288,7 +288,7 @@ private:
       else 
       {
          // send code to console 
-         sendConsoleInput(execUnit_->chunkId(), json::Value(code));
+         sendConsoleInput(execUnit_->chunkId(), code);
 
          // let client know the range has been sent to R
          json::Object exec;
@@ -313,12 +313,14 @@ private:
 
       // formulate request body
       json::Object rpc;
-      rpc["method"] = json::Value("console_input");
+      rpc["method"] = "console_input";
       rpc["params"] = arr;
-      rpc["clientId"] = json::Value(clientEventService().clientId());
+      rpc["clientId"] = clientEventService().clientId();
 
       // serialize RPC body and send it to helper thread for submission
-      pInput_->enque(rpc.write());
+      std::ostringstream oss;
+      json::write(rpc, oss);
+      pInput_->enque(oss.str());
    }
 
    Error executeNextUnit(ExpressionMode mode)
@@ -348,7 +350,9 @@ private:
       // extract the default chunk options, then augment with the unit's 
       // chunk-specific options
       json::Object chunkOptions;
-      Error optionsError = unit->parseOptions(&chunkOptions);
+      error = unit->parseOptions(&chunkOptions);
+      if (error)
+         LOG_ERROR(error);
       ChunkOptions options(docQueue->defaultChunkOptions(), chunkOptions);
 
       // establish execution context for the unit
@@ -369,7 +373,7 @@ private:
       // if this is the setup chunk, prepare for its execution by switching
       // knitr chunk defaults
       std::string label;
-      json::readObject(chunkOptions, "label", label);
+      json::readObject(chunkOptions, "label", &label);
       if (label == "setup")
          prepareSetupContext();
 
@@ -415,14 +419,6 @@ private:
                workingDir, options, docQueue->pixelWidth(), 
                docQueue->charWidth());
             execContext_->connect();
-
-            // if there was an error parsing the options for the chunk, display
-            // that as an error inside the chunk itself
-            if (optionsError)
-            {
-                execContext_->onConsoleOutput(module_context::ConsoleOutputError,
-                                              optionsError.getSummary());
-            }
          }
          execUnit_ = unit;
          enqueueExecStateChanged(ChunkExecStarted, options.chunkOptions());
@@ -441,17 +437,11 @@ private:
             execUnit_ = unit;
 
             enqueueExecStateChanged(ChunkExecStarted, options.chunkOptions());
-
-            // actually execute the chunk with the alternate engine; store the error separately
-            // and log if necessary
-            Error execError = executeAlternateEngineChunk(
+            error = executeAlternateEngineChunk(
                unit->docId(), unit->chunkId(), ctx, docQueue->workingDir(),
-               engine, innerCode, options, execUnit_->execScope(),
-               docQueue->pixelWidth(), docQueue->charWidth());
-            if (execError)
-            {
-               LOG_ERROR(execError);
-            }
+               engine, innerCode, options.mergedOptions());
+            if (error)
+               LOG_ERROR(error);
          }
       }
 
@@ -489,20 +479,8 @@ private:
          core::http::Response response;
          Error error = session::http::sendSessionRequest(
                "/rpc/console_input", input, &response);
-
          if (error)
             LOG_ERROR(error);
-         else
-         {
-            // log warning if the response was not successful
-            if (response.statusCode() != core::http::status::Ok)
-            {
-               std::stringstream oss;
-               oss << "Received unexpected response when submitting console input: "
-                   << response; 
-               LOG_WARNING_MESSAGE(oss.str());
-            }
-         }
       }
    }
 
@@ -591,15 +569,15 @@ private:
       {
          json::Value externals;
          r::json::jsonValueFromList(resultSEXP, &externals);
-         if (externals.isObject())
+         if (externals.type() == json::ObjectType)
          {
             error = setChunkValue(docPath, execContext_->docId(), 
-                  kChunkExternals, externals.getObject());
+                  kChunkExternals, externals.get_obj());
             if (error)
                LOG_ERROR(error);
 
             if (!queue_.empty())
-               queue_.front()->setExternalChunks(externals.getObject());
+               queue_.front()->setExternalChunks(externals.get_obj());
          }
       }
 
@@ -645,17 +623,17 @@ private:
       {
          json::Value defaults;
          r::json::jsonValueFromList(resultSEXP, &defaults);
-         if (defaults.isObject())
+         if (defaults.type() == json::ObjectType)
          {
             // write default chunk options to cache
             Error error = setChunkValue(docPath, execContext_->docId(), 
-                  kChunkDefaultOptions, defaults.getObject());
+                  kChunkDefaultOptions, defaults.get_obj());
             if (error)
                LOG_ERROR(error);
 
             // update running queue if present
             if (!queue_.empty())
-               queue_.front()->setDefaultChunkOptions(defaults.getObject());
+               queue_.front()->setDefaultChunkOptions(defaults.get_obj());
          }
       }
    }
@@ -668,19 +646,14 @@ private:
    boost::shared_ptr<ChunkExecContext> execContext_;
 
    // registered signal handlers
-   std::vector<RSTUDIO_BOOST_CONNECTION> handlers_;
+   std::vector<boost::signals::connection> handlers_;
 
    // the thread which submits console input, and the queue which feeds it
    boost::thread console_;
    boost::shared_ptr<core::thread::ThreadsafeQueue<std::string> > pInput_;
 };
 
-// NOTE: we previously used a shared pointer here but this caused
-// issues with deletion of the static object during program shutdown;
-// since we already manage the lifetime of the queue appropriately
-// we use a raw pointer and let it leak if the user attempts to quit R
-// while the notebook queue is running
-static NotebookQueue* s_queue = nullptr;
+static boost::shared_ptr<NotebookQueue> s_queue;
 
 Error updateExecQueue(const json::JsonRpcRequest& request,
                       json::JsonRpcResponse* pResponse)
@@ -717,7 +690,7 @@ Error executeNotebookChunks(const json::JsonRpcRequest& request,
 
    // create queue if it doesn't exist
    if (!s_queue)
-      s_queue = new NotebookQueue;
+      s_queue = boost::make_shared<NotebookQueue>();
 
    // add the queue and process after the RPC returns 
    s_queue->add(pQueue);
@@ -737,8 +710,7 @@ void onConsolePrompt(const std::string& prompt)
    // clean up queue if it's finished executing
    if (s_queue && s_queue->complete())
    {
-      delete s_queue;
-      s_queue = nullptr;
+      s_queue.reset();
    }
 }
 
@@ -747,8 +719,7 @@ void onUserInterrupt()
    if (s_queue)
    {
       s_queue->clear();
-      delete s_queue;
-      s_queue = nullptr;
+      s_queue.reset();
    }
 }
 

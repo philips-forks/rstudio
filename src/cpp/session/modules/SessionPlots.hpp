@@ -1,7 +1,7 @@
 /*
  * SessionPlots.hpp
  *
- * Copyright (C) 2009-12 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -16,7 +16,7 @@
 #ifndef SESSION_PLOTS_HPP
 #define SESSION_PLOTS_HPP
 
-#include <core/BoostSignals.hpp>
+#include <boost/signals.hpp>
 
 namespace rstudio {
 namespace core {
@@ -35,9 +35,9 @@ core::Error initialize();
 
 struct Events : boost::noncopyable
 {
-   RSTUDIO_BOOST_SIGNAL<void()> onBeforeNewPlot;
-   RSTUDIO_BOOST_SIGNAL<void()> onBeforeNewGridPage;
-   RSTUDIO_BOOST_SIGNAL<void()> onNewPlot;
+   boost::signal<void()> onBeforeNewPlot;
+   boost::signal<void()> onBeforeNewGridPage;
+   boost::signal<void()> onNewPlot;
 };
 
 Events& events();

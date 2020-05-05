@@ -1,7 +1,7 @@
 /*
  * VCSFileOpener.java
  *
- * Copyright (C) 2009-12 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -16,7 +16,6 @@ package org.rstudio.studio.client.workbench.views.vcs.common;
 
 import java.util.ArrayList;
 
-import org.rstudio.core.client.StringUtil;
 import org.rstudio.core.client.files.FileSystemItem;
 import org.rstudio.studio.client.application.events.EventBus;
 import org.rstudio.studio.client.common.filetypes.FileTypeRegistry;
@@ -89,22 +88,10 @@ public class VCSFileOpener
       JsArray<FileSystemItem> jsItems = JavaScriptObject.createArray().cast();
       for (StatusAndPath item : items)
       {
-         // NOTE: renames need some extra processing
-         String path = item.getRawPath();
-         if (StringUtil.equals(item.getStatus(), "R "))
-         {
-            String[] parts = path.split(" -> ");
-            if (parts.length == 2)
-            {
-               String oldPath = parts[0], newPath = parts[1];
-               path = oldPath.substring(0, oldPath.lastIndexOf('/')) + "/" + newPath;
-            }
-         }
-         
          if (item.isDirectory())
-            jsItems.push(FileSystemItem.createDir(path));
+            jsItems.push(FileSystemItem.createDir(item.getRawPath()));
          else
-            jsItems.push(FileSystemItem.createFile(path));
+            jsItems.push(FileSystemItem.createFile(item.getRawPath()));
       }
       return jsItems;
    }

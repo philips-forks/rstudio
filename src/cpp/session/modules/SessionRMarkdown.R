@@ -1,7 +1,7 @@
 #
 # SessionRMarkdown.R
 #
-# Copyright (C) 2009-12 by RStudio, PBC
+# Copyright (C) 2009-12 by RStudio, Inc.
 #
 # Unless you have received this program directly from RStudio pursuant
 # to the terms of a commercial license agreement with RStudio, then
@@ -13,66 +13,7 @@
 #
 #
 
-.rs.setVar("markdown.acCompletionTypes", list(
-   COMPLETION_HREF = 1
-))
-
-.rs.addJsonRpcHandler("markdown_get_completions", function(type, data)
-{
-   if (type == .rs.markdown.acCompletionTypes$COMPLETION_HREF)
-      return(.rs.markdown.getCompletionsHref(data))
-})
-
-.rs.addFunction("markdown.getCompletionsHref", function(data)
-{
-   # extract parameters
-   token <- data$token
-   path <- data$path
-   
-   # if we don't have a path, bail
-   if (is.null(path))
-      return(.rs.emptyCompletions())
-   
-   # figure out working directory
-   props <- .rs.getSourceDocumentProperties(path)
-   workingDirProp <- props$properties$working_dir
-   workingDir <- if (identical(workingDirProp, "project"))
-      props$project_path
-   else if (identical(workingDirProp, "current"))
-      getwd()
-   
-   # check for NULL working dir (don't include as part of if-else check above
-   # since some documents may not have an associated project and yet could
-   # be configured to use a project directory)
-   if (is.null(workingDir))
-      workingDir <- dirname(path)
-   
-   # determine dirname, basename (need to handle trailing slashes properly
-   # so can't just use dirname / basename)
-   slashes <- gregexpr("[/\\]", token)[[1]]
-   idx <- tail(slashes, n = 1)
-   lhs <- substring(token, 1, idx - 1)
-   rhs <- substring(token, idx + 1)
-   
-   # check to see if user is providing absolute path, and construct
-   # completion directory appropriately
-   isAbsolute <- grepl("^(?:[A-Z]:|/|\\\\|~)", token, perl = TRUE)
-   if (!isAbsolute)
-      lhs <- file.path(workingDir, lhs)
-   
-   # retrieve completions
-   completions <- .rs.getCompletionsFile(
-      token = rhs,
-      path = lhs,
-      quote = FALSE,
-      directoriesOnly = FALSE
-   )
-   
-   return(completions)
-   
-})
-
-.rs.addFunction("scalarListFromList", function(l, expressions = FALSE)
+.rs.addFunction("scalarListFromList", function(l)
 {
    # hint that every non-list element of the hierarchical list l
    # is a scalar value if it is of length 1
@@ -88,8 +29,6 @@
             Encoding(ele) <- "UTF-8"
          .rs.scalar(ele)
       }
-      else if (identical(expressions, TRUE) && (is.expression(ele) || is.call(ele)))
-         .rs.scalarListFromList(list(expr = eval(ele)))$expr
       else
          ele
    })
@@ -192,33 +131,21 @@
    outputFormat <- rmarkdown:::output_format_from_yaml_front_matter(lines)
    outputFormat <- rmarkdown:::create_output_format(outputFormat$name, outputFormat$options)
    outputFile <- rmarkdown:::pandoc_output_file(target, outputFormat$pandoc)
-
-   # determine location of output file, accounting for possibility of a website project which
-   # puts the output in a different location than the source file
-   outputDir <- .Call("rs_getWebsiteOutputDir")
-   if (is.null(outputDir))
-      outputDir <- dirname(target)
-   outputPath <- file.path(outputDir, outputFile)
+   outputPath <- file.path(dirname(target), outputFile) 
    
    # ensure output file exists
-   fileExists <- file.exists(outputPath)
-   current <- fileExists && 
+   current <- file.exists(outputPath) && 
       file.info(outputPath)$mtime >= file.info(target)$mtime
    
    list(
       output_file = .rs.scalar(outputPath),
-      is_current  = .rs.scalar(current),
-      output_file_exists = .rs.scalar(fileExists)
+      is_current  = .rs.scalar(current)
    )
-})
-
-.rs.addFunction("getTemplateDetails", function(templateYaml) {
-   yaml::yaml.load_file(templateYaml)
 })
 
 # given a path to a folder on disk, return information about the R Markdown
 # template in that folder.
-.rs.addFunction("getTemplateYamlFile", function(path) {
+.rs.addFunction("getTemplateDetails", function(path) {
    # check for required files
    templateYaml <- file.path(path, "template.yaml")
    skeletonPath <- file.path(path, "skeleton")
@@ -231,20 +158,18 @@
    if (!file.exists(file.path(skeletonPath, "skeleton.Rmd")))
       return(NULL)
 
-   # will need to enforce create_dir if there are multiple files in /skeleton/
-   multiFile = length(list.files(skeletonPath)) > 1 
+   # load template details from YAML
+   templateDetails <- yaml::yaml.load_file(templateYaml)
 
-   # return metadata; we won't parse until the client requests template files
-   list(
-      template_yaml = .rs.scalar(templateYaml),
-      multi_file    = .rs.scalar(multiFile)
-   )
+   # enforce create_dir if there are multiple files in /skeleton/
+   if (length(list.files(skeletonPath)) > 1) 
+      templateDetails$create_dir <- TRUE
+
+   templateDetails
 })
 
 
 .rs.addFunction("evaluateRmdParams", function(contents) {
-
-   Encoding(contents) <- "UTF-8"
 
    # extract the params using knitr::knit_params
    knitParams <- knitr::knit_params(contents)
@@ -338,8 +263,6 @@
 
 .rs.addJsonRpcHandler("convert_from_yaml", function(yaml)
 {
-   Encoding(yaml) <- "UTF-8"
-
    data <- list()
    parseError <- ""
    parseSucceeded <- FALSE
@@ -462,57 +385,4 @@
       FALSE
 })
 
-.rs.addFunction("isSiteProject", function(input_dir, encoding, site) {
-   
-   index <- .rs.inputDirToIndexFile(input_dir)
-   if (!is.null(index)) {
-      any(grepl(site, readLines(index, encoding = encoding)))
-   }
-   else
-      FALSE
-})
 
-.rs.addFunction("tinytexRoot", function()
-{
-   sysname <- Sys.info()[["sysname"]]
-   if (sysname == "Windows")
-      file.path(Sys.getenv("APPDATA"), "TinyTeX")
-   else if (sysname == "Darwin")
-      "~/Library/TinyTeX"
-   else
-      "~/.TinyTeX"
-})
-
-.rs.addFunction("tinytexBin", function()
-{
-   root <- tryCatch(
-      tinytex:::tinytex_root(),
-      error = function(e) .rs.tinytexRoot()
-   )
-   
-   if (!file.exists(root))
-      return(NULL)
-   
-   # NOTE: binary directory has a single arch-specific subdir;
-   # rather than trying to hard-code the architecture we just
-   # infer it directly
-   bin <- file.path(root, "bin")
-   subbin <- list.files(bin, full.names = TRUE)
-   normalizePath(subbin[[1]], mustWork = TRUE)
-})
-
-.rs.addFunction("bookdown.renderedOutputPath", function(outputPath)
-{
-   # if this is a PDF, use it directly
-   if (tools::file_ext(outputPath) == "pdf")
-      return(outputPath)
-   
-   # if we have an index, prefer using that
-   index <- file.path(dirname(outputPath), "index.html")
-   if (file.exists(index))
-      return(index)
-   
-   # otherwise, return the rendered path directly
-   # (typically necessary for self-contained books)
-   outputPath
-})

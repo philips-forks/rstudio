@@ -1,7 +1,7 @@
 /*
  * ObjectExplorerServerOperations.java
  *
- * Copyright (C) 2009-17 by RStudio, PBC
+ * Copyright (C) 2009-17 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -15,7 +15,6 @@
 package org.rstudio.studio.client.workbench.views.source.editors.explorer;
 
 import org.rstudio.studio.client.server.ServerRequestCallback;
-import org.rstudio.studio.client.server.Void;
 import org.rstudio.studio.client.workbench.views.source.editors.explorer.model.ObjectExplorerInspectionResult;
 
 import com.google.gwt.core.client.JsArrayString;
@@ -35,8 +34,4 @@ public interface ObjectExplorerServerOperations
          String handleId,
          String objectName,
          ServerRequestCallback<ObjectExplorerInspectionResult> requestCallback);
-   
-   void explorerEndInspect(
-         String handleId,
-         ServerRequestCallback<Void> requestCallback);
 }

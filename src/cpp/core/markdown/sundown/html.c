@@ -161,30 +161,6 @@ rndr_blockquote(struct buf *ob, const struct buf *text, void *opaque)
 }
 
 static int
-rndr_displayedmath(struct buf *ob, const struct buf *text, void *opaque)
-{
-	if (!text || !text->size)
-		return 0;
-
-	BUFPUTSL(ob, "\\[");
-	if (text) bufput(ob, text->data, text->size);
-	BUFPUTSL(ob, "\\]");
-	return 1;
-}
-
-static int
-rndr_inlinemath(struct buf *ob, const struct buf *text, void *opaque)
-{
-	if (!text || !text->size)
-		return 0;
-
-	BUFPUTSL(ob, "\\(");
-	if (text) bufput(ob, text->data, text->size);
-	BUFPUTSL(ob, "\\)");
-	return 1;
-}
-
-static int
 rndr_codespan(struct buf *ob, const struct buf *text, void *opaque)
 {
 	BUFPUTSL(ob, "<code>");
@@ -590,8 +566,6 @@ sdhtml_toc_renderer(struct sd_callbacks *callbacks, struct html_renderopt *optio
 		rndr_triple_emphasis,
 		rndr_strikethrough,
 		rndr_superscript,
-		NULL,
-		NULL,
 
 		NULL,
 		NULL,
@@ -633,8 +607,6 @@ sdhtml_renderer(struct sd_callbacks *callbacks, struct html_renderopt *options, 
 		rndr_triple_emphasis,
 		rndr_strikethrough,
 		rndr_superscript,
-		rndr_inlinemath,
-		rndr_displayedmath,
 
 		NULL,
 		rndr_normal_text,

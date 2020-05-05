@@ -1,7 +1,7 @@
 /*
  * RSexp.hpp
  *
- * Copyright (C) 2009-18 by RStudio, PBC
+ * Copyright (C) 2009-16 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -28,14 +28,14 @@
 #include <boost/utility.hpp>
 #include <boost/date_time/posix_time/posix_time.hpp>
 
+#include <core/Error.hpp>
 #include <core/Log.hpp>
+#include <core/json/Json.hpp>
 #include <core/r_util/RFunctionInformation.hpp>
 
 #include <r/RErrorCategory.hpp>
 #include <r/RInternal.hpp>
 
-#include <shared_core/Error.hpp>
-#include <shared_core/json/Json.hpp>
 
 // IMPORTANT NOTE: all code in r::sexp must provide "no jump" guarantee.
 // See comment in RInternal.hpp for more info on this
@@ -50,7 +50,6 @@ class Protect;
    
 // environments and namespaces
 SEXP asEnvironment(std::string name);
-core::Error asPrimitiveEnvironment(SEXP envirSEXP, SEXP* pTargetSEXP, Protect* pProtect);
 std::vector<std::string> getLoadedNamespaces();
 SEXP findNamespace(const std::string& name);
 SEXP asNamespace(const std::string& name);
@@ -89,7 +88,6 @@ SEXP functionBody(SEXP functionSEXP);
 
 // type checking
 bool isString(SEXP object);
-bool isFunction(SEXP object);
 bool isLanguage(SEXP object);
 bool isList(SEXP object);
 bool isMatrix(SEXP object);
@@ -97,7 +95,6 @@ bool isDataFrame(SEXP object);
 bool isNull(SEXP object);
 bool isEnvironment(SEXP object);
 bool isPrimitiveEnvironment(SEXP object);
-bool isNumeric(SEXP object);
 
 // type coercions
 std::string asString(SEXP object);
@@ -113,7 +110,6 @@ bool fillSetString(SEXP object, std::set<std::string>* pSet);
 SEXP getAttrib(SEXP object, SEXP attrib);
 SEXP getAttrib(SEXP object, const std::string& attrib);
 SEXP setAttrib(SEXP object, const std::string& attrib, SEXP val);
-void listNamedAttributes(SEXP obj, Protect *pProtect, std::vector<Variable>* pVariables);
 
 // weak/external pointers and finalizers
 bool isExternalPointer(SEXP object);
@@ -131,11 +127,10 @@ core::Error extract(SEXP valueSEXP, bool* pBool);
 core::Error extract(SEXP valueSEXP, double* pDouble);
 core::Error extract(SEXP valueSEXP, std::vector<int>* pVector);   
 core::Error extract(SEXP valueSEXP, std::string* pString, bool asUtf8 = false);
-core::Error extract(SEXP valueSEXP, std::vector<std::string>* pVector, bool asUtf8 = false);
-core::Error extract(SEXP valueSEXP, std::set<std::string>* pSet, bool asUtf8 = false);
-core::Error extract(SEXP valueSEXP, std::map< std::string, std::set<std::string> >* pMap, bool asUtf8 = false);
-core::Error extract(SEXP valueSEXP, core::json::Value* pJson);
-
+core::Error extract(SEXP valueSEXP, std::vector<std::string>* pVector);
+core::Error extract(SEXP valueSEXP, std::set<std::string>* pSet);
+core::Error extract(SEXP valueSEXP, std::map< std::string, std::set<std::string> >* pMap);
+      
 // create SEXP from c++ type
 SEXP create(SEXP valueSEXP, Protect* pProtect);
 SEXP create(const core::json::Value& value, Protect* pProtect);
@@ -160,8 +155,6 @@ SEXP create(const core::json::Array& value, Protect* pProtect);
 SEXP create(const core::json::Object& value, Protect* pProtect);
 SEXP create(const ListBuilder& builder, Protect* pProtect);
 SEXP create(const std::map<std::string, std::string>& value, Protect* pProtect);
-SEXP create(const std::map<std::string, SEXP> &value,
-            Protect *pProtect);
 
 // Create a raw vector (binary data)
 SEXP createRawVector(const std::string& data, Protect* pProtect);
@@ -218,7 +211,7 @@ core::Error getNamedListElement(SEXP listSEXP,
   core:: Error error = getNamedListElement(listSEXP, name, pValue);
   if (error)
   {
-     if (error == r::errc::ListElementNotFoundError)
+     if (error.code() == r::errc::ListElementNotFoundError)
      {
         *pValue = defaultValue;
         return core::Success();

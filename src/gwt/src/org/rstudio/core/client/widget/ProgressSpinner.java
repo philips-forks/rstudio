@@ -1,7 +1,7 @@
 /*
  * ProgressSpinner.java
  *
- * Copyright (C) 2009-20 by RStudio, PBC
+ * Copyright (C) 2009-16 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -14,7 +14,6 @@
  */
 package org.rstudio.core.client.widget;
 
-import com.google.gwt.aria.client.Roles;
 import com.google.gwt.user.client.ui.Composite;
 import com.google.gwt.user.client.ui.HTMLPanel;
 
@@ -71,31 +70,18 @@ public class ProgressSpinner extends Composite
       canvas_.setCoordinateSpaceWidth(COORD_SIZE);
       canvas_.setCoordinateSpaceHeight(COORD_SIZE);
 
-      Roles.getImgRole().set(canvas_.getElement());
-      Roles.getImgRole().setAriaLabelProperty(canvas_.getElement(), "Busy");
-   }
-   
-   @Override
-   public void setVisible(boolean visible)
-   {
-      if (visible)
+      // perform initial draw and start animation
+      redraw();
+      Scheduler.get().scheduleFixedPeriod(new Scheduler.RepeatingCommand()
       {
-         requestStopAnimating_ = false;
-         startAnimating();
-      }
-      else
-      {
-         stopAnimating();
-      }
-      
-      super.setVisible(visible);
-   }
-   
-   @Override
-   public void onUnload()
-   {
-      stopAnimating();
-      super.onUnload();
+         @Override
+         public boolean execute()
+         {
+            frame_++;
+            if (isVisible()) redraw();
+            return !complete_;
+         }
+      }, FRAME_RATE_MS);
    }
 
    public boolean isSupported()
@@ -103,39 +89,14 @@ public class ProgressSpinner extends Composite
       return canvas_ != null;
    }
    
+   public void detach()
+   {
+      complete_ = true;
+   }
+
    public void setColorType(int color)
    {
       colorType_ = color;
-   }
-   
-   public void startAnimating()
-   {
-      if (isAnimating_ || requestStopAnimating_)
-         return;
-      
-      isAnimating_ = true;
-      animate();
-      Scheduler.get().scheduleFixedPeriod(() -> { return animate(); }, FRAME_RATE_MS);
-   }
-   
-   public void stopAnimating()
-   {
-      requestStopAnimating_ = true;
-   }
-   
-   private boolean animate()
-   {
-      frame_++;
-      redraw();
-      
-      if (requestStopAnimating_)
-      {
-         requestStopAnimating_ = false;
-         isAnimating_ = false;
-         return false;
-      }
-      
-      return true;
    }
    
    private void redraw()
@@ -187,6 +148,5 @@ public class ProgressSpinner extends Composite
    private int colorType_;
 
    private int frame_ = 0;
-   private boolean isAnimating_ = false;
-   private boolean requestStopAnimating_ = false;
+   private boolean complete_ = false;
 }

@@ -1,7 +1,7 @@
 /*
  * FileLock.cpp
  *
- * Copyright (C) 2009-18 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -19,20 +19,22 @@
 #include <core/Macros.hpp>
 
 #include <core/Settings.hpp>
-#include <shared_core/Error.hpp>
+#include <core/Error.hpp>
 #include <core/Log.hpp>
 #include <core/FileSerializer.hpp>
 #include <core/http/SocketUtils.hpp>
-#include <core/system/Environment.hpp>
-#include <core/system/Xdg.hpp>
 
 #include <boost/algorithm/string.hpp>
 
-// borrowed from SessionConstants.hpp
-#define kRStudioSessionRoute "RSTUDIO_SESSION_ROUTE"
-
 namespace rstudio {
 namespace core {
+
+namespace file_lock {
+void initialize()
+{
+   FileLock::initialize();
+}
+} // end namespace file_lock
 
 namespace {
 
@@ -41,14 +43,12 @@ const char * const kLockTypeLinkBased = "linkbased";
 
 // use advisory locks on Windows by default; link-based elsewhere
 #ifdef _WIN32
-# define kLockTypeDefault      kLockTypeAdvisory
-# define kLockTypeDefaultEnum  (FileLock::LOCKTYPE_ADVISORY)
+# define kLockTypeDefault kLockTypeAdvisory
 #else
-# define kLockTypeDefault      kLockTypeLinkBased
-# define kLockTypeDefaultEnum  (FileLock::LOCKTYPE_LINKBASED)
+# define kLockTypeDefault kLockTypeLinkBased
 #endif 
 
-const char * const kLocksConfFile    = "file-locks";
+const char * const kLocksConfPath    = "/etc/rstudio/file-locks";
 const double kDefaultRefreshRate     = 20.0;
 const double kDefaultTimeoutInterval = 30.0;
 
@@ -64,8 +64,7 @@ std::string lockTypeToString(FileLock::LockType type)
    return std::string();
 }
 
-FileLock::LockType stringToLockType(const std::string& lockType,
-                                    FileLock::LockType defaultLockType)
+FileLock::LockType stringToLockType(const std::string& lockType)
 {
    using namespace boost::algorithm;
    
@@ -75,7 +74,7 @@ FileLock::LockType stringToLockType(const std::string& lockType,
       return FileLock::LOCKTYPE_LINKBASED;
    
    LOG_WARNING_MESSAGE("unrecognized lock type '" + lockType + "'");
-   return defaultLockType;
+   return FileLock::LOCKTYPE_LINKBASED;
 }
 
 double getFieldPositive(const Settings& settings,
@@ -113,11 +112,11 @@ bool FileLock::verifyInitialized()
    return s_isInitialized;
 }
 
-void FileLock::initialize(FileLock::LockType fallbackLockType)
+void FileLock::initialize(FilePath locksConfPath)
 {
-   // read settings
-   FilePath locksConfPath = core::system::xdg::systemConfigFile(kLocksConfFile);
-
+   if (locksConfPath.empty())
+      locksConfPath = FilePath(kLocksConfPath);
+   
    Settings settings;
    if (locksConfPath.exists())
    {
@@ -126,24 +125,21 @@ void FileLock::initialize(FileLock::LockType fallbackLockType)
          LOG_ERROR(error);
    }
    
-#ifdef _WIN32
-   // TODO: link-based locks are not yet implemented on Windows
-   FileLock::s_defaultType = LOCKTYPE_ADVISORY;
-#else
+   FileLock::initialize(settings);
+}
+
+void FileLock::initialize(const Settings& settings)
+{
    // default lock type
-   std::string lockTypePref = settings.get("lock-type");
-   FileLock::s_defaultType = lockTypePref.empty()
-         ? fallbackLockType
-         : stringToLockType(lockTypePref, fallbackLockType);
-#endif
+   FileLock::s_defaultType = stringToLockType(settings.get("lock-type", kLockTypeDefault));
 
    // timeout interval
    double timeoutInterval = getFieldPositive(settings, "timeout-interval", kDefaultTimeoutInterval);
-   FileLock::s_timeoutInterval = boost::posix_time::seconds(static_cast<long>(timeoutInterval));
+   FileLock::s_timeoutInterval = boost::posix_time::seconds(timeoutInterval);
    
    // refresh rate
    double refreshRate = getFieldPositive(settings, "refresh-rate", kDefaultRefreshRate);
-   FileLock::s_refreshRate = boost::posix_time::seconds(static_cast<long>(refreshRate));
+   FileLock::s_refreshRate = boost::posix_time::seconds(refreshRate);
    
    // logging
    bool loggingEnabled = settings.getBool("enable-logging", false);
@@ -153,37 +149,31 @@ void FileLock::initialize(FileLock::LockType fallbackLockType)
    std::string logFile = settings.get("log-file");
    FileLock::s_logFile = FilePath(logFile);
    
-   std::stringstream ss;
-   ss << "(PID " << ::getpid() << "): Initialized file locks ("
-      << "lock-type=" << lockTypeToString(FileLock::s_defaultType) << ", "
-      << "timeout-interval=" << FileLock::s_timeoutInterval.total_seconds() << "s, "
-      << "refresh-rate=" << FileLock::s_refreshRate.total_seconds() << "s, "
-      << "log-file=" << logFile << ")"
-      << std::endl;
-   FileLock::log(ss.str());
-
-   std::string distributedLockingOption = core::system::getenv(kRStudioDistributedLockingEnabled);
-   bool distributedLockingEnabled = (distributedLockingOption == "1");
-
-   FileLock::s_isLoadBalanced =
-         !core::system::getenv(kRStudioSessionRoute).empty() ||
-         distributedLockingEnabled;
-
+   // report when logging is enabled
+   if (loggingEnabled)
+   {
+      std::stringstream ss;
+      ss << "(PID " << ::getpid() << "): Initialized file locks ("
+         << "lock-type=" << lockTypeToString(FileLock::s_defaultType) << ", "
+         << "timeout-interval=" << FileLock::s_timeoutInterval.total_seconds() << "s, "
+         << "refresh-rate=" << FileLock::s_refreshRate.total_seconds() << "s, "
+         << "log-file=" << logFile << ")"
+         << std::endl;
+      FileLock::log(ss.str());
+   }
+   
    s_isInitialized = true;
-}
-
-void FileLock::initialize()
-{
-   initialize(kLockTypeDefaultEnum);
 }
 
 void FileLock::log(const std::string& message)
 {
-   if (s_logFile.isEmpty() || !isLoggingEnabled())
+   if (!isLoggingEnabled())
+      return;
+   
+   if (s_logFile.empty())
    {
-      // if we were constructed without a path, or file lock logging was not explicitly enabled
-      // (legacy option), then debug log to the in-proc logger
-      LOG_DEBUG_MESSAGE_NAMED(kFileLockingLogSection, message);
+      // if we were constructed without a path, log to system logs
+      LOG_WARNING_MESSAGE(message);
    }
    else
    {
@@ -219,13 +209,11 @@ void FileLock::log(const std::string& message)
    }
 }
 
-// definitions for static members
-// NOTE: these will be overridden when FileLock::initialize() is called
+// default values for static members
 FileLock::LockType FileLock::s_defaultType(FileLock::LOCKTYPE_LINKBASED);
-boost::posix_time::seconds FileLock::s_timeoutInterval(static_cast<long>(kDefaultTimeoutInterval));
-boost::posix_time::seconds FileLock::s_refreshRate(static_cast<long>(kDefaultRefreshRate));
+boost::posix_time::seconds FileLock::s_timeoutInterval(kDefaultTimeoutInterval);
+boost::posix_time::seconds FileLock::s_refreshRate(kDefaultRefreshRate);
 bool FileLock::s_loggingEnabled(false);
-bool FileLock::s_isLoadBalanced(false);
 FilePath FileLock::s_logFile;
 
 boost::shared_ptr<FileLock> FileLock::create(LockType type)

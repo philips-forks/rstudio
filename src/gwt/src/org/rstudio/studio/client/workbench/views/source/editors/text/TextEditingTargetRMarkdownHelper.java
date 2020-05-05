@@ -1,7 +1,7 @@
 /*
  * TextEditingTargetRMarkdownHelper.java
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -71,8 +71,8 @@ import org.rstudio.studio.client.server.ServerRequestCallback;
 import org.rstudio.studio.client.server.Void;
 import org.rstudio.studio.client.workbench.WorkbenchContext;
 import org.rstudio.studio.client.workbench.model.Session;
-import org.rstudio.studio.client.workbench.prefs.model.UserPrefs;
-import org.rstudio.studio.client.workbench.prefs.model.UserState;
+import org.rstudio.studio.client.workbench.prefs.model.UIPrefs;
+import org.rstudio.studio.client.workbench.prefs.model.UIPrefsAccessor;
 import org.rstudio.studio.client.workbench.views.files.model.FilesServerOperations;
 import org.rstudio.studio.client.workbench.views.source.editors.text.ace.Position;
 import org.rstudio.studio.client.workbench.views.source.editors.text.ui.NewRMarkdownDialog;
@@ -105,8 +105,7 @@ public class TextEditingTargetRMarkdownHelper
    public void initialize(Session session,
                           GlobalDisplay globalDisplay,
                           EventBus eventBus,
-                          UserPrefs prefs,
-                          UserState state,
+                          UIPrefs prefs,
                           ConsoleDispatcher consoleDispatcher,
                           WorkbenchContext workbenchContext,
                           FileTypeCommands fileTypeCommands,
@@ -119,7 +118,6 @@ public class TextEditingTargetRMarkdownHelper
       globalDisplay_ = globalDisplay;
       eventBus_ = eventBus;
       prefs_ = prefs;
-      state_ = state;
       consoleDispatcher_ = consoleDispatcher;
       workbenchContext_ = workbenchContext;
       dependencyManager_ = dependencyManager;
@@ -231,7 +229,7 @@ public class TextEditingTargetRMarkdownHelper
       String format = sourceDoc.getProperty(NOTEBOOK_FORMAT);
       if (StringUtil.isNullOrEmpty(format))
       {
-         format = state_.compileRMarkdownNotebookPrefs()
+         format = prefs_.compileNotebookv2Options()
                                              .getValue().getFormat();
          if (StringUtil.isNullOrEmpty(format))
             format = CompileNotebookv2Options.FORMAT_DEFAULT;
@@ -245,7 +243,7 @@ public class TextEditingTargetRMarkdownHelper
          @Override
          public void execute(CompileNotebookv2Options input)
          { 
-            renderNotebookv2(sourceDoc, input.getFormat(), null);
+            renderNotebookv2(sourceDoc, null, input.getFormat());
             
             // save options for this document
             HashMap<String, String> changedProperties 
@@ -258,10 +256,10 @@ public class TextEditingTargetRMarkdownHelper
                   CompileNotebookv2Prefs.create(input.getFormat());
             if (!CompileNotebookv2Prefs.areEqual(
                   prefs, 
-                  state_.compileRMarkdownNotebookPrefs().getValue().cast()))
+                  prefs_.compileNotebookv2Options().getValue()))
             {
-               state_.compileRMarkdownNotebookPrefs().setGlobalValue(prefs.cast());
-               state_.writeState();
+               prefs_.compileNotebookv2Options().setGlobalValue(prefs);
+               prefs_.writeUIPrefs();
             }
          }
       }
@@ -296,7 +294,7 @@ public class TextEditingTargetRMarkdownHelper
             prefs_.knitWorkingDir().getValue());
 
       String workingDir = null;
-      if (workingDirType == UserPrefs.KNIT_WORKING_DIR_PROJECT)
+      if (workingDirType == UIPrefsAccessor.KNIT_DIR_PROJECT)
       {
          // get the project directory, but if we don't have one (e.g. no
          // project) use the default working directory for the session
@@ -307,7 +305,7 @@ public class TextEditingTargetRMarkdownHelper
          if (StringUtil.isNullOrEmpty(workingDir))
             workingDir = session_.getSessionInfo().getDefaultWorkingDir();
       }
-      else if (workingDirType == UserPrefs.KNIT_WORKING_DIR_CURRENT)
+      else if (workingDirType == UIPrefsAccessor.KNIT_DIR_CURRENT)
       {
          workingDir = workbenchContext_.getCurrentWorkingDir().getPath();
       }
@@ -419,6 +417,7 @@ public class TextEditingTargetRMarkdownHelper
          else if (fileType.requiresKnit() && 
                   !session_.getSessionInfo().getRMarkdownPackageAvailable())
          {
+   
             showKnitrPreviewWarning(display, feature, "1.2");
             return false;
          }
@@ -533,9 +532,9 @@ public class TextEditingTargetRMarkdownHelper
          
          // If this format produces HTML and is marked as Shiny, treat it as
          // a Shiny format
-         if (template.getFormat(outFormat).getExtension() == "html" &&
-             tree.getKeyValue(RmdFrontMatter.RUNTIME_KEY) ==
-                       RmdFrontMatter.SHINY_RUNTIME)
+         if (template.getFormat(outFormat).getExtension().equals("html") &&
+             tree.getKeyValue(RmdFrontMatter.RUNTIME_KEY).equals(
+                       RmdFrontMatter.SHINY_RUNTIME))
          {
             isShiny = true;
          }
@@ -551,7 +550,7 @@ public class TextEditingTargetRMarkdownHelper
    
    public boolean isRuntimeShinyPrerendered(String yaml)
    {
-      return getRuntime(yaml) == RmdFrontMatter.SHINY_PRERENDERED_RUNTIME;
+      return getRuntime(yaml).equals(RmdFrontMatter.SHINY_PRERENDERED_RUNTIME);
    }
    
    public boolean isRuntimeShiny(String yaml)
@@ -695,7 +694,7 @@ public class TextEditingTargetRMarkdownHelper
             }
             String treeFormat = yamlTree.getKeyValue(RmdFrontMatter.OUTPUT_KEY);
 
-            if (treeFormat == format)
+            if (treeFormat.equals(format))
             {
                // case 1: the output format is a simple format and we're not
                // changing to a different format
@@ -737,7 +736,7 @@ public class TextEditingTargetRMarkdownHelper
                // case 3: the output format is already not simple
                treeFormat = yamlTree.getKeyValue(format);
                
-               if (treeFormat == RmdFrontMatter.DEFAULT_FORMAT)
+               if (treeFormat.equals(RmdFrontMatter.DEFAULT_FORMAT))
                {
                   if (isDefault)
                   {
@@ -865,7 +864,7 @@ public class TextEditingTargetRMarkdownHelper
                      public void execute()
                      {  
                         // subscribe to notification of params ready
-                        // (ensure only one handler at a time is subscribed)
+                        // (ensure only one handler at a time is sucscribed)
                         rmdParamsReadyUnsubscribe();
                         rmdParamsReadyRegistration_ = eventBus_.addHandler(
                               RmdParamsReadyEvent.TYPE, 
@@ -971,7 +970,7 @@ public class TextEditingTargetRMarkdownHelper
                   // we'll default to it the next time we load the template list
                   prefs_.rmdPreferredTemplatePath().setGlobalValue(
                         template.getTemplatePath());
-                  prefs_.writeUserPrefs();
+                  prefs_.writeUIPrefs();
                   FileSystemItem file =
                         FileSystemItem.createFile(created.getPath());
                   eventBus_.fireEvent(new FileEditEvent(file));
@@ -1049,7 +1048,7 @@ public class TextEditingTargetRMarkdownHelper
       return result;
    }
       
-   public static List<String> getOutputFormats(String yaml)
+   public List<String> getOutputFormats(String yaml)
    {
       try
       {  
@@ -1063,7 +1062,7 @@ public class TextEditingTargetRMarkdownHelper
       return null;
    }
    
-   private static List<String> getOutputFormats(YamlTree tree)
+   private List<String> getOutputFormats(YamlTree tree)
    {
       List<String> outputs = tree.getChildKeys(RmdFrontMatter.OUTPUT_KEY);
       if (outputs == null)
@@ -1124,8 +1123,7 @@ public class TextEditingTargetRMarkdownHelper
    private Session session_;
    private GlobalDisplay globalDisplay_;
    private EventBus eventBus_;
-   private UserPrefs prefs_;
-   private UserState state_;
+   private UIPrefs prefs_;
    private ConsoleDispatcher consoleDispatcher_;
    private WorkbenchContext workbenchContext_;
    private FileTypeCommands fileTypeCommands_;

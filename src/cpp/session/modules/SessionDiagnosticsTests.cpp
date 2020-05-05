@@ -1,7 +1,7 @@
 /*
  * SessionDiagnosticsTests.cpp
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -20,12 +20,13 @@
 #include <iostream>
 
 #include <core/collection/Tree.hpp>
-#include <shared_core/FilePath.hpp>
+#include <core/FilePath.hpp>
 #include <core/system/FileScanner.hpp>
 #include <core/FileUtils.hpp>
 
 #include <boost/algorithm/string.hpp>
 #include <boost/bind.hpp>
+#include <boost/foreach.hpp>
 
 #include <session/SessionOptions.hpp>
 #include "SessionRParser.hpp"
@@ -37,7 +38,7 @@ namespace diagnostics {
 
 using namespace rparser;
 
-static const ParseOptions s_parseOptions(true, true, true, true, true, true);
+static const ParseOptions s_parseOptions(true, true, true, true, true);
 
 using namespace core;
 using namespace core::r_util;
@@ -119,7 +120,7 @@ void lintRStudioRFiles()
    lintRFilesInSubdirectory(options().modulesRSourcePath());
 }
 
-test_context("Diagnostics")
+context("Diagnostics")
 {
    test_that("valid expressions generate no lint")
    {
@@ -271,16 +272,6 @@ test_context("Diagnostics")
       
       EXPECT_NO_LINT("foo(!! abc)");
       EXPECT_NO_LINT("foo(!!! abc)");
-      
-      EXPECT_NO_LINT("function() { i <- 1; function() { data[i] } }");
-      
-      EXPECT_LINT("list(a <- 1, b <- 2)");
-      
-      EXPECT_ERRORS("{\nx\n<- 1\n}");
-      
-      EXPECT_ERRORS("%a\nb%");
-      
-      EXPECT_ERRORS("local({ if (TRUE) })");
    }
    
    lintRStudioRFiles();

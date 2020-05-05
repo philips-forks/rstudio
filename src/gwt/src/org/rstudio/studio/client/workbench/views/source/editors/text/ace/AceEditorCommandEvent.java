@@ -1,7 +1,7 @@
 /*
  * AceEditorCommandEvent.java
  *
- * Copyright (C) 2009-16 by RStudio, PBC
+ * Copyright (C) 2009-16 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -33,18 +33,7 @@ public class AceEditorCommandEvent extends CrossWindowEvent<AceEditorCommandEven
    public static final int EXPAND_TO_MATCHING         =  9;
    public static final int ADD_CURSOR_ABOVE           = 10;
    public static final int ADD_CURSOR_BELOW           = 11;
-   public static final int EDIT_LINES_FROM_START      = 12;
-   public static final int INSERT_SNIPPET             = 13;
-   public static final int MOVE_LINES_UP              = 14;
-   public static final int MOVE_LINES_DOWN            = 15;
-   public static final int EXPAND_TO_LINE             = 16;
-   public static final int COPY_LINES_DOWN            = 17;
-   public static final int JOIN_LINES                 = 18;
-   public static final int REMOVE_LINE                = 19;
-   public static final int SPLIT_INTO_LINES           = 20;
-   public static final int BLOCK_INDENT               = 21;
-   public static final int BLOCK_OUTDENT              = 22;
-   public static final int REINDENT                   = 23;
+   public static final int INSERT_SNIPPET             = 12;
    
    public static final int EXECUTION_POLICY_FOCUSED = 1;
    public static final int EXECUTION_POLICY_ALWAYS  = 2;

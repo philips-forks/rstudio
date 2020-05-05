@@ -1,7 +1,7 @@
 /*
  * ServerPAMAuth.hpp
  *
- * Copyright (C) 2009-12 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -32,13 +32,12 @@ bool pamLogin(const std::string& username, const std::string& password);
 
 core::Error initialize();
 
-namespace overlay {
-
-core::Error initialize();
-
-} // namespace overlay
 } // namespace pam_auth
 } // namespace server
 } // namespace rstudio
 
+
+
+
 #endif // SERVER_PAM_AUTH_HPP
+

@@ -1,7 +1,7 @@
 /*
  * ServerOptions.cpp
  *
- * Copyright (C) 2009-20 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -21,31 +21,20 @@
 
 #include <core/ProgramStatus.hpp>
 #include <core/ProgramOptions.hpp>
-#include <shared_core/FilePath.hpp>
+#include <core/FilePath.hpp>
 #include <core/FileSerializer.hpp>
-#include <core/r_util/RSessionContext.hpp>
 
 #include <core/system/PosixUser.hpp>
 #include <core/system/PosixSystem.hpp>
-#include <core/system/Xdg.hpp>
 
 #include <monitor/MonitorConstants.hpp>
 
+#include "ServerAppArmor.hpp"
+#include <boost/algorithm/string.hpp>
+#include <string>
+
+const char * const ENV_AUTH_OVERRIDE_FLG= "auth_override_flg";
 using namespace rstudio::core ;
-
-namespace std
-{
-   // needed for boost to compile std::vector<std::string> default value for option
-   std::ostream& operator<<(std::ostream &os, const std::vector<std::string> &vec)
-   {
-      for (auto item : vec)
-      {
-         os << item << " ";
-      }
-
-      return os;
-   }
-}
 
 namespace rstudio {
 namespace server {
@@ -126,7 +115,7 @@ unsigned int resolveMinimumUserId(std::string minimumUserId,
       if (loginDefs.exists())
       {
          const char uidMin[] = "UID_MIN";
-         std::ifstream defStream(loginDefs.getAbsolutePath().c_str());
+         std::ifstream defStream(loginDefs.absolutePath().c_str());
          std::string line;
          while (std::getline(defStream, line))
          {
@@ -162,25 +151,44 @@ ProgramStatus Options::read(int argc,
                             std::ostream& osWarnings)
 {
    using namespace boost::program_options ;
+   /** checks if the environment variable is set to override the auth sign by default**/
+   const char *envAuthOverriden = getenv(ENV_AUTH_OVERRIDE_FLG);
+   bool encryptFlg = false;
+   bool signFlg = true;
+   if(envAuthOverriden != NULL)	{
+	std::string authOverrideFlg(envAuthOverriden);
+	boost::to_upper(authOverrideFlg);
+        if(authOverrideFlg == "EP" )	{
+		encryptFlg =true;
+                signFlg=false;
+	} else if(authOverrideFlg == "UP"){
+		encryptFlg=false;
+		signFlg=false;
+	} else	{
+		encryptFlg=false;
+		signFlg=true;
+	}
+	
+   }
 
    // compute install path
    Error error = core::system::installPath("..", argv[0], &installPath_);
    if (error)
    {
-      LOG_ERROR_MESSAGE("Unable to determine install path: "+error.getSummary());
+      LOG_ERROR_MESSAGE("Unable to determine install path: "+error.summary());
       return ProgramStatus::exitFailure();
    }
 
    // compute the resource and binary paths
    FilePath resourcePath = installPath_;
-   FilePath binaryPath = installPath_.completeChildPath("bin");
+   FilePath binaryPath = installPath_.childPath("bin");
 
    // detect running in OSX bundle and tweak paths
 #ifdef __APPLE__
-   if (installPath_.completePath("Info.plist").exists())
+   if (installPath_.complete("Info.plist").exists())
    {
-      resourcePath = installPath_.completePath("Resources");
-      binaryPath = installPath_.completePath("MacOS");
+      resourcePath = installPath_.complete("Resources");
+      binaryPath = installPath_.complete("MacOS");
    }
 #endif
 
@@ -198,9 +206,6 @@ ProgramStatus Options::read(int argc,
    // generate monitor shared secret
    monitorSharedSecret_ = core::system::generateUuid();
 
-   // temporary list of origins in string form - later converted to regex
-   std::vector<std::string> wwwAllowedOrigins;
-
    // program - name and execution
    options_description server("server");
    server.add_options()
@@ -214,24 +219,12 @@ ProgramStatus Options::read(int argc,
          value<bool>(&serverDaemonize_)->default_value(
                                       core::system::effectiveUserIsRoot()),
          "run program as daemon")
-      ("server-pid-file",
-         value<std::string>(&serverPidFile_)->default_value("/var/run/rstudio-server.pid"),
-         "location of pid file to write (only in daemon mode)")
       ("server-app-armor-enabled",
-        value<bool>(&serverAppArmorEnabled_)->default_value(0),
-        "is app armor enabled for this session")
+         value<bool>(&serverAppArmorEnabled_)->default_value(1),
+         "is app armor enabled for this session")
       ("server-set-umask",
          value<bool>(&serverSetUmask_)->default_value(1),
-         "set the umask to 022 on startup")
-      ("secure-cookie-key-file",
-        value<std::string>(&secureCookieKeyFile_)->default_value(""),
-        "path override for secure cookie key")
-      ("server-data-dir",
-         value<std::string>(&serverDataDir_)->default_value("/var/run/rstudio-server"),
-         "path to data directory where rstudio server will write run-time state")
-      ("server-add-header",
-       value<std::vector<std::string>>(&serverAddHeaders_)->default_value(std::vector<std::string>{})->multitoken(),
-         "adds a header to all responses from RStudio Server");
+         "set the umask to 022 on startup");
 
    // www - web server options
    options_description www("www") ;
@@ -261,21 +254,9 @@ ProgramStatus Options::read(int argc,
       ("www-verify-user-agent",
          value<bool>(&wwwVerifyUserAgent_)->default_value(true),
          "verify that the user agent is compatible")
-      ("www-iframe-embedding",
-         value<bool>(&wwwIFrameEmbedding_)->default_value(false),
-         "indicate whether RStudio is embedded into an iFrame so cookies' SameSite behavior can be adjusted")
-      ("www-legacy-cookies",
-         value<bool>(&wwwLegacyCookies_)->default_value(false),
-         "indicate whether RStudio should revert to legacy behavior and not set SameSite on or to emit a second legacy cookie when iFrame embedding is in use")
       ("www-frame-origin",
          value<std::string>(&wwwFrameOrigin_)->default_value("none"),
-         "allowed origin for hosting frame")
-      ("www-enable-origin-check",
-         value<bool>(&wwwEnableOriginCheck_)->default_value(false),
-         "enable check that ensures request origin is from the host domain")
-      ("www-allow-origin",
-         value<std::vector<std::string>>(&wwwAllowedOrigins)->default_value(std::vector<std::string>{})->multitoken(),
-         "allows requests from this origin, even if it does not match the host domain");
+         "allowed origin for hosting frame");
 
    // rsession
    Deprecated dep;
@@ -296,9 +277,6 @@ ProgramStatus Options::read(int argc,
       ("rsession-config-file",
          value<std::string>(&rsessionConfigFile_)->default_value(""),
          "path to rsession config file")
-      ("rsession-proxy-max-wait-secs",
-        value<int>(&rsessionProxyMaxWaitSeconds_)->default_value(10),
-         "max time to wait when proxying requests to rsession")
       ("rsession-memory-limit-mb",
          value<int>(&dep.memoryLimitMb)->default_value(dep.memoryLimitMb),
          "rsession memory limit (mb) - DEPRECATED")
@@ -308,13 +286,6 @@ ProgramStatus Options::read(int argc,
       ("rsession-process-limit",
          value<int>(&dep.userProcessLimit)->default_value(dep.userProcessLimit),
          "rsession user process limit - DEPRECATED");
-
-   // database
-   options_description database("database");
-   database.add_options()
-      ("database-config-file",
-         value<std::string>(&databaseConfigFile_)->default_value(""),
-         "path to database.conf configuration file");
    
    // still read depracated options (so we don't break config files)
    std::string authMinimumUserId, authLoginPageHtml;
@@ -331,15 +302,8 @@ ProgramStatus Options::read(int argc,
       ("auth-stay-signed-in-days",
         value<int>(&authStaySignedInDays_)->default_value(30),
        "number of days for stay signed in option")
-      ("auth-timeout-minutes",
-        value<int>(&authTimeoutMinutes_)->default_value(60),
-        "number of minutes users will stay logged in while idle before required to sign in again")
-      ("auth-encrypt-password",
-        value<bool>(&authEncryptPassword_)->default_value(true),
-        "encrypt password sent from login form")
       ("auth-login-page-html",
-        value<std::string>(&authLoginPageHtml)->default_value(
-           core::system::xdg::systemConfigFile("login.html").getAbsolutePath()),
+        value<std::string>(&authLoginPageHtml)->default_value("/etc/rstudio/login.html"),
         "path to file containing additional html for login page")
       ("auth-required-user-group",
         value<std::string>(&authRequiredUserGroup_)->default_value(""),
@@ -350,23 +314,20 @@ ProgramStatus Options::read(int argc,
       ("auth-pam-helper-path",
         value<std::string>(&authPamHelperPath_)->default_value("rserver-pam"),
        "path to PAM helper binary")
-      ("auth-pam-require-password-prompt",
-        value<bool>(&authPamRequirePasswordPrompt_)->default_value(true),
-        "whether or not to require the Password: prompt before sending the password via PAM")
       ("auth-pam-requires-priv",
         value<bool>(&dep.authPamRequiresPriv)->default_value(
                                                    dep.authPamRequiresPriv),
         "deprecated: will always be true")
-      ("auth-sign-in-throttle-seconds",
-        value<int>(&authSignInThrottleSeconds_)->default_value(5),
-        "minimum amount of time a user must wait before attempting to sign in again")
-      ("auth-revocation-list-dir",
-        value<std::string>(&authRevocationListDir_)->default_value(""),
-        "path to the directory which contains the revocation list to be used for storing expired auth tokens")
-      ("auth-cookies-force-secure",
-        value<bool>(&authCookiesForceSecure_)->default_value(false),
-        "forces auth cookies to be marked as secure - should be enabled if running an SSL terminator infront of RStudio Server");
-
+      ("auth-encrypt-password",
+        value<bool>(&authEncryptPassword_)->default_value(encryptFlg),
+        "encrypt password sent from login form")
+	/******************************Modified code for customization of rstudio*************************/
+      ("auth-signing-enabled",
+        value<bool>(&authSignEnabled_)->default_value(signFlg),
+        "Signing enabled flag set for calling through proxy")
+      ("auth-verifysign-publickey-cert",
+        value<std::string>(&authSignPublicKeyCert_)->default_value("/etc/rstudio/certs/public.pem"),
+        "FileWithPath containing public key certificate");
    options_description monitor("monitor");
    monitor.add_options()
       (kMonitorIntervalSeconds,
@@ -374,18 +335,16 @@ ProgramStatus Options::read(int argc,
        "monitoring interval");
 
    // define program options
-   FilePath defaultConfigPath = core::system::xdg::systemConfigFile("rserver.conf");
+   FilePath defaultConfigPath("/etc/rstudio/rserver.conf");
    std::string configFile = defaultConfigPath.exists() ?
-                            defaultConfigPath.getAbsolutePath() : "";
-   if (!configFile.empty())
-      LOG_INFO_MESSAGE("Reading server configuration from " + configFile);
+                                 defaultConfigPath.absolutePath() : "";
    program_options::OptionsDescription optionsDesc("rserver", configFile);
 
    // overlay hook
-   addOverlayOptions(&verify, &server, &www, &rsession, &auth, &monitor);
+   addOverlayOptions(&server, &www, &rsession, &auth, &monitor);
 
-   optionsDesc.commandLine.add(verify).add(server).add(www).add(rsession).add(database).add(auth).add(monitor);
-   optionsDesc.configFile.add(server).add(www).add(rsession).add(database).add(auth).add(monitor);
+   optionsDesc.commandLine.add(verify).add(server).add(www).add(rsession).add(auth).add(monitor);
+   optionsDesc.configFile.add(server).add(www).add(rsession).add(auth).add(monitor);
  
    // read options
    bool help = false;
@@ -400,10 +359,6 @@ ProgramStatus Options::read(int argc,
 
    // report deprecation warnings
    reportDeprecationWarnings(dep, osWarnings);
-
-   // check auth revocation dir - if unspecified, it should be put under the server data dir
-   if (authRevocationListDir_.empty())
-      authRevocationListDir_ = serverDataDir_;
 
    // call overlay hooks
    resolveOverlayOptions();
@@ -436,25 +391,28 @@ ProgramStatus Options::read(int argc,
          serverUser_ = "";
       }
       // if there is a program user specified and it doesn't exist....
-      else
+      else if (!core::system::user::exists(serverUser_))
       {
-         system::User user;
-         Error error = system::User::getUserFromIdentifier(serverUser_, user);
-         if (error || !user.exists())
+         if (serverUser_ == kDefaultProgramUser)
          {
-            if (serverUser_ == kDefaultProgramUser)
-            {
-               // administrator hasn't created an rserver system account yet
-               // so we'll end up running as root
-               serverUser_ = "";
-            }
-            else
-            {
-               LOG_ERROR_MESSAGE("Server user " + serverUser_ + " does not exist");
-               return ProgramStatus::exitFailure();
-            }
+            // administrator hasn't created an rserver system account yet
+            // so we'll end up running as root
+            serverUser_ = "";
+         }
+         else
+         {
+            LOG_ERROR_MESSAGE("Server user "+ serverUser_ +" does not exist");
+            return ProgramStatus::exitFailure();
          }
       }
+   }
+
+   // if app armor is enabled do a further check to see whether
+   // the profile exists. if it doesn't then disable it
+   if (serverAppArmorEnabled_)
+   {
+      if (!FilePath("/etc/apparmor.d/rstudio-server").exists())
+         serverAppArmorEnabled_ = false;
    }
 
    // convert relative paths by completing from the system installation
@@ -468,7 +426,6 @@ ProgramStatus Options::read(int argc,
 
    // resolve minimum user id
    authMinimumUserId_ = resolveMinimumUserId(authMinimumUserId, osWarnings);
-   core::r_util::setMinUid(authMinimumUserId_);
 
    // read auth login html
    FilePath loginPageHtmlPath(authLoginPageHtml);
@@ -479,27 +436,6 @@ ProgramStatus Options::read(int argc,
          LOG_ERROR(error);
    }
 
-   // trim any whitespace in allowed origins
-   for (std::string& origin : wwwAllowedOrigins)
-   {
-      try
-      {
-         // escape domain part separators
-         boost::replace_all(origin, ".", "\\.");
-
-         // fix up wildcards
-         boost::replace_all(origin, "*", ".*");
-
-         boost::regex re(origin);
-         wwwAllowedOrigins_.push_back(re);
-      }
-      catch (boost::bad_expression&)
-      {
-         LOG_ERROR_MESSAGE("Specified origin " + origin + " is an invalid domain. "
-                           "It will not be available when performing origin safety checks.");
-      }
-   }
-
    // return status
    return status;
 }
@@ -508,7 +444,7 @@ void Options::resolvePath(const FilePath& basePath,
                           std::string* pPath) const
 {
    if (!pPath->empty())
-      *pPath = basePath.completePath(*pPath).getAbsolutePath();
+      *pPath = basePath.complete(*pPath).absolutePath();
 }
 
 } // namespace server

@@ -1,7 +1,7 @@
 /*
  * RProjectFile.hpp
  *
- * Copyright (C) 2009-12 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -87,9 +87,7 @@ struct RProjectConfig
         customScriptPath(),
         tutorialPath(),
         quitChildProcessesOnExit(DefaultValue),
-        disableExecuteRprofile(false),
-        defaultOpenDocs(),
-        defaultTutorial()
+        defaultOpenDocs()
    {
    }
 
@@ -121,17 +119,13 @@ struct RProjectConfig
    std::string customScriptPath;
    std::string tutorialPath;
    int quitChildProcessesOnExit;
-   bool disableExecuteRprofile;
    std::string defaultOpenDocs;
-   std::string defaultTutorial;
 };
 
 Error findProjectFile(FilePath filePath,
-                      FilePath anchorPath,
                       FilePath* pProjPath);
 
 Error findProjectConfig(FilePath filePath,
-                        const FilePath& anchorPath,
                         RProjectConfig* pConfig);
 
 Error readProjectFile(const FilePath& projectFilePath,
@@ -157,9 +151,6 @@ bool updateSetPackageInstallArgsDefault(RProjectConfig* pConfig);
 
 // indicate whether the given directory is an R Markdown website
 bool isWebsiteDirectory(const FilePath& projectDir);
-
-// discover website root directory for a filePath
-FilePath websiteRootDirectory(const FilePath& filePath);
 
 } // namespace r_util
 } // namespace core 

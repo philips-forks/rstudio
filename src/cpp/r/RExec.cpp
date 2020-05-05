@@ -1,7 +1,7 @@
 /*
  * RExec.cpp
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -16,10 +16,8 @@
 #define R_INTERNAL_FUNCTIONS
 #include <r/RExec.hpp>
 
-#include <shared_core/FilePath.hpp>
+#include <core/FilePath.hpp>
 #include <core/Log.hpp>
-#include <core/StringUtils.hpp>
-#include <core/system/Environment.hpp>
 
 #include <r/RErrorCategory.hpp>
 #include <r/RSourceManager.hpp>
@@ -29,15 +27,12 @@
 
 #include <R_ext/Parse.h>
 
-#include <R_ext/libextern.h>
-
-extern "C" {
+#include <R_ext/libextern.h> 
 LibExtern Rboolean R_interrupts_suspended;
 LibExtern int R_interrupts_pending;
 #ifdef _WIN32
 LibExtern int UserBreak;
 #endif
-}
 
 using namespace rstudio::core ;
 
@@ -59,13 +54,6 @@ public:
    DisableErrorHandlerScope()
       : didDisable_(false)
    {
-      // allow users to enable / disable suppression of error handlers
-      // (primarily for debugging when behind-the-scenes R code emits an error
-      // that we'd like to learn a bit more about)
-      bool suppressed = r::options::getOption("rstudio.errors.suppressed", true, false);
-      if (!suppressed)
-         return;
-      
       SEXP handlerSEXP = r::options::setErrorOption(R_NilValue);
       if (handlerSEXP != R_NilValue)
       {
@@ -431,11 +419,11 @@ Error RFunction::call(SEXP evalNS, bool safely, SEXP* pResultSEXP,
 
 FilePath rBinaryPath()
 {
-   FilePath binPath = FilePath(R_HomeDir()).completePath("bin");
+   FilePath binPath = FilePath(R_HomeDir()).complete("bin");
 #ifdef _WIN32
-   return binPath.completePath("Rterm.exe");
+   return binPath.complete("Rterm.exe");
 #else
-   return binPath.completePath("R");
+   return binPath.complete("R");
 #endif
 }
    
@@ -450,7 +438,7 @@ Error system(const std::string& command, std::string* pOutput)
    if (error)
    {
       // if it is NoDataAvailable this means empty output
-      if (error == r::errc::NoDataAvailableError)
+      if (error.code() == r::errc::NoDataAvailableError)
       {
          pOutput->clear();
          return Success();
@@ -469,12 +457,12 @@ Error system(const std::string& command, std::string* pOutput)
 
 void error(const std::string& message)   
 {
-   Rf_error("%s", message.c_str());
+   Rf_error(message.c_str());
 }
 
 void errorCall(SEXP call, const std::string& message)
 {
-   Rf_errorcall(call, "%s", message.c_str());
+   Rf_errorcall(call, message.c_str());
 }
    
 std::string getErrorMessage()
@@ -489,7 +477,7 @@ std::string getErrorMessage()
 
 void warning(const std::string& warning)
 {
-   Rf_warning("%s", warning.c_str());
+   Rf_warning(warning.c_str());
 }
 
 void message(const std::string& message)
@@ -560,10 +548,10 @@ IgnoreInterruptsScope::~IgnoreInterruptsScope()
 
 DisableDebugScope::DisableDebugScope(SEXP env): 
    rdebug_(0), 
-   env_(nullptr)
+   env_(NULL)
 {
    // nothing to do if no environment 
-   if (env == nullptr) {
+   if (env == NULL) {
       return;
    }
 
@@ -582,7 +570,7 @@ DisableDebugScope::~DisableDebugScope()
 {
    // if we disabled debugging and debugging didn't end during the command 
    // evaluation, restore debugging
-   if (env_ != nullptr && !atTopLevelContext()) 
+   if (env_ != NULL && !atTopLevelContext()) 
    {
       SET_RDEBUG(env_, rdebug_);
    }

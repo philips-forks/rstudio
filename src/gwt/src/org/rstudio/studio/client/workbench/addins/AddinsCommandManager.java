@@ -11,9 +11,9 @@ import org.rstudio.core.client.command.EditorCommandManager.EditorKeyBindings;
 import org.rstudio.core.client.command.KeyMap;
 import org.rstudio.core.client.command.KeyMap.CommandBinding;
 import org.rstudio.core.client.command.KeyMap.KeyMapType;
-import org.rstudio.core.client.command.KeySequence;
+import org.rstudio.core.client.command.KeyboardShortcut.KeySequence;
 import org.rstudio.core.client.command.ShortcutManager;
-import org.rstudio.core.client.files.ConfigFileBacked;
+import org.rstudio.core.client.files.FileBacked;
 import org.rstudio.studio.client.application.events.EventBus;
 import org.rstudio.studio.client.workbench.MainWindowObject;
 import org.rstudio.studio.client.workbench.addins.Addins.RAddin;
@@ -22,7 +22,6 @@ import org.rstudio.studio.client.workbench.addins.events.AddinRegistryUpdatedEve
 import org.rstudio.studio.client.workbench.events.SessionInitEvent;
 import org.rstudio.studio.client.workbench.events.SessionInitHandler;
 import org.rstudio.studio.client.workbench.model.Session;
-import org.rstudio.studio.client.workbench.views.files.model.FilesServerOperations;
 import org.rstudio.studio.client.workbench.views.source.SourceWindowManager;
 
 import java.util.ArrayList;
@@ -33,13 +32,11 @@ public class AddinsCommandManager
 {
    @Inject
    public AddinsCommandManager(EventBus events, 
-                               FilesServerOperations server,
                                final Session session)
    {
       events_ = events;
      
-      bindings_ = new ConfigFileBacked<EditorKeyBindings>(
-            server,
+      bindings_ = new FileBacked<EditorKeyBindings>(
             KEYBINDINGS_PATH,
             false,
             EditorKeyBindings.create());
@@ -176,8 +173,8 @@ public class AddinsCommandManager
       return MainWindowObject.rAddins().get();
    }
    
-   private final ConfigFileBacked<EditorKeyBindings> bindings_;
-   private static final String KEYBINDINGS_PATH = "keybindings/addins.json";
+   private final FileBacked<EditorKeyBindings> bindings_;
+   private static final String KEYBINDINGS_PATH = "~/.R/rstudio/keybindings/addins.json";
    
    
    // Injected ----

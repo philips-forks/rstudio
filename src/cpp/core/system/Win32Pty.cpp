@@ -1,7 +1,7 @@
 /*
  * Win32Pty.cpp
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-17 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -15,7 +15,9 @@
 
 #include "Win32Pty.hpp"
 
-#include <shared_core/Error.hpp>
+#include <boost/foreach.hpp>
+
+#include <core/Error.hpp>
 #include <core/StringUtils.hpp>
 #include <core/system/System.hpp>
 #include <core/system/LibraryLoader.hpp>
@@ -30,7 +32,7 @@ namespace {
 // via run-time logic and isn't loaded until needed.
 
 #define LOAD_WINPTY_SYMBOL(name) \
-   error = core::system::loadSymbol(hMod, "winpty_" #name, reinterpret_cast<void**>(&name)); \
+   error = core::system::loadSymbol(hMod, "winpty_" #name, (void**)&name); \
    if (error) \
    { \
       Error unloadError = unload(); \
@@ -39,60 +41,60 @@ namespace {
       return error; \
    }
 
-HMODULE hMod = nullptr;
+HMODULE hMod = NULL;
 
-winpty_result_t (*error_code)(winpty_error_ptr_t) = nullptr;
-LPCWSTR (*error_msg)(winpty_error_ptr_t) = nullptr;
-void (*error_free)(winpty_error_ptr_t) = nullptr;
+winpty_result_t (*error_code)(winpty_error_ptr_t) = NULL;
+LPCWSTR (*error_msg)(winpty_error_ptr_t) = NULL;
+void (*error_free)(winpty_error_ptr_t) = NULL;
 
-winpty_config_t *(*config_new)(UINT64, winpty_error_ptr_t *) = nullptr;
-void (*config_free)(winpty_config_t *) = nullptr;
-void (*config_set_initial_size)(winpty_config_t *, int, int) = nullptr;
-void (*config_set_mouse_mode)(winpty_config_t *, int) = nullptr;
-void (*config_set_agent_timeout)(winpty_config_t *, DWORD) = nullptr;
+winpty_config_t *(*config_new)(UINT64, winpty_error_ptr_t *) = NULL;
+void (*config_free)(winpty_config_t *) = NULL;
+void (*config_set_initial_size)(winpty_config_t *, int, int) = NULL;
+void (*config_set_mouse_mode)(winpty_config_t *, int) = NULL;
+void (*config_set_agent_timeout)(winpty_config_t *, DWORD) = NULL;
 
-winpty_t *(*open)(const winpty_config_t *, winpty_error_ptr_t *) = nullptr;
-HANDLE (*agent_process)(winpty_t *) = nullptr;
+winpty_t *(*open)(const winpty_config_t *, winpty_error_ptr_t *) = NULL;
+HANDLE (*agent_process)(winpty_t *) = NULL;
 
-LPCWSTR (*conin_name)(winpty_t *) = nullptr;
-LPCWSTR (*conout_name)(winpty_t *) = nullptr;
-LPCWSTR (*conerr_name)(winpty_t *) = nullptr;
+LPCWSTR (*conin_name)(winpty_t *) = NULL;
+LPCWSTR (*conout_name)(winpty_t *) = NULL;
+LPCWSTR (*conerr_name)(winpty_t *) = NULL;
 
 winpty_spawn_config_t *(*spawn_config_new)(UINT64, LPCWSTR, LPCWSTR,
                                            LPCWSTR, LPCWSTR,
-                                           winpty_error_ptr_t *) = nullptr;
-void *(*spawn_config_free)(winpty_spawn_config_t *) = nullptr;
+                                           winpty_error_ptr_t *) = NULL;
+void *(*spawn_config_free)(winpty_spawn_config_t *) = NULL;
 BOOL (*spawn)(winpty_t *, const winpty_spawn_config_t *, HANDLE *,
-              HANDLE *, DWORD *, winpty_error_ptr_t *) = nullptr;
+              HANDLE *, DWORD *, winpty_error_ptr_t *) = NULL;
 
-BOOL (*set_size)(winpty_t *, int, int, winpty_error_ptr_t *) = nullptr;
-void (*free)(winpty_t *) = nullptr;
+BOOL (*set_size)(winpty_t *, int, int, winpty_error_ptr_t *) = NULL;
+void (*free)(winpty_t *) = NULL;
 
 Error unload()
 {
-   error_code = nullptr;
-   error_msg = nullptr;
-   error_free = nullptr;
-   config_new = nullptr;
-   config_free = nullptr;
-   config_set_initial_size = nullptr;
-   config_set_mouse_mode = nullptr;
-   config_set_agent_timeout = nullptr;
-   open = nullptr;
-   agent_process = nullptr;
-   conin_name = nullptr;
-   conout_name = nullptr;
-   conerr_name = nullptr;
-   spawn_config_new = nullptr;
-   spawn_config_free = nullptr;
-   spawn = nullptr;
-   set_size = nullptr;
-   free = nullptr;
+   error_code = NULL;
+   error_msg = NULL;
+   error_free = NULL;
+   config_new = NULL;
+   config_free = NULL;
+   config_set_initial_size = NULL;
+   config_set_mouse_mode = NULL;
+   config_set_agent_timeout = NULL;
+   open = NULL;
+   agent_process = NULL;
+   conin_name = NULL;
+   conout_name = NULL;
+   conerr_name = NULL;
+   spawn_config_new = NULL;
+   spawn_config_free = NULL;
+   spawn = NULL;
+   set_size = NULL;
+   free = NULL;
 
    if (hMod)
    {
       Error error = core::system::closeLibrary(hMod);
-      hMod = nullptr;
+      hMod = NULL;
       if (error)
          return error;
    }
@@ -106,13 +108,10 @@ Error tryLoad(const core::FilePath& libraryPath)
       return Success();
 
    Error error = core::system::loadLibrary(
-            libraryPath.getAbsolutePath(),
-            reinterpret_cast<void**>(&hMod));
+            libraryPath.absolutePath(),
+            (void**)&hMod);
    if (error)
-   {
-      LOG_ERROR(error);
       return error;
-   }
 
    LOAD_WINPTY_SYMBOL(error_code);
    LOAD_WINPTY_SYMBOL(error_msg);
@@ -154,7 +153,7 @@ class WinPtyError : boost::noncopyable
 {
 public:
    WinPtyError()
-      : pErr_(nullptr)
+      : pErr_(NULL)
    {}
 
    virtual ~WinPtyError()
@@ -170,7 +169,7 @@ public:
       if (pErr_ && error_free)
       {
          error_free(pErr_);
-         pErr_ = nullptr;
+         pErr_ = NULL;
       }
       return &pErr_;
    }
@@ -202,7 +201,7 @@ public:
                 int cols, int rows,
                 int mousemode,
                 DWORD timeoutMs)
-      : pConfig_(nullptr)
+      : pConfig_(NULL)
    {
       // winpty DLL aborts if cols and/or rows are zero
       if (cols < 1)
@@ -257,15 +256,15 @@ public:
          const std::string& appName,
          const std::string& cmdLine,
          const ProcessOptions& options)
-      : pSpawnConfig_(nullptr)
+      : pSpawnConfig_(NULL)
    {
       // Build wchar_t environment
-      LPCWSTR lpEnv = nullptr;
+      LPCWSTR lpEnv = NULL;
       std::vector<wchar_t> envBlock;
       if (options.environment)
       {
          const Options& env = options.environment.get();
-         for (const Option& envVar : env)
+         BOOST_FOREACH(const Option& envVar, env)
          {
             std::wstring key = string_utils::utf8ToWide(envVar.first);
             std::wstring value = string_utils::utf8ToWide(envVar.second);
@@ -278,7 +277,7 @@ public:
          lpEnv = &envBlock[0];
       }
 
-      std::wstring workingDir(options.workingDir.getAbsolutePathW());
+      std::wstring workingDir(options.workingDir.absolutePathW());
 
       if (spawn_config_new)
       {
@@ -364,14 +363,14 @@ Error WinPty::startPty(HANDLE* pStdInWrite, HANDLE* pStdOutRead, HANDLE* pStdErr
    CloseHandleOnExitScope closeStdOutRead(pStdOutRead, ERROR_LOCATION);
    CloseHandleOnExitScope closeStdErrRead(pStdErrRead, ERROR_LOCATION);
 
-   // We return nullptr handles on error, for consistency with calling code. That
-   // requires changing error results from INVALID_HANDLE_VALUE to nullptr.
+   // We return NULL handles on error, for consistency with calling code. That
+   // requires changing error results from INVALID_HANDLE_VALUE to NULL.
    if (pStdErrRead)
-      *pStdErrRead = nullptr;
+      *pStdErrRead = NULL;
    if (pStdInWrite)
-      *pStdInWrite = nullptr;
+      *pStdInWrite = NULL;
    if (pStdOutRead)
-      *pStdOutRead = nullptr;
+      *pStdOutRead = NULL;
 
    if (!options_.pseudoterminal)
    {
@@ -428,16 +427,17 @@ Error WinPty::startPty(HANDLE* pStdInWrite, HANDLE* pStdOutRead, HANDLE* pStdErr
       *pStdInWrite = ::CreateFileW(conin_name(pPty_),
                                    GENERIC_WRITE,
                                    0 /*dwShareMode*/,
-                                   nullptr /*lpSecurityAttributed*/,
+                                   NULL /*lpSecurityAttributed*/,
                                    OPEN_EXISTING,
                                    FILE_FLAG_OVERLAPPED,
-                                   nullptr /*hTemplateFile*/);
+                                   NULL /*hTemplateFile*/);
       if (*pStdInWrite == INVALID_HANDLE_VALUE)
       {
-         auto lastErr = ::GetLastError();
+         DWORD err = ::GetLastError();
          stopPty();
-         *pStdInWrite = nullptr;
-         return systemError(lastErr,
+         *pStdInWrite = NULL;
+         ::SetLastError(err);
+         return systemError(::GetLastError(),
                             "Failed to connect to pty conin pipe",
                             ERROR_LOCATION);
       }
@@ -448,16 +448,16 @@ Error WinPty::startPty(HANDLE* pStdInWrite, HANDLE* pStdOutRead, HANDLE* pStdErr
       *pStdOutRead = ::CreateFileW(conout_name(pPty_),
                                    GENERIC_READ,
                                    0 /*dwShareMode*/,
-                                   nullptr /*lpSecurityAttributed*/,
+                                   NULL /*lpSecurityAttributed*/,
                                    OPEN_EXISTING,
                                    FILE_FLAG_OVERLAPPED,
-                                   nullptr /*hTemplateFile*/);
+                                   NULL /*hTemplateFile*/);
       if (*pStdOutRead == INVALID_HANDLE_VALUE)
       {
-         auto lastErr = ::GetLastError();
+         DWORD err = ::GetLastError();
          stopPty();
-         *pStdOutRead = nullptr;
-         return systemError(lastErr,
+         *pStdOutRead = NULL;
+         return systemError(err,
                             "Failed to connect to pty conout pipe",
                             ERROR_LOCATION);
       }
@@ -469,16 +469,16 @@ Error WinPty::startPty(HANDLE* pStdInWrite, HANDLE* pStdOutRead, HANDLE* pStdErr
       *pStdErrRead = ::CreateFileW(conerr_name(pPty_),
                                    GENERIC_READ,
                                    0 /*dwShareMode*/,
-                                   nullptr /*lpSecurityAttributed*/,
+                                   NULL /*lpSecurityAttributed*/,
                                    OPEN_EXISTING,
                                    FILE_FLAG_OVERLAPPED,
-                                   nullptr /*hTemplateFile*/);
+                                   NULL /*hTemplateFile*/);
       if (*pStdErrRead == INVALID_HANDLE_VALUE)
       {
-         auto lastErr = ::GetLastError();
+         DWORD err = ::GetLastError();
          stopPty();
-         *pStdErrRead = nullptr;
-         return systemError(lastErr,
+         *pStdErrRead = NULL;
+         return systemError(err,
                             "Failed to connect to pty conerr pipe",
                             ERROR_LOCATION);
       }
@@ -493,7 +493,7 @@ Error WinPty::startPty(HANDLE* pStdInWrite, HANDLE* pStdOutRead, HANDLE* pStdErr
 Error WinPty::runProcess(HANDLE* pProcess)
 {
    if (pProcess)
-      *pProcess = nullptr;
+      *pProcess = NULL;
 
    if (!ptyRunning())
    {
@@ -505,7 +505,7 @@ Error WinPty::runProcess(HANDLE* pProcess)
    // process command line arguments (copy of approach done by non-pseudoterm
    // code path in ChildProcess::run for Win32)
    std::string cmdLine;
-   for (std::string& arg : args_)
+   BOOST_FOREACH(std::string& arg, args_)
    {
       cmdLine.push_back(' ');
 
@@ -544,12 +544,12 @@ Error WinPty::runProcess(HANDLE* pProcess)
    if (!spawn(pPty_,
               spawnConfig.get(),
               pProcess,
-              nullptr /*pThread*/,
+              NULL /*pThread*/,
               &createProcError,
               err.ppErr()))
    {
       if (pProcess)
-         *pProcess = nullptr;
+         *pProcess = NULL;
       return systemError(createProcError,
                          err.errMsg("runProcess"),
                          ERROR_LOCATION);
@@ -564,12 +564,12 @@ void WinPty::stopPty()
       return;
    if (free)
       free(pPty_);
-   pPty_ = nullptr;
+   pPty_ = NULL;
 }
 
 bool WinPty::ptyRunning() const
 {
-   return pPty_ != nullptr;
+   return pPty_ != NULL;
 }
 
 Error WinPty::setSize(int cols, int rows)
@@ -615,20 +615,20 @@ Error WinPty::writeToPty(HANDLE hPipe, const std::string& input)
    DWORD dwWritten;
    BOOL bSuccess = ::WriteFile(hPipe,
                                input.data(),
-                               static_cast<DWORD>(input.length()),
+                               input.length(),
                                &dwWritten,
                                &over);
-   auto lastErr = ::GetLastError();
-   if (!bSuccess && lastErr == ERROR_IO_PENDING)
+   DWORD dwErr = ::GetLastError();
+   if (!bSuccess && dwErr == ERROR_IO_PENDING)
    {
       bSuccess = GetOverlappedResult(hPipe,
                                      &over,
                                      &dwWritten,
                                      TRUE /*wait*/);
-      lastErr = ::GetLastError();
+      dwErr = ::GetLastError();
    }
    if (!bSuccess)
-      return systemError(lastErr, ERROR_LOCATION);
+      return systemError(dwErr, ERROR_LOCATION);
 
    return Success();
 }
@@ -638,13 +638,12 @@ Error WinPty::readFromPty(HANDLE hPipe, std::string* pOutput)
 {
    // check for available bytes
    DWORD dwAvail = 0;
-   if (!::PeekNamedPipe(hPipe, nullptr, 0, nullptr, &dwAvail, nullptr))
+   if (!::PeekNamedPipe(hPipe, NULL, 0, NULL, &dwAvail, NULL))
    {
-      auto lastErr = ::GetLastError();
-      if (lastErr == ERROR_BROKEN_PIPE)
+      if (::GetLastError() == ERROR_BROKEN_PIPE)
          return Success();
       else
-         return systemError(lastErr, ERROR_LOCATION);
+         return systemError(::GetLastError(), ERROR_LOCATION);
    }
 
    // no data available
@@ -656,19 +655,19 @@ Error WinPty::readFromPty(HANDLE hPipe, std::string* pOutput)
    std::vector<CHAR> buffer(dwAvail, 0);
    OVERLAPPED over;
    memset(&over, 0, sizeof(over));
-   BOOL bSuccess = ::ReadFile(hPipe, &(buffer[0]), dwAvail, nullptr, &over);
-   auto lastErr = ::GetLastError();
-   if (!bSuccess && lastErr == ERROR_IO_PENDING)
+   BOOL bSuccess = ::ReadFile(hPipe, &(buffer[0]), dwAvail, NULL, &over);
+   DWORD dwErr = ::GetLastError();
+   if (!bSuccess && dwErr == ERROR_IO_PENDING)
    {
       bSuccess = GetOverlappedResult(hPipe,
                                      &over,
                                      &nBytesRead,
                                      TRUE /*wait*/);
-      lastErr = ::GetLastError();
+      dwErr = ::GetLastError();
    }
 
    if (!bSuccess)
-      return systemError(lastErr, ERROR_LOCATION);
+      return systemError(::GetLastError(), ERROR_LOCATION);
 
    // append to output
    pOutput->append(&(buffer[0]), nBytesRead);

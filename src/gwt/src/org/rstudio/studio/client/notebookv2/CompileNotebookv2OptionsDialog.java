@@ -1,7 +1,7 @@
 /*
  * CompileNotebookv2OptionsDialog.java
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -14,18 +14,16 @@
  */
 package org.rstudio.studio.client.notebookv2;
 
-import com.google.gwt.aria.client.Roles;
 import com.google.gwt.core.client.GWT;
 import com.google.gwt.dom.client.DivElement;
-import com.google.gwt.dom.client.Element;
 import com.google.gwt.resources.client.CssResource;
 import com.google.gwt.uibinder.client.UiBinder;
 import com.google.gwt.uibinder.client.UiField;
 import com.google.gwt.user.client.ui.HorizontalPanel;
+import com.google.gwt.user.client.ui.Label;
 import com.google.gwt.user.client.ui.ListBox;
 import com.google.gwt.user.client.ui.Widget;
 
-import org.rstudio.core.client.widget.FormLabel;
 import org.rstudio.core.client.widget.ModalDialog;
 import org.rstudio.core.client.widget.OperationWithInput;
 
@@ -46,21 +44,19 @@ public class CompileNotebookv2OptionsDialog extends ModalDialog<CompileNotebookv
          String defaultFormat,
          final OperationWithInput<CompileNotebookv2Options> operation)
    {
-      super("Compile Report from R Script", Roles.getDialogRole(), operation);
+      super("Compile Report from R Script", operation);
       widget_ = GWT.<Binder>create(Binder.class).createAndBindUi(this);
       style.ensureInjected();
       
       setFormat(defaultFormat);
-      lblFormat_.setFor(listFormat_);
+
       setOkButtonCaption("Compile");
-      
-      // read the message when dialog is shown
-      setARIADescribedBy(dialogLabel_);
    }
 
    @Override
-   protected void focusInitialControl()
+   protected void onDialogShown()
    {
+      super.onDialogShown();
       listFormat_.setFocus(true);
    }
    
@@ -93,7 +89,7 @@ public class CompileNotebookv2OptionsDialog extends ModalDialog<CompileNotebookv
       int formatIndex = 0;
       for (int i=0; i<listFormat_.getItemCount(); i++)
       {
-         if (format == listFormat_.getValue(i))
+         if (format.equals(listFormat_.getValue(i)))
          {
             formatIndex = i;
             break;
@@ -102,8 +98,6 @@ public class CompileNotebookv2OptionsDialog extends ModalDialog<CompileNotebookv
       listFormat_.setSelectedIndex(formatIndex);
    }
    
-   @UiField
-   Element dialogLabel_;
    @UiField 
    CompileNotebookv2Style style;
    @UiField
@@ -111,7 +105,7 @@ public class CompileNotebookv2OptionsDialog extends ModalDialog<CompileNotebookv
    @UiField
    HorizontalPanel formatLabelPanel_;
    @UiField
-   FormLabel lblFormat_;
+   Label lblFormat_;
    @UiField
    ListBox listFormat_;
 
@@ -119,7 +113,7 @@ public class CompileNotebookv2OptionsDialog extends ModalDialog<CompileNotebookv
    
    private CompileNotebookv2OptionsDialog()
    {
-      super("Caption", Roles.getDialogRole(), new OperationWithInput<CompileNotebookv2Options>() {
+      super("Caption", new OperationWithInput<CompileNotebookv2Options>() {
 
          @Override
          public void execute(CompileNotebookv2Options input)

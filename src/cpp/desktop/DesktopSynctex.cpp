@@ -1,7 +1,7 @@
 /*
  * DesktopSynctex.cpp
  *
- * Copyright (C) 2009-18 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -15,10 +15,15 @@
 
 #include "DesktopSynctex.hpp"
 
+#include <boost/regex.hpp>
 #include <boost/algorithm/string/trim.hpp>
 
+#include <core/Error.hpp>
 #include <core/RegexUtils.hpp>
-#include <shared_core/SafeConvert.hpp>
+#include <core/SafeConvert.hpp>
+#include <core/system/Process.hpp>
+
+#include "DesktopUtils.hpp"
 
 // per-platform synctex implemetnations
 #if defined(Q_OS_MAC)
@@ -72,7 +77,7 @@ SynctexViewerInfo discoverViewer()
 
    // extract version
    boost::smatch match;
-   boost::regex re(R"(^.*(\d+)\.(\d+)\.(\d)+$)");
+   boost::regex re("^.*(\\d+)\\.(\\d+)\\.(\\d)+$");
    if (regex_utils::match(stdOut, match, re))
    {
       SynctexViewerInfo sv;

@@ -1,7 +1,7 @@
 /*
  * UrlOpenerMain.cpp
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -28,8 +28,7 @@ int main(int argc, char** argv)
    try
    {
       // initialize log
-      rstudio::core::log::setProgramId("urlopener");
-      rstudio::core::system::initializeSystemLog("urlopener", rstudio::core::log::LogLevel::WARN);
+      initializeSystemLog("urlopener", rstudio::core::system::kLogLevelWarning);
 
       // check arguments
       if (argc < 2)
@@ -39,13 +38,12 @@ int main(int argc, char** argv)
       }
 
       // shell execute
-      int ret = static_cast<int>(reinterpret_cast<uintptr_t>(
-            ::ShellExecute(nullptr,
-                           "open",
-                           argv[1],
-                           nullptr,
-                           nullptr,
-                           SW_SHOW)));
+      DWORD ret = (DWORD) ::ShellExecute(NULL,
+                                         "open",
+                                         argv[1],
+                                         NULL,
+                                         NULL,
+                                         SW_SHOW);
 
       // check for error
       if(ret <= 32)
@@ -83,13 +81,3 @@ int main(int argc, char** argv)
    // if we got this far we had an unexpected exception
    return EXIT_FAILURE ;
 }
-
-#ifdef _WIN32
-int WINAPI WinMain(HINSTANCE hInstance,
-                   HINSTANCE hPrevInstance,
-                   LPSTR lpCmdLine,
-                   int nShowCmd)
-{
-   return main(__argc, __argv);
-}
-#endif

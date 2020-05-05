@@ -1,7 +1,7 @@
 /*
  * LinuxFileMonitor.cpp
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -24,6 +24,7 @@
 #include <set>
 
 #include <boost/utility.hpp>
+#include <boost/foreach.hpp>
 #include <boost/algorithm/string/predicate.hpp>
 
 #include <boost/multi_index_container.hpp>
@@ -31,7 +32,7 @@
 #include <boost/multi_index/member.hpp>
 
 #include <core/Log.hpp>
-#include <shared_core/Error.hpp>
+#include <core/Error.hpp>
 #include <core/FileInfo.hpp>
 
 #include <core/system/FileScanner.hpp>
@@ -213,7 +214,7 @@ Error addWatch(const FileInfo& fileInfo,
    // add IN_DONT_FOLLOW unless we are explicitly allowing root symlinks
    // and this is a watch for the root path
    if (!allowRootSymlink ||
-       (fileInfo.absolutePath() != rootPath.getAbsolutePath()))
+       (fileInfo.absolutePath() != rootPath.absolutePath()))
    {
       mask |= IN_DONT_FOLLOW;
    }
@@ -323,8 +324,8 @@ Error processEvent(FileEventContext* pContext,
          return Success();
 
       // get file info
-      FilePath filePath = FilePath(parentIt->absolutePath()).completePath(
-         pEvent->name);
+      FilePath filePath = FilePath(parentIt->absolutePath()).complete(
+                                                                 pEvent->name);
 
 
       // if the file exists then collect as many extended attributes
@@ -336,7 +337,7 @@ Error processEvent(FileEventContext* pContext,
       }
       else
       {
-         fileInfo = FileInfo(filePath.getAbsolutePath(), pEvent->mask & IN_ISDIR);
+         fileInfo = FileInfo(filePath.absolutePath(), pEvent->mask & IN_ISDIR);
       }
 
       // if this doesn't meet the filter then ignore
@@ -358,7 +359,7 @@ Error processEvent(FileEventContext* pContext,
                                      &removeEvents);
 
             // for each directory remove event remove any watches we have for it
-            for (const FileChangeEvent& event : removeEvents)
+            BOOST_FOREACH(const FileChangeEvent& event, removeEvents)
             {
                if (event.fileInfo().isDirectory())
                {
@@ -393,7 +394,7 @@ Error processEvent(FileEventContext* pContext,
             // in the normal course of business if a file is deleted between
             // the time the change is detected and we try to inspect it)
             if (error &&
-               (error != systemError(boost::system::errc::no_such_file_or_directory, ErrorLocation())))
+               (error.code() != boost::system::errc::no_such_file_or_directory))
             {
                LOG_ERROR(error);
             }
@@ -440,14 +441,13 @@ Handle registerMonitor(const core::FilePath& filePath,
                        const boost::function<bool(const FileInfo&)>& filter,
                        const Callbacks& callbacks)
 {
-   // create and allocate FileEventContext
-   // (also pack into unique_ptr to auto-delete if we return early;
-   // we'll relinquish ownership if we successfully register the monitor)
+   // create and allocate FileEventContext (create auto-ptr in case we
+   // return early, we'll call release later before returning)
    FileEventContext* pContext = new FileEventContext();
    pContext->rootPath = filePath;
    pContext->recursive = recursive;
    pContext->filter = filter;
-   std::unique_ptr<FileEventContext> contextScope(pContext);
+   std::auto_ptr<FileEventContext> autoPtrContext(pContext);
 
    // init file descriptor
 #ifdef HAVE_INOTIFY_INIT1
@@ -498,7 +498,7 @@ Handle registerMonitor(const core::FilePath& filePath,
 
    // we are going to pass the context pointer to the client (as the Handle)
    // so we release it here to relinquish ownership
-   contextScope.release();
+   autoPtrContext.release();
 
    // notify the caller that we have successfully registered
    callbacks.onRegistered(pContext->handle, pContext->fileTree);
@@ -535,7 +535,7 @@ void run(const boost::function<void()>& checkForInput)
    while(true)
    {
       std::list<void*> contexts = impl::activeEventContexts();
-      for (void* ctx : contexts)
+      BOOST_FOREACH(void* ctx, contexts)
       {
          // cast to context
          FileEventContext* pContext = (FileEventContext*)ctx;
@@ -549,8 +549,7 @@ void run(const boost::function<void()>& checkForInput)
          // check for context root directory deleted
          if (!pContext->rootPath.exists())
          {
-            Error error = fileNotFoundError(
-               pContext->rootPath.getAbsolutePath(),
+            Error error = fileNotFoundError(pContext->rootPath.absolutePath(),
                                             ERROR_LOCATION);
             terminateWithMonitoringError(pContext, error);
             continue;
@@ -561,12 +560,10 @@ void run(const boost::function<void()>& checkForInput)
          while (true)
          {
             // read
-            int len = posix::posixCall<int>(
-               boost::bind(
-                  ::read,
-                  pContext->fd,
-                  eventBuffer,
-                  kEventBufferLength));
+            int len = posixCall<int>(boost::bind(::read,
+                                                 pContext->fd,
+                                                 eventBuffer,
+                                                 kEventBufferLength));
             if (len < 0)
             {
                // don't terminate for errors indicating no events available

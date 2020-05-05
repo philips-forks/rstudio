@@ -1,7 +1,7 @@
 /*
  * ConsoleWriteErrorEvent.java
  *
- * Copyright (C) 2009-12 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -30,12 +30,12 @@ public class ConsoleWriteErrorEvent extends GwtEvent<ConsoleWriteErrorHandler>
    
    public String getError()
    {
-      return error_.text;
+      return error_.getText();
    }
    
    public String getConsole()
    {
-      return error_.console;
+      return error_.getConsole();
    }
    
    @Override

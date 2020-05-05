@@ -1,7 +1,7 @@
 /*
  * RTokenizerTests.cpp
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -18,6 +18,8 @@
 #include <core/r_util/RTokenizer.hpp>
 
 #include <iostream>
+
+#include <boost/foreach.hpp>
 
 #include <tests/TestThat.hpp>
 
@@ -73,7 +75,7 @@ public:
 
    void verify(int tokenType, const std::deque<std::wstring>& values)
    {
-      for (const std::wstring& value : values)
+      BOOST_FOREACH(const std::wstring& value, values)
          verify(tokenType, value);
    }
 
@@ -232,7 +234,7 @@ void testWhitespace()
 } // anonymous namespace
 
 
-test_context("RTokenizer")
+context("RTokenizer")
 {
    test_that("We tokenize various strings correctly")
    {

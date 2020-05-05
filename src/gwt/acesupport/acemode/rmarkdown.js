@@ -1,7 +1,7 @@
 /*
  * markdown.js
  *
- * Copyright (C) 2009-12 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * The Initial Developer of the Original Code is
  * Ajax.org B.V.
@@ -36,8 +36,6 @@ var CppCodeModel = require("mode/cpp_code_model").CppCodeModel;
 var RMarkdownFoldMode = require("rstudio/folding/rmarkdown").FoldMode;
 var CFoldMode = require("ace/mode/folding/cstyle").FoldMode;
 
-var AutoBraceInsert = require("mode/auto_brace_insert").AutoBraceInsert;
-
 var Utils = require("mode/utils");
 var unicode = require("ace/unicode");
 
@@ -68,11 +66,11 @@ var Mode = function(suppressHighlighting, session) {
 
    var rMarkdownFoldingRules = new RMarkdownFoldMode();
    var cFoldingRules = new CFoldMode();
-   
+
    // Patch tokenizer to allow for YAML start at beginning of document
    this.$tokenizer.getLineTokens = function(line, state, row) {
       if (row === 0)
-         state = "firstLine";
+         state = "allowBlock";
       return Tokenizer.prototype.getLineTokens.call(this, line, state, row);
    }
 
@@ -135,12 +133,6 @@ oop.inherits(Mode, MarkdownMode);
          return "C_CPP";
       else if (mode === "yaml")
          return "YAML";
-      else if (mode === "python")
-         return "Python";
-      else if (mode == "sql")
-         return "SQL";
-      else if (mode === "stan")
-         return "Stan";
       else
          return "Markdown";
    };
@@ -254,12 +246,21 @@ oop.inherits(Mode, MarkdownMode);
       return false;
    };
 
-   this.tokenRe = new RegExp("^[" + unicode.wordChars + "._]+", "g");
-   this.nonTokenRe = new RegExp("^(?:[^" + unicode.wordChars + "._]|\\s)+", "g");
+    this.tokenRe = new RegExp("^["
+        + unicode.packages.L
+        + unicode.packages.Mn + unicode.packages.Mc
+        + unicode.packages.Nd
+        + unicode.packages.Pc + "._]+", "g"
+    );
 
-   this.allowAutoInsert = this.smartAllowAutoInsert;
+    this.nonTokenRe = new RegExp("^(?:[^"
+        + unicode.packages.L
+        + unicode.packages.Mn + unicode.packages.Mc
+        + unicode.packages.Nd
+        + unicode.packages.Pc + "._]|\\s])+", "g"
+    );
 
-   this.$id = "mode/rmarkdown";
+    this.$id = "mode/rmarkdown";
 
 }).call(Mode.prototype);
 

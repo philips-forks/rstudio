@@ -1,20 +1,18 @@
 pipeline {
-  agent { label 'macos-v1.4' }
+  agent { label 'macos' }
   options {
     timestamps()
     disableConcurrentBuilds()
     buildDiscarder(logRotator(numToKeepStr: '100'))
   }
   parameters {
-      string(name: 'RSTUDIO_VERSION_MAJOR',  defaultValue: '1', description: 'RStudio Major Version')
-      string(name: 'RSTUDIO_VERSION_MINOR',  defaultValue: '1', description: 'RStudio Minor Version')
-      string(name: 'RSTUDIO_VERSION_PATCH',  defaultValue: '0', description: 'RStudio Patch Version')
-      string(name: 'RSTUDIO_VERSION_SUFFIX', defaultValue: '0', description: 'RStudio Pro Suffix Version')
+      string(name: 'RSTUDIO_VERSION_MAJOR', defaultValue: '1', description: 'RStudio Major Version')
+      string(name: 'RSTUDIO_VERSION_MINOR', defaultValue: '1', description: 'RStudio Minor Version')
+      string(name: 'RSTUDIO_VERSION_PATCH', defaultValue: '0', description: 'RStudio Patch Version')
       string(name: 'SLACK_CHANNEL', defaultValue: '@steve', description: 'Slack channel to publish build message.')
   }
   environment {
     PATH = '/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin'
-    PACKAGE_OS = 'macOS'
   }
 
   stages {
@@ -25,9 +23,7 @@ pipeline {
         PATH = '/usr/local/opt/openssl/bin:/usr/local/opt/openssl/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin'
       }
       steps {
-        withCredentials([usernameColonPassword(credentialsId: 'github-rstudio-jenkins', variable: "GITHUB_LOGIN")]) {
-          sh 'cd dependencies/osx && RSTUDIO_GITHUB_LOGIN=$GITHUB_LOGIN ./install-dependencies-osx && cd ../..'
-        }
+        sh 'cd dependencies/osx && ./install-dependencies-osx && cd ../..'
       }
     }
     stage('build'){
@@ -37,72 +33,17 @@ pipeline {
           withCredentials([string(credentialsId: 'ide-keychain-passphrase', variable: 'KEYCHAIN_PASSPHRASE')]){
             sh 'security unlock-keychain -p $KEYCHAIN_PASSPHRASE && security set-keychain-settings' // turn off timeout
           }
-          def env = "RSTUDIO_VERSION_MAJOR=${params.RSTUDIO_VERSION_MAJOR} RSTUDIO_VERSION_MINOR=${params.RSTUDIO_VERSION_MINOR} RSTUDIO_VERSION_PATCH=${params.RSTUDIO_VERSION_PATCH}"
-          if (params.RSTUDIO_VERSION_SUFFIX != 0) {
-            env = "${env} RSTUDIO_VERSION_SUFFIX=${params.RSTUDIO_VERSION_SUFFIX}" 
-          }
+          def env = "RSTUDIO_VERSION_MAJOR=${RSTUDIO_VERSION_MAJOR} RSTUDIO_VERSION_MINOR=${RSTUDIO_VERSION_MINOR} RSTUDIO_VERSION_PATCH=${RSTUDIO_VERSION_PATCH}"
           sh 'cd package/osx && ${env} ./make-package clean && cd ../..'
         }
       }
     }
-    stage('tests') {
+    stage('upload') {
       steps {
         script {
-          try {
-            // attempt to run cpp unit tests
-            // disable known broken tests for now (Jenkins cannot handle the parallel load these induce)
-            sh "cd package/osx/build/src/cpp && ./rstudio-tests --scope core"
-          } catch(err) {
-             currentBuild.result = "UNSTABLE"
-          }
-        }
-      }
-    }
-    stage('notarize and upload') {
-      steps {
-        script {
-          // extract name of package to publish
-          def packageFile = sh (
-            script: "basename `ls package/osx/build/RStudio-*.dmg`",
-            returnStdout: true
-          ).trim()
-
-          withCredentials([usernamePassword(credentialsId: 'ide-apple-notarizer', usernameVariable: 'APPLE_ID', passwordVariable: 'APPLE_ID_PASSWORD')]) {
-            sh "docker/jenkins/notarize-release.sh package/osx/build/${packageFile}"
-          }
-
           // this job is going to run on a macOS slave, which cannot use an instance-profile
           withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: 'jenkins-aws']]) {
-            sh "aws s3 cp package/osx/build/${packageFile} s3://rstudio-ide-build/desktop/macos/"
-          }
-
-          // upload daily build redirects
-          withCredentials([file(credentialsId: 'www-rstudio-org-pem', variable: 'wwwRstudioOrgPem')]) {
-            sh "docker/jenkins/publish-daily-binary.sh https://s3.amazonaws.com/rstudio-ide-build/desktop/macos/${packageFile} ${wwwRstudioOrgPem}"
-          }
-
-          // upload debug symbols to Sentry
-          withCredentials([string(credentialsId: 'ide-sentry-api-key', variable: 'SENTRY_API_KEY')]){
-            // construct release version
-            def RSTUDIO_RELEASE = "${params.RSTUDIO_VERSION_MAJOR}.${params.RSTUDIO_VERSION_MINOR}.${params.RSTUDIO_VERSION_PATCH}"
-            if (params.RSTUDIO_VERSION_SUFFIX != "0") {
-              RSTUDIO_RELEASE = "${RSTUDIO_RELEASE}-${params.RSTUDIO_VERSION_SUFFIX}" 
-            }
- 
-            // create new release on Sentry
-            sh "sentry-cli --auth-token ${SENTRY_API_KEY} releases --org rstudio --project ide-backend new ${RSTUDIO_RELEASE}"
-
-            // upload Javascript source maps
-            sh "cd package/osx/build/gwt && sentry-cli --auth-token ${SENTRY_API_KEY} releases --org rstudio --project ide-backend files ${RSTUDIO_RELEASE} upload-sourcemaps --ext js --ext symbolMap --rewrite ."
-
-            // associate commits
-            sh "sentry-cli --auth-token ${SENTRY_API_KEY} releases --org rstudio --project ide-backend set-commits --auto ${RSTUDIO_RELEASE}"
-
-            // finalize release
-            sh "sentry-cli --auth-token ${SENTRY_API_KEY} releases --org rstudio --project ide-backend finalize ${RSTUDIO_RELEASE}"
-
-            // upload C++ debug information
-            sh "cd package/osx/build/src/cpp && sentry-cli --auth-token ${SENTRY_API_KEY} upload-dif --org rstudio --project ide-backend -t dsym ."
+            sh 'aws s3 cp package/osx/build/RStudio-* s3://rstudio-ide-build/desktop/macos/'
           }
         }
       }

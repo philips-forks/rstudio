@@ -1,7 +1,7 @@
 #
 # SessionHelp.R
 #
-# Copyright (C) 2009-12 by RStudio, PBC
+# Copyright (C) 2009-12 by RStudio, Inc.
 #
 # Unless you have received this program directly from RStudio pursuant
 # to the terms of a commercial license agreement with RStudio, then
@@ -92,50 +92,12 @@ options(help_type = "html")
    list(payload, "text/html", character(), 404)
 });
 
-.rs.setVar("topicsEnv", new.env(parent = emptyenv()))
-
-.rs.addJsonRpcHandler("suggest_topics", function(query)
+.rs.addJsonRpcHandler("suggest_topics", function(prefix)
 {
-   pkgpaths <- path.package(quiet = TRUE)
-   
-   # read topics from
-   topics <- lapply(pkgpaths, function(pkgpath) tryCatch({
-      
-      if (exists(pkgpath, envir = .rs.topicsEnv))
-         return(get(pkgpath, envir = .rs.topicsEnv))
-      
-      aliases <- file.path(pkgpath, "help/aliases.rds")
-      index <- file.path(pkgpath, "help/AnIndex")
-      
-      value <- if (file.exists(aliases)) {
-         names(readRDS(aliases))
-      } else if (file.exists(index)) {
-         data <- read.table(index, sep = "\t")
-         data[, 1]
-      }
-      
-      assign(pkgpath, value, envir = .rs.topicsEnv)
-      
-   }, error = function(e) NULL))
-   
-   flat <- unlist(topics, use.names = FALSE)
-   
-   # order matches by subsequence match score
-   scores <- .rs.scoreMatches(tolower(flat), tolower(query))
-   ordered <- flat[order(scores)]
-   matches <- unique(ordered[.rs.isSubsequence(tolower(ordered), tolower(query))])
-   
-   # force first character to match, but allow typos after.
-   # also keep matches with one or more leading '.', so that e.g.
-   # the prefix 'libpaths' can match '.libPaths'
-   if (nzchar(query)) {
-      first <- substring(query, 1, 1)
-      pattern <- sprintf("^[.]*[%s]", first)
-      matches <- grep(pattern, matches, value = TRUE, perl = TRUE)
-   }
-   
-   matches
-   
+   if (getRversion() >= "3.0.0")
+      sort(utils:::matchAvailableTopics("", prefix))
+   else
+      sort(utils:::matchAvailableTopics(prefix))
 })
 
 .rs.addFunction("getHelpFromObject", function(object, envir, name = NULL)
@@ -328,14 +290,7 @@ options(help_type = "html")
       return()
 })
 
-.rs.addJsonRpcHandler("get_custom_help", function(helpHandler,
-                                                  topic,
-                                                  source,
-                                                  language)
-{
-   # use own handler for Python language help
-   if (identical(language, "Python"))
-      return(.rs.python.getHelp(topic, source))
+.rs.addJsonRpcHandler("get_custom_help", function(helpHandler, topic, source) {
    
    helpHandlerFunc <- tryCatch(eval(parse(text = helpHandler)), 
                                error = function(e) NULL)
@@ -349,13 +304,7 @@ options(help_type = "html")
    results 
 })
 
-.rs.addJsonRpcHandler("get_custom_parameter_help", function(helpHandler,
-                                                            source,
-                                                            language)
-{
-   # use own handler for Python language help
-   if (identical(language, "Python"))
-      return(.rs.python.getParameterHelp(source))
+.rs.addJsonRpcHandler("get_custom_parameter_help", function(helpHandler, source) {
    
    helpHandlerFunc <- tryCatch(eval(parse(text = helpHandler)), 
                                error = function(e) NULL)
@@ -566,10 +515,6 @@ options(help_type = "html")
 
 .rs.addJsonRpcHandler("show_help_topic", function(what, from, type)
 {
-   # strip off a 'package:' prefix if necessary
-   if (is.character(from) && nzchar(from))
-      from <- sub("^package:", "", from)
-   
    if (type == .rs.acCompletionTypes$FUNCTION)
       .rs.showHelpTopicFunction(what, from)
    else if (type == .rs.acCompletionTypes$ARGUMENT)
@@ -582,6 +527,9 @@ options(help_type = "html")
 
 .rs.addFunction("showHelpTopicFunction", function(topic, package)
 {
+   # Package may actually be a name from the search path, so strip that off.
+   package <- sub("^package:", "", package, perl = TRUE)
+   
    if (is.null(package) && grepl(":{2,3}", topic, perl = TRUE))
    {
       splat <- strsplit(topic, ":{2,3}", perl = TRUE)[[1]]
@@ -628,11 +576,11 @@ options(help_type = "html")
 
 .rs.addJsonRpcHandler("search", function(query)
 {
-   exactMatch = help(query, help_type = "html")
+   exactMatch = help(query, help_type="html")
    if (length(exactMatch) == 1)
    {
       print(exactMatch)
-      return()
+      return ()
    }
    else
    {

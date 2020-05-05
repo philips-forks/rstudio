@@ -2,9 +2,6 @@
 
 set -e
 
-# remember cwd for later restoration
-PREV_WD=$(pwd)
-
 # raise the limit on number of open files
 ulimit -n 2048
 
@@ -25,26 +22,21 @@ fi
 # set build type( if necessary) and build dir
 if test -z "$CMAKE_BUILD_TYPE"
 then
-   CMAKE_BUILD_TYPE=RelWithDebInfo
+   CMAKE_BUILD_TYPE=Release
    BUILD_DIR=build-$1-$2
 else
    BUILD_DIR=build-$1-$2-$CMAKE_BUILD_TYPE
 fi
-
-# make build directory absolute
-BUILD_DIR=$(readlink -f "$BUILD_DIR")
 
 # clean if requested
 if [ "$3" == "clean" ]
 then
    # remove existing build dir
    rm -rf $BUILD_DIR
-
-   # clean out ant build if in source tree
-   if [ -d "../../src/gwt" ]; then
-      cd ../../src/gwt
-      ant clean
-   fi
+   
+   # clean out ant build
+   cd ../../src/gwt
+   ant clean
    cd $PACKAGE_DIR
 fi
 
@@ -55,41 +47,25 @@ else
   INSTALL_DIR=rstudio-server
 fi
 
-: ${CMAKE_INSTALL_PREFIX="/usr/lib/${INSTALL_DIR}"}
-: ${CMAKE_GENERATOR="Unix Makefiles"}
-
-PKG_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-echo $PKG_DIR
-
-mkdir -p $BUILD_DIR/gwt
+mkdir -p $BUILD_DIR
 cd $BUILD_DIR
 rm -f CMakeCache.txt
 rm -rf $BUILD_DIR/_CPack_Packages
-cmake -G"${CMAKE_GENERATOR}"                           \
-      -DRSTUDIO_TARGET=$1                              \
-      -DCMAKE_BUILD_TYPE=$CMAKE_BUILD_TYPE             \
-      -DRSTUDIO_PACKAGE_BUILD=1                        \
-      -DCMAKE_INSTALL_PREFIX="${CMAKE_INSTALL_PREFIX}" \
-      -DGWT_BIN_DIR="$BUILD_DIR/gwt/bin"               \
-      -DGWT_WWW_DIR="$BUILD_DIR/gwt/www"               \
-      -DGWT_EXTRAS_DIR="$BUILD_DIR/gwt/extras"         \
-      $PKG_DIR/../..
+cmake -DRSTUDIO_TARGET=$1 \
+      -DCMAKE_BUILD_TYPE=$CMAKE_BUILD_TYPE \
+      -DRSTUDIO_PACKAGE_BUILD=1 \
+      -DRSTUDIO_PACKAGE_VARIANT=$4 \
+      -DCMAKE_INSTALL_PREFIX=/usr/lib/$INSTALL_DIR \
+      ../../..
 
-cmake --build . --target all
+make
 
 if [ "$2" != "DEB" ]
 then
-   fakeroot cpack -G "$2"
+  fakeroot cpack -G $2
 else
-   cpack -G $2
-
-   # Fix permissions for non-development builds
-   if [ -z "${RSTUDIO_DEVELOPMENT_BUILD}" ]
-   then
-      $PKG_DIR/fix-debian-permissions `ls *.deb`
-   fi
-
+  cpack -G $2
+  ../fix-debian-permissions `ls *.deb`
 fi
 
-cd $PREV_WD
-
+cd ..

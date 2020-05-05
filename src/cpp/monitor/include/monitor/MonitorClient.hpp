@@ -1,7 +1,7 @@
 /*
  * MonitorClient.hpp
  *
- * Copyright (C) 2009-12 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -18,9 +18,8 @@
 
 #include <string>
 
-#include <boost/asio/io_service.hpp>
-
 #include <core/system/System.hpp>
+#include <core/LogWriter.hpp>
 
 #include <monitor/audit/ConsoleAction.hpp>
 #include <monitor/events/Event.hpp>
@@ -28,15 +27,13 @@
 
 #include "MonitorConstants.hpp"
 
-namespace rstudio {
-namespace core {
-namespace log {
-
-class ILogDestination;
-
-} // namespace log
-} // namespace core
-} // namespace rstudio
+// forward declaration; boost/asio/io_service may cause errors if included more
+// than once (Boost 1.50 on Win x64 only)
+namespace RSTUDIO_BOOST_NAMESPACE {
+namespace asio {
+   class io_service;
+}
+}
 
 namespace rstudio {
 namespace monitor {
@@ -45,28 +42,9 @@ class Client : boost::noncopyable
 {
 protected:
    Client(const std::string& metricsSocket,
-          const std::string& auth,
-          bool useSharedSecret)
+          const std::string& sharedSecret)
       : metricsSocket_(metricsSocket),
-        auth_(auth),
-        useSharedSecret_(useSharedSecret)
-   {
-   }
-
-   Client(const std::string& tcpAddress,
-          const std::string& tcpPort,
-          bool useSsl,
-          bool verifySslCerts,
-          const std::string& prefixUri,
-          const std::string& auth,
-          bool useSharedSecret)
-      : address_(tcpAddress),
-        port_(tcpPort),
-        useSsl_(useSsl),
-        verifySslCerts_(verifySslCerts),
-        prefixUri_(prefixUri),
-        auth_(auth),
-        useSharedSecret_(useSharedSecret)
+        sharedSecret_(sharedSecret)
    {
    }
 
@@ -74,11 +52,11 @@ public:
    virtual ~Client() {}
 
    virtual void logMessage(const std::string& programIdentity,
-                           core::log::LogLevel level,
+                           core::system::LogLevel level,
                            const std::string& message) = 0;
 
-   static std::shared_ptr<core::log::ILogDestination> createLogDestination(core::log::LogLevel logLevel,
-                                                                           const std::string& programIdentity);
+   boost::shared_ptr<core::LogWriter> createLogWriter(
+                                       const std::string& programIdentity);
 
    virtual void sendMetrics(const std::vector<metrics::Metric>& metrics) = 0;
 
@@ -89,57 +67,21 @@ public:
 
    virtual void logConsoleAction(const audit::ConsoleAction& action) = 0;
 
+protected:
    const std::string& metricsSocket() const { return metricsSocket_; }
-
-   const std::string& tcpAddress() const { return address_; }
-   const std::string& tcpPort() const { return port_; }
-   bool useSsl() const { return useSsl_; }
-   bool verifySslCerts() const { return verifySslCerts_; }
-   const std::string& prefixUri() const { return prefixUri_; }
-
-   bool useSharedSecret() const { return useSharedSecret_; }
-   const std::string& auth() const { return auth_; }
+   const std::string& sharedSecret() const { return sharedSecret_; }
 
 private:
-   // local connections
    std::string metricsSocket_;
-
-   // remote connections
-   std::string address_;
-   std::string port_;
-   bool useSsl_;
-   bool verifySslCerts_;
-   std::string prefixUri_;
-
-   std::string auth_;
-   bool useSharedSecret_;
+   std::string sharedSecret_;
 };
 
 void initializeMonitorClient(const std::string& metricsSocket,
-                             const std::string& auth,
-                             bool useSharedSecret = true);
+                             const std::string& sharedSecret);
 
 void initializeMonitorClient(const std::string& metricsSocket,
-                             const std::string& auth,
-                             boost::asio::io_service& ioService,
-                             bool useSharedSecret = true);
-
-void initializeMonitorClient(const std::string& tcpAddress,
-                             const std::string& tcpPort,
-                             bool useSsl,
-                             bool verifySslCerts,
-                             const std::string& prefixUri,
-                             const std::string& auth,
-                             bool useSharedSecret = false);
-
-void initializeMonitorClient(const std::string& tcpAddress,
-                             const std::string& tcpPort,
-                             bool useSsl,
-                             bool verifySslCerts,
-                             const std::string& prefixUri,
-                             const std::string& auth,
-                             boost::asio::io_service& ioService,
-                             bool useSharedSecret = false);
+                             const std::string& sharedSecret,
+                             boost::asio::io_service& ioService);
 
 Client& client();
 

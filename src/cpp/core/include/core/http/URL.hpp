@@ -1,7 +1,7 @@
 /*
  * URL.hpp
  *
- * Copyright (C) 2009-12 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -19,7 +19,7 @@
 #include <string>
 #include <iosfwd>
 
-#include <shared_core/SafeConvert.hpp>
+#include <core/SafeConvert.hpp>
 
 namespace rstudio {
 namespace core {
@@ -64,21 +64,15 @@ public:
    std::string host() const { return std::string(host_.c_str()); }
    std::string path() const { return std::string(path_.c_str()); }
    std::string hostname() const { return host_.substr(0, host_.find(':')); }
-
    int port() const
-   {
-      return safe_convert::stringTo(portStr(), 80);
-   }
-
-   std::string portStr() const
    {
       size_t idx = host_.find(':');
       if (idx != std::string::npos)
       {
          std::string port = host_.substr(idx + 1);
-         return port;
+         return safe_convert::stringTo(port, 80);
       }
-      return (protocol_ == "http") ? "80" : "443";
+      return 80;
    }
    
    void split(std::string* pBaseURL, std::string* pQueryParams) const;
@@ -103,9 +97,10 @@ public:
       return absoluteURL_ != other.absoluteURL_;
    }
    
-   static std::string cleanupPath(std::string path);
    static std::string complete(std::string absoluteUri, std::string targetUri);
    static std::string uncomplete(std::string baseUri, std::string targetUri);
+
+   static void test();
 
 private:
   

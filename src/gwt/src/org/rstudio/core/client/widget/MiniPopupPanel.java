@@ -1,7 +1,7 @@
 /*
  * MiniPopupPanel.java
  *
- * Copyright (C) 2009-12 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -149,7 +149,7 @@ public class MiniPopupPanel extends DecoratedPopupPanel
                
                String tagName = target.getTagName().toLowerCase();
                for (String tag : TAGS_EXCLUDE_DRAG)
-                  if (tagName == tag)
+                  if (tagName.equals(tag))
                      return;
                
                if (DomUtils.isDescendantOfElementWithTag(target, TAGS_EXCLUDE_DRAG))

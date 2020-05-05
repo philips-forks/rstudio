@@ -1,7 +1,7 @@
 /*
  * SessionCodeSearch.hpp
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -18,6 +18,7 @@
 
 #include <core/r_util/RSourceIndex.hpp>
 #include <session/SessionSourceDatabase.hpp>
+#include <boost/foreach.hpp>
 
 namespace rstudio {
 namespace core {
@@ -61,7 +62,7 @@ public:
    
    boost::shared_ptr<RSourceIndex> get(const core::FilePath& filePath)
    {
-      std::string absPath = filePath.getAbsolutePath();
+      std::string absPath = filePath.absolutePath();
       if (filePathMap_.count(absPath))
          return filePathMap_[absPath];
       return boost::shared_ptr<RSourceIndex>();
@@ -73,7 +74,7 @@ public:
    std::vector< boost::shared_ptr<RSourceIndex> > indexes()
    {
       std::vector< boost::shared_ptr<RSourceIndex> > indexes;
-      for (const IDMap::value_type& index : idMap_)
+      BOOST_FOREACH(const IDMap::value_type& index, idMap_)
       {
          indexes.push_back(index.second);
       }

@@ -1,7 +1,7 @@
 /*
  * WebTextInput.java
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -14,7 +14,6 @@
  */
 package org.rstudio.studio.client.common.impl;
 
-import org.rstudio.core.client.MessageDisplay;
 import org.rstudio.core.client.MessageDisplay.PromptWithOptionResult;
 import org.rstudio.core.client.widget.Operation;
 import org.rstudio.core.client.widget.ProgressIndicator;
@@ -31,7 +30,8 @@ public class WebTextInput implements TextInput
    public void promptForText(String title,
                              String label,
                              String initialValue,
-                             int type,
+                             boolean usePasswordMask,
+                             boolean numbersOnly,
                              int selectionStart,
                              int selectionLength,
                              String okButtonCaption,
@@ -41,9 +41,10 @@ public class WebTextInput implements TextInput
       new TextEntryModalDialog(title,
                                label,
                                initialValue,
-                               type,
+                               usePasswordMask,
                                null,
                                false,
+                               numbersOnly,
                                selectionStart,
                                selectionLength,
                                okButtonCaption,
@@ -57,7 +58,7 @@ public class WebTextInput implements TextInput
                                  String title,
                                  String label,
                                  String initialValue,
-                                 final int type,
+                                 final boolean usePasswordMask,
                                  String extraOptionPrompt,
                                  boolean extraOptionDefault,
                                  int selectionStart,
@@ -75,9 +76,10 @@ public class WebTextInput implements TextInput
             title,
             label,
             initialValue,
-            type,
+            usePasswordMask,
             extraOptionPrompt,
             extraOptionDefault,
+            false,
             selectionStart,
             selectionLength,
             okButtonCaption,
@@ -106,7 +108,7 @@ public class WebTextInput implements TextInput
                      int left = (Window.getClientWidth()/2) - (offsetWidth/2);
                      int top = (Window.getClientHeight()/2) - (offsetHeight/2);
                      
-                     if (type == MessageDisplay.INPUT_USERNAME || type == MessageDisplay.INPUT_PASSWORD)
+                     if (usePasswordMask)
                         top = 50;
                      
                      setPopupPosition(left, top);

@@ -1,7 +1,7 @@
 /*
  * PopoutDocInitiatedEvent.java
  *
- * Copyright (C) 2009-15 by RStudio, PBC
+ * Copyright (C) 2009-15 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -54,7 +54,7 @@ public class PopoutDocInitiatedEvent
    {
       if (posX_ == 0 && posY_ == 0)
          return null;
-      return Point.create(posX_, posY_);
+      return new Point(posX_, posY_);
    }
    
    @Override

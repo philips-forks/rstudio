@@ -1,7 +1,7 @@
 /*
  * ExportPlotDesktop.java
  *
- * Copyright (C) 2009-12 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -26,30 +26,29 @@ import org.rstudio.studio.client.workbench.views.plots.ui.export.PlotsPanePrevie
 
 public class ExportPlotDesktop extends ExportPlot
 {
+
    @Override
    public void copyPlotToClipboard(
-                              final PlotsServerOperations server,
-                              final ExportPlotOptions options,
-                              final OperationWithInput<ExportPlotOptions> onClose)
-   {
-      Desktop.getFrame().supportsClipboardMetafile(supported ->
+                              PlotsServerOperations server,
+                              ExportPlotOptions options,
+                              OperationWithInput<ExportPlotOptions> onClose)
+   {   
+      if (Desktop.getFrame().supportsClipboardMetafile())
       {
-         if (supported)
-         {
-            new CopyPlotToClipboardDesktopMetafileDialog(
-                  new PlotsPanePreviewer(server, true),
-                  new PlotsPaneClipboard(server),
-                  options, 
-                  onClose).showModal();
-         }
-         else
-         {
-            new CopyPlotToClipboardDesktopDialog(
-                  new PlotsPanePreviewer(server, true),
-                  new PlotsPaneClipboard(server),
-                  options, 
-                  onClose).showModal();
-         }
-      });
+         new CopyPlotToClipboardDesktopMetafileDialog(
+                        new PlotsPanePreviewer(server, true),
+                        new PlotsPaneClipboard(server),
+                        options, 
+                        onClose).showModal();
+      }
+      else
+      {
+         new CopyPlotToClipboardDesktopDialog(
+                        new PlotsPanePreviewer(server, true),
+                        new PlotsPaneClipboard(server),
+                        options, 
+                        onClose).showModal();
+      }
    }
+
 }

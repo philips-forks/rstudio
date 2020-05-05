@@ -1,7 +1,7 @@
 /*
  * CodeCompletion.hpp
  *
- * Copyright (C) 2009-12 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -16,10 +16,7 @@
 #ifndef SESSION_MODULES_CLANG_CODE_COMPLETION_HPP
 #define SESSION_MODULES_CLANG_CODE_COMPLETION_HPP
 
-#include <vector>
-#include <string>
-
-#include <shared_core/Error.hpp>
+#include <core/Error.hpp>
 
 #include <core/json/JsonRpc.hpp>
  
@@ -30,9 +27,7 @@ namespace clang {
 
 core::Error getCppCompletions(const core::json::JsonRpcRequest& request,
                               core::json::JsonRpcResponse* pResponse);
-
-void discoverSystemIncludePaths(std::vector<std::string>* pIncludePaths);
-
+   
 } // namespace clang
 } // namepace handlers
 } // namespace session

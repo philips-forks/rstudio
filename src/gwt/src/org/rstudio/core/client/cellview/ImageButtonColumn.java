@@ -1,7 +1,7 @@
 /*
  * ImageButtonColumn.java
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -14,119 +14,52 @@
  */
 package org.rstudio.core.client.cellview;
 
-import static com.google.gwt.dom.client.BrowserEvents.CLICK;
-import static com.google.gwt.dom.client.BrowserEvents.KEYDOWN;
-
 import org.rstudio.core.client.resources.ImageResource2x;
 import org.rstudio.core.client.widget.OperationWithInput;
 
-import com.google.gwt.cell.client.AbstractCell;
-import com.google.gwt.cell.client.ValueUpdater;
-import com.google.gwt.core.client.GWT;
-import com.google.gwt.dom.client.Element;
-import com.google.gwt.dom.client.EventTarget;
-import com.google.gwt.dom.client.NativeEvent;
-import com.google.gwt.safehtml.client.SafeHtmlTemplates;
+import com.google.gwt.cell.client.ButtonCell;
+import com.google.gwt.cell.client.FieldUpdater;
 import com.google.gwt.safehtml.shared.SafeHtml;
 import com.google.gwt.safehtml.shared.SafeHtmlBuilder;
 import com.google.gwt.user.cellview.client.Column;
 
-public class ImageButtonColumn<T> extends Column<T, T>
+public class ImageButtonColumn<T> extends Column<T, String>
 {
-   public interface TitleProvider<U>
-   {
-      String get(U object);
-   }
-   
-   public interface RenderTemplates extends SafeHtmlTemplates
-   {
-      @Template("<span title=\"{1}\" style=\"cursor: pointer;\">{0}</span>")
-      SafeHtml render(SafeHtml image, String title);
-   }
-   
-   private static class ImageButtonCell<U> extends AbstractCell<U>
-   {
-      public ImageButtonCell(final ImageResource2x image,
-                             final TitleProvider<U> titleProvider)
-      {
-         super(CLICK, KEYDOWN);
-         
-         image_ = image;
-         titleProvider_ = titleProvider;
-      }
-      
-      @Override
-      public void render(Context context,
-                         U value,
-                         SafeHtmlBuilder sb)
-      {
-         if (value != null)
-         {
-            sb.append(TEMPLATES.render(image_.getSafeHtml(titleProvider_.get(value)), titleProvider_.get(value)));
-         }
-      }
-      
-      @Override
-      public void onBrowserEvent(Context context,
-                                 Element parent,
-                                 U value,
-                                 NativeEvent event,
-                                 ValueUpdater<U> valueUpdater)
-      {
-         super.onBrowserEvent(context, parent, value, event, valueUpdater);
-         
-         if (CLICK.equals(event.getType()))
-         {
-            EventTarget eventTarget = event.getEventTarget();
-            if (!Element.is(eventTarget))
-               return;
-            
-            if (parent.getFirstChildElement().isOrHasChild(Element.as(eventTarget))) {
-               // Ignore clicks that occur outside of the main element.
-               onEnterKeyDown(context, parent, value, event, valueUpdater);
-            }
-         }
-      }
-      
-      @Override
-      protected void onEnterKeyDown(Context context,
-                                    Element Parent,
-                                    U value,
-                                    NativeEvent event,
-                                    ValueUpdater<U> valueUpdater)
-      {
-         if (valueUpdater != null)
-            valueUpdater.update(value);
-      }
-      
-      private final ImageResource2x image_;
-      private final TitleProvider<U> titleProvider_;
-   }
-   
-   public ImageButtonColumn(final ImageResource2x image,
-                            final OperationWithInput<T> onClick,
-                            final TitleProvider<T> titleProvider)
-   {
-      super(new ImageButtonCell<>(image, titleProvider));
-
-      setFieldUpdater((index, object, value) -> {
-         if (value != null)
-            onClick.execute(object);
-      });
-   }
-   
    public ImageButtonColumn(final ImageResource2x image,
                             final OperationWithInput<T> onClick,
                             final String title)
    {
-      this(image, onClick, object -> title);
+      super(new ButtonCell(){
+         @Override
+         public void render(Context context, 
+                            SafeHtml value, 
+                            SafeHtmlBuilder sb) 
+         {   
+            if (value != null)
+            {
+               sb.appendHtmlConstant("<span title=\"" + title + "\" " +
+                                     "style=\"cursor: pointer;\">");
+               sb.append(image.getSafeHtml());
+               sb.appendHtmlConstant("</span>");
+            }
+         }                                
+      });
+
+      setFieldUpdater(new FieldUpdater<T,String>() {
+         public void update(int index, T object, String value)
+         {
+            if (value != null)
+               onClick.execute(object);
+         }
+      });
    }
 
+
    @Override
-   public T getValue(T object)
+   public String getValue(T object)
    {
       if (showButton(object))
-         return object;
+         return new String();
       else
          return null;
    }
@@ -135,6 +68,4 @@ public class ImageButtonColumn<T> extends Column<T, T>
    {
       return true;
    }
-   
-   private static final RenderTemplates TEMPLATES = GWT.create(RenderTemplates.class);
 }

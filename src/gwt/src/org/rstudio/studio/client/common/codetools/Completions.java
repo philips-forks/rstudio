@@ -1,7 +1,7 @@
 /*
  * Completions.java
  *
- * Copyright (C) 2009-12 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -26,13 +26,11 @@ public class Completions extends JavaScriptObject
                                                       JsArrayString packages,
                                                       JsArrayBoolean quote,
                                                       JsArrayInteger type,
-                                                      JsArrayString meta,
                                                       String fguess,
                                                       boolean excludeOtherCompletions,
                                                       boolean overrideInsertParens,
                                                       boolean cacheable,
-                                                      String helpHandler,
-                                                      String language)
+                                                      String helpHandler)
    /*-{
       return {
          token: [token],
@@ -40,13 +38,11 @@ public class Completions extends JavaScriptObject
          packages: packages,
          quote: quote,
          type: type,
-         meta: meta,
          fguess: fguess ? [fguess] : null,
          excludeOtherCompletions: excludeOtherCompletions,
          overrideInsertParens: overrideInsertParens,
          cacheable: cacheable,
-         helpHandler: helpHandler,
-         language: language
+         helpHandler: helpHandler
       };
    }-*/;
 
@@ -55,11 +51,11 @@ public class Completions extends JavaScriptObject
    }
 
    public final native String getToken() /*-{
-      return this.token[0];
+      return this.token[0] ;
    }-*/;
    
    public final native JsArrayString getCompletions() /*-{
-      return this.results;
+      return this.results ;
    }-*/;
    
    public final native JsArrayString getPackages() /*-{
@@ -76,8 +72,8 @@ public class Completions extends JavaScriptObject
     */
    public final native String getGuessedFunctionName() /*-{
       if (!this.fguess)
-         return null;
-      return this.fguess[0];
+         return null ;
+      return this.fguess[0] ;
    }-*/;
 
    public final native void setCacheable(boolean cacheable) /*-{
@@ -104,9 +100,6 @@ public class Completions extends JavaScriptObject
       return this.type;
    }-*/;
    
-   public final native JsArrayString getMeta() /*-{
-      return this.meta;
-   }-*/;
 
    public final native boolean getSuggestOnAccept() /*-{
       return !!this.suggestOnAccept;
@@ -122,10 +115,6 @@ public class Completions extends JavaScriptObject
    
    public final native String getHelpHandler() /*-{
       return this.helpHandler;
-   }-*/;
-   
-   public final native String getLanguage() /*-{
-      return this.language;
    }-*/;
    
    

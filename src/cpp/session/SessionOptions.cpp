@@ -1,7 +1,7 @@
 /*
  * SessionOptions.cpp
  *
- * Copyright (C) 2009-20 by RStudio, PBC
+ * Copyright (C) 2009-16 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -15,20 +15,16 @@
 
 #include <session/SessionOptions.hpp>
 
+#include <boost/foreach.hpp>
 #include <boost/algorithm/string/trim.hpp>
 
-#include <boost/property_tree/ptree.hpp>
-#include <boost/property_tree/ini_parser.hpp>
-
-#include <shared_core/FilePath.hpp>
+#include <core/FilePath.hpp>
 #include <core/ProgramStatus.hpp>
-#include <shared_core/SafeConvert.hpp>
-#include <core/system/Crypto.hpp>
+#include <core/SafeConvert.hpp>
 #include <core/system/System.hpp>
 #include <core/system/Environment.hpp>
-#include <core/system/Xdg.hpp>
 
-#include <shared_core/Error.hpp>
+#include <core/Error.hpp>
 #include <core/Log.hpp>
 
 #include <core/r_util/RProjectFile.hpp>
@@ -93,21 +89,23 @@ core::ProgramStatus Options::read(int argc, char * const argv[], std::ostream& o
    Error error = core::system::installPath("..", argv[0], &resourcePath_);
    if (error)
    {
-      LOG_ERROR_MESSAGE("Unable to determine install path: "+error.getSummary());
+      LOG_ERROR_MESSAGE("Unable to determine install path: "+error.summary());
       return ProgramStatus::exitFailure();
    }
 
    // detect running in OSX bundle and tweak resource path
 #ifdef __APPLE__
-   if (resourcePath_.completePath("Info.plist").exists())
-      resourcePath_ = resourcePath_.completePath("Resources");
+   if (resourcePath_.complete("Info.plist").exists())
+      resourcePath_ = resourcePath_.complete("Resources");
 #endif
 
-   // detect running in x86 directory and tweak resource path
+   // detect running in x64 directory and tweak resource path
 #ifdef _WIN32
-   if (resourcePath_.completePath("x86").exists())
+   bool is64 = false;
+   if (resourcePath_.complete("x64").exists())
    {
-      resourcePath_ = resourcePath_.getParent();
+      is64 = true;
+      resourcePath_ = resourcePath_.parent();
    }
 #endif
    
@@ -117,13 +115,6 @@ core::ProgramStatus Options::read(int argc, char * const argv[], std::ostream& o
          (kRunTestsSessionOption,
           value<bool>(&runTests_)->default_value(false)->implicit_value(true),
           "run unit tests");
-
-   // run an R script
-   options_description runScript("script");
-   runScript.add_options()
-     (kRunScriptSessionOption,
-      value<std::string>(&runScript_)->default_value(""),
-      "run an R script");
 
    // verify installation flag
    options_description verify("verify");
@@ -146,6 +137,13 @@ core::ProgramStatus Options::read(int argc, char * const argv[], std::ostream& o
       value<bool>(&logStderr_)->default_value(false),
       "write log entries to stderr");
 
+   // agreement
+   options_description agreement("agreement");
+   agreement.add_options()
+      ("agreement-file",
+      value<std::string>(&agreementFilePath_)->default_value(""),
+      "agreement file");
+
    // docs url
    options_description docs("docs");
    docs.add_options()
@@ -163,18 +161,15 @@ core::ProgramStatus Options::read(int argc, char * const argv[], std::ostream& o
          value<std::string>(&wwwSymbolMapsPath_)->default_value(
                                                          "www-symbolmaps"),
          "www symbol maps path")
-      (kWwwPortSessionOption,
+      ("www-port",
          value<std::string>(&wwwPort_)->default_value("8787"),
          "port to listen on")
-      (kWwwAddressSessionOption,
+      ("www-address",
          value<std::string>(&wwwAddress_)->default_value("127.0.0.1"),
-         "address to listen on")
-      (kStandaloneSessionOption,
+         "port to listen on")
+      ("standalone",
          value<bool>(&standalone_)->default_value(false),
-         "run standalone")
-      (kVerifySignaturesSessionOption,
-         value<bool>(&verifySignatures_)->default_value(false),
-         "verify signatures on incoming requests");
+         "run standalone");
 
    // session options
    std::string saveActionDefault;
@@ -183,9 +178,6 @@ core::ProgramStatus Options::read(int argc, char * const argv[], std::ostream& o
       (kTimeoutSessionOption,
          value<int>(&timeoutMinutes_)->default_value(120),
          "session timeout (minutes)" )
-      (kTimeoutSuspendSessionOption,
-         value<bool>(&timeoutSuspend_)->default_value(true),
-         "whether to suspend on session timeout")
       (kDisconnectedTimeoutSessionOption,
          value<int>(&disconnectedTimeoutMinutes_)->default_value(0),
          "session disconnected timeout (minutes)" )
@@ -227,43 +219,7 @@ core::ProgramStatus Options::read(int argc, char * const argv[], std::ostream& o
        "first project template path")
       ("default-rsconnect-server",
        value<std::string>(&defaultRSConnectServer_)->default_value(""),
-       "default RStudio Connect server URL")
-      (kTerminalPortOption,
-       value<std::string>(&terminalPort_)->default_value(""),
-       "port to bind the terminal server to")
-      (kWebSocketPingInterval,
-       value<int>(&webSocketPingSeconds_)->default_value(10),
-       "WebSocket keep-alive ping interval (seconds)")
-      (kWebSocketConnectTimeout,
-       value<int>(&webSocketConnectTimeout_)->default_value(3),
-       "WebSocket initial connection timeout (seconds)")
-      (kWebSocketLogLevel,
-       value<int>(&webSocketLogLevel_)->default_value(0),
-       "WebSocket log level (0=none, 1=errors, 2=activity, 3=all)")
-      (kWebSocketHandshakeTimeout,
-       value<int>(&webSocketHandshakeTimeoutMs_)->default_value(5000),
-       "WebSocket protocol handshake timeout (ms)")
-      (kPackageOutputInPackageFolder,
-       value<bool>(&packageOutputToPackageFolder_)->default_value(false),
-       "devtools check and devtools build output to package project folder")
-      (kUseSecureCookiesSessionOption,
-       value<bool>(&useSecureCookies_)->default_value(false),
-       "whether to mark cookies as secure")
-      (kIFrameEmbeddingSessionOption,
-       value<bool>(&iFrameEmbedding_)->default_value(false),
-       "whether to mark cookies as samesite=none for iframe embedding")
-      (kLegacyCookiesSessionOption,
-       value<bool>(&legacyCookies_)->default_value(false),
-       "whether to use legacy cookies without a samesite value or to emit a second legacy cookie for backwards compatibility when iframe embedding is in use")
-      ("restrict-directory-view",
-       value<bool>(&restrictDirectoryView_)->default_value(false),
-       "whether to restrict the directories that can be viewed in the IDE")
-      ("directory-view-whitelist",
-       value<std::string>(&directoryViewWhitelist_)->default_value(""),
-       "list of directories exempt from directory view restrictions, separated by :")
-      (kSessionEnvVarSaveBlacklist,
-       value<std::string>(&envVarSaveBlacklist_)->default_value(""),
-       "list of environment variables not saved on session suspend, separated by :");
+       "default RStudio Connect server URL");
 
    // allow options
    options_description allow("allow");
@@ -306,13 +262,7 @@ core::ProgramStatus Options::read(int argc, char * const argv[], std::ostream& o
         "allow publishing content")
       ("allow-presentation-commands",
          value<bool>(&allowPresentationCommands_)->default_value(false),
-       "allow presentation commands")
-      ("allow-full-ui",
-         value<bool>(&allowFullUI_)->default_value(true),
-       "allow full standalone ui mode")
-      ("allow-launcher-jobs",
-         value<bool>(&allowLauncherJobs_)->default_value(true),
-         "allow running jobs via launcher");
+       "allow presentation commands");
 
    // r options
    bool rShellEscape; // no longer works but don't want to break any
@@ -336,15 +286,8 @@ core::ProgramStatus Options::read(int argc, char * const argv[], std::ostream& o
          value<std::string>(&rLibsUser_)->default_value(""),
          "R user library path")
       ("r-cran-repos",
-         value<std::string>(&rCRANUrl_)->default_value(""),
+         value<std::string>(&rCRANRepos_)->default_value(""),
          "Default CRAN repository")
-      ("r-cran-repos-file",
-         value<std::string>(&rCRANReposFile_)->default_value(
-           core::system::xdg::systemConfigFile("repos.conf").getAbsolutePath()),
-         "Path to configuration file with default CRAN repositories")
-      ("r-cran-repos-url",
-         value<std::string>(&rCRANReposUrl_)->default_value(""),
-         "URL to configuration file with optional CRAN repositories")
       ("r-auto-reload-source",
          value<bool>(&autoReloadSource_)->default_value(false),
          "Reload R source if it changes during the session")
@@ -362,13 +305,7 @@ core::ProgramStatus Options::read(int argc, char * const argv[], std::ostream& o
          "Override for R_HOME (used for debug configurations)")
       ("r-doc-dir-override",
          value<std::string>(&rDocDirOverride_)->default_value(""),
-         "Override for R_DOC_DIR (used for debug configurations)")
-      ("r-restore-workspace",
-         value<int>(&rRestoreWorkspace_)->default_value(kRestoreWorkspaceDefault),
-         "Override user/project restore workspace setting")
-      ("r-run-rprofile",
-         value<int>(&rRunRprofile_)->default_value(kRunRprofileDefault),
-         "Override user/project .Rprofile run setting");
+         "Override for R_DOC_DIR (used for debug configurations)");
 
    // limits options
    options_description limits("limits");
@@ -411,7 +348,7 @@ core::ProgramStatus Options::read(int argc, char * const argv[], std::ostream& o
        value<std::string>(&hunspellDictionariesPath_)->default_value("resources/dictionaries"),
        "Path to hunspell dictionaries")
       ("external-mathjax-path",
-        value<std::string>(&mathjaxPath_)->default_value("resources/mathjax-27"),
+        value<std::string>(&mathjaxPath_)->default_value("resources/mathjax-26"),
         "Path to mathjax library")
       ("external-pandoc-path",
         value<std::string>(&pandocPath_)->default_value(kDefaultPandocPath),
@@ -460,19 +397,17 @@ core::ProgramStatus Options::read(int argc, char * const argv[], std::ostream& o
    addOverlayOptions(&overlay);
 
    // define program options
-   FilePath defaultConfigPath = core::system::xdg::systemConfigFile("rsession.conf");
+   FilePath defaultConfigPath("/etc/rstudio/rsession.conf");
    std::string configFile = defaultConfigPath.exists() ?
-                            defaultConfigPath.getAbsolutePath() : "";
-   if (!configFile.empty())
-       LOG_INFO_MESSAGE("Reading session configuration from " + configFile);
+                                 defaultConfigPath.absolutePath() : "";
    core::program_options::OptionsDescription optionsDesc("rsession",
                                                          configFile);
 
    optionsDesc.commandLine.add(verify);
    optionsDesc.commandLine.add(runTests);
-   optionsDesc.commandLine.add(runScript);
    optionsDesc.commandLine.add(program);
    optionsDesc.commandLine.add(log);
+   optionsDesc.commandLine.add(agreement);
    optionsDesc.commandLine.add(docs);
    optionsDesc.commandLine.add(www);
    optionsDesc.commandLine.add(session);
@@ -487,6 +422,7 @@ core::ProgramStatus Options::read(int argc, char * const argv[], std::ostream& o
    // define groups included in config-file processing
    optionsDesc.configFile.add(program);
    optionsDesc.configFile.add(log);
+   optionsDesc.configFile.add(agreement);
    optionsDesc.configFile.add(docs);
    optionsDesc.configFile.add(www);
    optionsDesc.configFile.add(session);
@@ -527,13 +463,10 @@ core::ProgramStatus Options::read(int argc, char * const argv[], std::ostream& o
    programIdentity_ = "rsession-" + userIdentity_;
 
    // provide special home path in temp directory if we are verifying
-   bool isLauncherSession = getBoolOverlayOption(kLauncherSessionOption);
-   if (verifyInstallation_ && !isLauncherSession)
+   if (verifyInstallation_)
    {
       // we create a special home directory in server mode (since the
       // user we are running under might not have a home directory)
-      // we do not do this for launcher sessions since launcher verification
-      // must be run as a specific user with the normal home drive setup
       if (programMode_ == kSessionProgramModeServer)
       {
          verifyInstallationHomeDir_ = "/tmp/rstudio-verify-installation";
@@ -547,23 +480,15 @@ core::ProgramStatus Options::read(int argc, char * const argv[], std::ostream& o
       }
    }
 
-   // resolve home directory from env vars
-   userHomePath_ = core::system::userHomePath("R_USER|HOME").getAbsolutePath();
+   // compute user paths
+   r_util::SessionType sessionType =
+      (programMode_ == kSessionProgramModeDesktop) ?
+                                    r_util::SessionTypeDesktop :
+                                    r_util::SessionTypeServer;
 
-   // use XDG data directory (usually ~/.local/share/rstudio, or LOCALAPPDATA
-   // on Windows) as the scratch path
-   userScratchPath_ = core::system::xdg::userDataDir().getAbsolutePath();
-
-   // migrate data from old state directory to new directory
-   error = core::r_util::migrateUserStateIfNecessary(
-               programMode_ == kSessionProgramModeServer ?
-                   core::r_util::SessionTypeServer :
-                   core::r_util::SessionTypeDesktop);
-   if (error)
-   {
-      LOG_ERROR(error);
-   }
-
+   r_util::UserDirectories userDirs = r_util::userDirectories(sessionType);
+   userHomePath_ = userDirs.homePath;
+   userScratchPath_ = userDirs.scratchPath;
 
    // set HOME if we are in standalone mode (this enables us to reflect
    // R_USER back into HOME on Linux)
@@ -596,6 +521,7 @@ core::ProgramStatus Options::read(int argc, char * const argv[], std::ostream& o
    
    // convert relative paths by completing from the app resource path
    resolvePath(resourcePath_, &rResourcesPath_);
+   resolvePath(resourcePath_, &agreementFilePath_);
    resolvePath(resourcePath_, &wwwLocalPath_);
    resolvePath(resourcePath_, &wwwSymbolMapsPath_);
    resolvePath(resourcePath_, &coreRSourcePath_);
@@ -618,22 +544,20 @@ core::ProgramStatus Options::read(int argc, char * const argv[], std::ostream& o
    std::string completion;
    if (pty.isWithin(resourcePath_))
    {
-#ifdef _WIN64
-      completion = "winpty.dll";
-#else
-      completion = "x86/winpty.dll";
-#endif
+      if (is64)
+         completion = "x64/winpty.dll";
+      else
+         completion = "winpty.dll";
    }
    else
    {
-#ifdef _WIN64
-      completion = "64/bin/winpty.dll";
-#else
-      completion = "32/bin/winpty.dll";
-#endif
+      if (is64)
+         completion = "64/bin/winpty.dll";
+      else
+         completion = "32/bin/winpty.dll";
    }
-   winptyPath_ = pty.completePath(completion).getAbsolutePath();
-#endif // _WIN32
+   winptyPath_ = pty.complete(completion).absolutePath();
+#endif
    resolvePath(resourcePath_, &hunspellDictionariesPath_);
    resolvePath(resourcePath_, &mathjaxPath_);
    resolvePath(resourcePath_, &libclangHeadersPath_);
@@ -642,7 +566,11 @@ core::ProgramStatus Options::read(int argc, char * const argv[], std::ostream& o
    // rsclang
    if (libclangPath_ != kDefaultRsclangPath)
    {
-      libclangPath_ += "/5.0.2";
+#ifdef _WIN32
+      libclangPath_ += "/3.4";
+#else
+      libclangPath_ += "/3.5";
+#endif
    }
    resolveRsclangPath(resourcePath_, &libclangPath_);
 
@@ -726,88 +654,11 @@ core::ProgramStatus Options::read(int argc, char * const argv[], std::ostream& o
 
       authMinimumUserId_ = safe_convert::stringTo<unsigned int>(
                               core::system::getenv(kRStudioMinimumUserId), 100);
-
-#ifndef _WIN32
-      r_util::setMinUid(authMinimumUserId_);
-#endif
       core::system::unsetenv(kRStudioMinimumUserId);
    }
 
-   // signing key - used for verifying incoming RPC requests
-   // in standalone mode
-   signingKey_ = core::system::getenv(kRStudioSigningKey);
-
-   if (verifySignatures_)
-   {
-      // generate our own signing key to be used when posting back to ourselves
-      // this key is kept secret within this process and any child processes,
-      // and only allows communication from this rsession process and its children
-      error = core::system::crypto::generateRsaKeyPair(&sessionRsaPublicKey_, &sessionRsaPrivateKey_);
-      if (error)
-         LOG_ERROR(error);
-
-      core::system::setenv(kRSessionRsaPublicKey, sessionRsaPublicKey_);
-      core::system::setenv(kRSessionRsaPrivateKey, sessionRsaPrivateKey_);
-   }
-
-   // load cran options from repos.conf
-   FilePath reposFile(rCRANReposFile());
-   rCRANMultipleRepos_ = parseReposConfig(reposFile);
-
    // return status
    return status;
-}
-
-std::string Options::parseReposConfig(FilePath reposFile)
-{
-    using namespace boost::property_tree;
-
-    if (!reposFile.exists())
-      return "";
-
-   std::shared_ptr<std::istream> pIfs;
-   Error error = FilePath(reposFile).openForRead(pIfs);
-   if (error)
-   {
-      core::program_options::reportError("Unable to open repos file: " + reposFile.getAbsolutePath(),
-                  ERROR_LOCATION);
-
-      return "";
-   }
-
-   try
-   {
-      ptree pt;
-      ini_parser::read_ini(reposFile.getAbsolutePath(), pt);
-
-      if (!pt.get_child_optional("CRAN"))
-      {
-         LOG_ERROR_MESSAGE("Repos file " + reposFile.getAbsolutePath() + " is missing CRAN entry.");
-         return "";
-      }
-
-      std::stringstream ss;
-
-      for (ptree::iterator it = pt.begin(); it != pt.end(); it++)
-      {
-         if (it != pt.begin())
-         {
-            ss << "|";
-         }
-
-         ss << it->first << "|" << it->second.get_value<std::string>();
-      }
-
-      return ss.str();
-   }
-   catch(const std::exception& e)
-   {
-      core::program_options::reportError(
-         "Error reading " + reposFile.getAbsolutePath() + ": " + std::string(e.what()),
-        ERROR_LOCATION);
-
-      return "";
-   }
 }
 
 bool Options::getBoolOverlayOption(const std::string& name)
@@ -820,7 +671,7 @@ void Options::resolvePath(const FilePath& resourcePath,
                           std::string* pPath)
 {
    if (!pPath->empty())
-      *pPath = resourcePath.completePath(*pPath).getAbsolutePath();
+      *pPath = resourcePath.complete(*pPath).absolutePath();
 }
 
 #ifdef __APPLE__
@@ -831,10 +682,10 @@ void Options::resolvePostbackPath(const FilePath& resourcePath,
    // On OSX we keep the postback scripts over in the MacOS directory
    // rather than in the Resources directory -- make this adjustment
    // when the default postback path has been passed
-   if (*pPath == kDefaultPostbackPath && programMode() == kSessionProgramModeDesktop)
+   if (*pPath == kDefaultPostbackPath)
    {
-      FilePath path = resourcePath.getParent().completePath("MacOS/postback/rpostback");
-      *pPath = path.getAbsolutePath();
+      FilePath path = resourcePath.parent().complete("MacOS/postback/rpostback");
+      *pPath = path.absolutePath();
    }
    else
    {
@@ -845,10 +696,10 @@ void Options::resolvePostbackPath(const FilePath& resourcePath,
 void Options::resolvePandocPath(const FilePath& resourcePath,
                                 std::string* pPath)
 {
-   if (*pPath == kDefaultPandocPath && programMode() == kSessionProgramModeDesktop)
+   if (*pPath == kDefaultPandocPath)
    {
-      FilePath path = resourcePath.getParent().completePath("MacOS/pandoc");
-      *pPath = path.getAbsolutePath();
+      FilePath path = resourcePath.parent().complete("MacOS/pandoc");
+      *pPath = path.absolutePath();
    }
    else
    {
@@ -859,10 +710,10 @@ void Options::resolvePandocPath(const FilePath& resourcePath,
 void Options::resolveRsclangPath(const FilePath& resourcePath,
                                  std::string* pPath)
 {
-   if (*pPath == kDefaultRsclangPath && programMode() == kSessionProgramModeDesktop)
+   if (*pPath == kDefaultRsclangPath)
    {
-      FilePath path = resourcePath.getParent().completePath("MacOS/rsclang");
-      *pPath = path.getAbsolutePath();
+      FilePath path = resourcePath.parent().complete("MacOS/rsclang");
+      *pPath = path.absolutePath();
    }
    else
    {

@@ -1,7 +1,7 @@
 /*
  * SourceShim.java
  *
- * Copyright (C) 2009-20 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -19,6 +19,7 @@ import java.util.Set;
 
 import com.google.gwt.dom.client.Style.Unit;
 import com.google.gwt.event.shared.HandlerRegistration;
+import com.google.gwt.resources.client.ImageResource;
 import com.google.gwt.user.client.Command;
 import com.google.gwt.user.client.ui.*;
 import com.google.inject.Inject;
@@ -36,7 +37,6 @@ import org.rstudio.core.client.events.HasEnsureVisibleHandlers;
 import org.rstudio.core.client.layout.RequiresVisibilityChanged;
 import org.rstudio.core.client.widget.BeforeShowCallback;
 import org.rstudio.studio.client.application.events.EventBus;
-import org.rstudio.studio.client.common.filetypes.FileIcon;
 import org.rstudio.studio.client.common.filetypes.events.OpenPresentationSourceFileEvent;
 import org.rstudio.studio.client.common.filetypes.events.OpenPresentationSourceFileHandler;
 import org.rstudio.studio.client.common.filetypes.events.OpenSourceFileEvent;
@@ -76,27 +76,7 @@ public class SourceShim extends Composite
       @Handler
       public abstract void onNewTextDoc();
       @Handler
-      public abstract void onNewCDoc();
-      @Handler
       public abstract void onNewCppDoc();
-      @Handler
-      public abstract void onNewHeaderDoc();
-      @Handler
-      public abstract void onNewMarkdownDoc();
-      @Handler
-      public abstract void onNewPythonDoc();
-      @Handler
-      public abstract void onNewShellDoc();
-      @Handler
-      public abstract void onNewStanDoc();
-      @Handler
-      public abstract void onNewHtmlDoc();
-      @Handler
-      public abstract void onNewJavaScriptDoc();
-      @Handler
-      public abstract void onNewCssDoc();
-      @Handler
-      public abstract void onNewD3Doc();
       @Handler
       public abstract void onNewSweaveDoc();
       @Handler
@@ -109,10 +89,6 @@ public class SourceShim extends Composite
       public abstract void onNewRDocumentationDoc();
       @Handler
       public abstract void onNewRPresentationDoc();
-      @Handler
-      public abstract void onNewRPlumberDoc();
-      @Handler
-      public abstract void onNewSqlDoc();
       @Handler
       public abstract void onOpenSourceDoc();
       @Handler
@@ -155,18 +131,6 @@ public class SourceShim extends Composite
       public abstract void onOpenNextFileOnFilesystem();
       @Handler
       public abstract void onOpenPreviousFileOnFilesystem();
-      @Handler
-      public abstract void onSpeakEditorLocation();
-
-      // NOTE: These aren't really Source-level commands, but we
-      // need them to be registered for both the whole application
-      // as well as popped-out source windows.
-      @Handler
-      public abstract void onZoomIn();
-      @Handler
-      public abstract void onZoomOut();
-      @Handler
-      public abstract void onZoomActualSize();
      
       
       @Override
@@ -240,9 +204,8 @@ public class SourceShim extends Composite
       events.addHandler(EnsureVisibleSourceWindowEvent.TYPE, this);
       asyncSource_ = asyncSource;
 
-      events.fireEvent(new DocTabsChangedEvent(null,
-                                               new String[0],
-                                               new FileIcon[0],
+      events.fireEvent(new DocTabsChangedEvent(new String[0],
+                                               new ImageResource[0],
                                                new String[0],
                                                new String[0]));
 

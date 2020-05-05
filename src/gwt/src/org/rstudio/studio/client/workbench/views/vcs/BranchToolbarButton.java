@@ -1,7 +1,7 @@
 /*
  * BranchToolbarButton.java
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -48,7 +48,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-import org.rstudio.core.client.JsVectorString;
 import org.rstudio.core.client.MapUtil;
 import org.rstudio.core.client.StringUtil;
 import org.rstudio.core.client.WidgetHandlerRegistration;
@@ -59,14 +58,13 @@ import org.rstudio.core.client.widget.CustomMenuItemSeparator;
 import org.rstudio.core.client.widget.ScrollableToolbarPopupMenu;
 import org.rstudio.core.client.widget.SearchWidget;
 import org.rstudio.core.client.widget.ToolbarButton;
-import org.rstudio.core.client.widget.ToolbarMenuButton;
 import org.rstudio.core.client.widget.ToolbarPopupMenu;
 import org.rstudio.studio.client.common.icons.StandardIcons;
 import org.rstudio.studio.client.workbench.views.vcs.common.events.VcsRefreshEvent;
 import org.rstudio.studio.client.workbench.views.vcs.common.events.VcsRefreshHandler;
 import org.rstudio.studio.client.workbench.views.vcs.git.model.GitState;
 
-public class BranchToolbarButton extends ToolbarMenuButton
+public class BranchToolbarButton extends ToolbarButton
                                  implements HasValueChangeHandlers<String>,
                                             VcsRefreshHandler
 {
@@ -92,12 +90,13 @@ public class BranchToolbarButton extends ToolbarMenuButton
    @Inject
    public BranchToolbarButton(final Provider<GitState> pVcsState)
    {
-      super(ToolbarButton.NoText,
-            "Switch branch",
+      super("",
             StandardIcons.INSTANCE.empty_command(),
             new ScrollableToolbarPopupMenu());
       
       pVcsState_ = pVcsState;
+
+      setTitle("Switch branch");
 
       new WidgetHandlerRegistration(this)
       {
@@ -118,13 +117,6 @@ public class BranchToolbarButton extends ToolbarMenuButton
          {
             if (event.isAttached())
             {
-               // rebuild the menu if required
-               if (menuRebuildRequired_)
-               {
-                  rebuildMenu();
-                  menuRebuildRequired_ = false;
-               }
-               
                // force a re-draw if necessary
                if (initialBranchMap_ != null)
                {
@@ -155,7 +147,7 @@ public class BranchToolbarButton extends ToolbarMenuButton
          }
       });
       
-      searchWidget_ = new SearchWidget("Search by branch name");
+      searchWidget_ = new SearchWidget();
       
       searchValueChangeTimer_ = new Timer()
       {
@@ -184,30 +176,14 @@ public class BranchToolbarButton extends ToolbarMenuButton
    @Override
    public void onVcsRefresh(VcsRefreshEvent event)
    {
-      JsVectorString branches = pVcsState_.get().getBranchInfo().getBranches().cast();
-      if (branches.length() != branches_.length())
-      {
-         branches_ = branches.slice().cast();
-         menuRebuildRequired_ = true;
-         return;
-      }
-      
-      for (int i = 0; i < branches.length(); i++)
-      {
-         if (!StringUtil.equals(branches.get(i), branches_.get(i)))
-         {
-            branches_ = branches.slice();
-            menuRebuildRequired_ = true;
-            return;
-         }
-      }
+      JsArrayString branches = pVcsState_.get().getBranchInfo().getBranches();
+      onRefresh(branches);
    }
    
-   private void rebuildMenu()
+   private void onRefresh(JsArrayString branches)
    {
       menu_.clearItems();
       
-      JsArrayString branches = pVcsState_.get().getBranchInfo().getBranches();
       if (branches.length() == 0)
       {
          onBeforePopulateMenu(menu_);
@@ -305,7 +281,7 @@ public class BranchToolbarButton extends ToolbarMenuButton
                @Override
                public Element createMainElement()
                {
-                  String branchLabel = caption == LOCAL_BRANCHES
+                  String branchLabel = caption.equals(LOCAL_BRANCHES)
                         ? LOCAL_BRANCHES
                         : "(Remote: " + caption + ")";
                   Label label = new Label(branchLabel);
@@ -324,8 +300,6 @@ public class BranchToolbarButton extends ToolbarMenuButton
             });
             menu.addSeparator();
             
-            // truncate list when we have too many branches
-            int n = 0;
             for (String branch : branches)
             {
                // skip detached branches
@@ -337,15 +311,12 @@ public class BranchToolbarButton extends ToolbarMenuButton
                   continue;
                
                // construct branch label without remotes prefix
+
                final String branchLabel = branch.replaceAll("^remotes/" + caption + "/", "");
                final String branchValue = branch.replaceAll("\\s+\\-\\>.*", "");
                menu.addItem(new MenuItem(
                      branchLabel,
                      new SwitchBranchCommand(branchLabel, branchValue)));
-               
-               // update branch count
-               if (n++ > MAX_BRANCHES)
-                  break;
             }
          }
       });
@@ -489,15 +460,10 @@ public class BranchToolbarButton extends ToolbarMenuButton
    private final SearchWidget searchWidget_;
    private Map<String, List<String>> initialBranchMap_;
    
-   private boolean menuRebuildRequired_ = true;
-   private JsVectorString branches_ = JsVectorString.createVector();
-   
    private HandlerRegistration previewHandler_;
    
    private String lastSearchValue_;
    private final Timer searchValueChangeTimer_;
-   
-   private static final int MAX_BRANCHES = 100;
 
    private static final String NO_BRANCH = "(no branch)";
    private static final String NO_BRANCHES_AVAILABLE = "(no branches available)";

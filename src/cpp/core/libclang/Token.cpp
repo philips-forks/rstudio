@@ -1,7 +1,7 @@
 /*
  * Token.cpp
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -42,7 +42,7 @@ SourceRange Token::extent() const
 }
 
 Tokens::Tokens(CXTranslationUnit tu, const SourceRange &sourceRange)
-   : tu_(tu), pTokens_(nullptr), numTokens_(0)
+   : tu_(tu), pTokens_(NULL), numTokens_(0)
 {
    libclang::clang().tokenize(tu_,
                               sourceRange.getCXSourceRange(),
@@ -54,7 +54,7 @@ Tokens::~Tokens()
 {
    try
    {
-      if (pTokens_ != nullptr)
+      if (pTokens_ != NULL)
       {
         libclang::clang().disposeTokens(tu_,
                                         pTokens_,

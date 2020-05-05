@@ -1,7 +1,7 @@
 /*
  * RsInverseMain.cpp
  *
- * Copyright (C) 2009-12 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -18,9 +18,9 @@
 #include <string>
 
 #include <core/Log.hpp>
-#include <shared_core/Error.hpp>
+#include <core/Error.hpp>
 #include <core/StringUtils.hpp>
-#include <shared_core/SafeConvert.hpp>
+#include <core/SafeConvert.hpp>
 #include <core/ProgramStatus.hpp>
 #include <core/ProgramOptions.hpp>
 #include <core/system/System.hpp>
@@ -45,8 +45,7 @@ int main(int argc, char** argv)
    try
    {
       // initialize log
-      core::log::setProgramId("rsinverse");
-      core::system::initializeSystemLog("rsinverse", log::LogLevel::WARN);
+      initializeSystemLog("rsinverse", core::system::kLogLevelWarning);
 
       // ignore SIGPIPE
       Error error = core::system::ignoreSignal(core::system::SigPipe);
@@ -145,13 +144,3 @@ int main(int argc, char** argv)
    // if we got this far we had an unexpected exception
    return EXIT_FAILURE ;
 }
-
-#ifdef _WIN32
-int WINAPI WinMain(HINSTANCE hInstance,
-                   HINSTANCE hPrevInstance,
-                   LPSTR lpCmdLine,
-                   int nShowCmd)
-{
-   return main(__argc, __argv);
-}
-#endif

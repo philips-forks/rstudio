@@ -1,7 +1,7 @@
 /*
  * MainWindowObject.java
  *
- * Copyright (C) 2009-16 by RStudio, PBC
+ * Copyright (C) 2009-16 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -91,21 +91,9 @@ public class MainWindowObject<T>
    
    // Helper Classes ----
    
-   public static final MainWindowObject<Window> lastFocusedWindow()
+   public static final MainWindowObject<String> lastFocusedEditor()
    {
-      return new MainWindowObject<Window>(LAST_FOCUSED_WINDOW, new DefaultProvider<Window>()
-      {
-         @Override
-         public Window defaultValue()
-         {
-            return ownWindow();
-         }
-      });
-   }
-   
-   public static final MainWindowObject<String> lastFocusedEditorId()
-   {
-      return new MainWindowObject<String>(LAST_FOCUSED_EDITOR_ID, new DefaultProvider<String>()
+      return new MainWindowObject<String>(LAST_FOCUSED_EDITOR, new DefaultProvider<String>()
       {
          @Override
          public String defaultValue()
@@ -115,9 +103,9 @@ public class MainWindowObject<T>
       });
    }
    
-   public static final MainWindowObject<String> lastFocusedWindowId()
+   public static final MainWindowObject<String> lastFocusedWindow()
    {
-      return new MainWindowObject<String>(LAST_FOCUSED_WINDOW_ID, new DefaultProvider<String>()
+      return new MainWindowObject<String>(LAST_FOCUSED_WINDOW, new DefaultProvider<String>()
       {
          @Override
          public String defaultValue()
@@ -127,9 +115,9 @@ public class MainWindowObject<T>
       });
    }
    
-   public static final MainWindowObject<String> lastFocusedSourceWindowId()
+   public static final MainWindowObject<String> lastFocusedSourceWindow()
    {
-      return new MainWindowObject<String>(LAST_FOCUSED_SOURCE_WINDOW_ID, new DefaultProvider<String>()
+      return new MainWindowObject<String>(LAST_FOCUSED_SOURCE_WINDOW, new DefaultProvider<String>()
       {
          @Override
          public String defaultValue()
@@ -151,13 +139,8 @@ public class MainWindowObject<T>
       });
    }
    
-   // Private methods ----
-   
-   private static final native Window ownWindow() /*-{ return $wnd; }-*/;
-   
-   private static final String LAST_FOCUSED_WINDOW           = "last_focused_window";
-   private static final String LAST_FOCUSED_WINDOW_ID        = "last_focused_window_id";
-   private static final String LAST_FOCUSED_EDITOR_ID        = "last_focused_editor_id";
-   private static final String LAST_FOCUSED_SOURCE_WINDOW_ID = "last_focused_source_window_id";
-   private static final String R_ADDINS                      = "r_addins";
+   private static final String LAST_FOCUSED_EDITOR        = "last_focused_editor";
+   private static final String LAST_FOCUSED_WINDOW        = "last_focused_window";
+   private static final String LAST_FOCUSED_SOURCE_WINDOW = "last_focused_source_window";
+   private static final String R_ADDINS                   = "r_addins";
 }

@@ -1,7 +1,7 @@
 /*
  * PosixFileSystemContext.java
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -146,11 +146,6 @@ public abstract class PosixFileSystemContext implements FileSystemContext
    public boolean isRoot(FileSystemItem item)
    {
       return item.isDirectory() && item.getPath().equals("~");
-   }
-
-   public boolean isCloudRoot(FileSystemItem item)
-   {
-      return false;
    }
 
    protected String workingDir_;

@@ -1,7 +1,7 @@
 /*
  * SwitchToProjectEvent.java
  *
- * Copyright (C) 2009-18 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -15,11 +15,11 @@
 package org.rstudio.studio.client.projects.events;
 
 import com.google.gwt.event.shared.GwtEvent;
-import org.rstudio.studio.client.application.model.TutorialApiCallContext;
 
 public class SwitchToProjectEvent extends GwtEvent<SwitchToProjectHandler>
 {
-   public static final GwtEvent.Type<SwitchToProjectHandler> TYPE = new GwtEvent.Type<>();
+   public static final GwtEvent.Type<SwitchToProjectHandler> TYPE =
+      new GwtEvent.Type<SwitchToProjectHandler>();
    
    public SwitchToProjectEvent(String project)
    {
@@ -30,14 +30,6 @@ public class SwitchToProjectEvent extends GwtEvent<SwitchToProjectHandler>
    {
       project_ = project;
       forceSaveAll_ = forceSaveAll;
-      callContext_ = null;
-   }
-   
-   public SwitchToProjectEvent(String project, boolean forceSaveAll, TutorialApiCallContext callContext)
-   {
-      project_ = project;
-      forceSaveAll_ = forceSaveAll;
-      callContext_ = callContext;
    }
    
    public String getProject()
@@ -45,11 +37,9 @@ public class SwitchToProjectEvent extends GwtEvent<SwitchToProjectHandler>
       return project_;
    }
    
-   public boolean getForceSaveAll() { return forceSaveAll_; }
-   
-   public TutorialApiCallContext getCallContext()
+   public boolean getForceSaveAll()
    {
-      return callContext_;
+      return forceSaveAll_;
    }
    
    @Override
@@ -66,5 +56,4 @@ public class SwitchToProjectEvent extends GwtEvent<SwitchToProjectHandler>
    
    private final String project_;
    private final boolean forceSaveAll_;
-   private final TutorialApiCallContext callContext_;
 }

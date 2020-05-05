@@ -1,7 +1,7 @@
 /*
  * FileDialog.java
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-15 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -14,7 +14,6 @@
  */
 package org.rstudio.core.client.files.filedialog;
 
-import com.google.gwt.aria.client.DialogRole;
 import com.google.gwt.event.logical.shared.SelectionEvent;
 
 import org.rstudio.core.client.files.FileSystemContext;
@@ -25,7 +24,6 @@ public abstract class FileDialog extends FileSystemDialog
 {
    protected FileDialog(String title,
                         String caption,
-                        DialogRole role,
                         String buttonName,
                         boolean promptOnOverwrite,
                         boolean allowNonexistentFile,
@@ -34,7 +32,7 @@ public abstract class FileDialog extends FileSystemDialog
                         String filter,
                         ProgressOperationWithInput<FileSystemItem> operation)
    {
-      super(title, caption, role, buttonName, context, filter, allowFolderCreation,
+      super(title, caption, buttonName, context, filter, allowFolderCreation,
             operation);
 
       promptOnOverwrite_ = promptOnOverwrite;
@@ -108,7 +106,7 @@ public abstract class FileDialog extends FileSystemDialog
          return false;
 
       boolean useExactFilename = browser_.getSelectedValue() != null
-            && browser_.getSelectedValue() == filename;
+            && browser_.getSelectedValue().equals(filename);
       
       if (!useExactFilename || getAlwaysMungeFilename())
       {
@@ -196,7 +194,7 @@ public abstract class FileDialog extends FileSystemDialog
    }
 
    @Override
-   protected void focusInitialControl()
+   protected void onDialogShown()
    {
       browser_.setFilenameFocus(true);
       browser_.selectFilename();

@@ -1,7 +1,7 @@
 /*
  * SessionPosixHttpConnectionListener.cpp
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -16,7 +16,7 @@
 #include <session/SessionHttpConnectionListener.hpp>
 
 #include <core/system/Environment.hpp>
-#include <core/system/PosixSystem.hpp>
+#include <core/system/FileMode.hpp>
 
 #include <core/r_util/RSessionContext.hpp>
 
@@ -35,7 +35,7 @@ namespace session {
 namespace {
 
 // pointer to global connection listener singleton
-HttpConnectionListener* s_pHttpConnectionListener = nullptr;
+HttpConnectionListener* s_pHttpConnectionListener = NULL;
 
 }  // anonymouys namespace
 
@@ -53,7 +53,7 @@ void initializeHttpConnectionListener()
          FilePath streamPath(localPeer);
          s_pHttpConnectionListener = new LocalStreamHttpConnectionListener(
                                            streamPath,
-                                           core::FileMode::USER_READ_WRITE,
+                                           core::system::UserReadWriteMode,
                                            options.sharedSecret(),
                                            -1);
       }
@@ -69,49 +69,10 @@ void initializeHttpConnectionListener()
    {
       if (session::options().standalone())
       {
-         std::string wwwAddress = options.wwwAddress();
-
-         // if we are supposed to bind to the all address but there are no IPv4 addresses,
-         // simply bind to all ipv6 interfaces. we prefer non-loopback ipv4 or non-link local ipv6
-         if (wwwAddress == "0.0.0.0")
-         {
-            std::vector<core::system::IpAddress> addrs;
-            Error error = core::system::ipAddresses(&addrs, true);
-            if (!error)
-            {
-               bool hasNonLocalIpv4 = false;
-               bool hasNonLocalIpv6 = false;
-               bool hasIpv4 = false;
-               bool hasIpv6 = false;
-
-               for (const core::system::IpAddress& ip : addrs)
-               {
-                  boost::system::error_code ec;
-                  boost::asio::ip::address addr = boost::asio::ip::address::from_string(ip.addr);
-
-                  if (addr.is_v4())
-                  {
-                     hasIpv4 = true;
-                     if (!addr.is_loopback())
-                        hasNonLocalIpv4 =  true;
-                  }
-                  else if (addr.is_v6())
-                  {
-                     hasIpv6 = true;
-                     if (!addr.is_loopback() && ip.addr.find("%") == std::string::npos)
-                        hasNonLocalIpv6 = true;
-                  }
-               }
-
-               if ((!hasNonLocalIpv4 && hasNonLocalIpv6) ||
-                   (!hasIpv4 && hasIpv6))
-               {
-                  wwwAddress = "::";
-               }
-            }
-         }
-
-         s_pHttpConnectionListener = new TcpIpHttpConnectionListener(wwwAddress, options.wwwPort(), "");
+         s_pHttpConnectionListener = new TcpIpHttpConnectionListener(
+                                            options.wwwAddress(),
+                                            options.wwwPort(),
+                                            ""); // no shared secret
       }
       else
       {
@@ -121,7 +82,7 @@ void initializeHttpConnectionListener()
          FilePath localStreamPath = local_streams::streamPath(streamFile);
          s_pHttpConnectionListener = new LocalStreamHttpConnectionListener(
                                           localStreamPath,
-                                          core::FileMode::ALL_READ_WRITE,
+                                          core::system::EveryoneReadWriteMode,
                                           "", // no shared secret
                                           options.limitRpcClientUid());
       }

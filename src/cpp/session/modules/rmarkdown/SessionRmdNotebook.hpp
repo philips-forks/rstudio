@@ -1,7 +1,7 @@
 /*
  * SessionRmdNotebook.hpp
  *
- * Copyright (C) 2009-16 by RStudio, PBC
+ * Copyright (C) 2009-16 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -18,9 +18,8 @@
 #define SESSION_RMARKDOWN_NOTEBOOK_HPP
 
 #include <ctime>
-
-#include <core/BoostSignals.hpp>
-#include <shared_core/json/Json.hpp>
+#include <boost/signals.hpp>
+#include <core/json/Json.hpp>
 
 #define kChunkLibDir "lib"
 #define kNotebookExt ".nb.html"
@@ -77,24 +76,24 @@ std::string notebookCtxId();
 struct Events : boost::noncopyable
 {
    // Document {0}, chunk {1} from context id {3} execution completed
-   RSTUDIO_BOOST_SIGNAL<void(const std::string&, const std::string&,
+   boost::signal<void(const std::string&, const std::string&,
                       const std::string&)> 
                 onChunkExecCompleted;
 
    // Document {0}, chunk {1} had console output of type {2} and text {3}
-   RSTUDIO_BOOST_SIGNAL<void(const std::string&, const std::string&, int, 
+   boost::signal<void(const std::string&, const std::string&, int, 
                 const std::string&)>
                 onChunkConsoleOutput;
 
-   RSTUDIO_BOOST_SIGNAL<void(const core::FilePath&, const core::FilePath&, 
+   boost::signal<void(const core::FilePath&, const core::FilePath&, 
                       const core::json::Value& metadata, unsigned ordinal)> 
                          onPlotOutput;
-   RSTUDIO_BOOST_SIGNAL<void(const core::FilePath&, const core::FilePath&,
+   boost::signal<void(const core::FilePath&, const core::FilePath&,
                       const core::json::Value& metadata)> onHtmlOutput;
-   RSTUDIO_BOOST_SIGNAL<void(const core::json::Object&)> onErrorOutput;
-   RSTUDIO_BOOST_SIGNAL<void(const core::FilePath&, const core::FilePath&,
+   boost::signal<void(const core::json::Object&)> onErrorOutput;
+   boost::signal<void(const core::FilePath&, const core::FilePath&,
                       const core::json::Value& metadata)> onDataOutput;
-   RSTUDIO_BOOST_SIGNAL<void(Condition condition, const std::string& message)> 
+   boost::signal<void(Condition condition, const std::string& message)> 
                          onCondition;
 };
 

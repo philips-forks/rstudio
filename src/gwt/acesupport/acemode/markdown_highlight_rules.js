@@ -1,7 +1,7 @@
 /*
  * markdown_highlight_rules.js
  *
- * Copyright (C) 2009-12 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * The Initial Developer of the Original Code is
  * Ajax.org B.V.
@@ -58,16 +58,16 @@ var XmlHighlightRules = require("ace/mode/xml_highlight_rules").XmlHighlightRule
 var HtmlHighlightRules = require("ace/mode/html_highlight_rules").HtmlHighlightRules;
 var CssHighlightRules = require("ace/mode/css_highlight_rules").CssHighlightRules;
 var PerlHighlightRules = require("ace/mode/perl_highlight_rules").PerlHighlightRules;
-var PythonHighlightRules = require("mode/python_highlight_rules").PythonHighlightRules;
+var PythonHighlightRules = require("ace/mode/python_highlight_rules").PythonHighlightRules;
 var RubyHighlightRules = require("ace/mode/ruby_highlight_rules").RubyHighlightRules;
 var ScalaHighlightRules = require("ace/mode/scala_highlight_rules").ScalaHighlightRules;
-var ShHighlightRules = require("mode/sh_highlight_rules").ShHighlightRules;
+var ShHighlightRules = require("ace/mode/sh_highlight_rules").ShHighlightRules;
 var StanHighlightRules = require("mode/stan_highlight_rules").StanHighlightRules;
 var SqlHighlightRules = require("mode/sql_highlight_rules").SqlHighlightRules;
 
 var escaped = function(ch) {
     return "(?:[^" + lang.escapeRegExp(ch) + "\\\\]|\\\\.)*";
-};
+}
 
 function github_embed(tag, prefix) {
     return { // Github style block
@@ -90,76 +90,58 @@ var MarkdownHighlightRules = function() {
     // handle highlighting for *abc*, _abc_ separately, as pandoc's
     // parser is a bit more strict about where '_' can appear
     var strongUnderscore = {
-        token: ["text", "constant.numeric.text", "constant.numeric.text", "constant.numeric.text"],
-        regex: "(^|\\s+)(_{2,3})(?![\\s_])(.*?)(?=_)(\\2)\\b"
+        token: ["text", "constant.numeric"],
+        regex: "(\\s+|^)(__.+?__)\\b"
     };
 
     var emphasisUnderscore = {
-        token: ["text", "constant.language.boolean.text"],
-        regex: "(^|\\s+)(_(?=[^\\s_]).*?_)\\b"
+        token: ["text", "constant.language.boolean"],
+        regex: "(\\s+|^)(_(?=[^_])(?:(?:\\\\.)|(?:[^_\\\\]))*?_)\\b"
     };
 
     var strongStars = {
-        token: ["constant.numeric.text", "constant.numeric.text", "constant.numeric.text"],
-        regex: "([*]{2,3})(?![\\s*])(.*?)(?=[*])(\\1)"
+        token: ["constant.numeric"],
+        regex: "([*][*].+?[*][*])"
     };
 
     var emphasisStars = {
-        token: ["constant.language.boolean.text"],
-        regex: "([*](?=[^\\s*]).*?[*])"
-    };
-
-    var inlineNote = {
-        token : "text",
-        regex : "\\^\\[" + escaped("]") + "\\]"
-    };
-
-    var reference = {
-        token : ["text", "constant", "text", "url", "string", "text"],
-        regex : "^([ ]{0,3}\\[)([^\\]]+)(\\]:\\s*)([^ ]+)(\\s*(?:[\"][^\"]+[\"])?(\\s*))$"
-    };
-
-    var linkByReference = {
-        token : ["text", "keyword", "text", "constant", "text"],
-        regex : "(\\s*\\[)(" + escaped("]") + ")(\\]\\[)("+ escaped("]") + ")(\\])"
-    };
-
-    var linkByUrl = {
-        token : ["text", "keyword", "text", "markup.href", "string", "text", "paren.keyword.operator", "nospell", "paren.keyword.operator"],
-        regex : "(\\s*\\[)(" +                            // [
-            escaped("]") +                                // link text
-            ")(\\]\\()" +                                 // ](
-            '((?:[^\\)\\s\\\\]|\\\\.|\\s(?=[^"]))*)' +    // href
-            '(\\s*"' +  escaped('"') + '"\\s*)?' +        // "title"
-            "(\\))" +                                     // )
-            "(?:(\\s*{)((?:[^\\}]+))(\\s*}))?"            // { block text }
-    };
-
-    var urlLink = {
-        token : ["text", "keyword", "text"],
-        regex : "(<)((?:https?|ftp|dict):[^'\">\\s]+|(?:mailto:)?[-.\\w]+\\@[-a-z0-9]+(?:\\.[-a-z0-9]+)*\\.[a-z]+)(>)"
+        token: ["constant.language.boolean"],
+        regex: "([*](?=[^*])(?:(?:\\\\.)|(?:[^*\\\\]))*?[*])"
     };
 
     this.$rules = {
 
         "basic" : [{
             token : "constant.language.escape",
-            regex : /\\[\\`*_{}[\]()#+\-.!]/
-        }, { // latex-style inverted question mark
-            token : "text",
-            regex : /[?]`/
+            regex : /\\[\\`*_{}\[\]()#+\-.!]/
         }, { // inline r code
             token : "support.function.inline_r_chunk",
             regex : "`r (?:.*?[^`])`"
         }, { // code span `
             token : ["support.function", "support.function", "support.function"],
             regex : "(`+)(.*?[^`])(\\1)"
+        }, { // reference
+            token : ["text", "constant", "text", "url", "string", "text"],
+            regex : "^([ ]{0,3}\\[)([^\\]]+)(\\]:\\s*)([^ ]+)(\\s*(?:[\"][^\"]+[\"])?(\\s*))$"
+        }, { // link by reference
+            token : ["text", "keyword", "text", "constant", "text"],
+            regex : "((?:[^^]|^)\\[)(" + escaped("]") + ")(\\]\s*\\[)("+ escaped("]") + ")(\\])"
+        }, { // link by url
+            token : ["text", "keyword", "text", "markup.href", "string", "text"],
+            regex : "((?:[^^]|^)\\[)(" +                          // [
+                escaped("]") +                                    // link text
+                ")(\\]\\()"+                                      // ](
+                '((?:[^\\)\\s\\\\]|\\\\.|\\s(?=[^"]))*)' +        // href
+                '(\\s*"' +  escaped('"') + '"\\s*)?' +            // "title"
+                "(\\))"                                           // )
+        }, {
+            token : ["text", "keyword", "text"],
+            regex : "(<)("+
+                "(?:https?|ftp|dict):[^'\">\\s]+"+
+                "|"+
+                "(?:mailto:)?[-.\\w]+\\@[-a-z0-9]+(?:\\.[-a-z0-9]+)*\\.[a-z]+"+
+                ")(>)"
         },
-            inlineNote,
-            reference,
-            linkByReference,
-            linkByUrl,
-            urlLink,
             strongStars,
             strongUnderscore,
             emphasisStars,
@@ -170,9 +152,6 @@ var MarkdownHighlightRules = function() {
            token : "empty_line",
            regex : '^\\s*$',
            next: "allowBlock"
-        }, { // latex-style inverted question mark
-            token : "text",
-            regex : /[?]`/
         }, { // inline r code
             token : "support.function.inline_r_chunk",
             regex : "`r (?:.*?[^`])`"
@@ -209,7 +188,6 @@ var MarkdownHighlightRules = function() {
         github_embed("bash", "bashcode-"),
         github_embed("stan", "stancode-"),
         github_embed("sql", "sqlcode-"),
-        github_embed("d3", "jscode-"),
         
         { // Github style block
             token : "support.function",
@@ -222,22 +200,21 @@ var MarkdownHighlightRules = function() {
             token : "string.blockquote",
             regex : "^\\s*>\\s*",
             next  : "blockquote"
-        },
-            inlineNote,
-            reference,
-            linkByReference,
-           { // HR *
+        }, { // reference
+            token : ["text", "constant", "text", "url", "string", "text"],
+            regex : "^([ ]{0,3}\\[)([^\\]]+)(\\]:\\s*)([^ ]+)(\\s*(?:[\"][^\"]+[\"])?(\\s*))$"
+        }, { // link by reference
+            token : ["text", "keyword", "text", "constant", "text"],
+            regex : "(\\[)((?:[[^\\]]*\\]|[^\\[\\]])*)(\\][ ]?(?:\\n[ ]*)?\\[)(.*?)(\\])"
+        }, { // HR *
             token : "constant",
-            regex : "^\\s*[*](?:\\s*[*]){2,}\\s*$",
-            next  : "allowBlock",
+            regex : "^[ ]{0,2}(?:[ ]?\\*[ ]?){3,}\\s*$"
         }, { // HR -
             token : "constant",
-            regex : "^\\s*[-](?:\\s*[-]){2,}\\s*$",
-            next  : "allowBlock",
+            regex : "^[ ]{0,2}(?:[ ]?\\-[ ]?){3,}\\s*$"
         }, { // HR _
             token : "constant",
-            regex : "^\\s*[_](?:\\s*[_]){2,}\\s*$",
-            next  : "allowBlock"
+            regex : "^[ ]{0,2}(?:[ ]?\\_[ ]?){3,}\\s*$"
         }, { // MathJax native display \[ ... \]
             token : "latex.markup.list.string.begin",
             regex : "\\\\\\[",
@@ -281,6 +258,10 @@ var MarkdownHighlightRules = function() {
         }, {
             token : "text",
             regex : "\\\\"
+        }, { // HR * - _
+            token : "constant",
+            regex : "^ {0,2}(?:(?: ?\\* ?){3,}|(?: ?\\- ?){3,}|(?: ?\\_ ?){3,})\\s*$",
+            next: "allowBlock"
         }, { // list
             token : "text",
             regex : "^\\s*(?:[*+-]|\\d+\\.)\\s+",
@@ -303,7 +284,7 @@ var MarkdownHighlightRules = function() {
            regex: "-->",
            next: "start"
         }, {
-           defaultToken: "comment.text"
+           defaultToken: "comment"
         }],
        
         // code block
@@ -338,9 +319,6 @@ var MarkdownHighlightRules = function() {
             token : "text",
             regex : "^\\s{0,3}(?:[*+-]|\\d+\\.)\\s+",
             next  : "listblock"
-        }, { // MathJax $...$ (org-mode style)
-            token : ["latex.markup.list.string.begin","latex.support.function","latex.markup.list.string.end"],
-            regex : "(\\$)((?:(?:\\\\.)|(?:[^\\$\\\\]))*?)(\\$)"
         }, {
             include : "basic", noEscape: true
         }, { // Github style block
@@ -357,22 +335,35 @@ var MarkdownHighlightRules = function() {
             next  : "start"
         }, {
             token : "constant.language.escape",
-            regex : /\\[\\`*_{}[\]()#+\-.!]/
-        }, { // latex-style inverted question mark
-            token : "text",
-            regex : /[?]`/
+            regex : /\\[\\`*_{}\[\]()#+\-.!]/
         }, { // inline r code
             token : "support.function.inline_r_chunk",
             regex : "`r (?:.*?[^`])`"
         }, { // code span `
             token : ["support.function", "support.function", "support.function"],
             regex : "(`+)(.*?[^`])(\\1)"
+        }, { // reference
+            token : ["text", "constant", "text", "url", "string", "text"],
+            regex : "^([ ]{0,3}\\[)([^\\]]+)(\\]:\\s*)([^ ]+)(\\s*(?:[\"][^\"]+[\"])?(\\s*))$"
+        }, { // link by reference
+            token : ["text", "keyword", "text", "constant", "text"],
+            regex : "((?:[^^]|^)\\[)(" + escaped("]") + ")(\\]\s*\\[)("+ escaped("]") + ")(\\])"
+        }, { // link by url
+            token : ["text", "keyword", "text", "markup.href", "string", "text"],
+            regex : "((?:[^^]|^)\\[)(" +                          // [
+                escaped("]") +                                    // link text
+                ")(\\]\\()"+                                      // ](
+                '((?:[^\\)\\s\\\\]|\\\\.|\\s(?=[^"]))*)' +        // href
+                '(\\s*"' +  escaped('"') + '"\\s*)?' +            // "title"
+                "(\\))"                                           // )
+        }, {
+            token : ["text", "keyword", "text"],
+            regex : "(<)("+
+                "(?:https?|ftp|dict):[^'\">\\s]+"+
+                "|"+
+                "(?:mailto:)?[-.\\w]+\\@[-a-z0-9]+(?:\\.[-a-z0-9]+)*\\.[a-z]+"+
+                ")(>)"
         },
-            inlineNote,
-            reference,
-            linkByReference,
-            linkByUrl,
-            urlLink,
             strongStars,
             strongUnderscore,
             emphasisStars,
@@ -505,12 +496,6 @@ var MarkdownHighlightRules = function() {
     }]);
 
     this.embedRules(SqlHighlightRules, "sqlcode-", [{
-        token : "support.function",
-        regex : "^\\s*```",
-        next  : "pop"
-    }]);
-
-    this.embedRules(JavaScriptHighlightRules, "jscode-", [{
         token : "support.function",
         regex : "^\\s*```",
         next  : "pop"

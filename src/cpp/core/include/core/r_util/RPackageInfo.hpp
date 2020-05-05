@@ -1,7 +1,7 @@
 /*
  * RPackageInfo.hpp
  *
- * Copyright (C) 2009-18 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -18,9 +18,7 @@
 
 #include <string>
 
-#include <shared_core/FilePath.hpp>
-
-#define kPackageType "Package"
+#include <core/FilePath.hpp>
 
 namespace rstudio {
 namespace core {
@@ -73,10 +71,6 @@ private:
 };
 
 bool isPackageDirectory(const FilePath& dir);
-
-// Determine name of a package project in given directory. Returns empty string
-// if not a package or any other error.
-std::string packageNameFromDirectory(const FilePath& dir);
 
 } // namespace r_util
 } // namespace core 

@@ -1,7 +1,7 @@
 /*
  * RemoteFileSystemContext.java
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -15,13 +15,13 @@
 package org.rstudio.studio.client.workbench.model;
 
 import com.google.gwt.core.client.JsArray;
+import com.google.gwt.resources.client.ImageResource;
 import com.google.inject.Inject;
 import org.rstudio.core.client.MessageDisplay;
 import org.rstudio.core.client.files.FileSystemItem;
 import org.rstudio.core.client.files.PosixFileSystemContext;
 import org.rstudio.core.client.widget.ProgressIndicator;
 import org.rstudio.studio.client.common.GlobalDisplay;
-import org.rstudio.studio.client.common.filetypes.FileIcon;
 import org.rstudio.studio.client.common.filetypes.FileTypeRegistry;
 import org.rstudio.studio.client.server.ServerError;
 import org.rstudio.studio.client.server.ServerRequestCallback;
@@ -85,7 +85,6 @@ public class RemoteFileSystemContext extends PosixFileSystemContext
             newPathEntry,
             false, // since this is used for the file dialog don't 
                    // cause the call to reset the server monitoring state
-            false, // don't show hidden files
             new ServerRequestCallback<DirectoryListing>()
             {
                @Override
@@ -146,7 +145,7 @@ public class RemoteFileSystemContext extends PosixFileSystemContext
                @Override
                public void onResponseReceived(Void response)
                {
-                  if (baseDir == workingDir_)
+                  if (baseDir.equals(workingDir_))
                   {
                      progress.onCompleted();
                      if (callbacks_ != null)
@@ -156,7 +155,7 @@ public class RemoteFileSystemContext extends PosixFileSystemContext
             });
    }
 
-   public FileIcon getIcon(FileSystemItem item)
+   public ImageResource getIcon(FileSystemItem item)
    {
       return fileTypeRegistry_.getIconForFile(item);
    }

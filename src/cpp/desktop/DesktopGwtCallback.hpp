@@ -1,7 +1,7 @@
 /*
  * DesktopGwtCallback.hpp
  *
- * Copyright (C) 2009-18 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -17,41 +17,26 @@
 #define DESKTOP_GWT_CALLBACK_HPP
 
 #include <QObject>
-#include <QClipboard>
-#include <QKeySequence>
-#include <QJsonArray>
-#include <QJsonObject>
-#include <QPrinter>
+#include <QtWebKit>
 
-#include <boost/optional.hpp>
+#include "DesktopGwtCallbackOwner.hpp"
 
 #ifdef Q_OS_WIN32
 #include "DesktopWordViewer.hpp"
-#include "DesktopPowerpointViewer.hpp"
 #endif
 
 namespace rstudio {
 namespace desktop {
 
 class MainWindow;
-class GwtWindow;
+class BrowserWindow;
 class Synctex;
-class JobLauncher;
 
-enum PendingQuit 
-{
-   PendingQuitNone             = 0,
-   PendingQuitAndExit          = 1,
-   PendingQuitAndRestart       = 2,
+enum PendingQuit {
+   PendingQuitNone = 0,
+   PendingQuitAndExit = 1,
+   PendingQuitAndRestart = 2,
    PendingQuitRestartAndReload = 3
-};
-
-enum InputType 
-{
-   InputRequiredText = 0,
-   InputOptionalText = 1,
-   InputPassword     = 2,
-   InputNumeric      = 3
 };
 
 class GwtCallback : public QObject
@@ -59,42 +44,38 @@ class GwtCallback : public QObject
    Q_OBJECT
 
 public:
-   GwtCallback(MainWindow* pMainWindow, GwtWindow* pOwner, bool isRemoteDesktop);
-   void initialize();
+   GwtCallback(MainWindow* pMainWindow, GwtCallbackOwner* pOwner);
+
    int collectPendingQuitRequest();
 
-Q_SIGNALS:
+signals:
    void workbenchInitialized();
-   void sessionQuit();
 
-public Q_SLOTS:
+public slots:
    QString proportionalFont();
    QString fixedWidthFont();
+   bool isCocoa();
    void browseUrl(QString url);
 
    QString getOpenFileName(const QString& caption,
                            const QString& label,
                            const QString& dir,
-                           const QString& filter,
-                           bool canChooseDirectories,
-                           bool focusOwner);
+                           const QString& filter);
 
    QString getSaveFileName(const QString& caption,
                            const QString& label,
                            const QString& dir,
                            const QString& defaultExtension,
-                           bool forceDefaultExtension,
-                           bool focusOwner);
+                           bool forceDefaultExtension);
 
    QString getExistingDirectory(const QString& caption,
                                 const QString& label,
-                                const QString& dir,
-                                bool focusOwner);
+                                const QString& dir);
 
-   void onClipboardSelectionChanged();
+   void onClipboardChanged(QClipboard::Mode mode);
 
-   void undo();
-   void redo();
+   void undo(bool forAce);
+   void redo(bool forAce);
 
    void clipboardCut();
    void clipboardCopy();
@@ -102,25 +83,21 @@ public Q_SLOTS:
 
    void setClipboardText(QString text);
    QString getClipboardText();
-   
+
    void setGlobalMouseSelection(QString selection);
    QString getGlobalMouseSelection();
 
-   QJsonObject getCursorPosition();
-   bool doesWindowExistAtCursorPosition();
-
+   QString getUriForPath(QString path);
    void onWorkbenchInitialized(QString scratchPath);
    void showFolder(QString path);
    void showFile(QString path);
    void showWordDoc(QString path);
-   void showPptPresentation(QString path);
    void showPDF(QString path, int pdfPage);
    void prepareShowWordDoc();
-   void prepareShowPptPresentation();
 
-   // R version selection currently Win32 only
    QString getRVersion();
    QString chooseRVersion();
+   bool canChooseRVersion();
 
    double devicePixelRatio();
 
@@ -133,6 +110,9 @@ public Q_SLOTS:
                               bool showToolbar);
    void closeNamedWindow(QString name);
 
+   // Image coordinates are relative to the window contents
+   void copyImageToClipboard(int left, int top, int width, int height);
+
    // coordinates are relative to entire containing web page
    void copyPageRegionToClipboard(int left, int top, int width, int height);
    void exportPageRegionToFile(QString targetPath,
@@ -141,10 +121,6 @@ public Q_SLOTS:
                                int top,
                                int width,
                                int height);
-
-   void printText(QString text);
-   void paintPrintText(QPrinter* printer);
-   void printFinished(int result);
 
    bool supportsClipboardMetafile();
 
@@ -158,18 +134,16 @@ public Q_SLOTS:
    QString promptForText(QString title,
                          QString caption,
                          QString defaultValue,
-                         int type,
+                         bool usePasswordMask,
                          QString rememberPasswordPrompt,
                          bool rememberByDefault,
+                         bool numbersOnly,
                          int selectionStart,
-                         int selectionLength,
-                         QString okButtonCaption);
+                         int selectionLength);
 
+   void showAboutDialog();
    void bringMainFrameToFront();
    void bringMainFrameBehindActive();
-   
-   QString desktopRenderingEngine();
-   void setDesktopRenderingEngine(QString engine);
 
    QString filterText(QString text);
 
@@ -182,8 +156,7 @@ public Q_SLOTS:
 
    void openTerminal(QString terminalPath,
                      QString workingDirectory,
-                     QString extraPathEntries,
-                     QString shellType);
+                     QString extraPathEntries);
 
    QString getFixedWidthFontList();
    QString getFixedWidthFont();
@@ -192,32 +165,10 @@ public Q_SLOTS:
    QString getZoomLevels();
    double getZoomLevel();
    void setZoomLevel(double zoomLevel);
-   
-   void zoomIn();
-   void zoomOut();
-   void zoomActualSize();
-   
-   void setBackgroundColor(QJsonArray rgbColor);
-   void changeTitleBarColor(int red, int green, int blue);
-   void syncToEditorTheme(bool isDark);
 
-   bool getEnableAccessibility();
-   void setEnableAccessibility(bool enable);
-
-   bool getClipboardMonitoring();
-   void setClipboardMonitoring(bool monitoring);
-   
-   bool getIgnoreGpuBlacklist();
-   void setIgnoreGpuBlacklist(bool ignore);
-   
-   bool getDisableGpuDriverBugWorkarounds();
-   void setDisableGpuDriverBugWorkarounds(bool disable);
-
-   void showLicenseDialog();
-   void showSessionServerOptionsDialog();
-   QString getInitMessages();
-   QString getLicenseStatusMessage();
-   bool allowProductUsage();
+   void macZoomActualSize();
+   void macZoomIn();
+   void macZoomOut();
 
    QString getDesktopSynctexViewer();
 
@@ -236,8 +187,6 @@ public Q_SLOTS:
 
    void reloadZoomWindow();
 
-   void setTutorialUrl(QString url);
-   
    void setViewerUrl(QString url);
    void reloadViewerZoomWindow(QString url);
 
@@ -245,7 +194,7 @@ public Q_SLOTS:
 
    QString getScrollingCompensationType();
 
-   bool isMacOS();
+   bool isOSXMavericks();
    bool isCentOS();
 
    void setBusy(bool busy);
@@ -254,48 +203,22 @@ public Q_SLOTS:
 
    void installRtools(QString version, QString installerPath);
 
-   QString getDisplayDpi();
-
-   void onSessionQuit();
-
-   QJsonObject getSessionServer();
-   QJsonArray getSessionServers();
-   void reconnectToSessionServer(const QJsonValue& sessionServerJson);
-
-   bool setLauncherServer(const QJsonObject& sessionServerJson);
-   void connectToLauncherServer();
-
-   QJsonObject getLauncherServer();
-   void startLauncherJobStatusStream(QString jobId);
-   void stopLauncherJobStatusStream(QString jobId);
-   void startLauncherJobOutputStream(QString jobId);
-   void stopLauncherJobOutputStream(QString jobId);
-   void controlLauncherJob(QString jobId, QString operation);
-   void submitLauncherJob(const QJsonObject& job);
-   void getJobContainerUser();
-   void validateJobsConfig();
-   int getProxyPortNumber();
-
-   void signOut();
+   int getDisplayDpi();
 
 private:
    Synctex& synctex();
+
    void activateAndFocusOwner();
 
 private:
    void doAction(const QKeySequence& keys);
    void doAction(QKeySequence::StandardKey key);
    MainWindow* pMainWindow_;
-   GwtWindow* pOwner_;
-   JobLauncher* pLauncher_;
-   bool isRemoteDesktop_;
+   GwtCallbackOwner* pOwner_;
    Synctex* pSynctex_;
    int pendingQuit_;
-   QString printText_;
 #ifdef Q_OS_WIN32
-   // viewers for Office file formats
    WordViewer wordViewer_;
-   PowerpointViewer pptViewer_;
 #endif
 
 };

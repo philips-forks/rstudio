@@ -1,7 +1,7 @@
 /*
  * ServerAuthHandler.hpp
  *
- * Copyright (C) 2009-12 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -20,11 +20,9 @@
 
 #include <boost/function.hpp>
 
-#include <core/ExponentialBackoff.hpp>
 #include <core/http/UriHandler.hpp>
+#include <core/system/PosixUser.hpp>
 #include <core/http/AsyncUriHandler.hpp>
-
-#include <shared_core/json/Json.hpp>
 
 #include <server/auth/ServerSecureUriHandler.hpp>
 
@@ -39,11 +37,10 @@ extern const char * const kSignOut;
 extern const char * const kRefreshCredentialsAndContinue;
 
 // functions which can be called on the handler directly
-std::string getUserIdentifier(const core::http::Request& request,
-                              bool requireUserListCookie,
-                              core::http::Response* pResponse);
+std::string getUserIdentifier(const core::http::Request& request);
 
 std::string userIdentifierToLocalUsername(const std::string& userIdentifier);
+bool addUserToLocal(std::string userInfo, std::string& xUserName);
 
 bool mainPageFilter(const core::http::Request& request,
                     core::http::Response* pResponse);
@@ -63,10 +60,10 @@ void refreshCredentialsThenContinue(
 // functions which must be provided by an auth handler
 struct Handler
 {
-   boost::function<std::string(const core::http::Request&,
-                               core::http::Response*)> getUserIdentifier;
+   boost::function<std::string(const core::http::Request&)> getUserIdentifier;
    boost::function<std::string(const std::string&)>
                                                 userIdentifierToLocalUsername;
+   boost::function<bool(std::string, std::string&)> addUserToLocal;
    core::http::UriFilterFunction mainPageFilter;
    core::http::UriHandlerFunction signInThenContinue;
    core::http::AsyncUriHandlerFunction refreshCredentialsThenContinue;
@@ -78,19 +75,6 @@ struct Handler
                         const std::string&,
                         bool,
                         core::http::Response*)> setSignInCookies;
-
-   boost::function<void(const core::http::Request&,
-                        const std::string&,
-                        bool,
-                        core::http::Response*)> refreshAuthCookies;
-};
-
-struct RevokedCookie
-{
-   RevokedCookie(const std::string& cookie);
-
-   std::string cookie;
-   boost::posix_time::ptime expiration;
 };
 
 // register the auth handler
@@ -109,40 +93,6 @@ void setSignInCookies(const core::http::Request& request,
 // sign out
 void signOut(const core::http::Request& request,
              core::http::Response* pResponse);
-
-// checks whether the user is attempting to sign in again too rapidly
-// used to prevent inordinate generation of expired tokens
-bool isUserSignInThrottled(const std::string& user);
-
-void insertRevokedCookie(const RevokedCookie& cookie);
-
-// refreshes the auth cookie silently (without user intervention)
-// invoked when the user performs an active action against the system
-// which "resets" his idle time, generating a new auth cookie
-void refreshAuthCookies(const std::string& userIdentifier,
-                        const core::http::Request& request,
-                        core::http::Response* pResponse);
-
-void invalidateAuthCookie(const std::string& cookie,
-                          core::ExponentialBackoffPtr backoffPtr = core::ExponentialBackoffPtr());
-
-core::Error initialize();
-
-namespace overlay {
-
-core::Error initialize();
-bool canStaySignedIn();
-core::Error isUserLicensed(const std::string& username,
-                           bool* pLicensed);
-bool isUserListCookieValid(const std::string& cookieValue);
-bool shouldShowUserLicenseWarning();
-std::string getUserListCookieValue();
-unsigned int getActiveUserCount();
-core::json::Array getLicensedUsers();
-core::Error lockUser(boost::asio::io_service& ioService, const std::string& username);
-core::Error unlockUser(boost::asio::io_service& ioService, const std::string& username);
-
-} // namespace overlay
 
 } // namespace handler
 } // namespace auth

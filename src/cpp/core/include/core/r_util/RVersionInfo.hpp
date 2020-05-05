@@ -1,7 +1,7 @@
 /*
  * RVersionInfo.hpp
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -22,7 +22,7 @@
 #include <boost/regex.hpp>
 
 #include <core/RegexUtils.hpp>
-#include <shared_core/SafeConvert.hpp>
+#include <core/SafeConvert.hpp>
 
 #define kRVersionDefault   "Default"
 
@@ -74,12 +74,8 @@ public:
    {
    }
 
-   RVersionNumber(int major, int minor, int patch)
-      : versionMajor_(major), versionMinor_(minor), versionPatch_(patch)
-   {
-   }
 public:
-   bool empty() const { return versionMajor_ == 0; }
+   bool empty() const { return versionMajor_ != 0; }
 
    int versionMajor() const { return versionMajor_; }
    int versionMinor() const { return versionMinor_; }
@@ -118,6 +114,7 @@ inline std::ostream& operator<<(std::ostream& os, const RVersionNumber& ver)
    os << ver.versionMajor() << "." << ver.versionMinor() << "." << ver.versionPatch();
    return os;
 }
+
 
 } // namespace r_util
 } // namespace core 

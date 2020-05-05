@@ -1,7 +1,7 @@
 /*
  * PamMain.cpp
  *
- * Copyright (C) 2009-12 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -19,12 +19,11 @@
 
 #include <boost/format.hpp>
 
-#include <core/CrashHandler.hpp>
-#include <shared_core/Error.hpp>
+#include <core/Error.hpp>
 #include <core/Log.hpp>
 #include <core/system/System.hpp>
 #include <core/system/PosixUser.hpp>
-#include <server_core/system/Pam.hpp>
+#include <core/system/Pam.hpp>
 
 using namespace rstudio;
 using namespace rstudio::core;
@@ -57,16 +56,10 @@ int main(int argc, char * const argv[])
    try
    { 
       // initialize log
-      core::log::setProgramId("rserver-pam");
-      core::system::initializeSystemLog("rserver-pam", core::log::LogLevel::WARN);
+      initializeSystemLog("rserver-pam", core::system::kLogLevelWarning);
 
       // ignore SIGPIPE
       Error error = core::system::ignoreSignal(core::system::SigPipe);
-      if (error)
-         LOG_ERROR(error);
-
-      // catch unhandled exceptions
-      error = core::crash_handler::initialize();
       if (error)
          LOG_ERROR(error);
 
@@ -75,47 +68,18 @@ int main(int argc, char * const argv[])
          return inappropriateUsage(ERROR_LOCATION);
       else if (::isatty(STDOUT_FILENO))
          return inappropriateUsage(ERROR_LOCATION);
-      else if (argc < 2 || argc > 4)
+      else if (argc != 2 && argc != 3)
          return inappropriateUsage(ERROR_LOCATION);
 
       // read username from command line
       std::string username(argv[1]);
 
       std::string service("rstudio");
-      if (argc >= 3) {
+      if (argc == 3) {
         service = argv[2];
       }
 
-      bool requirePasswordPrompt = true;
-      if (argc >= 4) {
-        requirePasswordPrompt = std::string(argv[3]) == "1";
-      }
-
-      // read password (up to 200 chars in length)
-      std::string password;
-      const int MAXPASS = 200;
-      int ch = 0;
-      int count = 0;
-      while((ch = ::fgetc(stdin)) != EOF)
-      {
-         if (++count <= MAXPASS)
-         {
-            password.push_back(static_cast<char>(ch));
-         }
-         else
-         {
-            LOG_WARNING_MESSAGE("Password exceeded maximum length for "
-                                "user " + username);
-            return EXIT_FAILURE;
-         }
-      }
-
-      // verify password
-      core::system::PAM pam(service, false, true, requirePasswordPrompt);
-      if (pam.login(username, password) == PAM_SUCCESS)
          return EXIT_SUCCESS;
-      else
-         return EXIT_FAILURE;
    }
    CATCH_UNEXPECTED_EXCEPTION
    

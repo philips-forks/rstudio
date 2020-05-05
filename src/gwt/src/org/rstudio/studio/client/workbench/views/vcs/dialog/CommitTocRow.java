@@ -1,7 +1,7 @@
 /*
  * CommitTocRow.java
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -36,7 +36,9 @@ public class CommitTocRow extends Composite implements HasClickHandlers
 
    public CommitTocRow(String filename)
    {
-      icon_ = RStudioGinjector.INSTANCE.getFileTypeRegistry().getIconForFilename(filename).getImage();
+      icon_ = new Image(
+            RStudioGinjector.INSTANCE.getFileTypeRegistry().getIconForFilename(
+                                                                     filename));
       icon_.addStyleName(ThemeStyles.INSTANCE.handCursor());
       anchor_ = new Anchor(filename);
       anchor_.addStyleName(ThemeStyles.INSTANCE.handCursor());
@@ -58,5 +60,5 @@ public class CommitTocRow extends Composite implements HasClickHandlers
    @UiField(provided = true)
    Anchor anchor_;
 
-   private static final MyBinder binder_ = GWT.create(MyBinder.class);
+   private static final MyBinder binder_ = GWT.<MyBinder>create(MyBinder.class);
 }

@@ -1,7 +1,7 @@
 /*
  * SVNReviewPresenter.java
  *
- * Copyright (C) 2009-12 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -225,7 +225,7 @@ public class SVNReviewPresenter implements ReviewPresenter
 
                   StatusAndPath vcsStatus = StatusAndPath.fromInfo(
                         event.getFileChange().getFile().getSVNStatus());
-                  if (paths.get(0).getRawPath() == vcsStatus.getRawPath())
+                  if (paths.get(0).getRawPath().equals(vcsStatus.getRawPath()))
                   {
                      svnState.refresh(false);
                   }
@@ -377,7 +377,7 @@ public class SVNReviewPresenter implements ReviewPresenter
 
       final StatusAndPath item = paths.get(0);
 
-      if (item.getPath() != currentFilename_)
+      if (!item.getPath().equals(currentFilename_))
       {
          clearDiff();
          currentFilename_ = item.getPath();
@@ -405,7 +405,7 @@ public class SVNReviewPresenter implements ReviewPresenter
                   String response = diffResult.getDecodedValue();
 
                   // Use lastResponse_ to prevent unnecessary flicker
-                  if (response == currentResponse_)
+                  if (response.equals(currentResponse_))
                      return;
                   currentResponse_ = response;
                   currentEncoding_ = diffResult.getSourceEncoding();

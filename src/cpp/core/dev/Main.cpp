@@ -1,7 +1,7 @@
 /*
  * Main.cpp
  *
- * Copyright (C) 2009-12 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -18,7 +18,7 @@
 
 #include <boost/test/minimal.hpp>
 
-#include <shared_core/Error.hpp>
+#include <core/Error.hpp>
 #include <core/Log.hpp>
 #include <core/system/System.hpp>
 
@@ -33,9 +33,7 @@ int test_main(int argc, char * argv[])
    try
    { 
       // setup log
-      log::setLogLevel(log::LogLevel::WARN);
-      log::setProgramId("coredev")
-      system::initializeStderrLog("coredev", log::LogLevel::WARN);
+      initializeStderrLog("coredev", core::system::kLogLevelWarning);
 
       // ignore sigpipe
       Error error = core::system::ignoreSignal(core::system::SigPipe);

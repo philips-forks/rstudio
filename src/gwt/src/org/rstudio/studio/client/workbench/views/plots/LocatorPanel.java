@@ -1,7 +1,7 @@
 /*
  * LocatorPanel.java
  *
- * Copyright (C) 2009-12 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -67,9 +67,8 @@ public class LocatorPanel extends LayoutPanel
             int x = event.getNativeEvent().getClientX();
             int y = event.getNativeEvent().getClientY();
 
-            Point p = Point.create(
-                  x - el.getAbsoluteLeft(),
-                  y - el.getAbsoluteTop());
+            Point p = new Point(
+                  x - el.getAbsoluteLeft(), y - el.getAbsoluteTop());
 
             showFeedbackAt(p);
 
@@ -84,7 +83,7 @@ public class LocatorPanel extends LayoutPanel
    public void showLocator(Plots.Parent parent)
    {
       // set parent 
-      parent_ = parent;
+      parent_ = parent ;
       
       // add to parent
       parent_.add(this);

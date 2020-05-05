@@ -1,7 +1,7 @@
 /*
  * GlobalToolbar.java
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -14,7 +14,6 @@
  */
 package org.rstudio.studio.client.application.ui;
 
-import org.rstudio.core.client.ElementIds;
 import org.rstudio.core.client.resources.ImageResource2x;
 import org.rstudio.core.client.theme.res.ThemeResources;
 import org.rstudio.core.client.widget.CanFocus;
@@ -22,8 +21,8 @@ import org.rstudio.core.client.widget.FocusContext;
 import org.rstudio.core.client.widget.FocusHelper;
 import org.rstudio.core.client.widget.Toolbar;
 import org.rstudio.core.client.widget.ToolbarButton;
-import org.rstudio.core.client.widget.ToolbarMenuButton;
 import org.rstudio.core.client.widget.ToolbarPopupMenu;
+import org.rstudio.studio.client.application.events.EventBus;
 import org.rstudio.studio.client.application.ui.addins.AddinsToolbarButton;
 import org.rstudio.studio.client.common.icons.StandardIcons;
 import org.rstudio.studio.client.common.vcs.VCSConstants;
@@ -32,6 +31,7 @@ import org.rstudio.studio.client.workbench.commands.Commands;
 import org.rstudio.studio.client.workbench.model.SessionInfo;
 
 import com.google.gwt.core.client.Scheduler;
+import com.google.gwt.core.client.Scheduler.ScheduledCommand;
 import com.google.gwt.resources.client.ImageResource;
 import com.google.gwt.user.client.ui.Widget;
 import com.google.inject.Provider;
@@ -40,9 +40,10 @@ import com.google.inject.Provider;
 public class GlobalToolbar extends Toolbar
 {
    public GlobalToolbar(Commands commands, 
+                        EventBus eventBus,
                         Provider<CodeSearch> pCodeSearch)
    {
-      super("Main");
+      super();
       
       commands_ = commands;
       pCodeSearch_ = pCodeSearch;
@@ -58,14 +59,9 @@ public class GlobalToolbar extends Toolbar
       newMenu_.addSeparator();
       newMenu_.addItem(commands.newRMarkdownDoc().createMenuItem(false));
       newMenu_.addItem(commands.newRShinyApp().createMenuItem(false));
-      newMenu_.addItem(commands.newRPlumberDoc().createMenuItem(false));
       newMenu_.addSeparator();
       newMenu_.addItem(commands.newTextDoc().createMenuItem(false));
       newMenu_.addItem(commands.newCppDoc().createMenuItem(false));
-      newMenu_.addItem(commands.newPythonDoc().createMenuItem(false));
-      newMenu_.addItem(commands.newSqlDoc().createMenuItem(false));
-      newMenu_.addItem(commands.newStanDoc().createMenuItem(false));
-      newMenu_.addItem(commands.newD3Doc().createMenuItem(false));
       newMenu_.addSeparator();
       newMenu_.addItem(commands.newSweaveDoc().createMenuItem(false));
       newMenu_.addItem(commands.newRHTMLDoc().createMenuItem(false));
@@ -74,12 +70,10 @@ public class GlobalToolbar extends Toolbar
       
       // create and add new menu
       StandardIcons icons = StandardIcons.INSTANCE;
-      newButton_ = new ToolbarMenuButton(ToolbarButton.NoText,
-                                                          "New File",
-                                                          new ImageResource2x(icons.stock_new2x()),
-                                                          newMenu_);
-      ElementIds.assignElementId(newButton_, ElementIds.NEW_FILE_MENUBUTTON);
-      addLeftWidget(newButton_);
+      ToolbarButton newButton = new ToolbarButton("",
+                                                  new ImageResource2x(icons.stock_new2x()),
+                                                  newMenu_);
+      addLeftWidget(newButton);
       addLeftSeparator();
       
       addLeftWidget(commands.newProject().createToolbarButton());
@@ -107,14 +101,12 @@ public class GlobalToolbar extends Toolbar
       mruMenu.addSeparator();
       mruMenu.addItem(commands.clearRecentFiles().createMenuItem(false));
       
-      ToolbarMenuButton mruButton = new ToolbarMenuButton(ToolbarButton.NoText, 
-                                                          "Open recent files", 
-                                                          mruMenu, 
-                                                          false);
-      ElementIds.assignElementId(mruButton, ElementIds.OPEN_MRU_MENUBUTTON);
+      ToolbarButton mruButton = new ToolbarButton(mruMenu, false);
+      mruButton.setTitle("Open recent files");
       addLeftWidget(mruButton);
       addLeftSeparator();
-
+      
+      
       addLeftWidget(commands.saveSourceDoc().createToolbarButton());
       addLeftWidget(commands.saveAllSourceDocs().createToolbarButton());
       addLeftSeparator();
@@ -123,19 +115,32 @@ public class GlobalToolbar extends Toolbar
       
       addLeftSeparator();
       CodeSearch codeSearch = pCodeSearch_.get();
-      codeSearch.setObserver(new CodeSearch.Observer()
-      {
+      codeSearch.setObserver(new CodeSearch.Observer() {     
          @Override
          public void onCancel()
          {
             // Experimental workaround for crashes observed on El Capitan
-            Scheduler.get().scheduleFinally(() -> codeSearchFocusContext_.restore());
+            Scheduler.get().scheduleFinally(new ScheduledCommand()
+            {
+               @Override
+               public void execute()
+               {
+                  codeSearchFocusContext_.restore();
+               }
+            });
          }
          
          @Override
          public void onCompleted()
          {
-            Scheduler.get().scheduleFinally(() -> codeSearchFocusContext_.clear());
+            Scheduler.get().scheduleFinally(new ScheduledCommand()
+            {
+               @Override
+               public void execute()
+               {
+                  codeSearchFocusContext_.clear();
+               }
+            });
          }
          
          @Override
@@ -176,17 +181,16 @@ public class GlobalToolbar extends Toolbar
          vcsMenu.addItem(commands_.versionControlProjectSetup().createMenuItem(false));
       
          ImageResource vcsIcon = null;
-         if (sessionInfo.getVcsName() == VCSConstants.GIT_ID)
+         if (sessionInfo.getVcsName().equals(VCSConstants.GIT_ID))
             vcsIcon = new ImageResource2x(icons.git2x());
-         else if (sessionInfo.getVcsName() == VCSConstants.SVN_ID)
+         else if (sessionInfo.getVcsName().equals(VCSConstants.SVN_ID))
             vcsIcon = new ImageResource2x(icons.svn2x());
          
-         ToolbarMenuButton vcsButton = new ToolbarMenuButton(
-               ToolbarButton.NoText,
-               "Version control",
+         ToolbarButton vcsButton = new ToolbarButton(
+               null,
                vcsIcon, 
                vcsMenu);
-         ElementIds.assignElementId(vcsButton, ElementIds.VCS_MENUBUTTON);
+         vcsButton.setTitle("Version control");
          addLeftWidget(vcsButton);
       }
       
@@ -217,24 +221,21 @@ public class GlobalToolbar extends Toolbar
       paneLayoutMenu.addItem(commands_.layoutZoomConnections().createMenuItem(false));
       
       ImageResource paneLayoutIcon = new ImageResource2x(ThemeResources.INSTANCE.paneLayoutIcon2x());
-      ToolbarMenuButton paneLayoutButton = new ToolbarMenuButton(
-            ToolbarButton.NoText,
-            "Workspace Panes",
+      ToolbarButton paneLayoutButton = new ToolbarButton(
+            null,
             paneLayoutIcon,
             paneLayoutMenu);
-      ElementIds.assignElementId(paneLayoutButton, ElementIds.PANELAYOUT_MENUBUTTON);
+      paneLayoutButton.setTitle("Workspace Panes");
+      
       addLeftWidget(paneLayoutButton);
       
       // addins menu
       addLeftWidget(new AddinsToolbarButton());
       
       // project popup menu
-      if (sessionInfo.getAllowFullUI())
-      {
-         ProjectPopupMenu projectMenu = new ProjectPopupMenu(
-               sessionInfo, commands_, ElementIds.PROJECT_MENUBUTTON_TOOLBAR_SUFFIX);
-         addRightWidget(projectMenu.getToolbarButton());
-      }
+      ProjectPopupMenu projectMenu = new ProjectPopupMenu(sessionInfo,
+                                                          commands_);
+      addRightWidget(projectMenu.getToolbarButton());
    }
    
    @Override
@@ -249,14 +250,8 @@ public class GlobalToolbar extends Toolbar
       FocusHelper.setFocusDeferred((CanFocus)searchWidget_);
    }
      
-   public void setFocus()
-   {
-      Scheduler.get().scheduleDeferred(() -> newButton_.setFocus(true));
-   }
-   
    private final Commands commands_;
    private final ToolbarPopupMenu newMenu_;
-   private final ToolbarMenuButton newButton_;
    private final Provider<CodeSearch> pCodeSearch_;
    private final Widget searchWidget_;
    private final FocusContext codeSearchFocusContext_ = new FocusContext();

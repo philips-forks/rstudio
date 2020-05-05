@@ -1,7 +1,7 @@
 /*
  * ChooseFile.java
  *
- * Copyright (C) 2009-12 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -50,50 +50,34 @@ public class ChooseFile implements ChooseFileHandler
    
    public void onChooseFile(ChooseFileEvent event)
    {
-      ProgressOperationWithInput<FileSystemItem> operation =
+      fileDialogs_.openFile(
+            "Choose File",
+            fsContext_,
+            workbenchContext_.getCurrentWorkingDir(),
             new ProgressOperationWithInput<FileSystemItem>()
-      {
-         public void execute(FileSystemItem input,
-                             ProgressIndicator progress)
-         {
-            String message, path;
-            if (input != null)
             {
-               message = "Saving...";
-               path = input.getPath();
-            }
-            else
-            {
-               message = "Cancelling...";
-               path = null;
-            }
-
-            progress.onProgress(message);
-            server_.chooseFileCompleted(
-                  path,
-                  new VoidServerRequestCallback(
-                        progress));
-         }
-      };
-      
-      if (event.getNewFile())
-      {
-         fileDialogs_.saveFile(
-               "Choose File",
-               fsContext_,
-               workbenchContext_.getCurrentWorkingDir(),
-               "",
-               false,
-               operation);
-      }
-      else
-      {
-         fileDialogs_.openFile(
-               "Choose File",
-               fsContext_,
-               workbenchContext_.getCurrentWorkingDir(),
-               operation);
-      }
+               public void execute(FileSystemItem input,
+                                   ProgressIndicator progress)
+               {
+                  String message, path;
+                  if (input != null)
+                  {
+                     message = "Saving...";
+                     path = input.getPath();
+                  }
+                  else
+                  {
+                     message = "Cancelling...";
+                     path = null;
+                  }
+                  
+                  progress.onProgress(message);
+                  server_.chooseFileCompleted(
+                        path,
+                        new VoidServerRequestCallback(
+                              progress));
+               }
+            });
    }
    
    private final ChooseFileServerOperations server_;

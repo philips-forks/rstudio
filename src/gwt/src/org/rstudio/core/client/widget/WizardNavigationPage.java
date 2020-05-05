@@ -1,7 +1,7 @@
 /*
  * WizardNavigationPage.java
  *
- * Copyright (C) 2009-12 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -24,7 +24,7 @@ public class WizardNavigationPage<I,T> extends WizardPage<I,T>
 {
    public interface WizardNavigationPageProducer<I,T>
    {
-      Widget createMainWidget(ArrayList<WizardPage<I,T>> pages);
+      public Widget createMainWidget(ArrayList<WizardPage<I,T>> pages);
    }
    
    public WizardNavigationPage(String title,
@@ -40,9 +40,16 @@ public class WizardNavigationPage<I,T> extends WizardPage<I,T>
            image,
            largeImage,
            pages,
-           pages1 -> new WizardPageSelector<I, T>(pages1));
+           new WizardNavigationPageProducer<I, T>()
+           {
+              @Override
+              public Widget createMainWidget(ArrayList<WizardPage<I, T>> pages)
+              {
+                 return new WizardPageSelector<I, T>(pages);
+              }
+           });
    }
-
+   
    public WizardNavigationPage(String title,
                                String subTitle,
                                String pageCaption,

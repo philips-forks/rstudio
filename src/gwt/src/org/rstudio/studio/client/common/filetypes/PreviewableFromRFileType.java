@@ -1,7 +1,7 @@
 /*
  * PreviewableFromRFileType.java
  *
- * Copyright (C) 2009-12 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -29,12 +29,11 @@ public class PreviewableFromRFileType extends TextFileType
                                    EditorLanguage editorLanguage,
                                    String defaultExtension,
                                    ImageResource icon,
-                                   String previewFunction,
-                                   boolean canShowScopeTree)
+                                   String previewFunction)
    {
       super(id, label, editorLanguage, defaultExtension, icon,
             true, true, false, false, false, false, 
-            false, false, false, false, false, canShowScopeTree, true);
+            false, false, false, false, false, false, true);
       
       previewFunction_ = previewFunction;
    }

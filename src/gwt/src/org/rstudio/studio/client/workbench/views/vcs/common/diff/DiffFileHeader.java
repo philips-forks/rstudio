@@ -1,7 +1,7 @@
 /*
  * DiffFileHeader.java
  *
- * Copyright (C) 2009-12 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -29,12 +29,12 @@ public class DiffFileHeader
 
    public String getDescription()
    {
-      if (oldFile_ == newFile_)
+      if (oldFile_.equals(newFile_))
          return oldFile_;
 
-      if (oldFile_ == "/dev/null")
+      if (oldFile_.equals("/dev/null"))
          return newFile_;
-      if (newFile_ == "/dev/null")
+      if (newFile_.equals("/dev/null"))
          return oldFile_;
       return oldFile_ + " => " + newFile_;
    }

@@ -1,7 +1,7 @@
 /*
  * RVersionSpec.java
  *
- * Copyright (C) 2009-13 by RStudio, PBC
+ * Copyright (C) 2009-13 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -14,27 +14,32 @@
  */
 package org.rstudio.studio.client.application.model;
 
-import org.rstudio.studio.client.workbench.prefs.model.UserPrefsAccessor.DefaultRVersion;
-
+import com.google.gwt.core.client.JavaScriptObject;
 import com.google.gwt.core.client.JsArray;
 
-public class RVersionSpec extends DefaultRVersion
+public class RVersionSpec extends JavaScriptObject
 {
    protected RVersionSpec() {}
  
    public final static RVersionSpec createEmpty()
    {
-      return create("","","");
+      return create("","");
    }
    
    public final static native RVersionSpec create(String version, 
-                                                  String rHome,
-                                                  String label) /*-{
+                                                  String rHome) /*-{
       return {
          version: version,
-         r_home: rHome,
-         label: label
+         r_home: rHome
       };
+   }-*/;                               
+   
+   public final native String getVersion() /*-{
+      return this.version;
+   }-*/;
+
+   public final native String getRHome() /*-{
+      return this.r_home;
    }-*/;
    
    public static boolean hasDuplicates(JsArray<RVersionSpec> rVersions)
@@ -43,8 +48,8 @@ public class RVersionSpec extends DefaultRVersion
       {
          for (int j = 0; j<rVersions.length(); j++)
          {
-            if (i != j && rVersions.get(i).getVersion() == rVersions.get(j).getVersion()
-                       && rVersions.get(i).getLabel()   == rVersions.get(j).getLabel())
+            if (i != j && rVersions.get(i).getVersion().equals(
+                          rVersions.get(j).getVersion())) 
                return true;
          }
       }

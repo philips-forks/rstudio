@@ -1,7 +1,7 @@
 /*
  * MathJaxLoader.java
  *
- * Copyright (C) 2009-16 by RStudio, PBC
+ * Copyright (C) 2009-16 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -34,6 +34,7 @@ public class MathJaxLoader
    
    public MathJaxLoader()
    {
+      ensureMathJaxLoaded();
    }
    
    public static boolean isMathJaxLoaded()

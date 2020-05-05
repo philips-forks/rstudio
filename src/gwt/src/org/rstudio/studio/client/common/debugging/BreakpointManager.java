@@ -1,7 +1,7 @@
 /*
  * BreakpointManager.java
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -35,7 +35,6 @@ import org.rstudio.studio.client.common.debugging.model.Breakpoint;
 import org.rstudio.studio.client.common.debugging.model.BreakpointState;
 import org.rstudio.studio.client.common.debugging.model.FunctionState;
 import org.rstudio.studio.client.common.debugging.model.FunctionSteps;
-import org.rstudio.studio.client.common.satellite.Satellite;
 import org.rstudio.studio.client.server.ServerError;
 import org.rstudio.studio.client.server.ServerRequestCallback;
 import org.rstudio.studio.client.server.Void;
@@ -138,14 +137,14 @@ public class BreakpointManager
             path, 
             "toplevel", 
             lineNumber, 
-            path == activeSource_ ? 
+            path.equals(activeSource_) ? 
                   Breakpoint.STATE_INACTIVE :
                   Breakpoint.STATE_ACTIVE, 
             Breakpoint.TYPE_TOPLEVEL));
       
       // If we're actively sourcing this file, we can't set breakpoints in 
       // it just yet
-      if (path == activeSource_)
+      if (path.equals(activeSource_))
          breakpoint.setPendingDebugCompletion(true);
 
       notifyServer(breakpoint, true, true);
@@ -389,12 +388,9 @@ public class BreakpointManager
          CallFrame frame = frames.get(idx);
          String functionName = frame.getFunctionName();
          String fileName = frame.getFileName();
-         if (functionName == ".doTrace" &&
-             event.isServerInitiated() && 
-             !Satellite.isCurrentWindowSatellite())
+         if (functionName.equals(".doTrace") &&
+             event.isServerInitiated())
          {
-            // Only perform the step from the main window (otherwise multiple
-            // step commands will be emitted from each satellite)
             events_.fireEvent(new SendToConsoleEvent(
                   DebugCommander.NEXT_COMMAND, true));
          }
@@ -663,8 +659,8 @@ public class BreakpointManager
             {
                for (Breakpoint possibleDupe: breakpoints_)
                {
-                  if (breakpoint.getPath() ==
-                         possibleDupe.getPath() &&
+                  if (breakpoint.getPath().equals(
+                         possibleDupe.getPath()) &&
                       steps.getLineNumber() == 
                          possibleDupe.getLineNumber() &&
                       breakpoint.getBreakpointId() != 
@@ -722,7 +718,7 @@ public class BreakpointManager
       for (Breakpoint breakpoint: breakpoints_)
       {
          if (breakpoint.isPackageBreakpoint() &&
-             breakpoint.getPackageName() == packageName)
+             breakpoint.getPackageName().equals(packageName))
          {
             if (enable)
             {
@@ -808,7 +804,7 @@ public class BreakpointManager
          if (breakpoint.isPendingDebugCompletion() &&
              breakpoint.getState() == Breakpoint.STATE_INACTIVE &&
              breakpoint.getType() == Breakpoint.TYPE_TOPLEVEL &&
-             breakpoint.getPath() == path)
+             breakpoint.getPath().equals(path))
          {
             // If this is a top-level breakpoint in the file that we 
             // just finished sourcing, activate the breakpoint.
@@ -854,18 +850,18 @@ public class BreakpointManager
       
       public boolean containsBreakpoint(Breakpoint breakpoint)
       {
-         if (breakpoint.getFunctionName() != functionName)
+         if (!breakpoint.getFunctionName().equals(functionName))
          {
             return false;
          }
          if (fullPath)
          {
-            return breakpoint.getPath() == fileName;
+            return breakpoint.getPath().equals(fileName);
          }
          else
          {
-            return FilePathUtils.friendlyFileName(breakpoint.getPath()) ==
-                  FilePathUtils.friendlyFileName(fileName);
+            return FilePathUtils.friendlyFileName(breakpoint.getPath()).equals(
+                  FilePathUtils.friendlyFileName(fileName));
          }  
       }
       

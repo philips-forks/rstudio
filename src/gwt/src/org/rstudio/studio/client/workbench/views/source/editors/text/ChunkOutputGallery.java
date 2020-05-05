@@ -1,7 +1,7 @@
 /*
  * ChunkOutputGallery.java
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-16 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -219,17 +219,6 @@ public class ChunkOutputGallery extends Composite
    }
    
    @Override
-   public boolean hasHtmlWidgets()
-   {
-      for (ChunkOutputPage page: pages_)
-      {
-         if (page instanceof ChunkHtmlPage)
-            return true;
-      }
-      return false;
-   }
-
-   @Override
    public boolean hasErrors()
    {
       if (console_ != null)
@@ -416,7 +405,7 @@ public class ChunkOutputGallery extends Composite
                if (dir != 0)
                   navigateActivePage(dir);
                break;
-            }
+            };
          }
       });
    }

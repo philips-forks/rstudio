@@ -1,7 +1,7 @@
 /*
  * SessionProjects.hpp
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -21,16 +21,17 @@
 
 #include <boost/utility.hpp>
 #include <boost/shared_ptr.hpp>
+#include <boost/foreach.hpp>
+#include <boost/signals.hpp>
 
-#include <core/BoostSignals.hpp>
 #include <core/FileInfo.hpp>
-#include <shared_core/FilePath.hpp>
+#include <core/FilePath.hpp>
 #include <core/Settings.hpp>
 
 #include <core/system/FileMonitor.hpp>
 #include <core/system/FileChangeEvent.hpp>
 
-#include <shared_core/json/Json.hpp>
+#include <core/json/Json.hpp>
 
 #include <core/collection/Tree.hpp>
 
@@ -50,13 +51,6 @@ struct FileMonitorCallbacks
    boost::function<void(
          const std::vector<core::system::FileChangeEvent>&)> onFilesChanged;
    boost::function<void()> onMonitoringDisabled;
-};
-
-// file monitor ignore context
-struct FileMonitorFilterContext
-{
-   std::vector<std::string> ignoredComponents;
-   bool ignoreObjectFiles;
 };
 
 // vcs options
@@ -91,43 +85,30 @@ class ProjectContext : boost::noncopyable
 {
 public:
    ProjectContext()
-      : isNewProject_(false),
-        hasFileMonitor_(false)
+      : hasFileMonitor_(false)
    {
    }
-   
    virtual ~ProjectContext() {}
 
    core::Error startup(const core::FilePath& projectFile,
-                       std::string* pUserErrMsg);
+                       std::string* pUserErrMsg,
+                       bool* pIsNewProject);
 
    core::Error initialize();
 
+public:
    // these functions can be called even when there is no project
-   bool hasProject() const { return !file_.isEmpty(); }
-   
-   // Path to the .RProj file representing the project
+   bool hasProject() const { return !file_.empty(); }
+
    const core::FilePath& file() const { return file_; }
-
-   // Path to the directory in which the project resides
    const core::FilePath& directory() const { return directory_; }
-
-   // Path to the project user scratch path; user-specific and stored in .Rproj.user
    const core::FilePath& scratchPath() const { return scratchPath_; }
-
-   // Path to storage shared among users; stored in .Rproj.user
-   const core::FilePath& sharedScratchPath() const { return sharedScratchPath_; }
-
-   // Path to external user and project-specific storage folder outside .Rproj.user (in e.g.
-   // .rstudio or .rstudio-desktop)
-   const core::FilePath& externalStoragePath() const { return storagePath_; }
+   const core::FilePath& sharedScratchPath() const 
+   { 
+      return sharedScratchPath_; 
+   }
 
    core::FilePath oldScratchPath() const;
-   core::FilePath websitePath() const;
-
-   // return website path containing given file, or empty path if not
-   // part of a website
-   core::FilePath fileUnderWebsitePath(const core::FilePath& file) const;
 
    const core::r_util::RProjectConfig& config() const { return config_; }
    void setConfig(const core::r_util::RProjectConfig& config)
@@ -136,11 +117,7 @@ public:
       updateDefaultEncoding();
       updateBuildTargetPath();
       updatePackageInfo();
-      onConfigChanged();
    }
-
-   // signal emitted when config changes
-   RSTUDIO_BOOST_SIGNAL<void()> onConfigChanged;
 
    core::Error readVcsOptions(RProjectVcsOptions* pOptions) const;
    core::Error writeVcsOptions(const RProjectVcsOptions& options) const;
@@ -170,7 +147,7 @@ public:
    core::json::Array openDocs() const;
 
    // current build options (note that these are not synchronized
-   // across processes!)
+   // accross processes!)
    const RProjectBuildOptions& buildOptions() const
    {
       return buildOptions_;
@@ -181,11 +158,7 @@ public:
       return packageInfo_;
    }
    
-   // is this an R package project?
    bool isPackageProject();
-   
-   // is this a new project? (ie: has not been opened or initialized before)
-   bool isNewProject() const { return isNewProject_; }
 
    // does this project context have a file monitor? (might not have one
    // if the user has disabled code indexing or if file monitoring failed
@@ -224,8 +197,6 @@ private:
    void fileMonitorFilesChanged(
                    const std::vector<core::system::FileChangeEvent>& events);
    void fileMonitorTermination(const core::Error& error);
-   bool fileMonitorFilter(const core::FileInfo& fileInfo,
-                          const FileMonitorFilterContext& context) const;
 
    core::FilePath vcsOptionsFilePath() const;
    core::Error buildOptionsFile(core::Settings* pOptionsFile) const;
@@ -241,20 +212,18 @@ private:
    core::FilePath directory_;
    core::FilePath scratchPath_;
    core::FilePath sharedScratchPath_;
-   core::FilePath storagePath_;
    core::r_util::RProjectConfig config_;
    std::string defaultEncoding_;
    core::FilePath buildTargetPath_;
    RProjectBuildOptions buildOptions_;
    core::r_util::RPackageInfo packageInfo_;
-   bool isNewProject_;
 
    bool hasFileMonitor_;
    std::vector<std::string> monitorSubscribers_;
-   RSTUDIO_BOOST_SIGNAL<void(const tree<core::FileInfo>&)> onMonitoringEnabled_;
-   RSTUDIO_BOOST_SIGNAL<void(const std::vector<core::system::FileChangeEvent>&)>
+   boost::signal<void(const tree<core::FileInfo>&)> onMonitoringEnabled_;
+   boost::signal<void(const std::vector<core::system::FileChangeEvent>&)>
                                                             onFilesChanged_;
-   RSTUDIO_BOOST_SIGNAL<void()> onMonitoringDisabled_;
+   boost::signal<void()> onMonitoringDisabled_;
 };
 
 ProjectContext& projectContext();

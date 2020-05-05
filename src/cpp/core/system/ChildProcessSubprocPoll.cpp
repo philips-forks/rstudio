@@ -1,7 +1,7 @@
 /*
  * ChildProcessSubprocPoll.cpp
  *
- * Copyright (C) 2009-18 by RStudio, PBC
+ * Copyright (C) 2009-17 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -14,6 +14,8 @@
  */
 
 #include "ChildProcessSubprocPoll.hpp"
+
+#include <boost/foreach.hpp>
 
 namespace rstudio {
 namespace core {
@@ -118,10 +120,10 @@ bool ChildProcessSubprocPoll::pollSubproc(boost::posix_time::ptime currentTime)
    hasSubprocess_ = false;
    hasWhitelistSubprocess_ = false;
    std::vector<SubprocInfo> children = subProcCheck_(pid_);
-   for (const SubprocInfo& proc : children)
+   BOOST_FOREACH(SubprocInfo proc, children)
    {
       bool isWhitelistItem = false;
-      for (const auto& whitelistItem : subProcWhitelist_)
+      BOOST_FOREACH(std::string whitelistItem, subProcWhitelist_)
       {
          if (proc.exe == whitelistItem)
          {

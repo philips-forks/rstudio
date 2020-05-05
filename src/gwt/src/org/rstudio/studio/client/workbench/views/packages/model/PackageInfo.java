@@ -1,7 +1,7 @@
 /*
  * PackageInfo.java
  *
- * Copyright (C) 2009-12 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -19,11 +19,6 @@ import com.google.gwt.core.client.JavaScriptObject;
 
 public class PackageInfo extends JavaScriptObject 
 {
-   public static enum Source
-   {
-      Unknown, Base, Custom, CRAN, Bioconductor, GitHub
-   }
-   
    protected PackageInfo()
    {
    }
@@ -36,14 +31,6 @@ public class PackageInfo extends JavaScriptObject
    public final native String getLibrary() /*-{
       return this.library == null ? "" : this.library;
    }-*/;
-   
-   public final native String getLibraryAbsolute() /*-{
-      return this.library_absolute || "";
-   }-*/;
-   
-   public final native int getLibraryIndex() /*-{
-      return this.library_index || 0;
-   }-*/;
 
    public final native String getVersion() /*-{
       return this.version == null ? "" : this.version;
@@ -53,16 +40,8 @@ public class PackageInfo extends JavaScriptObject
       return this.desc == null ? "" : this.desc;
    }-*/;
    
-   public final native String getHelpUrl() /*-{
-      return "help/library/" + this.name + "/html/00Index.html";
-   }-*/;
-
-   public final native String getBrowseUrl() /*-{
-      return this.browse_url;
-   }-*/;
-   
-   public final native String getPackageSource() /*-{
-      return this.source;
+   public final native String getUrl() /*-{
+      return this.url;
    }-*/;
    
    public final native boolean isLoaded() /*-{
@@ -107,9 +86,9 @@ public class PackageInfo extends JavaScriptObject
       return getPackratBoolField("currently.used");
    }
 
-   public final boolean isInProjectLibrary()
+   public final boolean getInPackratLibary()
    {
-      return getPackratBoolField("in.project.library");
+      return getPackratBoolField("in.packrat.library");
    }
    
    public final String getSourceLibrary()
@@ -135,5 +114,4 @@ public class PackageInfo extends JavaScriptObject
       packageInfo.loaded = loaded;
       return packageInfo;
    }-*/;
-   
 }

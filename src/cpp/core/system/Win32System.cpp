@@ -1,7 +1,7 @@
 /*
  * Win32System.cpp
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-17 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -27,8 +27,8 @@
 #include <windows.h>
 #include <shlobj.h>
 #include <tlhelp32.h>
-#include <VersionHelpers.h>
 
+#include <boost/foreach.hpp>
 #include <boost/bind.hpp>
 #include <boost/system/windows_error.hpp>
 #include <boost/lexical_cast.hpp>
@@ -38,15 +38,16 @@
 #include <boost/date_time/posix_time/posix_time.hpp>
 
 #include <core/Log.hpp>
+#include <core/LogWriter.hpp>
+#include <core/Error.hpp>
+#include <core/FileLogWriter.hpp>
+#include <core/StderrLogWriter.hpp>
+#include <core/FilePath.hpp>
 #include <core/FileInfo.hpp>
 #include <core/DateTime.hpp>
 #include <core/StringUtils.hpp>
+#include <core/SafeConvert.hpp>
 #include <core/system/Environment.hpp>
-
-#include <shared_core/Error.hpp>
-#include <shared_core/FilePath.hpp>
-#include <shared_core/SafeConvert.hpp>
-#include <shared_core/system/User.hpp>
 
 #ifndef JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE
 #define JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE 0x2000
@@ -60,6 +61,11 @@ namespace core {
 namespace system {
 
 namespace {
+// main log writer
+LogWriter* s_pLogWriter = NULL;
+
+// additional log writers
+std::vector<boost::shared_ptr<LogWriter> > s_logWriters;
 
 Error initJobObject(bool* detachFromJob)
 {
@@ -78,11 +84,9 @@ Error initJobObject(bool* detachFromJob)
    // executable with CREATE_BREAKAWAY_FROM_JOB
    *detachFromJob = false;
 
-   HANDLE hJob = ::CreateJobObject(nullptr, nullptr);
+   HANDLE hJob = ::CreateJobObject(NULL, NULL);
    if (!hJob)
-   {
-      return LAST_SYSTEM_ERROR();
-   }
+      return systemError(::GetLastError(), ERROR_LOCATION);
 
    JOBOBJECT_EXTENDED_LIMIT_INFORMATION jeli = { 0 };
    jeli.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE |
@@ -94,8 +98,8 @@ Error initJobObject(bool* detachFromJob)
 
    if (::AssignProcessToJobObject(hJob, ::GetCurrentProcess()))
    {
-      auto lastErr = ::GetLastError();
-      if (lastErr == ERROR_ACCESS_DENIED)
+      DWORD error = ::GetLastError();
+      if (error == ERROR_ACCESS_DENIED)
       {
          // Use an environment variable to prevent us from somehow
          // getting into an infinite loop of detaching (which would
@@ -109,7 +113,7 @@ Error initJobObject(bool* detachFromJob)
             *detachFromJob = true;
          }
       }
-      return systemError(lastErr, ERROR_LOCATION);
+      return systemError(error, ERROR_LOCATION);
    }
 
    return Success();
@@ -138,7 +142,7 @@ void initHook()
       return;
 
    TCHAR path[MAX_PATH];
-   if (!::GetModuleFileName(nullptr, path, MAX_PATH))
+   if (!::GetModuleFileName(NULL, path, MAX_PATH))
       return;  // Couldn't get the path of the current .exe
 
    STARTUPINFO startupInfo;
@@ -147,14 +151,14 @@ void initHook()
    PROCESS_INFORMATION procInfo;
    memset(&procInfo, 0, sizeof(procInfo));
 
-   if (!::CreateProcess(nullptr,
+   if (!::CreateProcess(NULL,
                         ::GetCommandLine(),
-                        nullptr,
-                        nullptr,
+                        NULL,
+                        NULL,
                         TRUE,
                         CREATE_BREAKAWAY_FROM_JOB | ::GetPriorityClass(::GetCurrentProcess()),
-                        nullptr,
-                        nullptr,
+                        NULL,
+                        NULL,
                         &startupInfo,
                         &procInfo))
    {
@@ -174,15 +178,46 @@ void initHook()
    ::ExitProcess(exitCode);
 }
 
-Error initializeSystemLog(const std::string& programIdentity,
-                          log::LogLevel logLevel,
-                          bool enableConfigReload)
+void initializeSystemLog(const std::string& programIdentity, int logLevel)
 {
-   return Success();
 }
 
-void initializeLogConfigReload()
+void initializeStderrLog(const std::string& programIdentity, int logLevel)
 {
+   if (s_pLogWriter)
+      delete s_pLogWriter;
+
+   s_pLogWriter = new StderrLogWriter(programIdentity, logLevel);
+}
+
+
+void initializeLog(const std::string& programIdentity, int logLevel, const FilePath& settingsDir)
+{
+   if (s_pLogWriter)
+      delete s_pLogWriter;
+
+   s_pLogWriter = new FileLogWriter(programIdentity, logLevel, settingsDir);
+}
+
+void setLogToStderr(bool logToStderr)
+{
+   if (s_pLogWriter)
+      s_pLogWriter->setLogToStderr(logToStderr);
+}
+
+void addLogWriter(boost::shared_ptr<core::LogWriter> pLogWriter)
+{
+   s_logWriters.push_back(pLogWriter);
+}
+
+void log(LogLevel logLevel, const std::string& message)
+{
+   if (s_pLogWriter)
+      s_pLogWriter->log(logLevel, message);
+
+   std::for_each(s_logWriters.begin(),
+                 s_logWriters.end(),
+                 boost::bind(&LogWriter::log, _1, logLevel, message));
 }
 
 bool isWin64()
@@ -196,9 +231,40 @@ bool isCurrentProcessWin64()
    return getenv("PROCESSOR_ARCHITECTURE") == "AMD64";
 }
 
+bool isVistaOrLater()
+{
+   OSVERSIONINFOA osVersion;
+   ZeroMemory(&osVersion, sizeof(OSVERSIONINFOA));
+   osVersion.dwOSVersionInfoSize = sizeof(OSVERSIONINFOA);
+
+   if (::GetVersionExA(&osVersion))
+   {
+      return osVersion.dwMajorVersion >= 6;
+   }
+   else
+   {
+      LOG_ERROR(systemError(::GetLastError(), ERROR_LOCATION));
+      return false;
+   }
+}
+
 bool isWin7OrLater()
 {
-   return IsWindows7OrGreater();
+   OSVERSIONINFOA osVersion;
+   ZeroMemory(&osVersion, sizeof(OSVERSIONINFOA));
+   osVersion.dwOSVersionInfoSize = sizeof(OSVERSIONINFOA);
+
+   if (::GetVersionExA(&osVersion))
+   {
+      // 6.0 Vista, 6.1 Win7, 6.2 Win8, 6.3 Win8.1, >6 is Win10+
+      return osVersion.dwMajorVersion > 6 ||
+             osVersion.dwMajorVersion == 6 && osVersion.dwMinorVersion > 0;
+   }
+   else
+   {
+      LOG_ERROR(systemError(::GetLastError(), ERROR_LOCATION));
+      return false;
+   }
 }
 
 std::string username()
@@ -211,94 +277,168 @@ unsigned int effectiveUserId()
    return 0; // no concept of this on Win32
 }
 
-bool effectiveUserIsRoot()
+// home path strategies
+namespace {
+
+FilePath environmentHomePath(std::string envVariables)
 {
-   // on Windows, treat built-in administrator account, or elevation to it, to be the
-   // equivalent of Posix "root"
+   using namespace boost::algorithm;
 
-   HANDLE hProcessToken = nullptr;
-   if (!OpenProcessToken(::GetCurrentProcess(), TOKEN_QUERY, &hProcessToken))
+   // use environment override if specified
+   if (!envVariables.empty())
    {
-      auto lastErr = ::GetLastError();
-      LOG_ERROR(systemError(lastErr, ERROR_LOCATION));
-      return false;
-   }
-   core::system::CloseHandleOnExitScope processTokenScope(&hProcessToken, ERROR_LOCATION);
-
-   bool isAdmin = false;
-   DWORD bytesUsed = 0;
-   TOKEN_ELEVATION_TYPE tokenElevationType;
-   if (!::GetTokenInformation(hProcessToken, TokenElevationType, &tokenElevationType,
-                              sizeof(tokenElevationType), &bytesUsed))
-   {
-      auto lastErr = ::GetLastError();
-      LOG_ERROR(systemError(lastErr, ERROR_LOCATION));
-      return false;
+      for (split_iterator<std::string::iterator> it =
+           make_split_iterator(envVariables, first_finder("|", is_iequal()));
+           it != split_iterator<std::string::iterator>();
+           ++it)
+      {
+         std::string envHomePath =
+                  system::getenv(boost::copy_range<std::string>(*it));
+         if (!envHomePath.empty())
+         {
+            FilePath userHomePath(envHomePath);
+            if (userHomePath.exists())
+               return userHomePath;
+         }
+      }
    }
 
-   if (tokenElevationType == TokenElevationTypeLimited)
+   // no override
+   return FilePath();
+}
+
+FilePath currentCSIDLPersonalHomePath()
+{
+   // query for My Documents directory
+   const DWORD SHGFP_TYPE_CURRENT = 0;
+   wchar_t homePath[MAX_PATH];
+   HRESULT hr = ::SHGetFolderPathW(NULL,
+                                   CSIDL_PERSONAL,
+                                   NULL,
+                                   SHGFP_TYPE_CURRENT,
+                                   homePath);
+   if (SUCCEEDED(hr))
    {
-      HANDLE hUnfiltered;
-      if (!::GetTokenInformation(hProcessToken, TokenLinkedToken, &hUnfiltered, sizeof(HANDLE), &bytesUsed))
-      {
-         auto lastErr = ::GetLastError();
-         LOG_ERROR(systemError(lastErr, ERROR_LOCATION));
-         return false;
-      }
-      core::system::CloseHandleOnExitScope unfilteredHandle(&hUnfiltered, ERROR_LOCATION);
-
-      BYTE adminSID[SECURITY_MAX_SID_SIZE];
-      DWORD sidSize = sizeof(adminSID);
-
-      if (!::CreateWellKnownSid(WinBuiltinAdministratorsSid, 0, &adminSID, &sidSize))
-      {
-         auto lastErr = ::GetLastError();
-         LOG_ERROR(systemError(lastErr, ERROR_LOCATION));
-         return false;
-      }
-
-      BOOL isMember = FALSE;
-      if (::CheckTokenMembership(hUnfiltered, &adminSID, &isMember))
-      {
-         auto lastErr = ::GetLastError();
-         LOG_ERROR(systemError(lastErr, ERROR_LOCATION));
-         return false;
-      }
-      isAdmin = (isMember != FALSE);
+      return FilePath(homePath);
    }
    else
    {
-      isAdmin = ::IsUserAnAdmin();
+      LOG_WARNING_MESSAGE("Unable to retreive user home path. HRESULT:  " +
+                          safe_convert::numberToString(hr));
+      return FilePath();
    }
-   return isAdmin;
 }
 
+FilePath defaultCSIDLPersonalHomePath()
+{
+   // query for default and force creation (works around situations
+   // where redirected path is not available)
+   const DWORD SHGFP_TYPE_DEFAULT = 1;
+   wchar_t homePath[MAX_PATH];
+   HRESULT hr = ::SHGetFolderPathW(NULL,
+                                   CSIDL_PERSONAL|CSIDL_FLAG_CREATE,
+                                   NULL,
+                                   SHGFP_TYPE_DEFAULT,
+                                   homePath);
+   if (SUCCEEDED(hr))
+   {
+      return FilePath(homePath);
+   }
+   else
+   {
+      LOG_WARNING_MESSAGE("Unable to retreive user home path. HRESULT:  " +
+                          safe_convert::numberToString(hr));
+      return FilePath();
+   }
+}
+
+FilePath homepathHomePath()
+{
+   std::string homeDrive = core::system::getenv("HOMEDRIVE");
+   std::string homePath = core::system::getenv("HOMEPATH");
+   if (!homeDrive.empty() && !homePath.empty())
+      return FilePath(homeDrive + homePath);
+   else
+      return FilePath();
+}
+
+FilePath homedriveHomePath()
+{
+   std::string homeDrive = core::system::getenv("HOMEDRIVE");
+   if (homeDrive.empty())
+      homeDrive = "C:";
+   return FilePath(homeDrive);
+}
+
+typedef std::pair<std::string,boost::function<FilePath()> > HomePathSource;
+
+} // anonymous namespace
 
 FilePath userHomePath(std::string envOverride)
 {
-   return User::getUserHomePath(envOverride);
+   using boost::bind;
+   std::vector<HomePathSource> sources;
+   sources.push_back(std::make_pair("R_USER|HOME",
+                                    bind(environmentHomePath, envOverride)));
+   sources.push_back(std::make_pair("SHGFP_TYPE_CURRENT",
+                                    currentCSIDLPersonalHomePath));
+   sources.push_back(std::make_pair("SHGFP_TYPE_DEFAULT",
+                                    defaultCSIDLPersonalHomePath));
+   std::string envFallback = "USERPROFILE";
+   sources.push_back(std::make_pair(envFallback,
+                                    bind(environmentHomePath, envFallback)));
+   sources.push_back(std::make_pair("HOMEPATH",
+                                    homepathHomePath));
+   sources.push_back(std::make_pair("HOMEDRIVE",
+                                    homedriveHomePath));
+
+   BOOST_FOREACH(const HomePathSource& source, sources)
+   {
+      FilePath homePath = source.second();
+      if (!homePath.empty())
+      {
+         // return if we found one that exists
+         if (homePath.exists())
+         {
+            std::string path = homePath.absolutePath();
+
+            // standardize drive letter capitalization if in X:/y/z format
+            if (path.length() > 1 && path[1] == ':')
+            {
+               path[0] = toupper(path[0]);
+               homePath = FilePath(path);
+            }
+
+            return homePath;
+         }
+
+         // otherwise warn that we got a value that didn't exist
+         LOG_WARNING_MESSAGE("Home path returned by " + source.first + " (" +
+                             homePath.absolutePath() + ") does not exist.");
+      }
+   }
+
+   // no luck!
+   LOG_ERROR_MESSAGE("No valid home path found for user");
+   return FilePath();
 }
 
 FilePath userSettingsPath(const FilePath& userHomeDirectory,
-                          const std::string& appName,
-                          bool ensureDirectory)
+                          const std::string& appName)
 {
    wchar_t path[MAX_PATH + 1];
    std::wstring appNameWide(appName.begin(), appName.end());
-   int csidl = CSIDL_LOCAL_APPDATA;
-   if (ensureDirectory)
-      csidl |= CSIDL_FLAG_CREATE;
    HRESULT hr = ::SHGetFolderPathAndSubDirW(
-         nullptr,
-         csidl,
-         nullptr,
+         NULL,
+         CSIDL_LOCAL_APPDATA | CSIDL_FLAG_CREATE,
+         NULL,
          SHGFP_TYPE_CURRENT,
          appNameWide.c_str(),
          path);
 
    if (hr != S_OK)
    {
-      LOG_ERROR_MESSAGE("Unable to retrieve user home path. HRESULT:  " +
+      LOG_ERROR_MESSAGE("Unable to retreive user home path. HRESULT:  " +
                         safe_convert::numberToString(hr));
       return FilePath();
    }
@@ -306,43 +446,12 @@ FilePath userSettingsPath(const FilePath& userHomeDirectory,
    return FilePath(std::wstring(path));
 }
 
-FilePath systemSettingsPath(const std::string& appName, bool create)
-{
-   int nFolder = CSIDL_COMMON_APPDATA;
-   if (create)
-      nFolder |= CSIDL_FLAG_CREATE;
-
-   wchar_t path[MAX_PATH + 1];
-   HRESULT hr = ::SHGetFolderPathW(nullptr, nFolder, nullptr, SHGFP_TYPE_CURRENT, path);
-   if (hr != S_OK)
-   {
-      LOG_ERROR_MESSAGE("Unable to retrieve per machine configuration path. HRESULT:  " +
-                        safe_convert::numberToString(hr));
-      return FilePath();
-   }
-
-   FilePath settingsPath = FilePath(std::wstring(path));
-   FilePath completePath = settingsPath.completePath(appName);
-
-   if (create)
-   {
-      std::wstring appNameWide = core::string_utils::utf8ToWide(appName);
-      hr = ::SHGetFolderPathAndSubDirW(nullptr, CSIDL_COMMON_APPDATA|CSIDL_FLAG_CREATE, nullptr,
-                                       SHGFP_TYPE_CURRENT, appNameWide.c_str(), path);
-      if (hr != S_OK)
-      {
-         LOG_ERROR_MESSAGE("Cannot create folder under per machine configuration path. HRESULT:  " +
-                           safe_convert::numberToString(hr));
-         return FilePath();
-      }
-   }
-   return completePath;
-}
-
 bool currentUserIsPrivilleged(unsigned int minimumUserId)
 {
    return false;
 }
+
+
 
 Error captureCommand(const std::string& command, std::string* pOutput)
 {
@@ -353,13 +462,13 @@ Error captureCommand(const std::string& command, std::string* pOutput)
 
    // start process
    FILE* fp = ::_popen(command.c_str(), "r");
-   if (fp == nullptr)
+   if (fp == NULL)
       return systemError(errno, ERROR_LOCATION);
 
    // collect output
    const int kBuffSize = 1024;
    char buffer[kBuffSize];
-   while (::fgets(buffer, kBuffSize, fp) != nullptr)
+   while (::fgets(buffer, kBuffSize, fp) != NULL)
       *pOutput += buffer;
 
    // check if an error terminated our output
@@ -383,15 +492,15 @@ Error captureCommand(const std::string& command, std::string* pOutput)
 
 Error realPath(const FilePath& filePath, FilePath* pRealPath)
 {
-   std::wstring wPath = filePath.getAbsolutePathW();
+   std::wstring wPath = filePath.absolutePathW();
    std::vector<wchar_t> buffer(512);
    DWORD res = ::GetFullPathNameW(wPath.c_str(),
-                                  static_cast<DWORD>(buffer.size()),
+                                  buffer.size(),
                                   &(buffer[0]),
-                                  nullptr);
+                                  NULL);
    if (res == 0)
    {
-      Error error = LAST_SYSTEM_ERROR();
+      Error error = systemError(::GetLastError(), ERROR_LOCATION);
       error.addProperty("path", filePath);
       return error;
    }
@@ -399,13 +508,11 @@ Error realPath(const FilePath& filePath, FilePath* pRealPath)
    {
       buffer.resize(res);
       res = ::GetFullPathNameW(wPath.c_str(),
-                               static_cast<DWORD>(buffer.size()),
+                               buffer.size(),
                                &(buffer[0]),
-                               nullptr);
+                               NULL);
       if (res == 0)
-      {
-         return LAST_SYSTEM_ERROR();
-      }
+         return systemError(::GetLastError(), ERROR_LOCATION);
       else if (res > buffer.size())
          return systemError(boost::system::windows_error::bad_length,
                             ERROR_LOCATION);
@@ -423,7 +530,7 @@ Error realPath(const std::string& path, FilePath* pRealPath)
 
 bool isHiddenFile(const FilePath& filePath)
 {
-   return isHiddenFile(filePath.getAbsolutePath());
+   return isHiddenFile(filePath.absolutePath());
 }
 
 bool isHiddenFile(const FileInfo& fileInfo)
@@ -439,19 +546,15 @@ bool isReadOnly(const FilePath& filePath)
 
 Error makeFileHidden(const FilePath& path)
 {
-   std::wstring filePath = path.getAbsolutePathW();
+   std::wstring filePath = path.absolutePathW();
    LPCWSTR lpszPath = filePath.c_str();
 
    DWORD attribs = ::GetFileAttributesW(lpszPath);
    if (attribs == INVALID_FILE_ATTRIBUTES)
-   {
-      return LAST_SYSTEM_ERROR();
-   }
+      return systemError(GetLastError(), ERROR_LOCATION);
 
    if (!::SetFileAttributesW(lpszPath, attribs | FILE_ATTRIBUTE_HIDDEN))
-   {
-      return LAST_SYSTEM_ERROR();
-   }
+      return systemError(GetLastError(), ERROR_LOCATION);
 
    return Success();
 }
@@ -475,7 +578,7 @@ std::string generateUuid(bool includeDashes)
    // create the uuid
    UUID uuid = {0};
    ::UuidCreate(&uuid);
-   PUCHAR pChar = nullptr;
+   PUCHAR pChar = NULL;
    ::UuidToStringA(&uuid, &pChar);
    std::string uuidStr((char*)pChar);
    ::RpcStringFreeA(&pChar);
@@ -493,17 +596,10 @@ PidType currentProcessId()
    return ::GetCurrentProcessId();
 }
 
-Error executablePath(const char *argv0,
+Error executablePath(const char * argv0,
                      FilePath* pExecutablePath)
 {
-   wchar_t exePath[MAX_PATH];
-   if (!GetModuleFileNameW(nullptr, exePath, MAX_PATH))
-   {
-      auto lastErr = ::GetLastError();
-      return systemError(lastErr, ERROR_LOCATION);
-   }
-   std::wstring wzPath(exePath);
-   *pExecutablePath = FilePath(wzPath);
+   *pExecutablePath = FilePath(_pgmptr);
    return Success();
 }
 
@@ -520,17 +616,17 @@ Error installPath(const std::string& relativeToExecutable,
 
    // resolve to install path using given relative path
    if (relativeToExecutable == "..") // common case
-     *pInstallationPath = exePath.getParent().getParent();
+     *pInstallationPath = exePath.parent().parent();
    else
-     *pInstallationPath = exePath.getParent().completePath(relativeToExecutable);
+     *pInstallationPath = exePath.parent().complete(relativeToExecutable);
 
    return Success();
 }
 
 void fixupExecutablePath(FilePath* pExePath)
 {
-   if (pExePath->getExtension().empty())
-     *pExePath = pExePath->getParent().completePath(pExePath->getFilename() + ".exe");
+   if (pExePath->extension().empty())
+     *pExePath = pExePath->parent().complete(pExePath->filename() + ".exe");
 }
 
 void abort()
@@ -595,15 +691,6 @@ Error clearSignalMask()
 {
    return Success();
 }
-
-namespace signal_safe {
-
-int clearSignalMask()
-{
-   return 0;
-}
-
-}
    
 Error handleSignal(SignalType signal, void (*handler)(int))
 {
@@ -632,9 +719,9 @@ public:
 
    Error open()
    {
-      if (!::OpenClipboard(nullptr))
+      if (!::OpenClipboard(NULL))
       {
-         return LAST_SYSTEM_ERROR();
+         return systemError(::GetLastError(), ERROR_LOCATION);
       }
       else
       {
@@ -650,9 +737,7 @@ public:
          if (opened_)
          {
             if (!::CloseClipboard())
-            {
-               LOG_ERROR(LAST_SYSTEM_ERROR());
-            }
+               LOG_ERROR(systemError(::GetLastError(), ERROR_LOCATION));
          }
       }
       catch(...)
@@ -667,15 +752,13 @@ private:
 class EnhMetaFile : boost::noncopyable
 {
 public:
-   EnhMetaFile() : hMF_(nullptr) {}
+   EnhMetaFile() : hMF_(NULL) {}
 
    Error open(const FilePath& path)
    {
-      hMF_ = ::GetEnhMetaFileW(path.getAbsolutePathW().c_str());
-      if (hMF_ == nullptr)
-      {
-         return LAST_SYSTEM_ERROR();
-      }
+      hMF_ = ::GetEnhMetaFileW(path.absolutePathW().c_str());
+      if (hMF_ == NULL)
+         return systemError(::GetLastError(), ERROR_LOCATION);
       else
          return Success();
    }
@@ -684,12 +767,10 @@ public:
    {
       try
       {
-         if (hMF_ != nullptr)
+         if (hMF_ != NULL)
          {
             if (!::DeleteEnhMetaFile(hMF_))
-            {
-               LOG_ERROR(LAST_SYSTEM_ERROR());
-            }
+               LOG_ERROR(systemError(::GetLastError(), ERROR_LOCATION));
          }
       }
       catch(...)
@@ -701,7 +782,7 @@ public:
 
    void release()
    {
-      hMF_ = nullptr;
+      hMF_ = NULL;
    }
 
 private:
@@ -725,15 +806,11 @@ Error copyMetafileToClipboard(const FilePath& path)
 
    // emtpy the clipboard
    if (!::EmptyClipboard())
-   {
-      return LAST_SYSTEM_ERROR();
-   }
+      return systemError(::GetLastError(), ERROR_LOCATION);
 
    // set the clipboard data
    if (!::SetClipboardData(CF_ENHMETAFILE, enhMetaFile.handle()))
-   {
-      return LAST_SYSTEM_ERROR();
-   }
+      return systemError(::GetLastError(), ERROR_LOCATION);
 
    // release the handle (because the clipboard now owns it)
    enhMetaFile.release();
@@ -746,7 +823,7 @@ void ensureLongPath(FilePath* pFilePath)
 {
    const std::size_t kBuffSize = (MAX_PATH*2) + 1;
    char buffer[kBuffSize];
-   std::string path = string_utils::utf8ToSystem(pFilePath->getAbsolutePath());
+   std::string path = string_utils::utf8ToSystem(pFilePath->absolutePath());
    if (::GetLongPathName(path.c_str(),
                          buffer,
                          kBuffSize) > 0)
@@ -762,21 +839,18 @@ Error expandEnvironmentVariables(std::string value, std::string* pResult)
       return Success();
    }
 
-   DWORD sizeRequired = ::ExpandEnvironmentStrings(value.c_str(), nullptr, 0);
+   DWORD sizeRequired = ::ExpandEnvironmentStrings(value.c_str(), NULL, 0);
    if (!sizeRequired)
-   {
-      return LAST_SYSTEM_ERROR();
-   }
+      return systemError(::GetLastError(), ERROR_LOCATION);
 
-   std::vector<char> buffer(sizeRequired);
-   auto result = ::ExpandEnvironmentStrings(value.c_str(),
+   std::vector<char> buffer;
+   buffer.reserve(sizeRequired);
+   int result = ::ExpandEnvironmentStrings(value.c_str(),
                                            &buffer[0],
-                                           static_cast<DWORD>(buffer.capacity()));
+                                           buffer.capacity());
 
    if (!result)
-   {
-      return LAST_SYSTEM_ERROR();
-   }
+      return systemError(GetLastError(), ERROR_LOCATION);
    else if (result > buffer.capacity())
       return systemError(ERROR_MORE_DATA, ERROR_LOCATION); // not expected
 
@@ -797,13 +871,9 @@ Error terminateProcess(PidType pid)
 {
    HANDLE hProc = ::OpenProcess(PROCESS_TERMINATE, false, pid);
    if (!hProc)
-   {
-      return LAST_SYSTEM_ERROR();
-   }
+      return systemError(::GetLastError(), ERROR_LOCATION);
    if (!::TerminateProcess(hProc, 1))
-   {
-      return LAST_SYSTEM_ERROR();
-   }
+      return systemError(::GetLastError(), ERROR_LOCATION);
    return Success();
 }
 
@@ -819,7 +889,7 @@ std::vector<SubprocInfo> getSubprocesses(PidType pid)
    {
       // err on the side of assuming child processes, so we don't kill
       // a job unintentionally
-      LOG_ERROR(LAST_SYSTEM_ERROR());
+      LOG_ERROR(systemError(::GetLastError(), ERROR_LOCATION));
       return subprocs;
    }
 
@@ -827,7 +897,7 @@ std::vector<SubprocInfo> getSubprocesses(PidType pid)
    pe32.dwSize = sizeof(pe32);
    if (!Process32First(hSnapShot, &pe32))
    {
-      LOG_ERROR(LAST_SYSTEM_ERROR());
+      LOG_ERROR(systemError(::GetLastError(), ERROR_LOCATION));
       return subprocs;
    }
 
@@ -858,15 +928,13 @@ FilePath currentWorkingDir(PidType pid)
 
 Error closeHandle(HANDLE* pHandle, const ErrorLocation& location)
 {
-   if (*pHandle != nullptr)
+   if (*pHandle != NULL)
    {
       BOOL result = ::CloseHandle(*pHandle);
-      *pHandle = nullptr;
+      *pHandle = NULL;
 
       if (!result)
-      {
-         return LAST_SYSTEM_ERROR();
-      }
+         return systemError(::GetLastError(), location);
       else
          return Success();
    }
@@ -883,7 +951,7 @@ CloseHandleOnExitScope::~CloseHandleOnExitScope()
       // A "null" handle can contain INVALID_HANDLE or NULL, depending
       // on the context. This is a painful inconsistency in Windows, see:
       // https://blogs.msdn.microsoft.com/oldnewthing/20040302-00/?p=40443
-      if (!pHandle_ || *pHandle_ == INVALID_HANDLE_VALUE || *pHandle_ == nullptr)
+      if (!pHandle_ || *pHandle_ == INVALID_HANDLE_VALUE || *pHandle_ == NULL)
          return;
 
       Error error = closeHandle(pHandle_, location_);
@@ -892,6 +960,67 @@ CloseHandleOnExitScope::~CloseHandleOnExitScope()
    }
    catch(...)
    {
+   }
+}
+
+struct ProcessInfo
+{
+   DWORD processId;
+   DWORD parentProcessId;
+};
+
+// simple cass to encapsulate parent-child
+// relationship of processes
+struct ProcessTreeNode
+{
+   boost::shared_ptr<ProcessInfo> data;
+   std::vector<boost::shared_ptr<ProcessTreeNode> > children;
+};
+
+// process tree, indexed by pid
+typedef std::map<DWORD, boost::shared_ptr<ProcessTreeNode> > ProcessTreeT;
+
+void createProcessTree(const std::vector<ProcessInfo>& processes,
+                       ProcessTreeT *pOutTree)
+{
+   // first pass, create the nodes in the tree
+   BOOST_FOREACH(const ProcessInfo& process, processes)
+   {
+      ProcessTreeT::iterator iter = pOutTree->find(process.processId);
+      if (iter == pOutTree->end())
+      {
+         // process not found, so create a new entry for it
+         boost::shared_ptr<ProcessTreeNode> nodePtr = boost::shared_ptr<ProcessTreeNode>(
+                                                         new ProcessTreeNode());
+
+         nodePtr->data = boost::shared_ptr<ProcessInfo>(new ProcessInfo(process));
+
+         (*pOutTree)[process.processId] = nodePtr;
+      }
+   }
+
+   // second pass, link the nodes together
+   BOOST_FOREACH(ProcessTreeT::value_type& element, *pOutTree)
+   {
+      DWORD parent = element.second->data->parentProcessId;
+      ProcessTreeT::iterator iter = pOutTree->find(parent);
+
+      // if we cannot find the parent in the tree, move on
+      if (iter == pOutTree->end())
+         continue;
+
+      // add this node to its parent's children
+      iter->second->children.push_back(element.second);
+   }
+}
+
+void getChildren(const boost::shared_ptr<ProcessTreeNode>& node,
+                 std::vector<ProcessInfo> *pOutChildren)
+{
+   BOOST_FOREACH(const boost::shared_ptr<ProcessTreeNode>& child, node->children)
+   {
+      pOutChildren->push_back(*child->data.get());
+      getChildren(child, pOutChildren);
    }
 }
 
@@ -904,7 +1033,7 @@ Error getProcesses(std::vector<ProcessInfo> *pOutProcesses)
    HANDLE hSnap = ::CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
    if (hSnap == INVALID_HANDLE_VALUE)
    {
-      return LAST_SYSTEM_ERROR();
+      return systemError(::GetLastError(), ERROR_LOCATION);
    }
 
    if (Process32First(hSnap, &processEntry))
@@ -914,8 +1043,8 @@ Error getProcesses(std::vector<ProcessInfo> *pOutProcesses)
       while (moreProcesses)
       {
          ProcessInfo process;
-         process.pid = processEntry.th32ProcessID;
-         process.ppid = processEntry.th32ParentProcessID;
+         process.processId = processEntry.th32ProcessID;
+         process.parentProcessId = processEntry.th32ParentProcessID;
          pOutProcesses->push_back(process);
 
          moreProcesses = ::Process32Next(hSnap, &processEntry);
@@ -957,24 +1086,24 @@ Error terminateChildProcesses()
    if (error)
       return error;
 
-   for (const ProcessInfo& process : childProcesses)
+   BOOST_FOREACH(const ProcessInfo& process, childProcesses)
    {
-      HANDLE hChildProc = ::OpenProcess(PROCESS_ALL_ACCESS, FALSE, process.pid);
+      HANDLE hChildProc = ::OpenProcess(PROCESS_ALL_ACCESS, FALSE, process.processId);
       if (hChildProc)
       {
          if (!::TerminateProcess(hChildProc, 1))
          {
-            LOG_ERROR(LAST_SYSTEM_ERROR());
+            LOG_ERROR(systemError(::GetLastError(), ERROR_LOCATION));
          }
 
          if (!::CloseHandle(hChildProc))
          {
-            LOG_ERROR(LAST_SYSTEM_ERROR());
+            LOG_ERROR(systemError(::GetLastError(), ERROR_LOCATION));
          }
       }
       else
       {
-         LOG_ERROR(LAST_SYSTEM_ERROR());
+         LOG_ERROR(systemError(::GetLastError(), ERROR_LOCATION));
       }
    }
 

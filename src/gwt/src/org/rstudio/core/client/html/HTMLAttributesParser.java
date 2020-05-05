@@ -1,7 +1,7 @@
 /*
  * HTMLAttributesParser.java
  *
- * Copyright (C) 2009-16 by RStudio, PBC
+ * Copyright (C) 2009-16 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -14,9 +14,7 @@
  */
 package org.rstudio.core.client.html;
 
-import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 import org.rstudio.core.client.StringUtil;
@@ -27,109 +25,22 @@ import com.google.gwt.user.client.Command;
 
 public class HTMLAttributesParser
 {
-   public static class Attributes
-   {
-      public Attributes(String identifier,
-                        List<String> classes,
-                        Map<String, String> attributes)
-      {
-         identifier_ = identifier;
-         classes_ = classes;
-         attributes_ = attributes;
-      }
-      
-      public String getIdentifier()
-      {
-         return identifier_;
-      }
-      
-      public List<String> getClasses()
-      {
-         return classes_;
-      }
-      
-      public Map<String, String> getAttributes()
-      {
-         return attributes_;
-      }
-      
-      private String identifier_;
-      private List<String> classes_;
-      private Map<String, String> attributes_;
-   }
-   
    private static class Parser
    {
       public Parser(String attributes)
       {
          attributes_ = StringUtil.notNull(attributes).trim();
          map_ = new HashMap<String, String>();
-         identifier_ = "";
-         classes_ = new ArrayList<String>();
          
          index_ = 0;
-         n_ = attributes.length();
          currentKey_ = "";
          currentValue_ = "";
       }
       
-      public boolean consumeIdentifier()
-      {
-         char ch = attributes_.charAt(index_);
-         if (ch != '#')
-            return false;
-         
-         int index = index_;
-         return consumeUntilRegex("(?:\\s|$)", new Command()
-         {
-            @Override
-            public void execute()
-            {
-               identifier_ = attributes_.substring(index + 1, index_);
-            }
-         });
-      }
-      
-      public boolean consumeClass()
-      {
-         char ch = attributes_.charAt(index_);
-         if (ch != '.')
-            return false;
-         
-         int index = index_;
-         return consumeUntilRegex("(?:\\s|$)", new Command()
-         {
-            @Override
-            public void execute()
-            {
-               classes_.add(attributes_.substring(index + 1, index_));
-            }
-         });
-      }
-      
-      public boolean consumeAttribute()
-      {
-         if (!consumeKey())
-            return false;
-         
-         if (!consumeEquals())
-            return false;
-         
-         if (!consumeValue())
-            return false;
-         
-         return true;
-      }
-      
-      public boolean finished()
-      {
-         return index_ >= n_;
-      }
-      
-      private boolean consumeKey()
+      public boolean consumeKey()
       {
          final int index = index_;
-         return consumeUntilRegex("[=]", new Command()
+         return consumeUntilRegex("[\\s=]", new Command()
          {
             @Override
             public void execute()
@@ -140,19 +51,14 @@ public class HTMLAttributesParser
          });
       }
       
-      private boolean consumeWhitespace()
+      public boolean consumeWhitespace()
       {
-         return consumeUntilRegex("(?:\\S|$)");
+         return consumeUntilRegex("\\S");
       }
       
-      private boolean consumeEquals()
+      public boolean consumeEquals()
       {
-         char ch = attributes_.charAt(index_);
-         if (ch != '=')
-            return false;
-         
-         index_++;
-         return true;
+         return consumeUntilRegex("[^\\s=]");
       }
       
       public boolean consumeValue()
@@ -167,8 +73,7 @@ public class HTMLAttributesParser
                public void execute()
                {
                   currentValue_ = attributes_.substring(index + 1, index_ - 1);
-                  if (isValidKey(currentKey_))
-                     map_.put(currentKey_, currentValue_);
+                  map_.put(currentKey_, currentValue_);
                }
             });
          }
@@ -179,15 +84,14 @@ public class HTMLAttributesParser
             public void execute()
             {
                currentValue_ = attributes_.substring(index, index_);
-               if (isValidKey(currentKey_))
-                  map_.put(currentKey_, currentValue_);
+               map_.put(currentKey_, currentValue_);
             }
          });
       }
       
-      public Attributes getAttributes()
+      public Map<String, String> parsedAttributes()
       {
-         return new Attributes(identifier_, classes_, map_);
+         return map_;
       }
       
       private boolean consumeUntilRegex(String regex)
@@ -229,43 +133,35 @@ public class HTMLAttributesParser
          return true;
       }
       
-      private static boolean isValidKey(String key)
-      {
-         return RE_KEY.test(key);
-      }
-      
       private final String attributes_;
       private final Map<String, String> map_;
-      private String identifier_;
-      private List<String> classes_;
       
       private int index_;
-      private int n_;
       private String currentKey_;
       private String currentValue_;
-      
-      private static final Pattern RE_KEY = Pattern.create("^[a-zA-Z][a-zA-Z0-9_.:-]*$", "");
    }
    
-   public static Attributes parseAttributes(String attributes)
+   public static Map<String, String> parseAttributes(String attributes)
    {
       Parser parser = new Parser(attributes);
-      while (!parser.finished())
+      while (true)
       {
          parser.consumeWhitespace();
          
-         if (parser.consumeIdentifier())
-            continue;
+         if (!parser.consumeKey())
+            break;
          
-         if (parser.consumeClass())
-            continue;
+         parser.consumeWhitespace();
          
-         if (parser.consumeAttribute())
-            continue;
+         if (!parser.consumeEquals())
+            break;
          
-         break;
+         parser.consumeWhitespace();
+         
+         if (!parser.consumeValue())
+            break;
       }
       
-      return parser.getAttributes();
+      return parser.parsedAttributes();
    }
 }

@@ -1,7 +1,7 @@
 /*
  * ClientEvent.java
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-17 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -20,12 +20,12 @@ class ClientEvent extends JavaScriptObject
 {   
    public static final String Busy = "busy";
    public static final String ConsolePrompt = "console_prompt";
-   public static final String ConsoleOutput = "console_output";
+   public static final String ConsoleOutput = "console_output" ;
    public static final String ConsoleError = "console_error";
    public static final String ConsoleWritePrompt = "console_write_prompt";
    public static final String ConsoleWriteInput = "console_write_input";
    public static final String ShowErrorMessage = "show_error_message";
-   public static final String ShowHelp = "show_help";
+   public static final String ShowHelp = "show_help" ;
    public static final String BrowseUrl = "browse_url";
    public static final String ShowEditor = "show_editor";
    public static final String ChooseFile = "choose_file";
@@ -35,6 +35,7 @@ class ClientEvent extends JavaScriptObject
    public static final String FileChanged = "file_changed";
    public static final String WorkingDirChanged = "working_dir_changed";
    public static final String PlotsStateChanged = "plots_state_changed";
+   public static final String ViewData = "view_data";
    public static final String PackageStatusChanged = "package_status_changed";
    public static final String PackageStateChanged = "package_state_changed";
    public static final String Locator = "locator";
@@ -54,8 +55,7 @@ class ClientEvent extends JavaScriptObject
    public static final String ConsoleProcessOutput = "console_process_output";
    public static final String ConsoleProcessExit = "console_process_exit";
    public static final String ListChanged = "list_changed";
-   public static final String UserPrefsChanged = "user_prefs_changed";
-   public static final String UserStateChanged = "user_state_changed";
+   public static final String UiPrefsChanged = "ui_prefs_changed";
    public static final String HandleUnsavedChanges = "handle_unsaved_changes";
    public static final String PosixShellOutput = "posix_shell_output";
    public static final String PosixShellExit = "posix_shell_exit";
@@ -70,8 +70,6 @@ class ClientEvent extends JavaScriptObject
    public static final String CompilePdfCompletedEvent = "compile_pdf_completed_event";
    public static final String SynctexEditFile = "synctex_edit_file";
    public static final String FindResult = "find_result";
-   public static final String ReplaceResult = "replace_result";
-   public static final String ReplaceProgress = "replace_updated";
    public static final String FindOperationEnded = "find_operation_ended";
    public static final String RPubsUploadStatus = "rpubs_upload_status";
    public static final String BuildStarted = "build_started";
@@ -174,24 +172,7 @@ class ClientEvent extends JavaScriptObject
    public static final String RequestOpenProject = "request_open_project";
    public static final String OpenFileDialog = "open_file_dialog";
    public static final String ShowPageViewer = "show_page_viewer";
-   public static final String AskSecret = "ask_secret";
-   public static final String TestsStarted = "tests_started";
-   public static final String TestsOutput = "tests_output";
-   public static final String TestsCompleted = "tests_completed";
-   public static final String JobUpdated = "job_updated";
-   public static final String JobRefresh = "job_refresh";
-   public static final String JobOutput = "job_output";
-   public static final String DataOutputCompleted = "data_output_completed";
-   public static final String NewDocumentWithCode = "new_document_with_code";
-   public static final String AvailablePackagesReady = "available_packages_ready";
-   public static final String PlumberViewer = "plumber_viewer";
-   public static final String ComputeThemeColors = "compute_theme_colors";
-   public static final String RequestDocumentClose = "request_document_close";
-   public static final String ExecuteAppCommand = "execute_app_command";
-   public static final String HighlightUi = "highlight_ui";
-   public static final String TutorialCommand = "tutorial_command";
-   public static final String TutorialLaunch = "tutorial_launch";
-
+   
    protected ClientEvent()
    {
    }

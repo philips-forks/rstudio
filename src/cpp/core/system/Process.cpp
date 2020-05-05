@@ -1,7 +1,7 @@
 /*
  * Process.cpp
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-17 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -19,14 +19,16 @@
 
 #include <boost/algorithm/cxx11/any_of.hpp>
 #include <boost/bind.hpp>
+#include <boost/foreach.hpp>
 
 #include <core/Scope.hpp>
-#include <shared_core/Error.hpp>
+#include <core/Error.hpp>
 #include <core/Log.hpp>
 #include <core/BoostThread.hpp>
 
 #include <core/PerformanceTimer.hpp>
-#include <core/system/ChildProcess.hpp>
+
+#include "ChildProcess.hpp"
 
 namespace rstudio {
 namespace core {
@@ -234,8 +236,8 @@ ProcessCallbacks createProcessCallbacks(
    cb.onError = bind(&ChildCallbacks::onError, pCC, _1, _2);
 
    // Not implemented for generic processes
-   cb.onHasSubprocs.clear();
-   cb.reportCwd.clear();
+   cb.onHasSubprocs = NULL;
+   cb.reportCwd = NULL;
 
    // return it
    return cb;
@@ -345,7 +347,8 @@ bool ProcessSupervisor::poll()
 void ProcessSupervisor::terminateAll()
 {
    // call terminate on all of our children
-   for (boost::shared_ptr<AsyncChildProcess> pChild : pImpl_->children)
+   BOOST_FOREACH(boost::shared_ptr<AsyncChildProcess> pChild,
+                 pImpl_->children)
    {
       Error error = pChild->terminate();
       if (error)

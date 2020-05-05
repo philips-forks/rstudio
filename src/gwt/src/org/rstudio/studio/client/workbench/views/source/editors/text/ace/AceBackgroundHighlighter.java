@@ -1,7 +1,7 @@
 /*
  * AceBackgroundHighlighter.java
  *
- * Copyright (C) 2009-17 by RStudio, PBC
+ * Copyright (C) 2009-17 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -26,7 +26,7 @@ import org.rstudio.core.client.ListUtil;
 import org.rstudio.core.client.StringUtil;
 import org.rstudio.core.client.regex.Pattern;
 import org.rstudio.studio.client.RStudioGinjector;
-import org.rstudio.studio.client.workbench.prefs.model.UserPrefs;
+import org.rstudio.studio.client.workbench.prefs.model.UIPrefs;
 import org.rstudio.studio.client.workbench.views.source.editors.text.AceEditor;
 import org.rstudio.studio.client.workbench.views.source.editors.text.events.DocumentChangedEvent;
 import org.rstudio.studio.client.workbench.views.source.editors.text.events.EditorModeChangedEvent;
@@ -35,7 +35,6 @@ import com.google.gwt.core.client.JavaScriptObject;
 import com.google.gwt.event.logical.shared.AttachEvent;
 import com.google.gwt.event.logical.shared.ValueChangeEvent;
 import com.google.gwt.event.logical.shared.ValueChangeHandler;
-import com.google.gwt.event.shared.HandlerRegistration;
 import com.google.gwt.user.client.Timer;
 import com.google.inject.Inject;
 
@@ -107,6 +106,13 @@ public class AceBackgroundHighlighter
          for (int row = startRow; row < endRow; row++)
          {
             int state = rowStates_.get(row);
+            
+            // don't show background highlighting if this
+            // chunk lies within a fold
+            AceFold fold = session_.getFoldAt(row, 0);
+            if (fold != null)
+               continue;
+            
             int marker = markerIds_.get(row, 0);
             
             // bail early if no action is necessary
@@ -167,6 +173,7 @@ public class AceBackgroundHighlighter
       highlightPatterns_ = new ArrayList<HighlightPattern>();
       handlers_ = new HandlerRegistrations(
             editor.addEditorModeChangedHandler(this),
+            editor.addDocumentChangedHandler(this),
             editor.addAttachHandler(this));
       
       int n = editor.getRowCount();
@@ -200,7 +207,7 @@ public class AceBackgroundHighlighter
    }
    
    @Inject
-   private void initialize(UserPrefs prefs)
+   private void initialize(UIPrefs prefs)
    {
       prefs_ = prefs;
    }
@@ -210,25 +217,14 @@ public class AceBackgroundHighlighter
    public void onEditorModeChanged(EditorModeChangedEvent event)
    {
       // nothing to do if mode did not change
-      if (event.getMode() == activeModeId_)
+      if (event.getMode().equals(activeModeId_))
          return;
       
       activeModeId_ = event.getMode();
       clearMarkers();
       clearRowState();
       refreshHighlighters();
-      
-      if (documentChangedHandler_ != null)
-      {
-         documentChangedHandler_.removeHandler();
-         documentChangedHandler_ = null;
-      }
-      
-      if (!highlightPatterns_.isEmpty())
-      {
-         documentChangedHandler_ = editor_.addDocumentChangedHandler(this);
-         synchronizeFrom(0);
-      }
+      synchronizeFrom(0);
    }
    
    @Override
@@ -271,11 +267,6 @@ public class AceBackgroundHighlighter
       if (!event.isAttached())
       {
          handlers_.removeHandler();
-         if (documentChangedHandler_ != null)
-         {
-            documentChangedHandler_.removeHandler();
-            documentChangedHandler_ = null;
-         }
       }
    }
    
@@ -451,13 +442,11 @@ public class AceBackgroundHighlighter
    
    private final AceEditor editor_;
    private final EditSession session_;
-   private final List<HighlightPattern> highlightPatterns_;
-   private final HandlerRegistrations handlers_;
-   
    private HighlightPattern activeHighlightPattern_;
    private String activeModeId_;
-   private HandlerRegistration documentChangedHandler_;
    private boolean enabled_;
+   private final List<HighlightPattern> highlightPatterns_;
+   private final HandlerRegistrations handlers_;
    
    private final JsVectorInteger rowStates_;
    private final JsVectorInteger markerIds_;
@@ -470,7 +459,7 @@ public class AceBackgroundHighlighter
    private static final Map<String, List<HighlightPattern>> HIGHLIGHT_PATTERN_REGISTRY;
    
    // Injected ----
-   private UserPrefs prefs_;
+   private UIPrefs prefs_;
    
    // Static Members ----
    

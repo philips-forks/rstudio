@@ -1,7 +1,7 @@
 /*
  * NotebookPlots.hpp
  *
- * Copyright (C) 2009-16 by RStudio, PBC
+ * Copyright (C) 2009-16 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -18,10 +18,8 @@
 #define SESSION_NOTEBOOK_PLOTS_HPP
 
 #include <boost/function.hpp>
-
-#include <core/BoostSignals.hpp>
-#include <shared_core/FilePath.hpp>
-
+#include <boost/signals/connection.hpp>
+#include <core/FilePath.hpp>
 #include <r/RSexp.hpp>
 
 #include "NotebookCapture.hpp"
@@ -82,9 +80,9 @@ private:
 
    unsigned lastOrdinal_;
 
-   RSTUDIO_BOOST_CONNECTION onBeforeNewPlot_;
-   RSTUDIO_BOOST_CONNECTION onBeforeNewGridPage_;
-   RSTUDIO_BOOST_CONNECTION onNewPlot_;
+   boost::signals::connection onBeforeNewPlot_;
+   boost::signals::connection onBeforeNewGridPage_;
+   boost::signals::connection onNewPlot_;
 
    double width_;
    double height_;

@@ -1,7 +1,7 @@
 /*
  * SessionProjectTemplate.cpp
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-16 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -15,14 +15,15 @@
 #include <session/SessionProjectTemplate.hpp>
 
 #include <boost/bind.hpp>
+#include <boost/foreach.hpp>
 #include <boost/function.hpp>
 #include <boost/range/adaptors.hpp>
 
 #include <core/Algorithm.hpp>
 #include <core/Debug.hpp>
-#include <shared_core/Error.hpp>
+#include <core/Error.hpp>
 #include <core/Exec.hpp>
-#include <shared_core/FilePath.hpp>
+#include <core/FilePath.hpp>
 #include <core/FileSerializer.hpp>
 #include <core/text/DcfParser.hpp>
 
@@ -61,7 +62,7 @@ void reportErrorsToConsole(const std::vector<Error>& errors,
    
    std::string pkgName = projectContext().packageInfo().name();
    std::vector<Error> localErrors;
-   for (const Error& error : errors)
+   BOOST_FOREACH(const Error& error, errors)
    {
       std::string resourcePath = error.getProperty("resource");
       if (resourcePath.find("/" + pkgName + "/"))
@@ -72,10 +73,10 @@ void reportErrorsToConsole(const std::vector<Error>& errors,
       return;
    
    std::cout
-         << "Error(s) found while parsing '" + resourcePath.getFilename() + "':"
+         << "Error(s) found while parsing '" + resourcePath.filename() + "':"
          << std::endl;
    
-   for (const Error& error : localErrors)
+   BOOST_FOREACH(const Error& error, localErrors)
    {
       std::string description = error.getProperty("description");
       std::cout << description << std::endl;
@@ -159,12 +160,12 @@ Error fromJson(
 
    core::Error error = core::json::readObject(
             object,
-            "parameter", description.parameter,
-            "type",      description.type,
-            "label",     description.label,
-            "default",   description.defaultValue,
-            "position",  description.position,
-            "fields",    description.fields);
+            "parameter", &description.parameter,
+            "type",      &description.type,
+            "label",     &description.label,
+            "default",   &description.defaultValue,
+            "position",  &description.position,
+            "fields",    &description.fields);
 
    if (error)
       return error;
@@ -184,7 +185,7 @@ json::Value ProjectTemplateWidgetDescription::toJson() const
    object["position"]  = position;
    object["fields"]    = core::json::toJsonArray(fields);
 
-   return std::move(object);
+   return object;
 }
 
 Error fromJson(
@@ -196,32 +197,32 @@ Error fromJson(
 
    error = json::readObject(
             object,
-            "package",    description.package,
-            "binding",    description.binding,
-            "title",      description.title,
-            "subtitle",   description.subtitle,
-            "caption",    description.caption,
-            "icon",       description.icon,
-            "open_files", description.openFiles);
+            "package",    &description.package,
+            "binding",    &description.binding,
+            "title",      &description.title,
+            "subtitle",   &description.subtitle,
+            "caption",    &description.caption,
+            "icon",       &description.icon,
+            "open_files", &description.openFiles);
    
    if (error)
       return error;
    
    json::Array array;
-   error = json::readObject(object, "widgets", array);
+   error = json::readObject(object, "widgets", &array);
    if (error)
       return error;
    
-   for (const json::Value& value : array)
+   BOOST_FOREACH(const json::Value& value, array)
    {
       if (!json::isType<json::Object>(value))
          return json::errors::typeMismatch(
                   value,
-                  json::Type::OBJECT,
+                  json::ObjectType,
                   ERROR_LOCATION);
       
       ProjectTemplateWidgetDescription widget;
-      error = fromJson(value.getObject(), &widget);
+      error = fromJson(value.get_obj(), &widget);
       if (error)
          return error;
       
@@ -245,13 +246,13 @@ json::Value ProjectTemplateDescription::toJson() const
    object["open_files"] = json::toJsonArray(openFiles);
 
    core::json::Array widgetsJson;
-   for (const ProjectTemplateWidgetDescription& widgetDescription : widgets)
+   BOOST_FOREACH(const ProjectTemplateWidgetDescription& widgetDescription, widgets)
    {
       widgetsJson.push_back(widgetDescription.toJson());
    }
    object["widgets"] = widgetsJson;
 
-   return std::move(object);
+   return object;
 }
 
 namespace {
@@ -329,10 +330,10 @@ core::Error populate(
       else if (key == "Icon")
       {
          // read icon file from disk
-         FilePath iconPath = resourcePath.getParent().completePath(value);
+         FilePath iconPath = resourcePath.parent().complete(value);
          
          // skip if the file is too large
-         uintmax_t fileSize = iconPath.getSize();
+         uintmax_t fileSize = iconPath.size();
          if (fileSize > 1024 * 1024)
          {
             return systemError(
@@ -414,7 +415,7 @@ std::vector<Error> validate(const ProjectTemplateDescription& description,
    if (description.title.empty())
       result.push_back(errors::missingField("Title", resourcePath, location));
    
-   for (const ProjectTemplateWidgetDescription widget : description.widgets)
+   BOOST_FOREACH(const ProjectTemplateWidgetDescription widget, description.widgets)
    {
       std::vector<Error> widgetErrors =
             validateWidget(widget, resourcePath, location);
@@ -451,17 +452,17 @@ public:
    {
       json::Object object;
       
-      for (const std::string& pkgName : registry_ | boost::adaptors::map_keys)
+      BOOST_FOREACH(const std::string& pkgName, registry_ | boost::adaptors::map_keys)
       {
          json::Array array;
-         for (const ProjectTemplateDescription& description : registry_[pkgName])
+         BOOST_FOREACH(const ProjectTemplateDescription& description, registry_[pkgName])
          {
             array.push_back(description.toJson());
          }
          object[pkgName] = array;
       }
       
-      return std::move(object);
+      return object;
    }
 
    std::map<
@@ -524,14 +525,14 @@ private:
       
       // loop over discovered files and attempt to read template descriptions
       std::vector<FilePath> children;
-      error = resourcePath.getChildren(children);
+      error = resourcePath.children(&children);
       if (error)
          LOG_ERROR(error);
       
-      for (const FilePath& childPath : children)
+      BOOST_FOREACH(const FilePath& childPath, children)
       {
          // skip files that don't have a dcf extension
-         if (childPath.getExtension() != ".dcf")
+         if (childPath.extension() != ".dcf")
             continue;
          
          ProjectTemplateDescription description;
@@ -607,7 +608,6 @@ private:
       ptd.title    = title;
       ptd.subtitle = subtitle;
       ptd.caption  = caption;
-      ptd.openFiles = { "Read-and-delete-me" };
       projectTemplateRegistry()->add(package, ptd);
    }
    
@@ -640,7 +640,7 @@ boost::shared_ptr<ProjectTemplateWorker>& projectTemplateWorker()
    return instance;
 }
 
-void respondWithProjectTemplateRegistry(json::JsonRpcFunctionContinuation continuation)
+void respondWithProjectTemplateRegistry(const json::JsonRpcFunctionContinuation& continuation)
 {
    json::JsonRpcResponse response;
    response.setResult(projectTemplateRegistry()->toJson());
@@ -659,7 +659,7 @@ void getProjectTemplateRegistry(const json::JsonRpcRequest& request,
                                 const json::JsonRpcFunctionContinuation& continuation)
 {
    withProjectTemplateRegistry(
-            boost::bind(respondWithProjectTemplateRegistry, continuation));
+            boost::bind(respondWithProjectTemplateRegistry, boost::cref(continuation)));
 }
 
 SEXP rs_getProjectTemplateRegistry()

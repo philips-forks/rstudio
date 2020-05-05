@@ -1,7 +1,7 @@
 /*
  * RSAccountConnector.java
  *
- * Copyright (C) 2009-15 by RStudio, PBC
+ * Copyright (C) 2009-15 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -20,6 +20,7 @@ import org.rstudio.core.client.widget.Operation;
 import org.rstudio.core.client.widget.OperationWithInput;
 import org.rstudio.core.client.widget.ProgressOperationWithInput;
 import org.rstudio.core.client.widget.ProgressIndicator;
+import org.rstudio.studio.client.application.Desktop;
 import org.rstudio.studio.client.application.events.EventBus;
 import org.rstudio.studio.client.common.GlobalDisplay;
 import org.rstudio.studio.client.common.satellite.Satellite;
@@ -38,8 +39,7 @@ import org.rstudio.studio.client.server.Void;
 import org.rstudio.studio.client.workbench.commands.Commands;
 import org.rstudio.studio.client.workbench.model.Session;
 import org.rstudio.studio.client.workbench.model.SessionUtils;
-import org.rstudio.studio.client.workbench.prefs.model.UserPrefs;
-import org.rstudio.studio.client.workbench.prefs.model.UserState;
+import org.rstudio.studio.client.workbench.prefs.model.UIPrefs;
 import org.rstudio.studio.client.workbench.prefs.views.PublishingPreferencesPane;
 import org.rstudio.studio.client.workbench.ui.OptionsLoader;
 
@@ -74,15 +74,13 @@ public class RSAccountConnector implements
          OptionsLoader.Shim optionsLoader,
          EventBus events,
          Session session,
-         Provider<UserPrefs> pUiPrefs,
-         Provider<UserState> pState,
+         Provider<UIPrefs> pUiPrefs,
          Satellite satellite)
    {
       server_ = server;
       display_ = display;
       optionsLoader_ = optionsLoader;
-      pUserPrefs_ = pUiPrefs;
-      pUserState_ = pState;
+      pUiPrefs_ = pUiPrefs;
       session_ = session;
 
       events.addHandler(EnableRStudioConnectUIEvent.TYPE, this);
@@ -99,7 +97,7 @@ public class RSAccountConnector implements
          boolean withCloudOption,
          final OperationWithInput<Boolean> onCompleted)
    {
-      if (pUserState_.get().enableRsconnectPublishUi().getGlobalValue())
+      if (pUiPrefs_.get().enableRStudioConnect().getGlobalValue())
       {
          showAccountTypeWizard(forFirstAccount, withCloudOption, onCompleted);
       }
@@ -141,6 +139,7 @@ public class RSAccountConnector implements
                   });
                   wizard.showModal();
                   found = true;
+                  closeAuthWindowWhenFinished(wizard);
                   break;
                }
             }
@@ -180,8 +179,8 @@ public class RSAccountConnector implements
    @Override
    public void onEnableRStudioConnectUI(EnableRStudioConnectUIEvent event)
    {
-      pUserState_.get().enableRsconnectPublishUi().setGlobalValue(event.getEnable());
-      pUserState_.get().writeState();
+      pUiPrefs_.get().enableRStudioConnect().setGlobalValue(event.getEnable());
+      pUiPrefs_.get().writeUIPrefs();
    }
 
    // Private methods --------------------------------------------------------
@@ -224,7 +223,7 @@ public class RSAccountConnector implements
             display_,
             forFirstAccount,
             withCloudOption && 
-               SessionUtils.showExternalPublishUi(session_, pUserState_.get()),
+               SessionUtils.showExternalPublishUi(session_, pUiPrefs_.get()),
             new ProgressOperationWithInput<NewRSConnectAccountResult>()
       {
          @Override
@@ -247,6 +246,8 @@ public class RSAccountConnector implements
             showingWizard_ = false;
          }
       });
+
+      closeAuthWindowWhenFinished(wizard);
    }
    
    private void processDialogResult(final NewRSConnectAccountResult input, 
@@ -387,11 +388,27 @@ public class RSAccountConnector implements
    }-*/;
    
    
+   private void closeAuthWindowWhenFinished(PopupPanel panel)
+   {
+      if (Desktop.isDesktop())
+      {
+         panel.addCloseHandler(new CloseHandler<PopupPanel>()
+         {
+            @Override
+            public void onClose(CloseEvent<PopupPanel> arg0)
+            {
+               // take down the auth window if it's still showing
+               Desktop.getFrame().closeNamedWindow(
+                     NewRSConnectAuthPage.AUTH_WINDOW_NAME);
+            }
+         });
+      }
+   }
+
    private final GlobalDisplay display_;
    private final RSConnectServerOperations server_;
    private final OptionsLoader.Shim optionsLoader_;
-   private final Provider<UserPrefs> pUserPrefs_;
-   private final Provider<UserState> pUserState_;
+   private final Provider<UIPrefs> pUiPrefs_;
    private final Session session_;
    
    private boolean showingWizard_;

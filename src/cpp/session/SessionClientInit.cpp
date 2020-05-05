@@ -1,7 +1,7 @@
 /*
  * SessionClientInit.hpp
  *
- * Copyright (C) 2009-20 by RStudio, PBC
+ * Copyright (C) 2009-17 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -19,31 +19,25 @@
 #include "SessionHttpMethods.hpp"
 #include "SessionDirs.hpp"
 
+#include "modules/SessionAgreement.hpp"
 #include "modules/SessionAuthoring.hpp"
 #include "modules/rmarkdown/SessionRMarkdown.hpp"
-#include "modules/rmarkdown/SessionBlogdown.hpp"
 #include "modules/connections/SessionConnections.hpp"
 #include "modules/SessionBreakpoints.hpp"
-#include "modules/SessionDependencyList.hpp"
 #include "modules/SessionRAddins.hpp"
 #include "modules/SessionErrors.hpp"
 #include "modules/SessionFind.hpp"
-#include "modules/SessionGraphics.hpp"
 #include "modules/SessionHTMLPreview.hpp"
 #include "modules/SessionLists.hpp"
 #include "modules/clang/SessionClang.hpp"
 #include "modules/SessionMarkers.hpp"
 #include "modules/SessionPlots.hpp"
-#include "modules/SessionReticulate.hpp"
 #include "modules/SessionSVN.hpp"
 #include "modules/SessionSource.hpp"
 #include "modules/SessionVCS.hpp"
-#include "modules/SessionFonts.hpp"
 #include "modules/build/SessionBuild.hpp"
-#include "modules/jobs/SessionJobs.hpp"
 #include "modules/environment/SessionEnvironment.hpp"
 #include "modules/presentation/SessionPresentation.hpp"
-#include "modules/overlay/SessionOverlay.hpp"
 
 #include <r/session/RSession.hpp>
 #include <r/session/RClientState.hpp>
@@ -51,13 +45,10 @@
 #include <r/session/RConsoleHistory.hpp>
 #include <r/ROptions.hpp>
 
-#include <core/CrashHandler.hpp>
-#include <shared_core/json/Json.hpp>
+#include <core/json/Json.hpp>
 #include <core/json/JsonRpc.hpp>
 #include <core/http/Request.hpp>
 #include <core/http/Response.hpp>
-#include <core/http/Cookie.hpp>
-#include <core/http/CSRFToken.hpp>
 #include <core/system/Environment.hpp>
 
 #include <session/SessionConsoleProcess.hpp>
@@ -67,17 +58,12 @@
 #include <session/SessionOptions.hpp>
 #include <session/SessionPackageProvidedExtension.hpp>
 #include <session/SessionPersistentState.hpp>
+#include <session/SessionUserSettings.hpp>
 #include <session/projects/SessionProjectSharing.hpp>
-#include <session/prefs/UserPrefs.hpp>
-#include <session/prefs/UserState.hpp>
 
 #include <session/projects/SessionProjects.hpp>
 
 #include "session-config.h"
-
-#ifdef RSTUDIO_SERVER
-#include <server_core/UrlPorts.hpp>
-#endif
 
 using namespace rstudio::core;
 
@@ -86,57 +72,6 @@ extern "C" const char *locale2charset(const char *);
 namespace rstudio {
 namespace session {
 namespace client_init {
-namespace {
-
-#ifdef RSTUDIO_SERVER
-Error makePortTokenCookie(boost::shared_ptr<HttpConnection> ptrConnection, 
-      http::Response& response)
-{
-   // extract the base URL
-   json::JsonRpcRequest request;
-   Error error = parseJsonRpcRequest(ptrConnection->request().body(), &request);
-   if (error)
-      return error;
-   std::string baseURL;
-
-   error = json::readParams(request.params, &baseURL);
-   if (error)
-      return error;
-
-   // save the base URL to persistent state (for forming absolute URLs)
-   persistentState().setActiveClientUrl(baseURL);
-
-   // generate a new port token
-   persistentState().setPortToken(server_core::generateNewPortToken());
-
-   // compute the cookie path; find the first / after the http(s):// preamble. we make the cookie
-   // specific to this session's URL since it's possible for different sessions (paths) to use
-   // different tokens on the same server.
-   std::size_t pos = baseURL.find('/', 9);
-   std::string path = "/";
-   if (pos != std::string::npos)
-   {
-      path = baseURL.substr(pos);
-   }
-
-   // create the cookie; don't set an expiry date as this will be a session cookie
-   http::Cookie cookie(
-            ptrConnection->request(), 
-            kPortTokenCookie, 
-            persistentState().portToken(), 
-            path,
-            http::Cookie::selectSameSite(options().legacyCookies(),
-                                         options().iFrameEmbedding()),
-            true, // HTTP only -- client doesn't get to read this token
-            baseURL.substr(0, 5) == "https" // secure if using HTTPS
-         );
-   response.addCookie(cookie, options().iFrameLegacyCookies());
-
-   return Success();
-}
-#endif
-
-} // anonymous namespace
 
 void handleClientInit(const boost::function<void()>& initFunction,
                       boost::shared_ptr<HttpConnection> ptrConnection)
@@ -144,14 +79,6 @@ void handleClientInit(const boost::function<void()>& initFunction,
    // alias options
    Options& options = session::options();
    
-   // check for valid CSRF headers in server mode 
-   if (options.programMode() == kSessionProgramModeServer && 
-       !core::http::validateCSRFHeaders(ptrConnection->request(), options.iFrameLegacyCookies()))
-   {
-      ptrConnection->sendJsonRpcError(Error(json::errc::Unauthorized, ERROR_LOCATION));
-      return;
-   }
-
    // calculate initialization parameters
    std::string clientId = persistentState().newActiveClientId();
    bool resumed = suspend::sessionResumed() || init::isSessionInitialized();
@@ -181,21 +108,14 @@ void handleClientInit(const boost::function<void()>& initFunction,
    json::Object sessionInfo ;
    sessionInfo["clientId"] = clientId;
    sessionInfo["mode"] = options.programMode();
-
-   // build initialization options for client
-   json::Object initOptions;
-   initOptions["restore_workspace"] = options.rRestoreWorkspace();
-   initOptions["run_rprofile"] = options.rRunRprofile();
-   sessionInfo["init_options"] = initOptions;
    
    sessionInfo["userIdentity"] = options.userIdentity();
-   sessionInfo["systemUsername"] = core::system::username();
 
    // only send log_dir and scratch_dir if we are in desktop mode
    if (options.programMode() == kSessionProgramModeDesktop)
    {
-      sessionInfo["log_dir"] = options.userLogPath().getAbsolutePath();
-      sessionInfo["scratch_dir"] = options.userScratchPath().getAbsolutePath();
+      sessionInfo["log_dir"] = options.userLogPath().absolutePath();
+      sessionInfo["scratch_dir"] = options.userScratchPath().absolutePath();
    }
 
    // temp dir
@@ -203,13 +123,7 @@ void handleClientInit(const boost::function<void()>& initFunction,
    Error error = tempDir.ensureDirectory();
    if (error)
       LOG_ERROR(error);
-   sessionInfo["temp_dir"] = tempDir.getAbsolutePath();
-
-   // R_LIBS_USER
-   sessionInfo["r_libs_user"] = module_context::rLibsUser();
-   
-   // user home path
-   sessionInfo["user_home_path"] = session::options().userHomePath().getAbsolutePath();
+   sessionInfo["temp_dir"] = tempDir.absolutePath();
    
    // installed client version
    sessionInfo["client_version"] = http_methods::clientVersion();
@@ -229,15 +143,16 @@ void handleClientInit(const boost::function<void()>& initFunction,
       LOG_ERROR(error);
    sessionInfo["source_documents"] = jsonDocs;
    
+   // agreement
+   sessionInfo["hasAgreement"] = modules::agreement::hasAgreement();
+   sessionInfo["pendingAgreement"] = modules::agreement::pendingAgreement();
+
    // docs url
    sessionInfo["docsURL"] = session::options().docsURL();
 
    // get alias to console_actions and get limit
    rstudio::r::session::ConsoleActions& consoleActions = rstudio::r::session::consoleActions();
    sessionInfo["console_actions_limit"] = consoleActions.capacity();
-   
-   // get current console language
-   sessionInfo["console_language"] = modules::reticulate::isReplActive() ? "Python" : "R";
 
    // resumed
    sessionInfo["resumed"] = resumed; 
@@ -260,24 +175,9 @@ void handleClientInit(const boost::function<void()>& initFunction,
 
    sessionInfo["markers_state"] = modules::markers::markersStateAsJson();
 
-   std::string sessionVersion = std::string(RSTUDIO_VERSION);
-   sessionInfo["rstudio_version"] = sessionVersion;
+   sessionInfo["rstudio_version"] = std::string(RSTUDIO_VERSION);
 
-   // check to ensure the version of this rsession process matches the version
-   // of the rserver that started us - we immediately clear this env var so that
-   // it is not persisted across session suspends
-   std::string version = core::system::getenv(kRStudioVersion);
-   core::system::unsetenv(kRStudioVersion);
-   if (!version.empty() && version != sessionVersion)
-   {
-      module_context::consoleWriteError("Session version " + sessionVersion +
-                                        " does not match server version " + version + " - "
-                                        "this is an unsupported configuration, and you may "
-                                        "experience unexpected issues as a result.\n\n");
-   }
-
-   sessionInfo["user_prefs"] = prefs::allPrefLayers();
-   sessionInfo["user_state"] = prefs::allStateLayers();
+   sessionInfo["ui_prefs"] = userSettings().uiPrefs();
 
    sessionInfo["have_advanced_step_commands"] =
                         modules::breakpoints::haveAdvancedStepCommands();
@@ -319,7 +219,7 @@ void handleClientInit(const boost::function<void()>& initFunction,
       sessionInfo["project_user_data_directory"] = json::Value();
    }
 
-   sessionInfo["system_encoding"] = std::string(::locale2charset(nullptr));
+   sessionInfo["system_encoding"] = std::string(::locale2charset(NULL));
 
    std::vector<std::string> vcsAvailable;
    if (modules::source_control::isGitInstalled())
@@ -336,12 +236,12 @@ void handleClientInit(const boost::function<void()>& initFunction,
    sessionInfo["lists"] = modules::lists::allListsAsJson();
 
    sessionInfo["console_processes"] =
-         console_process::processesAsJson(console_process::ClientSerialization);
+         console_process::processesAsJson();
 
    // send sumatra pdf exe path if we are on windows
 #ifdef _WIN32
    sessionInfo["sumatra_pdf_exe_path"] =
-               options.sumatraPath().completePath("SumatraPDF.exe").getAbsolutePath();
+               options.sumatraPath().complete("SumatraPDF.exe").absolutePath();
 #endif
 
    // are build tools enabled
@@ -354,15 +254,15 @@ void handleClientInit(const boost::function<void()>& initFunction,
                               module_context::isBookdownWebsite();
 
       FilePath buildTargetDir = projects::projectContext().buildTargetPath();
-      if (!buildTargetDir.isEmpty())
+      if (!buildTargetDir.empty())
       {
          sessionInfo["build_target_dir"] = module_context::createAliasedPath(
                                                                 buildTargetDir);
          sessionInfo["has_pkg_src"] = (type == r_util::kBuildTypePackage) &&
-            buildTargetDir.completeChildPath("src").exists();
+                                      buildTargetDir.childPath("src").exists();
          sessionInfo["has_pkg_vig"] =
                (type == r_util::kBuildTypePackage) &&
-                  buildTargetDir.completeChildPath("vignettes").exists();
+               buildTargetDir.childPath("vignettes").exists();
       }
       else
       {
@@ -380,12 +280,6 @@ void handleClientInit(const boost::function<void()>& initFunction,
       sessionInfo["has_pkg_src"] = false;
       sessionInfo["has_pkg_vig"] = false;
    }
-
-   sessionInfo["blogdown_config"] = modules::rmarkdown::blogdown::blogdownConfig();
-
-   sessionInfo["is_distill_project"] = module_context::isDistillProject();
-   
-   sessionInfo["graphics_backends"] = modules::graphics::supportedBackends();
 
    sessionInfo["presentation_state"] = modules::presentation::presentationStateAsJson();
    sessionInfo["presentation_commands"] = options.allowPresentationCommands();
@@ -422,9 +316,6 @@ void handleClientInit(const boost::function<void()>& initFunction,
    sessionInfo["allow_file_download"] = options.allowFileDownloads();
    sessionInfo["allow_file_upload"] = options.allowFileUploads();
    sessionInfo["allow_remove_public_folder"] = options.allowRemovePublicFolder();
-   sessionInfo["allow_full_ui"] = options.allowFullUI();
-   sessionInfo["websocket_ping_interval"] = options.webSocketPingInterval();
-   sessionInfo["websocket_connect_timeout"] = options.webSocketConnectTimeout();
 
    // publishing may be disabled globally or just for external services, and
    // via configuration options or environment variables
@@ -443,8 +334,6 @@ void handleClientInit(const boost::function<void()>& initFunction,
          core::system::getenv(kRStudioDisableProjectSharing).empty() &&
          !options.getOverlayOption(kSessionSharedStoragePath).empty();
 
-   sessionInfo["launcher_session"] = false;
-
    sessionInfo["environment_state"] = modules::environment::environmentStateAsJson();
    sessionInfo["error_state"] = modules::errors::errorStateAsJson();
 
@@ -453,21 +342,18 @@ void handleClientInit(const boost::function<void()>& initFunction,
            (options.programMode() == kSessionProgramModeServer) &&
            options.showUserIdentity();
 
+   sessionInfo["rmarkdown_available"] =
+         modules::rmarkdown::rmarkdownPackageAvailable();
+
    sessionInfo["packrat_available"] =
                      module_context::isRequiredPackratInstalled();
 
-   sessionInfo["renv_available"] =
-         module_context::isRequiredRenvInstalled();
 
-   // check rmarkdown package presence and capabilities
-   sessionInfo["rmarkdown_available"] =
-         modules::rmarkdown::rmarkdownPackageAvailable();
    sessionInfo["knit_params_available"] =
          modules::rmarkdown::knitParamsAvailable();
+
    sessionInfo["knit_working_dir_available"] = 
          modules::rmarkdown::knitWorkingDirAvailable();
-   sessionInfo["ppt_available"] = 
-         modules::rmarkdown::pptAvailable();
 
    sessionInfo["clang_available"] = modules::clang::isAvailable();
 
@@ -479,7 +365,6 @@ void handleClientInit(const boost::function<void()>& initFunction,
 
    json::Object rVersionsJson;
    rVersionsJson["r_version"] = module_context::rVersion();
-   rVersionsJson["r_version_label"] = module_context::rVersionLabel();
    rVersionsJson["r_home_dir"] = module_context::rHomeDir();
    sessionInfo["r_versions_info"] = rVersionsJson;
 
@@ -504,58 +389,14 @@ void handleClientInit(const boost::function<void()>& initFunction,
 
    sessionInfo["default_rsconnect_server"] = options.defaultRSConnectServer();
 
-   sessionInfo["job_state"] = modules::jobs::jobState();
-
-   sessionInfo["launcher_jobs_enabled"] = modules::overlay::launcherJobsFeatureDisplayed();
-
-   json::Object packageDependencies;
-   error = modules::dependency_list::getDependencyList(&packageDependencies);
-   if (error)
-      LOG_ERROR(error);
-   sessionInfo["package_dependencies"] = packageDependencies;
-
-   // crash handler settings
-   bool canModifyCrashSettings =
-         options.programMode() == kSessionProgramModeDesktop &&
-         crash_handler::configSource() == crash_handler::ConfigSource::User;
-   sessionInfo["crash_handler_settings_modifiable"] = canModifyCrashSettings;
-
-   bool promptForCrashHandlerPermission = canModifyCrashSettings && !crash_handler::hasUserBeenPromptedForPermission();
-   sessionInfo["prompt_for_crash_handler_permission"] = promptForCrashHandlerPermission;
-
-   sessionInfo["project_id"] = session::options().sessionScope().project();
-
-   if (session::options().getBoolOverlayOption(kSessionUserLicenseSoftLimitReached))
-   {
-      sessionInfo["license_message"] =
-            "There are more concurrent users of RStudio Server Pro than your license supports. "
-            "Please obtain an updated license to continue using the product.";
-   }
-
    module_context::events().onSessionInfo(&sessionInfo);
 
-   // create response  (we always set kEventsPending to false so that the client
+   // send response  (we always set kEventsPending to false so that the client
    // won't poll for events until it is ready)
-   json::JsonRpcResponse jsonRpcResponse;
+   json::JsonRpcResponse jsonRpcResponse ;
    jsonRpcResponse.setField(kEventsPending, "false");
-   jsonRpcResponse.setResult(sessionInfo);
-
-   // set response
-   core::http::Response response;
-   core::json::setJsonRpcResponse(jsonRpcResponse, &response);
-
-#ifdef RSTUDIO_SERVER
-   if (options.programMode() == kSessionProgramModeServer)
-   {
-      Error error = makePortTokenCookie(ptrConnection, response);
-      if (error)
-      {
-         LOG_ERROR(error);
-      }
-   }
-#endif
-
-   ptrConnection->sendResponse(response);
+   jsonRpcResponse.setResult(sessionInfo) ;
+   ptrConnection->sendJsonRpcResponse(jsonRpcResponse);
 
    // complete initialization of session
    init::ensureSessionInitialized();

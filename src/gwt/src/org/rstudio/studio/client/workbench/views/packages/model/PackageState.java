@@ -1,7 +1,7 @@
 /*
  * PackageList.java
  *
- * Copyright (C) 2009-14 by RStudio, PBC
+ * Copyright (C) 2009-14 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -14,7 +14,7 @@
  */
 package org.rstudio.studio.client.workbench.views.packages.model;
 
-import org.rstudio.studio.client.workbench.projects.ProjectContext;
+import org.rstudio.studio.client.packrat.model.PackratContext;
 
 import com.google.gwt.core.client.JavaScriptObject;
 import com.google.gwt.core.client.JsArray;
@@ -29,10 +29,7 @@ public class PackageState extends JavaScriptObject
       return this.package_list;
    }-*/;
    
-   public final native ProjectContext getProjectContext() /*-{
-      return {
-         "packrat_context": this.packrat_context,
-         "renv_context": this.renv_context
-      };
+   public final native PackratContext getPackratContext() /*-{
+      return this.packrat_context;
    }-*/;
 }

@@ -1,7 +1,7 @@
 /*
  * SVNReviewPanel.java
  *
- * Copyright (C) 2009-20 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -42,7 +42,6 @@ import com.google.inject.Inject;
 import org.rstudio.core.client.WidgetHandlerRegistration;
 import org.rstudio.core.client.command.KeyboardShortcut;
 import org.rstudio.core.client.resources.ImageResource2x;
-import org.rstudio.core.client.widget.FormLabel;
 import org.rstudio.core.client.widget.LeftRightToggleButton;
 import org.rstudio.core.client.widget.Toolbar;
 import org.rstudio.core.client.widget.ToolbarButton;
@@ -169,7 +168,7 @@ public class SVNReviewPanel extends ResizeComposite implements Display
          String valueStr = value.toString();
          for (int i = 0; i < listBox_.getItemCount(); i++)
          {
-            if (listBox_.getValue(i) == valueStr)
+            if (listBox_.getValue(i).equals(valueStr))
             {
                listBox_.setSelectedIndex(i);
                break;
@@ -213,9 +212,6 @@ public class SVNReviewPanel extends ResizeComposite implements Display
 
       overrideSizeWarning_ = new SizeWarningWidget("diff");
 
-      topToolbar_ = new Toolbar("SVN Review");
-      diffToolbar_ = new Toolbar("SVN Diff");
-
       changelist.setSelectFirstItemByDefault(true);
 
       Widget widget = GWT.<Binder>create(Binder.class).createAndBindUi(this);
@@ -231,7 +227,7 @@ public class SVNReviewPanel extends ResizeComposite implements Display
       topToolbar_.addLeftSeparator();
       
       topToolbar_.addLeftWidget(new ToolbarButton(
-            "Refresh", ToolbarButton.NoTitle, commands.vcsRefresh().getImageResource(),
+            "Refresh", commands.vcsRefresh().getImageResource(),
             new ClickHandler() {
                @Override
                public void onClick(ClickEvent event)
@@ -264,9 +260,8 @@ public class SVNReviewPanel extends ResizeComposite implements Display
 
       diffToolbar_.addLeftSeparator();
       discardAllButton_ = diffToolbar_.addLeftWidget(new ToolbarButton(
-            "Discard All", ToolbarButton.NoTitle,  new ImageResource2x(RES.discard2x())));
+            "Discard All", new ImageResource2x(RES.discard2x()), (ClickHandler) null));
 
-      lblContext_.setFor(contextLines_);
       listBoxAdapter_ = new ListBoxAdapter(contextLines_);
 
       new WidgetHandlerRegistration(this)
@@ -336,7 +331,7 @@ public class SVNReviewPanel extends ResizeComposite implements Display
    private int getPageScroll(ScrollPanel panel)
    {
       // Return slightly less than the client height (so there's overlap between
-      // one screen and the next) but never less than the line scroll height.
+      // one screen and the next) but never less than the line scoll height.
       return Math.max(
             getLineScroll(panel),
             panel.getElement().getClientHeight() - getLineScroll(panel));
@@ -467,12 +462,10 @@ public class SVNReviewPanel extends ResizeComposite implements Display
    @UiField(provided = true)
    LineTableView lines_;
    @UiField
-   FormLabel lblContext_;
-   @UiField
    ListBox contextLines_;
-   @UiField(provided = true)
+   @UiField
    Toolbar topToolbar_;
-   @UiField(provided = true)
+   @UiField
    Toolbar diffToolbar_;
    @UiField
    ScrollPanel diffScroll_;

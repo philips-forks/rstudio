@@ -8,9 +8,5 @@ public interface AddinsServerOperations
 {
    void getRAddins(boolean reindex,
                    ServerRequestCallback<RAddins> requestCallback);
-   
-   void prepareForAddin(ServerRequestCallback<Void> requestCallback);
-   
-   void executeRAddinNonInteractively(String commandId,
-                                      ServerRequestCallback<Void> requestCallback);
+   void executeRAddinNonInteractively(String commandId, ServerRequestCallback<Void> requestCallback);
 }

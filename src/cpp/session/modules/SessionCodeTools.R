@@ -1,7 +1,7 @@
 #
 # SessionCodeTools.R
 #
-# Copyright (C) 2009-20 by RStudio, PBC
+# Copyright (C) 2009-12 by RStudio, Inc.
 #
 # Unless you have received this program directly from RStudio pursuant
 # to the terms of a commercial license agreement with RStudio, then
@@ -12,14 +12,6 @@
 # AGPL (http://www.gnu.org/licenses/agpl-3.0.txt) for more details.
 #
 #
-
-.rs.addJsonRpcHandler("discover_package_dependencies", function(docId, fileType)
-{
-   available <- .rs.availablePackages()
-   ready <- !is.null(available$value)
-   packages <- .rs.discoverPackageDependencies(docId, fileType)
-   list(ready = .rs.scalar(ready), packages = packages)
-})
 
 .rs.addFunction("error", function(...)
 {
@@ -37,13 +29,19 @@
    )
 })
 
-.rs.addFunction("withTimeLimit", function(seconds,
+.rs.addFunction("withTimeLimit", function(time,
                                           expr,
+                                          envir = parent.frame(),
                                           fail = NULL)
 {
-   setTimeLimit(elapsed = seconds, transient = TRUE)
+   setTimeLimit(elapsed = time, transient = TRUE)
    on.exit(setTimeLimit(), add = TRUE)
-   tryCatch(expr, error = function(e) fail)
+   tryCatch(
+      eval(expr, envir = envir),
+      error = function(e) {
+         fail
+      }
+   )
 })
 
 .rs.addFunction("startsWith", function(strings, string)
@@ -148,10 +146,6 @@
                           "namespace:"))
    {
      asNamespace(substring(namespaceName, nchar("namespace:") + 1))
-   }
-   else if (identical(namespaceName, ".GlobalEnv"))
-   {
-      .GlobalEnv
    }
    else
    {
@@ -273,77 +267,6 @@
          return(TRUE)
    
    FALSE
-})
-
-.rs.addFunction("getUseMethodGeneric", function(x)
-{
-   if (is.function(x))
-      x <- body(x)
-   
-   if (!is.call(x))
-      return(NULL)
-   
-   UseMethod <- as.name("UseMethod")
-   generic <- NULL
-   .rs.recursiveSearch(x, function(node) {
-      
-      if (!is.call(node) || length(node) < 2 || length(node) > 3)
-         return(FALSE)
-      
-      lhs <- node[[1]]
-      if (!identical(lhs, UseMethod))
-         return(FALSE)
-      
-      matched <- tryCatch(
-         match.call(function(generic, object) {}, node),
-         error = function(e) NULL
-      )
-      
-      if (is.character(matched[["generic"]]))
-      {
-         generic <<- matched[["generic"]]
-         return(TRUE)
-      }
-      
-      FALSE
-   })
-   
-   generic
-})
-
-.rs.addFunction("getS3MethodDefinitions", function(generic)
-{
-   if (is.function(generic))
-      generic <- .rs.getUseMethodGeneric(generic)
-   
-   if (!is.character(generic))
-      return(NULL)
-   
-   call <- substitute(
-      methods(generic),
-      list(generic = generic)
-   )
-   
-   methods <- eval(call, envir = globalenv())
-   info <- attr(methods, "info")
-   if (!is.data.frame(info))
-      return(NULL)
-   
-   defns <- lapply(seq_len(nrow(info)), function(i) {
-      method <- rownames(info)[[i]]
-      generic <- info$generic[[i]]
-      class <- substring(method, nchar(generic) + 2)
-      
-      call <- substitute(
-         utils::getS3method(generic, class, optional = TRUE),
-         list(generic = generic, class = class)
-      )
-      
-      eval(call, envir = globalenv())
-   })
-   
-   names(defns) <- rownames(info)
-   defns
 })
 
 .rs.addFunction("getS3MethodsForFunction", function(func, envir = parent.frame())
@@ -676,17 +599,12 @@
 
 .rs.addJsonRpcHandler("execute_r_code", function(code)
 {
-   # allow 2 seconds to execute code
-   setTimeLimit(elapsed = 2, transient = TRUE)
-   on.exit(setTimeLimit(), add = TRUE)
+   .envir <- parent.frame(2)
+   result <- .rs.withTimeLimit(2, fail = "", envir = .envir, {
    
-   # evaluate requested code
-   envir <- parent.frame(2)
-   result <- .rs.tryCatch({
-      
       output <- capture.output(
          evaled <- suppressWarnings(
-            eval(parse(text = code), envir = envir)
+            eval(parse(text = code), envir = .envir)
          )
       )
       
@@ -695,12 +613,9 @@
       else
          deparse(evaled)
       
+      paste(as.character(object), collapse = "\n")
    })
-   
-   if (inherits(result, "error"))
-      return(.rs.scalar(""))
-   
-   .rs.scalar(paste(as.character(object), collapse = "\n"))
+   .rs.scalar(result)
 })
 
 .rs.addJsonRpcHandler("is_function", function(nameString, envString)
@@ -852,31 +767,36 @@
 
 .rs.addFunction("assign", function(x, value)
 {
-   assign(paste(".rs.cache.", x, sep = ""), value, envir = .rs.toolsEnv())
+   pos <- which(search() == "tools:rstudio")
+   if (length(pos))
+      assign(paste(".rs.cache.", x, sep = ""), value, pos = pos)
 })
 
 .rs.addFunction("get", function(x)
 {
-   tryCatch(
-      get(paste(".rs.cache.", x, sep = ""), envir = .rs.toolsEnv()),
-      error = function(e) NULL
-   )
+   pos <- which(search() == "tools:rstudio")
+   if (length(pos))
+      tryCatch(
+         get(paste(".rs.cache.", x, sep = ""), pos = pos),
+         error = function(e) NULL
+      )
 })
 
 .rs.addFunction("mget", function(x = NULL)
 {
-   tryCatch(
-      {
+   pos <- which(search() == "tools:rstudio")
+   if (length(pos))
+      tryCatch({
+         
          objects <- if (is.null(x))
-            .rs.selectStartsWith(objects(envir = .rs.toolsEnv(), all.names = TRUE), ".rs.cache")
+            .rs.selectStartsWith(objects(pos = pos, all.names = TRUE), ".rs.cache")
          else
             paste(".rs.cache.", x, sep = "")
          
-         mget(objects, envir = .rs.toolsEnv())
+         mget(objects, envir = as.environment(pos))
       },
-      
-      error = function(e) NULL
-   )
+         error = function(e) NULL
+      )
 })
 
 .rs.addFunction("packageNameForSourceFile", function(filePath)
@@ -1326,9 +1246,11 @@
          .rs.recordFunctionInformation(node, missingEnv, usedSymbolsEnv)
       })
       
-      # Figure out which functions perform NSE.
-      # TODO: Figure out which arguments are actually involved in NSE.
-      performsNse <- .rs.performsNonstandardEvaluation(f)
+      # Figure out which functions perform NSE. TODO: Figure out which
+      # arguments are actually involved in NSE.
+      performsNse <- as.integer(
+         .rs.recursiveSearch(body(f), .rs.performsNonstandardEvaluation)
+      )
       
       formalInfo <- lapply(seq_along(formalNames), function(i) {
          as.integer(c(
@@ -1341,20 +1263,16 @@
       list(
          formal_names = formalNames,
          formal_info  = formalInfo,
-         performs_nse = I(as.integer(performsNse))
+         performs_nse = I(performsNse)
       )
    })
-   
-   # List data objects exported by this package
-   datasets <- .rs.listDatasetsProvidedByPackage(package)
    
    # Generate the output
    output <- list(
       package = I(package),
       exports = exports,
       types = types,
-      function_info = functionInfo,
-      datasets = datasets
+      function_info = functionInfo
    )
    
    # Write the JSON to stdout; parent processes
@@ -1367,24 +1285,17 @@
 
 .rs.setVar("nse.primitives", c(
    "quote", "substitute", "match.call", "eval.parent",
-   "enquote", "bquote", "evalq", "lazy_dots", "compat_as_lazy_dots",
-   "select_vars", "quo", "quos", "enquo", "named_quos"
+   "enquote", "bquote", "evalq", "lazy_dots"
 ))
 
-.rs.addFunction("performsNonstandardEvaluation", function(object)
+.rs.addFunction("performsNonstandardEvaluation", function(functionBody)
 {
-   # For S3 generics, search methods as well as the generic for
-   # potential usages of non-standard evaluation.
-   methods <- .rs.getS3MethodDefinitions(object)
-   for (method in methods)
-      if (.rs.performsNonstandardEvaluation(method))
-         return(TRUE)
-   
-   if (is.function(object))
-      object <- body(object)
+   # Allow callers to just pass in functions
+   if (is.function(functionBody))
+      functionBody <- body(functionBody)
    
    nsePrimitives <- .rs.getVar("nse.primitives")
-   .rs.recursiveSearch(object,
+   .rs.recursiveSearch(functionBody,
                        .rs.performsNonstandardEvaluationImpl,
                        nsePrimitives = nsePrimitives)
 })
@@ -1417,10 +1328,9 @@
 
 .rs.addFunction("recursiveSearch", function(`_node`, fn, ...)
 {
-   if (fn(`_node`, ...))
-      return(TRUE)
+   if (fn(`_node`, ...)) return(TRUE)
    
-   if (is.recursive(`_node`))
+   if (is.call(`_node`))
       for (i in seq_along(`_node`))
          if (.rs.recursiveSearch(`_node`[[i]], fn, ...))
             return(TRUE)
@@ -1432,7 +1342,7 @@
 {
    fn(`_node`, ...)
    
-   if (is.recursive(`_node`))
+   if (is.call(`_node`))
       for (i in seq_along(`_node`))
          .rs.recursiveWalk(`_node`[[i]], fn, ...)
 })
@@ -1449,9 +1359,7 @@
    indents[indents == -1] <- Inf
    common <- min(indents)
    result <- paste(substring(splat, common, nchar(string)), collapse = "\n")
-   dots <- list(...)
-   formatted <- if (length(dots)) sprintf(result, ...) else result
-   .rs.trimWhitespace(formatted)
+   .rs.trimWhitespace(sprintf(result, ...))
 })
 
 .rs.addFunction("parseNamespaceImports", function(path)
@@ -1735,19 +1643,8 @@
    object
 })
 
-.rs.addFunction("makePrimitiveWrapper", function(x)
-{
-   # from the R documentation, args returns:
-   #
-   #   For a closure, a closure with identical formal argument list but an empty
-   #   (NULL) body.
-   #
-   #   For a primitive, a closure with the documented usage and NULL body. Note
-   #   that some primitives do not make use of named arguments and match by
-   #   position rather than name.
-   #
-   # we just need an R closure with the right formals, so args fits nicely
-   args(x)
+.rs.addFunction("makePrimitiveWrapper", function(x) {
+   eval(parse(text = capture.output(x)), envir = parent.frame(1))
 })
 
 .rs.addFunction("extractNativeSymbols", function(DLL, collapse = TRUE)
@@ -1769,12 +1666,38 @@
    if (package %in% names(loadedDLLs))
       return(.rs.extractNativeSymbols(loadedDLLs[[package]]))
    
-   # we used to try to load and unload the package library to
-   # extract symbol information, but this is not safe to do now
-   # loading the DLL also implies running its R_init_* hook, and
-   # this can imply loading the package (+ its dependencies) --
-   # something we normally want to avoid
-   character()
+   reExtension <- paste("\\", .Platform$dynlib.ext, "$", sep = "")
+   
+   # Try loading the DLL temporarily so we can extract the symbols.
+   # Note that the shared object name does not necessarily match that
+   # of the package; e.g. `data.table` munges the object name.
+   libPath <- system.file("libs", package = package)
+   dllNames <- sub(
+      reExtension,
+      "",
+      list.files(libPath, pattern = reExtension)
+   )
+   
+   as.character(unlist(lapply(dllNames, function(name) {
+      
+      # TODO: Are there side-effects of this call that we want to avoid? If so
+      # we might want to execute this in a separate R process.
+      DLL <- try(
+         library.dynam(name, package = package, lib.loc = .libPaths()),
+         silent = TRUE
+      )
+      
+      if (inherits(DLL, "try-error"))
+         return(character())
+      
+      dllPath <- DLL[["path"]]
+      on.exit({
+         library.dynam.unload(name, libpath = system.file(package = package))
+      }, add = TRUE)
+      
+      return(.rs.extractNativeSymbols(DLL))
+   })))
+   
 })
 
 .rs.addJsonRpcHandler("extract_chunk_options", function(chunkText)
@@ -1895,45 +1818,46 @@
    .Call("rs_base64decode", data, binary)
 })
 
-.rs.addFunction("CRANDownloadOptionsString", function()
-{
+.rs.addFunction("CRANDownloadOptionsString", function() {
    
-   # collect options of interest
-   options <- options("repos", "download.file.method", "download.file.extra", "HTTPUserAgent")
-   if (identical(options[["download.file.method"]], "curl"))
-      options[["download.file.extra"]] <- .rs.downloadFileExtraWithCurlArgs()
+   # collect elements of interest
+   repos <- getOption("repos")
+   method <- getOption("download.file.method")
+   extra <- if (identical(method, "curl"))
+      .rs.downloadFileExtraWithCurlArgs()
+   else
+      getOption("download.file.extra")
    
-   # drop NULL entries
-   options <- Filter(Negate(is.null), options)
+   data <- list()
+   if (length(repos)) {
+      data[["repos"]] <- sprintf(
+         "c(%s)",
+         paste(
+            names(repos),
+            .rs.surround(as.character(repos), with = "'"),
+            sep = " = ",
+            collapse = ", "
+         )
+      )
+   }
    
-   # deparse values individually. avoid relying on the format
-   # of the deparsed output of the whole expression; see e.g.
-   # https://github.com/rstudio/rstudio/issues/4916 for example
-   # of where this can fail
-   vals <- lapply(options, function(option) {
-      
-      # replace single quotes with double quotes, so that
-      # deparse automatically escapes the inner quotes
-      # see: https://github.com/rstudio/rstudio/issues/6597
-      # (note these will be translated to single quotes later)
-      if (is.character(option))
-         option <- gsub("'", "\"", option)
-      
-      .rs.deparse(option)
-   })
+   if (length(method) && nzchar(method))
+      data[["download.file.method"]] <- .rs.surround(method, "'")
    
-   # join keys and values
-   keyvals <- paste(names(options), vals, sep = " = ")
+   if (length(extra) && nzchar(extra))
+      data[["download.file.extra"]] <- .rs.surround(extra, "'")
    
-   # create final options command
-   opts <- sprintf("options(%s)", paste(keyvals, collapse = ", "))
+   code <- sprintf(
+      "options(%s)",
+      paste(
+         names(data),
+         data,
+         sep = " = ",
+         collapse = ", "
+      )
+   )
    
-   # NOTE: we need to quote arguments with single quotes as the command will be
-   # submitted using double quotes, and embedded quotes in the command are not
-   # properly escaped.
-   #
-   # TODO: handle embedded quotes properly
-   gsub("\"", "'", opts, fixed = TRUE)
+   code
    
 })
 
@@ -2024,392 +1948,3 @@
    identical(typeof(object), "externalptr")
 })
 
-.rs.addFunction("fileInfo", function(..., extra_cols = TRUE)
-{
-   suppressWarnings(file.info(..., extra_cols = extra_cols))
-})
-
-.rs.addFunction("listDatasetsProvidedByPackage", function(package)
-{
-   # verify we have a non-empty length-one string
-   if (!is.character(package) || length(package) != 1 || !nzchar(package))
-      return(character())
-   
-   # find the installed package location (returns empty vector on failure)
-   location <- find.package(package, quiet = TRUE)
-   if (!length(location) || !file.exists(location))
-      return(character())
-   
-   # construct path to datalist file
-   datalist <- file.path(location, "data/datalist")
-   if (!file.exists(datalist))
-      return(character())
-   
-   # read the names of the provided objects
-   readLines(datalist, warn = FALSE)
-   
-})
-
-.rs.addFunction("tryCatch", function(expr)
-{
-   tryCatch(
-      
-      withCallingHandlers(
-         expr,
-         warning = function(w) invokeRestart("muffleWarning"),
-         message = function(m) invokeRestart("muffleMessage")
-      ),
-      
-      error = identity
-   )
-})
-
-.rs.addFunction("resolveAliasedPath", function(path)
-{
-   .Call("rs_resolveAliasedPath", path, PACKAGE = "(embedding)")
-})
-
-.rs.addFunction("readPackageDescription", function(packagePath)
-{
-   # if this is an installed package with a package metafile,
-   # read from that location
-   metapath <- file.path(packagePath, "Meta/package.rds")
-   if (file.exists(metapath)) {
-      metadata <- readRDS(metapath)
-      return(as.list(metadata$DESCRIPTION))
-   }
-   
-   # otherwise, attempt to read DESCRIPTION directly
-   descPath <- file.path(packagePath, "DESCRIPTION")
-   read.dcf(descPath, all = TRUE)
-})
-
-.rs.addFunction("readSourceDocument", function(id)
-{
-   contents <- .Call("rs_readSourceDocument", as.character(id), PACKAGE = "(embedding)")
-   if (is.character(contents))
-      Encoding(contents) <- "UTF-8"
-   contents
-})
-
-.rs.addFunction("parsePackageDependencies", function(contents, extension)
-{
-   # NOTE: the following regular expressions were extracted from knitr;
-   # we pull these out here just to avoid potentially loading the knitr
-   # package without the user's consent
-   code <- if (identical(extension, ".R"))
-      contents
-   else if (identical(extension, ".Rmd"))
-      .rs.extractRCode(contents,
-                       "^[\t >]*```+\\s*\\{([a-zA-Z0-9_]+.*)\\}\\s*$",
-                       "^[\t >]*```+\\s*$")
-   else if (identical(extension, ".Rnw"))
-      .rs.extractRCode(contents,
-                       "^\\s*<<(.*)>>=.*$",
-                       "^\\s*@\\s*(%+.*|)$")
-   
-   if (is.null(code))
-      return(character())
-   
-   # attempt to parse extracted R code
-   parsed <- .rs.tryCatch(parse(text = code, encoding = "UTF-8"))
-   if (inherits(parsed, "error")) {
-      
-      # call 'Sys.setlocale()' to work around an R issue where flags
-      # set during parse can effectively be 'leaked' -- 'Sys.setlocale()'
-      # effectively resets those flags. see:
-      #
-      # https://bugs.r-project.org/bugzilla3/show_bug.cgi?id=17484
-      # https://github.com/rstudio/rstudio/issues/3658
-      #
-      Sys.setlocale()
-      return(character())
-
-   }
-
-   discoveries <- new.env(parent = emptyenv())
-
-   # for R Markdown docs, scan the YAML header (requires the YAML package, a dependency of
-   # rmarkdown)
-   if (identical(extension, ".Rmd") && requireNamespace("yaml", quietly = TRUE))
-   {
-      # split document into sections based on the YAML header delimter
-      sections <- unlist(strsplit(contents, "---", fixed = TRUE))
-      if (length(sections) > 2)
-      {
-         front <- NULL
-
-         tryCatch({
-            front <- yaml::read_yaml(text = sections[[2]])
-         }, error = function(e) {
-            # ignore errors when reading YAML; it's very possible that the document's YAML will not
-            # be correct at all times (e.g. during editing) 
-         })
-
-         # start with an empty output
-         output <- NULL
-
-         if (!is.null(names(front$output)))
-         {
-            # if the output key has children, it will appear as a list name
-            # output:
-            #   pkg_name::out_fmt:
-            #     foo: bar
-            output <- names(front$output)[[1]]
-         }
-         else if (is.character(front$output))
-         {
-            # if the output key doesn't have children, it will appear as a plain character
-            #
-            # output: pkg_name::out_fmt
-            output <- front$output
-         }
-
-         # check for references to an R package in output format
-         if (!is.null(output))
-         {
-            format <- unlist(strsplit(output, "::"))
-            if (length(format) > 1)
-            {
-               discoveries[[format[[1]]]] <- TRUE
-            }
-         }
-
-         # check for runtime: shiny or parameters (requires the Shiny R package)
-         if (identical(front$runtime, "shiny") || 
-             identical(front$runtime, "shiny_prerendered") ||
-             !is.null(front$params))
-         {
-            discoveries[["shiny"]] <- TRUE
-         }
-
-      }
-   }
-   
-   handleLibraryRequireCall <- function(node) {
-      
-      # make sure this is a call to the 'library' or 'require' function
-      if (!is.call(node))
-         return(FALSE)
-      
-      isLibraryOrRequire <-
-         identical(node[[1]], as.name("library")) ||
-         identical(node[[1]], as.name("require"))
-      
-      if (!isLibraryOrRequire)
-         return(FALSE)
-      
-      # attempt to match the call
-      matched <- .rs.tryCatch(match.call(base::library, node))
-      if (inherits(matched, "error"))
-         return(FALSE)
-      
-      # if the 'package' argument is a character vector of length one, we're done
-      isPackageArgumentString <- 
-         is.character(matched$package) &&
-         length(matched$package) == 1
-         
-      if (isPackageArgumentString) {
-         discoveries[[matched$package]] <<- TRUE
-         return(TRUE)
-      }
-      
-      # if it's a symbol, double check character.only argument
-      isSafeSymbolLibraryCall <-
-         is.symbol(matched$package) &&
-         (is.null(matched$character.only) || identical(matched$character.only, FALSE))
-      
-      if (isSafeSymbolLibraryCall) {
-         discoveries[[as.character(matched$package)]] <<- TRUE
-         return(TRUE)
-      }
-      
-      FALSE
-      
-   }
-   
-   handleRequireNamespaceCall <- function(node) {
-      
-      if (!is.call(node))
-         return(FALSE)
-      
-      if (!identical(node[[1]], as.name("requireNamespace")))
-         return(FALSE)
-      
-      matched <- .rs.tryCatch(match.call(base::requireNamespace, node))
-      if (inherits(matched, "error"))
-         return(FALSE)
-      
-      if (is.character(matched$package) && length(matched$package == 1)) {
-         discoveries[[matched$package]] <<- TRUE
-         return(TRUE)
-      }
-      
-      FALSE
-      
-   }
-   
-   handleColonCall <- function(node) {
-      
-      # make sure this is a call to the 'library' or 'require' function
-      if (!is.call(node))
-         return(FALSE)
-      
-      isColonCall <-
-         length(node) == 3 &&
-         (identical(node[[1]], as.name("::")) || identical(node[[1]], as.name(":::")))
-      
-      if (!isColonCall)
-         return(FALSE)
-      
-      # extract package used. note that one can specify the package as
-      # both a symbol and as a character string; e.g. this is legal R code
-      #
-      #   "dplyr"::"mutate"
-      #
-      # so guard against such usages
-      package <- node[[2L]]
-      if (is.symbol(package))
-         package <- as.character(package)
-      if (!is.character(package) || length(package) != 1)
-         return(FALSE)
-      
-      # all looks good; add the discovery
-      discoveries[[package]] <<- TRUE
-      TRUE
-      
-   }
-   
-   .rs.recursiveWalk(parsed, function(node) {
-      handleLibraryRequireCall(node) ||
-      handleColonCall(node) ||
-      handleRequireNamespaceCall(node)
-   })
-   
-   # return discovered packages
-   ls(envir = discoveries)
-})
-
-.rs.addFunction("discoverPackageDependencies", function(id, extension)
-{
-   # check to see if we have available packages -- if none, bail
-   available <- .rs.availablePackages()
-   if (is.null(available$value))
-      return(character())
-   
-   # read the associated source file
-   contents <- .rs.readSourceDocument(id)
-   if (is.null(contents))
-      return(character())
-
-   # parse to find packages
-   packages <- .rs.parsePackageDependencies(contents, extension)
-   
-   # keep only packages that are available in an active repository
-   packages <- packages[packages %in% rownames(available$value)]
-   
-   # figure out which packages aren't actually installed. note that we avoid
-   # calling 'installed.packages()' explicitly here as this can be very slow
-   # on some NFSes; a plain `list.files()` is fine
-   installed <- list.files(.libPaths())
-   missing <- setdiff(packages, installed)
-   
-   # return that list
-   missing
-   
-})
-
-# like strsplit, but doesn't omit a trailing last entry as in e.g.
-#
-#    > strsplit("a.b.", ".", fixed = TRUE)
-#    [[1]]
-#    [1] "a" "b"
-#
-# also unlists the string by default (as the most common usage is to
-# split a single string)
-.rs.addFunction("strsplit", function(x, pattern, ..., simplify = TRUE)
-{
-   m <- gregexpr(pattern, x, ...)
-   matches <- regmatches(x, m, invert = TRUE)
-   if (simplify && length(matches) == 1)
-      matches[[1]]
-   else
-      matches
-})
-
-.rs.addJsonRpcHandler("replace_comment_header", function(command, path, code)
-{
-   .rs.scalar(
-      paste(
-         deparse(
-            do.call(
-               "substitute",
-               args = list(
-                  eval(
-                     parse(
-                        text = paste("quote(", command, ")", sep = "")
-                     )
-                  ),
-                  list(
-                     .code = code,
-                     .file = path
-                  )
-               )
-            )
-         ),
-         collapse = ""
-      )
-   )
-})
-
-.rs.addFunction("withCache", function(name, expr)
-{
-   cache <- .rs.getVar(name)
-   if (!is.null(cache))
-      return(cache)
-   
-   result <- force(expr)
-   .rs.setVar(name, result)
-   result
-})
-
-.rs.addFunction("nullCoalesce", function(x, y)
-{
-   if (is.null(x)) y else x
-})
-
-.rs.addFunction("truncate", function(string, n = 200, marker = "<...>")
-{
-   if (nchar(string) <= n)
-      return(string)
-   
-   truncated <- substring(string, 1, n - nchar(marker))
-   return(paste(truncated, marker))
-   
-})
-
-.rs.addFunction("formatListForDialog", function(list, sep = ", ", max = 50L)
-{
-   # count index entries until we get too long
-   nc <- 0L
-   ns <- nchar(sep)
-   for (index in seq_along(list)) {
-      nc <- nc + ns + nchar(list[[index]])
-      if (nc > max)
-         break
-   }
-   
-   # collect items
-   n <- length(list)
-   items <- list
-   
-   # subset the list if we overflowed (index didn't reach end)
-   # avoid printing 'and 1 other'; no need to subset in that case
-   if (index < n - 1L)
-      items <- c(list[1:index], paste("and", n - index, "others"))
-   
-   # paste and truncate once more for safety
-   text <- paste(items, collapse = sep)
-   .rs.truncate(text, n = max * 2L)
-   
-})

@@ -1,7 +1,7 @@
 /*
  * SocketProxy.cpp
  *
- * Copyright (C) 2009-12 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -23,7 +23,6 @@
 #endif
 
 #include <core/http/SocketProxy.hpp>
-#include <core/http/Util.hpp>
 
 #include <iostream>
 
@@ -31,7 +30,7 @@
 
 #include <boost/asio/placeholders.hpp>
 
-#include <shared_core/Error.hpp>
+#include <core/Error.hpp>
 #include <core/Log.hpp>
 
 #include <core/http/SocketUtils.hpp>
@@ -144,14 +143,30 @@ void SocketProxy::handleServerWrite(const boost::system::error_code& e,
    }
 }
 
+namespace {
+
+#ifndef _WIN32
+bool isSslShutdownError(const core::Error& error)
+{
+   return error.code().category() == boost::asio::error::get_ssl_category() &&
+          error.code().value() == ERR_PACK(ERR_LIB_SSL, 0, SSL_R_SHORT_READ);
+}
+#else
+bool isSslShutdownError(const core::Error& error)
+{
+   return false;
+}
+#endif
+} // anonymous namespace
+
 void SocketProxy::handleError(const boost::system::error_code& e,
                               const core::ErrorLocation& location)
 {
    // log the error if it wasn't connection terminated
    Error error(e, location);
    if (!http::isConnectionTerminatedError(error) &&
-       (e != boost::asio::error::operation_aborted) &&
-       !util::isSslShutdownError(e))
+       (error.code() != boost::asio::error::operation_aborted) &&
+       !isSslShutdownError(error))
    {
       LOG_ERROR(error);
    }

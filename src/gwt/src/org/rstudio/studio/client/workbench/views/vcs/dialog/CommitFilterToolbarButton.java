@@ -1,7 +1,7 @@
 /*
  * CommitFilterToolbarButton.java
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -17,7 +17,7 @@ package org.rstudio.studio.client.workbench.views.vcs.dialog;
 import org.rstudio.core.client.files.FileSystemItem;
 import org.rstudio.core.client.widget.ProgressIndicator;
 import org.rstudio.core.client.widget.ProgressOperationWithInput;
-import org.rstudio.core.client.widget.ToolbarMenuButton;
+import org.rstudio.core.client.widget.ToolbarButton;
 import org.rstudio.core.client.widget.ToolbarPopupMenu;
 import org.rstudio.studio.client.common.FileDialogs;
 import org.rstudio.studio.client.common.filetypes.FileTypeRegistry;
@@ -33,7 +33,7 @@ import com.google.gwt.user.client.ui.HasValue;
 import com.google.gwt.user.client.ui.MenuItem;
 import com.google.inject.Inject;
 
-public class CommitFilterToolbarButton extends ToolbarMenuButton
+public class CommitFilterToolbarButton extends ToolbarButton
                                        implements HasValue<FileSystemItem>
 {
    @Inject
@@ -43,7 +43,6 @@ public class CommitFilterToolbarButton extends ToolbarMenuButton
                                     Session session)
    {
       super(ALL_COMMITS,
-            ALL_COMMITS_TITLE,
             StandardIcons.INSTANCE.empty_command(),
             new ToolbarPopupMenu());
       
@@ -51,6 +50,8 @@ public class CommitFilterToolbarButton extends ToolbarMenuButton
       fileDialogs_ = fileDialogs;
       fileContext_ = fileContext;
       session_ = session;
+      
+      setTitle(ALL_COMMITS_TITLE);
       
       ToolbarPopupMenu menu = getMenu();
       
@@ -123,9 +124,9 @@ public class CommitFilterToolbarButton extends ToolbarMenuButton
          else
          {
             if (value_.isDirectory())
-               setLeftImage(value_.getIcon().getImageResource());
+               setLeftImage(value_.getIcon());
             else
-               setLeftImage(fileTypeRegistry_.getIconForFile(value_).getImageResource());
+               setLeftImage(fileTypeRegistry_.getIconForFile(value_));
             setText(value_.getName());
             setTitle("Filter: " + value_.getPath());
          }

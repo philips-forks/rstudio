@@ -1,7 +1,7 @@
 /*
  * Util.cpp
  *
- * Copyright (C) 2009-18 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -16,28 +16,23 @@
 
 #include <core/http/Util.hpp>
 
-#include <ios>
 #include <iostream>
 #include <sstream>
 #include <algorithm>
 
-#include <boost/asio.hpp>
 #include <boost/tokenizer.hpp>
 #include <boost/algorithm/string/trim.hpp>
 #include <boost/regex.hpp>
 #include <boost/date_time/gregorian/gregorian.hpp>
 
-#include <core/http/URL.hpp>
 #include <core/http/Header.hpp>
 #include <core/http/Request.hpp>
 #include <core/http/Response.hpp>
 #include <core/Log.hpp>
-#include <shared_core/Error.hpp>
-#include <shared_core/FilePath.hpp>
+#include <core/Error.hpp>
+#include <core/FilePath.hpp>
 #include <core/RegexUtils.hpp>
 #include <core/system/System.hpp>
-
-#include <core/http/BoostAsioSsl.hpp>
 
 namespace rstudio {
 namespace core {
@@ -93,8 +88,9 @@ void parseFields(const std::string& fields,
 
       if ( fieldDecode != FieldDecodeNone )
       {
-         name = util::urlDecode(name);
-         value = util::urlDecode(value) ;
+         bool queryString = (fieldDecode == FieldDecodeQueryString);
+         name = util::urlDecode(name, queryString);
+         value = util::urlDecode(value, queryString) ;
       }
 
       if ( !name.empty() )
@@ -223,8 +219,8 @@ std::string urlEncode(const std::string& in, bool queryStringSpaces)
 {
    std::string encodedURL ;
       
-   size_t inputLength = in.length();
-   for (size_t i=0; i<inputLength; i++)
+   int inputLength = in.length();
+   for (int i=0; i<inputLength; i++)
    {
       char ch = in[i];
       
@@ -254,7 +250,7 @@ std::string urlEncode(const std::string& in, bool queryStringSpaces)
    return encodedURL;
 }
    
-std::string urlDecode(const std::string& in)
+std::string urlDecode(const std::string& in, bool fromQueryString)
 {
    std::string out;
    out.reserve(in.size());
@@ -283,7 +279,7 @@ std::string urlDecode(const std::string& in)
          return out;
       }
     }
-    else if (in[i] == '+')
+    else if (fromQueryString && (in[i] == '+'))
     {
       out += ' ';
     }
@@ -299,14 +295,6 @@ namespace {
 
 const char * const kHttpDateFormat = "%a, %d %b %Y %H:%M:%S GMT";
 const char * const kAtomDateFormat = "%Y-%m-%dT%H:%M:%S%F%Q";
-
-// facet for http date (construct w/ a_ref == 1 so we manage memory)
-// statically initialized because init is very expensive
-boost::posix_time::time_facet s_httpDateFacet(kHttpDateFormat,
-                                              boost::posix_time::time_facet::period_formatter_type(),
-                                              boost::posix_time::time_facet::special_values_formatter_type(),
-                                              boost::posix_time::time_facet::date_gen_formatter_type(),
-                                              1);
    
 boost::posix_time::ptime parseDate(const std::string& date, const char* format)
 {
@@ -342,43 +330,23 @@ std::string httpDate(const boost::posix_time::ptime& datetime)
 {
    using namespace boost::posix_time;
    
+   // facet for http date (construct w/ a_ref == 1 so we manage memory)
+   time_facet httpDateFacet(1); 
+   httpDateFacet.format("%a, %d %b %Y %H:%M:%S GMT");
+   
    // output and return the date
    std::ostringstream dateStream;
-   dateStream.imbue(std::locale(dateStream.getloc(), &s_httpDateFacet));
+   dateStream.imbue(std::locale(dateStream.getloc(), &httpDateFacet));
    dateStream << datetime;
    return dateStream.str();
 }
 
-bool isValidDate(const std::string& httpDate)
-{
-   std::string dateRegex = std::string() +
-         "(Mon|Tue|Wed|Thu|Fri|Sat|Sun)" +                     // day of week
-         "," +                                                 // comma
-         "\\s" +                                               // space
-         "\\d{2}" +                                            // date of month
-         "\\s" +                                               // space
-         "(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)" + // month
-         "\\s" +                                               // space
-         "\\d{4}" +                                            // year
-         "\\s" +                                               // space
-         "\\d{2}" +                                            // hour
-         ":" +                                                 // colon
-         "\\d{2}" +                                            // minute
-         ":" +                                                 // colon
-         "\\d{2}" +                                            // second
-         "\\s" +                                               // space
-         "GMT";
-
-   boost::regex reDate(dateRegex);
-   return regex_utils::textMatches(httpDate, reDate, false, true);
-}
 
 std::string pathAfterPrefix(const Request& request,
                             const std::string& pathPrefix)
 {
    // get the raw uri & strip its location prefix
-   std::string uri = URL::cleanupPath(request.uri());
-   
+   std::string uri = request.uri();
    if (!pathPrefix.empty() && !uri.compare(0, pathPrefix.length(), pathPrefix))
       uri = uri.substr(pathPrefix.length());
 
@@ -416,14 +384,13 @@ core::FilePath requestedFile(const std::string& wwwLocalPath,
 
    // calculate "real" requested path
    FilePath realRequestedPath;
-   FilePath requestedPath = wwwRealPath.completePath(relativePath);
-   error = core::system::realPath(
-      requestedPath.getAbsolutePath(),
+   FilePath requestedPath = wwwRealPath.complete(relativePath);
+   error = core::system::realPath(requestedPath.absolutePath(),
                                   &realRequestedPath);
    if (error)
    {
       // log if this isn't file not found
-      if (error != systemError(boost::system::errc::no_such_file_or_directory, ErrorLocation()))
+      if (error.code() != boost::system::errc::no_such_file_or_directory)
       {
          error.addProperty("requested-path", relativePath);
          LOG_ERROR(error);
@@ -433,7 +400,7 @@ core::FilePath requestedFile(const std::string& wwwLocalPath,
 
    // validate that the requested path falls within the www path
    if ( (realRequestedPath != wwwRealPath) &&
-      realRequestedPath.getRelativePath(wwwRealPath).empty() )
+        realRequestedPath.relativePath(wwwRealPath).empty() )
    {
       LOG_WARNING_MESSAGE("Non www-local-path URI requested: " +
                           relativePath);
@@ -446,7 +413,7 @@ core::FilePath requestedFile(const std::string& wwwLocalPath,
 #else
 
    // just complete the path straight away on Win32
-   return FilePath(wwwLocalPath).completePath(relativePath);
+   return FilePath(wwwLocalPath).complete(relativePath);
 
 #endif
 }
@@ -472,7 +439,7 @@ void fileRequestHandler(const std::string& wwwLocalPath,
    // request for a URI not within our location scope
    if (uri.find(baseUri) != 0)
    {
-      pResponse->setNotFoundError(request);
+      pResponse->setNotFoundError(request.uri());
       return;
    }
 
@@ -484,9 +451,9 @@ void fileRequestHandler(const std::string& wwwLocalPath,
    // get path to the requested file requested file
    std::string relativePath = uri.substr(baseUri.length());
    FilePath filePath = http::util::requestedFile(wwwLocalPath, relativePath);
-   if (filePath.isEmpty())
+   if (filePath.empty())
    {
-      pResponse->setNotFoundError(request);
+      pResponse->setNotFoundError(request.uri());
       return;
    }
 
@@ -495,76 +462,6 @@ void fileRequestHandler(const std::string& wwwLocalPath,
    pResponse->setCacheableFile(filePath, request);
 }
 
-std::string formatMessageAsHttpChunk(const std::string& message)
-{
-   // format message as an HTTP chunk
-   // the format is <Chunk size (hex)>CRLF<Chunk data>CRLF
-   std::stringstream sstr;
-   sstr << std::hex << message.size() << "\r\n" << message << "\r\n";
-   return sstr.str();
-}
-
-bool isIpAddress(const std::string& str)
-{
-   boost::system::error_code err;
-   boost::asio::ip::address::from_string(str, err);
-   return !err;
-}
-
-bool isNetworkAddress(const std::string& str)
-{
-   boost::asio::io_service io_service;
-
-   // query DNS for this address
-   boost::asio::ip::tcp::resolver resolver(io_service);
-   boost::asio::ip::tcp::resolver::query query(str, "");
-
-   boost::system::error_code ec;
-   boost::asio::ip::tcp::resolver::iterator iter = resolver.resolve(query, ec);
-   return (!ec && iter != boost::asio::ip::tcp::resolver::iterator());
-}
-
-bool isWSUpgradeRequest(const Request& request)
-{
-   // look for the Upgrade token in the Connection request header; in most cases it will be the
-   // exact value of the the header, but some browsers (Firefox) include other tokens. (RFC 6455)
-   boost::regex upgrade("\\<Upgrade\\>", boost::regex::icase);
-   std::string connection = request.headerValue("Connection");
-   return boost::regex_search(connection, upgrade);
-}
-
-#ifndef _WIN32
-bool isSslShutdownError(const boost::system::error_code& ec)
-{
-   // boost returns "short_read" when the peer calls SSL_shutdown()
-#ifdef SSL_R_SHORT_READ
-   // OpenSSL 1.0.0
-   return ec.category() == boost::asio::error::get_ssl_category() &&
-          ec.value() == ERR_PACK(ERR_LIB_SSL, 0, SSL_R_SHORT_READ);
-#else
-   // OpenSSL 1.1.0
-   return ec == boost::asio::ssl::error::stream_truncated;
-#endif
-}
-#else
-bool isSslShutdownError(const boost::system::error_code& ec)
-{
-   return ec == boost::asio::ssl::error::stream_truncated;
-}
-#endif
-
-std::string addQueryParam(const std::string& uri,
-                          const std::string& queryParam)
-{
-   if (uri.find('?') == std::string::npos)
-   {
-      return uri + "?" + queryParam;
-   }
-   else
-   {
-      return uri + "&" + queryParam;
-   }
-}
 
 } // namespace util
 

@@ -1,7 +1,7 @@
 /*
  * VCSPresenter.java
  *
- * Copyright (C) 2009-12 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -93,11 +93,6 @@ public class VCSPresenter implements IsWidget,
    void onVcsPull()
    {
       presenter_.onVcsPull();
-   }
-   
-   void onVcsPullRebase()
-   {
-      presenter_.onVcsPullRebase();
    }
   
    void onVcsPush()

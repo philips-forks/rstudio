@@ -1,7 +1,7 @@
 /*
  * EditorThemeChangedEvent.java
  *
- * Copyright (C) 2009-12 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -17,8 +17,6 @@ package org.rstudio.studio.client.workbench.views.source.editors.text.events;
 import com.google.gwt.event.shared.EventHandler;
 import com.google.gwt.event.shared.GwtEvent;
 
-import org.rstudio.studio.client.workbench.views.source.editors.text.themes.AceTheme;
-
 public class EditorThemeChangedEvent extends GwtEvent<EditorThemeChangedEvent.Handler>
 {
    public interface Handler extends EventHandler
@@ -26,17 +24,17 @@ public class EditorThemeChangedEvent extends GwtEvent<EditorThemeChangedEvent.Ha
       void onEditorThemeChanged(EditorThemeChangedEvent event);
    }
    
-   public EditorThemeChangedEvent(AceTheme theme)
+   public EditorThemeChangedEvent(String themeName)
    {
-      theme_ = theme;
+      themeName_ = themeName;
    }
    
-   public AceTheme getTheme()
+   public String getTheme()
    {
-      return theme_;
+      return themeName_;
    }
    
-   private final AceTheme theme_;
+   private final String themeName_;
 
    @Override
    public Type<Handler> getAssociatedType()

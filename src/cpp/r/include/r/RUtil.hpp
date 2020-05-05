@@ -1,7 +1,7 @@
 /*
  * RUtil.hpp
  *
- * Copyright (C) 2009-18 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -18,13 +18,6 @@
 
 #include <string>
 
-#ifdef _WIN32
-# include <core/system/Win32RuntimeLibrary.hpp>
-# define R_ERRNO MSVC_ERRNO
-#else
-# define R_ERRNO errno
-#endif
-
 namespace rstudio {
 namespace core {
    class FilePath;
@@ -35,7 +28,7 @@ namespace core {
 namespace rstudio {
 namespace r {
 namespace util {
-
+   
 std::string expandFileName(const std::string& name);
    
 std::string fixPath(const std::string& path);
@@ -54,11 +47,6 @@ core::Error iconvstr(const std::string& value,
 
 bool isRKeyword(const std::string& name);
 bool isWindowsOnlyFunction(const std::string& name);
-
-// Is package attached to search path?
-bool isPackageAttached(const std::string& packageName);
-
-void synchronizeLocale();
 
 } // namespace util   
 } // namespace r

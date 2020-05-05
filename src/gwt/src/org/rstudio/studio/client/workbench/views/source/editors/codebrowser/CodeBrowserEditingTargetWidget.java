@@ -1,7 +1,7 @@
 /*
  * CodeBrowserEditingTargetWidget.java
  *
- * Copyright (C) 2009-20 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -14,7 +14,6 @@
  */
 package org.rstudio.studio.client.workbench.views.source.editors.codebrowser;
 
-import com.google.gwt.aria.client.Roles;
 import com.google.gwt.core.client.GWT;
 import com.google.gwt.dom.client.NativeEvent;
 import com.google.gwt.event.dom.client.ClickEvent;
@@ -24,15 +23,11 @@ import com.google.gwt.event.logical.shared.SelectionHandler;
 import com.google.gwt.resources.client.ClientBundle;
 import com.google.gwt.resources.client.CssResource;
 import com.google.gwt.resources.client.ImageResource;
-import com.google.gwt.user.client.Command;
 import com.google.gwt.user.client.Timer;
 import com.google.gwt.user.client.ui.Label;
 import com.google.gwt.user.client.ui.ResizeComposite;
 import com.google.gwt.user.client.ui.Widget;
 
-import java.util.List;
-
-import org.rstudio.core.client.StringUtil;
 import org.rstudio.core.client.command.KeyboardShortcut;
 import org.rstudio.core.client.resources.ImageResource2x;
 import org.rstudio.core.client.theme.res.ThemeResources;
@@ -40,7 +35,6 @@ import org.rstudio.core.client.widget.InfoBar;
 import org.rstudio.core.client.widget.SecondaryToolbar;
 import org.rstudio.core.client.widget.Toolbar;
 import org.rstudio.core.client.widget.ToolbarButton;
-import org.rstudio.core.client.widget.ToolbarMenuButton;
 import org.rstudio.core.client.widget.ToolbarPopupMenu;
 import org.rstudio.studio.client.application.events.EventBus;
 import org.rstudio.studio.client.common.GlobalDisplay;
@@ -116,8 +110,7 @@ public class CodeBrowserEditingTargetWidget extends ResizeComposite
                                      docDisplay_.asWidget(),
                                      null);
       panel_.setSize("100%", "100%");
-      Roles.getTabpanelRole().set(panel_.getElement());
-      setAccessibleName(null);
+      
       docDisplay_.setReadOnly(true);
       
       docDisplay_.addCommandClickHandler(new CommandClickEvent.Handler()
@@ -130,7 +123,7 @@ public class CodeBrowserEditingTargetWidget extends ResizeComposite
             docDisplay_.setCursorPosition(position);
             
             // go to definition
-            docDisplay_.goToDefinition();
+            docDisplay_.goToFunctionDefinition();
          }
       });
        
@@ -155,7 +148,7 @@ public class CodeBrowserEditingTargetWidget extends ResizeComposite
                }
                else if (event.getKeyCode() == 113) // F2
                {
-                  goToDefinition();
+                  goToFunctionDefinition();
                }
             }
             
@@ -174,7 +167,7 @@ public class CodeBrowserEditingTargetWidget extends ResizeComposite
          }
          
          @Override
-         public void goToDefinition()
+         public void goToFunctionDefinition()
          {
             // determine current line and cursor position
             InputEditorLineWithCursorPosition lineWithPos = 
@@ -288,16 +281,9 @@ public class CodeBrowserEditingTargetWidget extends ResizeComposite
          }
       }.schedule(100);
    }
-
+   
    @Override
-   public void setAccessibleName(String name)
-   {
-      if (StringUtil.isNullOrEmpty(name))
-         name = "Untitled Source Viewer";
-      Roles.getTabpanelRole().setAriaLabelProperty(panel_.getElement(), name + " Source Viewer");
-   }
-
-   private void showWarningImpl(final Command command)
+   public void showWarningBar(String warning)
    {
       if (warningBar_ == null)
       {
@@ -310,34 +296,10 @@ public class CodeBrowserEditingTargetWidget extends ResizeComposite
             
          });
       }
-      command.execute();
+      warningBar_.setText(warning);
       panel_.insertNorth(warningBar_, warningBar_.getHeight(), null);
    }
-   
-   @Override
-   public void showReadOnlyWarning(final List<String> alternatives)
-   {
-      showWarningImpl(() -> warningBar_.showReadOnlyWarning(alternatives));
-   }
-   
-   @Override
-   public void showRequiredPackagesMissingWarning(List<String> packages)
-   {
-      // no-op for code browser targets
-   }
-   
-   @Override
-   public void showTexInstallationMissingWarning(String message)
-   {
-      // no-op for code browser targets
-   }
-   
-   @Override
-   public void showWarningBar(final String warning)
-   {
-      showWarningImpl(() -> warningBar_.setText(warning));
-   }
-   
+
    @Override
    public void hideWarningBar()
    {
@@ -423,8 +385,9 @@ public class CodeBrowserEditingTargetWidget extends ResizeComposite
 
       ToolbarPopupMenu menu = new ToolbarPopupMenu();
       menu.addItem(commands_.goToHelp().createMenuItem(false));
-      menu.addItem(commands_.goToDefinition().createMenuItem(false));
-      ToolbarMenuButton codeTools = new ToolbarMenuButton(ToolbarButton.NoText, "Code Tools", icon, menu);
+      menu.addItem(commands_.goToFunctionDefinition().createMenuItem(false));
+      ToolbarButton codeTools = new ToolbarButton("", icon, menu);
+      codeTools.setTitle("Code Tools");
       toolbar.addLeftWidget(codeTools);
       
       toolbar.addRightWidget(commands_.executeCode().createToolbarButton());
@@ -436,7 +399,7 @@ public class CodeBrowserEditingTargetWidget extends ResizeComposite
    
    private Toolbar createSecondaryToolbar()
    {
-      SecondaryToolbar toolbar = new SecondaryToolbar("Code Browser Second");
+      SecondaryToolbar toolbar = new SecondaryToolbar();
       
       contextWidget_ = new CodeBrowserContextWidget(RES.styles());
       contextWidget_.addSelectionHandler(new SelectionHandler<String> () {

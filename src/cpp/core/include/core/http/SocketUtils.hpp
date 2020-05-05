@@ -1,7 +1,7 @@
 /*
  * SocketUtils.hpp
  *
- * Copyright (C) 2009-12 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -23,7 +23,7 @@
 #include <boost/system/windows_error.hpp>
 #endif
 
-#include <shared_core/Error.hpp>
+#include <core/Error.hpp>
 
 namespace rstudio {
 namespace core {
@@ -66,16 +66,17 @@ Error closeSocket(SocketService& socket)
 inline bool isConnectionTerminatedError(const core::Error& error)
 {
    // look for errors that indicate the client closing the connection
-   bool timedOut = error == boost::asio::error::timed_out;
-   bool eof = error == boost::asio::error::eof;
-   bool reset = error == boost::asio::error::connection_reset;
-   bool badFile = error == boost::asio::error::bad_descriptor;
-   bool brokenPipe = error == boost::asio::error::broken_pipe;
-   bool noFile = error == systemError(boost::system::errc::no_such_file_or_directory, ErrorLocation());
+   bool timedOut = error.code() == boost::asio::error::timed_out;
+   bool eof = error.code() == boost::asio::error::eof;
+   bool reset = error.code() == boost::asio::error::connection_reset;
+   bool badFile = error.code() == boost::asio::error::bad_descriptor;
+   bool brokenPipe = error.code() == boost::asio::error::broken_pipe;
+   bool noFile = error.code() == boost::system::errc::no_such_file_or_directory;
 
 #ifdef _WIN32
-   int ec = error.getCode();
-   bool noData = (error.getName() == boost::system::system_category().name()) && (ec == ERROR_NO_DATA);
+   boost::system::error_code ec = error.code();
+   bool noData = (ec.category() == boost::system::get_system_category()) &&
+                 (ec.value() == ERROR_NO_DATA);
 #else
    bool noData = false;
 #endif
@@ -89,17 +90,19 @@ inline bool isConnectionUnavailableError(const Error& error)
    // not currently existing (and thus remediable by launching a new one)
    
    return (
-         // for unix domain sockets
-         error == systemError(boost::system::errc::no_such_file_or_directory, ErrorLocation()) ||
+      // for unix domain sockets
+      error.code() == boost::system::errc::no_such_file_or_directory ||
 
-         // for tcp-ip and unix domain sockets
-         error == boost::asio::error::connection_refused
+      // for tcp-ip and unix domain sockets
+      error.code() == boost::asio::error::connection_refused
 
-         // for windows named pipes
+      // for windows named pipes
  #ifdef _WIN32
-         || error == boost::system::windows_error::file_not_found
-         || error == boost::system::windows_error::broken_pipe
-         || error == boost::system::error_code(ERROR_PIPE_BUSY, boost::system::system_category())
+      || error.code() == boost::system::windows_error::file_not_found
+      || error.code() == boost::system::windows_error::broken_pipe
+      || error.code() == boost::system::error_code(
+                                       ERROR_PIPE_BUSY,
+                                       boost::system::get_system_category())
  #endif
    );
 }

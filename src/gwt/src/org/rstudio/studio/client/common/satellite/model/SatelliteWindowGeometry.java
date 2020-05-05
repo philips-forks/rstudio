@@ -1,7 +1,7 @@
 /*
  * SatelliteWindowGeometry.java
  *
- * Copyright (C) 2009-15 by RStudio, PBC
+ * Copyright (C) 2009-15 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -65,7 +65,7 @@ public class SatelliteWindowGeometry extends JavaScriptObject
    
    public final Point getPosition() 
    {
-      return Point.create(getX(), getY());
+      return new Point(getX(), getY());
    }
    
    public final Size getSize()

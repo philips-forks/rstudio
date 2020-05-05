@@ -2,7 +2,7 @@
  * Presentation.java
 
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -27,6 +27,8 @@ import com.google.gwt.user.client.Event;
 import com.google.gwt.user.client.Timer;
 import com.google.inject.Inject;
 
+import org.rstudio.core.client.MessageDisplay;
+import org.rstudio.core.client.Size;
 import org.rstudio.core.client.StringUtil;
 import org.rstudio.core.client.TimeBufferedCommand;
 import org.rstudio.core.client.command.CommandBinder;
@@ -58,6 +60,7 @@ import org.rstudio.studio.client.workbench.commands.Commands;
 import org.rstudio.studio.client.workbench.model.RemoteFileSystemContext;
 import org.rstudio.studio.client.workbench.model.Session;
 import org.rstudio.studio.client.workbench.views.BasePresenter;
+import org.rstudio.studio.client.workbench.views.edit.ui.EditDialog;
 import org.rstudio.studio.client.workbench.views.presentation.events.PresentationPaneRequestCompletedEvent;
 import org.rstudio.studio.client.workbench.views.presentation.events.ShowPresentationPaneEvent;
 import org.rstudio.studio.client.workbench.views.presentation.events.SourceFileSaveCompletedEvent;
@@ -143,7 +146,7 @@ public class Presentation extends BasePresenter
             if (currentState_ != null)
             {
                FileSystemItem file = event.getSourceFile();
-               if (file.getPath() == currentState_.getFilePath())
+               if (file.getPath().equals(currentState_.getFilePath()))
                {    
                   int index = detectSlideIndex(event.getContents(),
                                                event.getCursorPos().getRow());
@@ -152,7 +155,7 @@ public class Presentation extends BasePresenter
                   
                   refreshPresentation();
                }
-               else if (file.getParentPathString() == getCurrentPresDir() 
+               else if (file.getParentPathString().equals(getCurrentPresDir()) 
                           &&
                         file.getExtension().toLowerCase().equals(".css"))
                {
@@ -178,7 +181,7 @@ public class Presentation extends BasePresenter
    
    public void initialize(PresentationState state)
    {
-      if ((state.getSlideIndex() == 0))
+      if ((state.getSlideIndex() == 0) || state.isTutorial())
          view_.bringToFront();
       
       init(state);
@@ -240,7 +243,7 @@ public class Presentation extends BasePresenter
                @Override
                public void onResponseReceived(String path)
                {
-                  Desktop.getFrame().showFile(StringUtil.notNull(path));
+                  Desktop.getFrame().showFile(path);
                }
             });
       }
@@ -376,6 +379,38 @@ public class Presentation extends BasePresenter
       view_.load(buildPresentationUrl(), currentState_.getFilePath());
    }
    
+   @Handler
+   void onTutorialFeedback()
+   {
+      EditDialog editDialog = new EditDialog("Provide Feedback",
+                                             "Submit", 
+                                             "",
+                                             false, 
+                                             true,
+                                             new Size(450,300),
+                     new ProgressOperationWithInput<String>() {
+         @Override
+         public void execute(String input, ProgressIndicator indicator)
+         {
+            if (input == null)
+            {
+               indicator.onCompleted();
+               return;
+            }
+            
+            indicator.onProgress("Saving feedback...");
+            
+            server_.tutorialFeedback(input, 
+                                     new VoidServerRequestCallback(indicator));
+            
+         }
+      });
+      
+      editDialog.showModal();
+      
+   }
+   
+   
    @Override
    public void onSelected()
    {
@@ -395,6 +430,16 @@ public class Presentation extends BasePresenter
    
    public void confirmClose(Command onConfirmed)
    {
+      // don't allow close if this is a tutorial
+      if (currentState_.isTutorial())
+      {
+         globalDisplay_.showMessage(
+               MessageDisplay.MSG_WARNING,
+               "Unable to Close",
+               "Tutorials cannot be closed");
+         return;
+      }
+      
       final ProgressIndicator progress = new GlobalProgressDelayer(
             globalDisplay_,
             0,
@@ -582,8 +627,7 @@ public class Presentation extends BasePresenter
       }
       
       private int index_ = 0;
-   }
-
+   };
    private IndexPersister indexPersister_ = new IndexPersister();
    
    
@@ -617,7 +661,7 @@ public class Presentation extends BasePresenter
       return -1;
    } 
    
-   private final Display view_;
+   private final Display view_ ; 
    private final PresentationServerOperations server_;
    private final GlobalDisplay globalDisplay_;
    private final EventBus eventBus_;
@@ -629,6 +673,8 @@ public class Presentation extends BasePresenter
    private final PresentationDispatcher dispatcher_;
    private final SlideNavigationPresenter navigationPresenter_;
    private PresentationState currentState_ = null;
+  
+   private boolean usingRmd_ = false;
   
    private FileSystemItem saveAsStandaloneDefaultPath_ = null;
    

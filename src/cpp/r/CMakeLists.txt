@@ -1,7 +1,7 @@
 #
 # CMakeLists.txt
 #
-# Copyright (C) 2009-19 by RStudio, PBC
+# Copyright (C) 2009-12 by RStudio, Inc.
 #
 # Unless you have received this program directly from RStudio pursuant
 # to the terms of a commercial license agreement with RStudio, then
@@ -32,21 +32,15 @@ set (R_SOURCE_FILES
    RSexp.cpp
    RSourceManager.cpp
    RUtil.cpp
-   RVersionInfo.cpp
    session/RClientMetrics.cpp
    session/RClientState.cpp
    session/RConsoleActions.cpp
    session/RConsoleHistory.cpp
    session/RDiscovery.cpp
-   session/RInit.cpp
-   session/RQuit.cpp
    session/RRestartContext.cpp
-   session/RScriptCallbacks.cpp
    session/RSearchPath.cpp
    session/RSessionState.cpp
    session/RSession.cpp
-   session/RStdCallbacks.cpp
-   session/RSuspend.cpp
    session/graphics/RGraphicsDevice.cpp
    session/graphics/RGraphicsErrorCategory.cpp
    session/graphics/RGraphicsPlot.cpp
@@ -84,27 +78,20 @@ include_directories(
    include
    ${CMAKE_CURRENT_BINARY_DIR}
    ${CORE_SOURCE_DIR}/include
-   ${EXT_SOURCE_DIR}
    ${LIBR_INCLUDE_DIRS}
-   ${SHARED_CORE_SOURCE_DIR}/include
 )
 
 # define library
 add_library(rstudio-r STATIC ${R_SOURCE_FILES} ${R_HEADER_FILES})
-define_source_file_names(rstudio-r)
 
 # link dependencies
-target_link_libraries(rstudio-r rstudio-core)
-
-if(RSTUDIO_PACKAGE_BUILD AND APPLE)
-   target_link_libraries(rstudio-r "-undefined dynamic_lookup")
-else()
-   target_link_libraries(rstudio-r "${LIBR_LIBRARIES}")
-endif()
+target_link_libraries(rstudio-r
+   ${LIBR_LIBRARIES}
+   rstudio-core
+)
 
 # install rules
-if (NOT RSTUDIO_SESSION_WIN32)
+if (NOT RSTUDIO_SESSION_WIN64)
    file(GLOB R_SRC_FILES "R/*.R")
    install(FILES ${R_SRC_FILES} DESTINATION ${RSTUDIO_INSTALL_SUPPORTING}/R)
 endif()
-

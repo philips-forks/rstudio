@@ -19,16 +19,12 @@
 @external popupTop, popupBottom, popupMiddle;
 @external gwt-DecoratedPopupPanel;
 
-/* This is exposed to allow users to customize RStudio further with their rsthemes. */
-@external themedPopupPanel;
-
 @eval THEME_DARKGREY_MENU_BACKGROUND org.rstudio.core.client.theme.ThemeColors.darkGreyMenuBackground;
 @eval THEME_DARKGREY_MENU_BORDER org.rstudio.core.client.theme.ThemeColors.darkGreyMenuBorder;
 
 .themedPopupPanel {
    margin: -6px;
    margin-top: 0px;
-   z-index: 99999;
 }
 
 @sprite .themedPopupPanel .popupTopLeft, .menuPopupTopLeft, .suggestPopupTopLeft {
@@ -54,7 +50,7 @@
 }
 
 .themedPopupPanel .popupMiddleLeft {
-   min-width: value('popupMiddleLeft.getWidth', 'px'); /* don't let the browser collapse the table cell if there's no space */
+	min-width: value('popupMiddleLeft.getWidth', 'px'); /* don't let the browser collapse the table cell if there's no space */
 }
 @sprite .themedPopupPanel .popupMiddleRight, .menuPopupMiddleRight, .suggestPopupMiddleRight {
    gwt-image: 'popupMiddleRight';

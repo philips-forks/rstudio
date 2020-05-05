@@ -1,7 +1,7 @@
 /*
  * RmdRenderResult.java
  *
- * Copyright (C) 2009-14 by RStudio, PBC
+ * Copyright (C) 2009-14 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -151,9 +151,9 @@ public class RmdRenderResult extends RmdSlideNavigationInfo
    {
       // for Shiny documents, match on input source
       if (isShinyDocument() && other.isShinyDocument())
-         return getTargetFile() == other.getTargetFile();
+         return getTargetFile().equals(other.getTargetFile());
       else
-         return getOutputFile() == other.getOutputFile() &&
-                getFormatName() == other.getFormatName();
+         return getOutputFile().equals(other.getOutputFile()) &&
+                getFormatName().equals(other.getFormatName());
    }
 }

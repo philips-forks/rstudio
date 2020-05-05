@@ -1,7 +1,7 @@
 /*
  * SourceServerOperations.java
  *
- * Copyright (C) 2009-12 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -19,7 +19,6 @@ import com.google.gwt.core.client.JsArrayString;
 
 import org.rstudio.core.client.js.JsObject;
 import org.rstudio.studio.client.common.codetools.CodeToolsServerOperations;
-import org.rstudio.studio.client.common.crypto.CryptoServerOperations;
 import org.rstudio.studio.client.events.GetEditorContextEvent;
 import org.rstudio.studio.client.htmlpreview.model.HTMLPreviewServerOperations;
 import org.rstudio.studio.client.notebook.CompileNotebookOptions;
@@ -35,7 +34,6 @@ import org.rstudio.studio.client.workbench.views.presentation.model.Presentation
 import org.rstudio.studio.client.workbench.views.source.editors.explorer.ObjectExplorerServerOperations;
 import org.rstudio.studio.client.workbench.views.source.editors.text.IconvListResult;
 import org.rstudio.studio.client.workbench.views.source.editors.text.rmd.ChunkDefinition;
-import org.rstudio.studio.client.workbench.views.source.events.AvailablePackagesReadyEvent;
 
 import java.util.HashMap;
 import java.util.List;
@@ -56,9 +54,7 @@ public interface SourceServerOperations extends FilesServerOperations,
                                                 PresentationServerOperations,
                                                 LintServerOperations,
                                                 RSConnectServerOperations,
-                                                ObjectExplorerServerOperations,
-                                                TestServerOperations,
-                                                CryptoServerOperations
+                                                ObjectExplorerServerOperations
 {
    /**
     * Create a new, empty document, without a path but with a unique ID, and
@@ -123,7 +119,6 @@ public interface SourceServerOperations extends FilesServerOperations,
                          String replacement,
                          int offset,
                          int length,
-                         boolean valid,
                          String hash,
                          ServerRequestCallback<String> requestCallback);
 
@@ -248,22 +243,4 @@ public interface SourceServerOperations extends FilesServerOperations,
    
    public void requestDocumentSaveCompleted(boolean isSuccessfulSave,
                                             ServerRequestCallback<Void> requestCallback);
-   
-   public void requestDocumentCloseCompleted(boolean isSuccessfulClose, 
-                                             ServerRequestCallback<Void> requestCallback);                                    
-   
-   public void adaptToLanguage(String language, ServerRequestCallback<Void> requestCallback);
-
-   public void createPlumberAPI(String apiName,
-                                String apiDir,
-                                ServerRequestCallback<JsArrayString> requestCallback);
-   
-   void discoverPackageDependencies(String id,
-                                    String fileType,
-                                    ServerRequestCallback<AvailablePackagesReadyEvent.Data> requestCallback);
-   
-   public void replaceCommentHeader(String command,
-                                    String path,
-                                    String code,
-                                    ServerRequestCallback<String> requestCallback);
 }

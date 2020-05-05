@@ -1,7 +1,7 @@
 /*
  * WebDialogBuilderFactory.java
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -15,7 +15,6 @@
 package org.rstudio.studio.client.common.dialog;
 
 import com.google.gwt.user.client.ui.Widget;
-import org.rstudio.core.client.ElementIds;
 import org.rstudio.core.client.widget.*;
 
 public class WebDialogBuilderFactory implements DialogBuilderFactory
@@ -32,7 +31,7 @@ public class WebDialogBuilderFactory implements DialogBuilderFactory
       public void showModal()
       {
          if (buttons_.size() == 0)
-            addButton("OK", ElementIds.DIALOG_OK_BUTTON);
+            addButton("OK");
 
          createDialog().showModal();
       }
@@ -48,7 +47,6 @@ public class WebDialogBuilderFactory implements DialogBuilderFactory
             if (button.progressOperation != null)
             {
                messageDialog.addButton(button.label,
-                                       button.elementId,
                                        button.progressOperation,
                                        defaultButton_ == i,
                                        i == buttons_.size() - 1);
@@ -56,7 +54,6 @@ public class WebDialogBuilderFactory implements DialogBuilderFactory
             else
             {
                messageDialog.addButton(button.label,
-                                       button.elementId,
                                        button.operation,
                                        defaultButton_ == i,
                                        i == buttons_.size() - 1);

@@ -1,7 +1,7 @@
 /*
  * DelayFadeInHelper.java
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -14,7 +14,6 @@
  */
 package org.rstudio.core.client.layout;
 
-import com.google.gwt.user.client.Command;
 import com.google.gwt.user.client.Timer;
 import com.google.gwt.user.client.ui.Widget;
 
@@ -22,24 +21,7 @@ public class DelayFadeInHelper
 {
    public DelayFadeInHelper(Widget widget)
    {
-      this(widget, 250);
-   }
-
-   public DelayFadeInHelper(Widget widget, int ms)
-   {
-      this(widget, ms, null);
-   }
-
-   /**
-    * @param widget widget to fadein
-    * @param ms animation duration
-    * @param callback optional callback to invoke after fadein complete
-    */
-   public DelayFadeInHelper(Widget widget, int ms, Command callback)
-   {
       widget_ = widget;
-      animationMs_ = ms;
-      callback_ = callback;
    }
 
    public void beginShow()
@@ -55,8 +37,9 @@ public class DelayFadeInHelper
          {
             if (nonce_ == nonce)
             {
-               animation_ = new FadeInAnimation(widget_, 1, callback_);
-               animation_.run(animationMs_);
+               animation_ = new FadeInAnimation(
+                     widget_, 1, null);
+               animation_.run(250);
             }
          }
       }.schedule(750);
@@ -87,6 +70,4 @@ public class DelayFadeInHelper
    private FadeInAnimation animation_;
 
    private final Widget widget_;
-   private final int animationMs_;
-   private final Command callback_;
 }

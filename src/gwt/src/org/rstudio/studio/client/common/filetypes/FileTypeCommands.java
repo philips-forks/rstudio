@@ -1,7 +1,7 @@
 /*
  * FileTypeCommands.java
  *
- * Copyright (C) 2009-12 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -93,8 +93,6 @@ public class FileTypeCommands
       types.add(FileTypeRegistry.SH);
       types.add(FileTypeRegistry.HTML);
       types.add(FileTypeRegistry.CSS);
-      types.add(FileTypeRegistry.SASS);
-      types.add(FileTypeRegistry.SCSS);
       types.add(FileTypeRegistry.JS);
       types.add(FileTypeRegistry.CPP);
       types.add(FileTypeRegistry.PYTHON);

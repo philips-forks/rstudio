@@ -1,7 +1,7 @@
 /*
  * SessionSuspend.cpp
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-16 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -21,7 +21,6 @@
 
 #include <session/SessionConstants.hpp>
 #include <session/SessionOptions.hpp>
-#include <session/SessionConstants.hpp>
 
 #include <r/session/RSession.hpp>
 #include <r/RExec.hpp>
@@ -77,7 +76,7 @@ bool suspendSession(bool force, int status)
    r::session::ensureDeserialized();
 
    // perform the suspend (does not return if successful)
-   return r::session::suspend(force, status, session::options().envVarSaveBlacklist());
+   return r::session::suspend(force, status);
 }
 
 void suspendIfRequested(const boost::function<bool()>& allowSuspend)
@@ -140,17 +139,8 @@ void handleUSR2(int unused)
    if (console_input::executing())
       s_forceSuspendInterruptedR = 1;
 
-   bool isLauncherSession = options().getBoolOverlayOption(kLauncherSessionOption);
-
-   if (!isLauncherSession || console_input::executing())
-   {
-      // interrupt R
-      // for launcher sessions, we only want to interrupt user code to fix
-      // an excess logging issue caused by interrupting RStudio code that
-      // takes longer to execute in docker containers
-      // when not in launcher session mode, always interrupt
-      rstudio::r::exec::setInterruptsPending(true);
-   }
+   // set the r interrupt flag (always)
+   rstudio::r::exec::setInterruptsPending(true);
 
    // note that a suspend is being forced. 
    s_forceSuspend = 1;

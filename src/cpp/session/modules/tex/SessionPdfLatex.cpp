@@ -1,7 +1,7 @@
 /*
  * SessionPdfLatex.cpp
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -15,8 +15,6 @@
 
 #include "SessionPdfLatex.hpp"
 
-#include <gsl/gsl>
-
 #include <boost/regex.hpp>
 #include <boost/algorithm/string.hpp>
 
@@ -24,8 +22,8 @@
 #include <core/FileSerializer.hpp>
 
 #include <session/projects/SessionProjects.hpp>
-#include <session/prefs/UserPrefs.hpp>
 
+#include <session/SessionUserSettings.hpp>
 #include <session/SessionModuleContext.hpp>
 
 #include "SessionTexUtils.hpp"
@@ -60,13 +58,13 @@ public:
       std::transform(types_.begin(),
                      types_.end(),
                      std::back_inserter(typesJson),
-                     json::toJsonValue<std::string>);
+                     json::toJsonString);
       return typesJson;
    }
 
    bool isValidTypeName(const std::string& name) const
    {
-      for (const std::string& type : types_)
+      BOOST_FOREACH(const std::string& type, types_)
       {
          if (boost::algorithm::iequals(name, type))
             return true;
@@ -109,7 +107,7 @@ const LatexProgramTypes& programTypes()
 std::string latexProgramMagicComment(
                      const core::tex::TexMagicComments& magicComments)
 {
-   for (const core::tex::TexMagicComment& mc : magicComments)
+   BOOST_FOREACH(const core::tex::TexMagicComment& mc, magicComments)
    {
       if (boost::algorithm::iequals(mc.scope(), "tex") &&
           (boost::algorithm::iequals(mc.variable(), "program") ||
@@ -140,7 +138,7 @@ bool validateLatexProgram(const std::string& program,
 
    // try to find on the path
    *pTexProgramPath = module_context::findProgram(programName);
-   if (pTexProgramPath->isEmpty())
+   if (pTexProgramPath->empty())
    {
       *pUserErrMsg = "Unabled to find specified LaTeX program '" +
                      program + "' on the system path";
@@ -228,9 +226,9 @@ int countCitationMisses(const FilePath& logFilePath)
 
    // look for misses
    boost::regex missRegex("Warning:.*Citation.*undefined");
-   int misses = gsl::narrow_cast<int>(std::count_if(lines.begin(),
-                                      lines.end(),
-                                      boost::bind(lineIncludes, _1, missRegex)));
+   int misses = std::count_if(lines.begin(),
+                              lines.end(),
+                              boost::bind(lineIncludes, _1, missRegex));
    return misses;
 }
 
@@ -328,7 +326,7 @@ bool latexProgramForFile(const core::tex::TexMagicComments& magicComments,
    {
       std::string defaultProgram = projects::projectContext().hasProject() ?
                 projects::projectContext().config().defaultLatexProgram :
-                prefs::userPrefs().defaultLatexProgram();
+                userSettings().defaultLatexProgram();
 
       if (!validateLatexProgramType(defaultProgram, pUserErrMsg))
       {
@@ -358,9 +356,9 @@ core::Error texToPdf(const core::FilePath& texProgramPath,
                      core::system::ProcessResult* pResult)
 {
    // input file paths
-   FilePath baseFilePath = texFilePath.getParent().completePath(texFilePath.getStem());
-   FilePath idxFilePath(baseFilePath.getAbsolutePath() + ".idx");
-   FilePath logFilePath(baseFilePath.getAbsolutePath() + ".log");
+   FilePath baseFilePath = texFilePath.parent().complete(texFilePath.stem());
+   FilePath idxFilePath(baseFilePath.absolutePath() + ".idx");
+   FilePath logFilePath(baseFilePath.absolutePath() + ".log");
 
    // bibtex and makeindex program paths
    FilePath bibtexProgramPath = programPath("bibtex", "BIBTEX");
@@ -368,12 +366,12 @@ core::Error texToPdf(const core::FilePath& texProgramPath,
 
    // args and process options for running bibtex and makeindex
    core::shell_utils::ShellArgs bibtexArgs;
-   bibtexArgs << string_utils::utf8ToSystem(baseFilePath.getFilename());
+   bibtexArgs << string_utils::utf8ToSystem(baseFilePath.filename());
    core::shell_utils::ShellArgs makeindexArgs;
-   makeindexArgs << string_utils::utf8ToSystem(idxFilePath.getFilename());
+   makeindexArgs << string_utils::utf8ToSystem(idxFilePath.filename());
    core::system::ProcessOptions procOptions;
    procOptions.environment = utils::rTexInputsEnvVars();
-   procOptions.workingDir = texFilePath.getParent();
+   procOptions.workingDir = texFilePath.parent();
 
    // run the initial compile
    Error error = utils::runTexCompile(texProgramPath,
@@ -392,11 +390,11 @@ core::Error texToPdf(const core::FilePath& texProgramPath,
    for (int i=0; i<10; i++)
    {
       // run bibtex if necessary
-      if (misses > 0 && !bibtexProgramPath.isEmpty())
+      if (misses > 0 && !bibtexProgramPath.empty())
       {
          core::system::ProcessResult result;
          Error error = core::system::runProgram(
-               string_utils::utf8ToSystem(bibtexProgramPath.getAbsolutePath()),
+               string_utils::utf8ToSystem(bibtexProgramPath.absolutePath()),
                bibtexArgs,
                "",
                procOptions,
@@ -409,10 +407,10 @@ core::Error texToPdf(const core::FilePath& texProgramPath,
       previousMisses = misses;
 
       // run makeindex if necessary
-      if (idxFilePath.exists() && !makeindexProgramPath.isEmpty())
+      if (idxFilePath.exists() && !makeindexProgramPath.empty())
       {
          Error error = core::system::runProgram(
-               string_utils::utf8ToSystem(makeindexProgramPath.getAbsolutePath()),
+               string_utils::utf8ToSystem(makeindexProgramPath.absolutePath()),
                makeindexArgs,
                "",
                procOptions,

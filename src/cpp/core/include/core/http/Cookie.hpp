@@ -1,7 +1,7 @@
 /*
  * Cookie.hpp
  *
- * Copyright (C) 2009-16 by RStudio, PBC
+ * Copyright (C) 2009-16 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -19,42 +19,19 @@
 #include <string>
 
 #include <boost/date_time/gregorian/gregorian.hpp>
-#include <boost/date_time/posix_time/posix_time.hpp>
+#include "Request.hpp"
+
 namespace rstudio {
 namespace core {
 namespace http {
 
-class Request;
-
-#define kLegacyCookieSuffix "-legacy"
-
-
 class Cookie
 {
 public:
-   enum class SameSite
-   {
-      Undefined,
-      None,
-      Lax,
-      Strict
-   };
-
-   static SameSite selectSameSite(bool legacy, bool iFramed)
-   {
-      // select between legacy and iframe behaviors for the cookie
-      return iFramed
-               ? SameSite::None
-               : (legacy
-                     ? SameSite::Undefined
-                     : SameSite::Lax);
-   }
-
    Cookie(const Request& request,
           const std::string& name,
           const std::string& value, 
           const std::string& path,
-          SameSite sameSite = SameSite::Undefined,
           bool httpOnly = false,
           bool secure = false);
    virtual ~Cookie();
@@ -73,19 +50,13 @@ public:
    void setPath(const std::string& path) { path_ = path; }
    const std::string& path() const { return path_; }
 
-   void setExpires(const boost::posix_time::time_duration& expiresFromNow);
-   void setExpires(const boost::gregorian::days& days);
+   void setExpires(const boost::gregorian::date& expires) { expires_ = expires; }
+   void setExpires(const boost::gregorian::days& expiresDays) ;
    void setExpiresDelete() ;
-   const boost::posix_time::ptime& expires() const { return expires_; }
+   const boost::gregorian::date& expires() const { return expires_; }
    
    void setHttpOnly();
-   bool httpOnly() const { return httpOnly_; }
-
    void setSecure();
-   bool secure() const { return secure_; }
-
-   void setSameSite(SameSite sameSite);
-   SameSite sameSite() const { return sameSite_; }
 
    std::string cookieHeaderValue() const ;
 
@@ -94,8 +65,7 @@ private:
    std::string value_ ;
    std::string domain_ ;
    std::string path_ ;
-   boost::posix_time::ptime expires_ ;
-   SameSite sameSite_;
+   boost::gregorian::date expires_ ;
    bool httpOnly_;
    bool secure_;
 };

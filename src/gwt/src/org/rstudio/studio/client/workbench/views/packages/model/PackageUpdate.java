@@ -1,7 +1,7 @@
 /*
  * PackageUpdate.java
  *
- * Copyright (C) 2009-12 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -36,5 +36,11 @@ public class PackageUpdate extends JavaScriptObject
 
    public final native String getAvailable() /*-{
       return this.available;
+   }-*/;
+   
+  
+   
+   public final native String getNewsUrl() /*-{
+      return this.newsUrl;
    }-*/;
 }

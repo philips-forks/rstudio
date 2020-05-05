@@ -1,7 +1,7 @@
 /*
  * FileIconResources.java
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -20,7 +20,8 @@ import com.google.gwt.resources.client.ImageResource;
 
 public interface FileIconResources extends ClientBundle
 {
-   FileIconResources INSTANCE = GWT.create(FileIconResources.class);
+   public static final FileIconResources INSTANCE =
+                                           GWT.create(FileIconResources.class);
 
    @Source("iconCsv_2x.png")
    ImageResource iconCsv2x();
@@ -109,9 +110,6 @@ public interface FileIconResources extends ClientBundle
    @Source("iconCss_2x.png")
    ImageResource iconCss2x();
 
-   @Source("iconScss_2x.png")
-   ImageResource iconScss2x();
-
    @Source("iconJavascript_2x.png")
    ImageResource iconJavascript2x();
 
@@ -132,9 +130,6 @@ public interface FileIconResources extends ClientBundle
 
    @Source("iconWord_2x.png")
    ImageResource iconWord2x();
-
-   @Source("iconPowerpoint_2x.png")
-   ImageResource iconPowerpoint2x();
 
    @Source("iconDCF_2x.png")
    ImageResource iconDCF2x();

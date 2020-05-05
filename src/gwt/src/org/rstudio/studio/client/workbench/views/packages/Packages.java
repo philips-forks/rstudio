@@ -1,7 +1,7 @@
 /*
  * Packages.java
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-17 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -43,12 +43,11 @@ import org.rstudio.studio.client.common.mirrors.DefaultCRANMirror;
 import org.rstudio.studio.client.packrat.PackratUtil;
 import org.rstudio.studio.client.packrat.model.PackratConflictActions;
 import org.rstudio.studio.client.packrat.model.PackratConflictResolution;
+import org.rstudio.studio.client.packrat.model.PackratContext;
 import org.rstudio.studio.client.packrat.model.PackratPackageAction;
 import org.rstudio.studio.client.packrat.model.PackratServerOperations;
 import org.rstudio.studio.client.packrat.ui.PackratActionDialog;
 import org.rstudio.studio.client.packrat.ui.PackratResolveConflictDialog;
-import org.rstudio.studio.client.renv.model.RenvServerOperations;
-import org.rstudio.studio.client.renv.ui.RenvActionDialog;
 import org.rstudio.studio.client.server.ServerDataSource;
 import org.rstudio.studio.client.server.ServerError;
 import org.rstudio.studio.client.server.ServerRequestCallback;
@@ -60,8 +59,6 @@ import org.rstudio.studio.client.workbench.model.ClientState;
 import org.rstudio.studio.client.workbench.model.RemoteFileSystemContext;
 import org.rstudio.studio.client.workbench.model.Session;
 import org.rstudio.studio.client.workbench.model.helper.JSObjectStateValue;
-import org.rstudio.studio.client.workbench.projects.ProjectContext;
-import org.rstudio.studio.client.workbench.projects.RenvAction;
 import org.rstudio.studio.client.workbench.views.BasePresenter;
 import org.rstudio.studio.client.workbench.views.console.events.ConsolePromptEvent;
 import org.rstudio.studio.client.workbench.views.console.events.ConsolePromptHandler;
@@ -105,7 +102,7 @@ public class Packages
 
    public interface Display extends WorkbenchView
    {
-      void setPackageState(ProjectContext projectContext, 
+      void setPackageState(PackratContext packratContext, 
                            List<PackageInfo> packagesDS);
       
       void installPackage(PackageInstallContext installContext,
@@ -116,7 +113,7 @@ public class Packages
       
       void setPackageStatus(PackageStatus status);
   
-      void setObserver(PackagesDisplayObserver observer);
+      void setObserver(PackagesDisplayObserver observer) ;
       void setProgress(boolean showProgress);
    }
    
@@ -125,7 +122,6 @@ public class Packages
                    final EventBus events,
                    PackagesServerOperations server,
                    PackratServerOperations packratServer,
-                   RenvServerOperations renvServer,
                    GlobalDisplay globalDisplay,
                    Session session,
                    Binder binder,
@@ -140,10 +136,9 @@ public class Packages
       view_ = view;
       server_ = server;
       packratServer_ = packratServer;
-      renvServer_ = renvServer;
-      globalDisplay_ = globalDisplay;
-      view_.setObserver(this);
-      events_ = events;
+      globalDisplay_ = globalDisplay ;
+      view_.setObserver(this) ;
+      events_ = events ;
       defaultCRANMirror_ = defaultCRANMirror;
       workbenchContext_ = workbenchContext;
       fsContext_ = fsContext;
@@ -311,8 +306,8 @@ public class Packages
                installOptions_ = request.getOptions();
                
                boolean usingDefaultLibrary = 
-                  request.getOptions().getLibraryPath() ==
-                                       installContext.getDefaultLibraryPath();
+                  request.getOptions().getLibraryPath().equals(
+                                       installContext.getDefaultLibraryPath());
 
                StringBuilder command = new StringBuilder();
                command.append("install.packages(");
@@ -414,6 +409,7 @@ public class Packages
    private void doUpdatePackages(final PackageInstallContext installContext)
    {
       new CheckForUpdatesDialog(
+         globalDisplay_,
          new ServerDataSource<JsArray<PackageUpdate>>() {
             public void requestData(
                ServerRequestCallback<JsArray<PackageUpdate>> requestCallback)
@@ -487,7 +483,7 @@ public class Packages
          if (libPathUpdates.size() > 1)
             command.append(")");
          
-         if (libPath != installContext.getDefaultLibraryPath())
+         if (!libPath.equals(installContext.getDefaultLibraryPath()))
          {
             command.append(", lib=\"");
             command.append(libPath);
@@ -507,8 +503,6 @@ public class Packages
    {
       updatePackageState(true, true);
    }
-   
-   // Packrat ----
    
    @Handler
    public void onPackratHelp()
@@ -633,72 +627,6 @@ public class Packages
       });
    }
    
-   // renv ----
-   
-   private void renvAction(final String action)
-   {
-      String errorMessage = "Error during " + action;
-      ProgressIndicator indicator =
-            globalDisplay_.getProgressIndicator(errorMessage);
-      
-      indicator.onProgress("Performing " + action.toLowerCase() + "...");
-      
-      renvServer_.renvActions(action, new ServerRequestCallback<JsArray<RenvAction>>()
-      {
-         @Override
-         public void onResponseReceived(JsArray<RenvAction> response)
-         {
-            indicator.onCompleted();
-            
-            if (response.length() == 0)
-            {
-               globalDisplay_.showMessage(
-                     GlobalDisplay.MSG_INFO,
-                     "Up to Date",
-                     "The project is already up to date.");
-               return;
-            }
-
-            final OperationWithInput<Void> operation = (Void input) -> {
-
-               String code = "renv::" + action.toLowerCase() + "(confirm = FALSE)";
-               events_.fireEvent(new SendToConsoleEvent(code, true));
-            };
-
-            RenvActionDialog dialog = new RenvActionDialog(action, response, operation);
-            dialog.showModal();
-
-         }
-
-         @Override
-         public void onError(ServerError error)
-         {
-            Debug.logError(error);
-            indicator.onError(error.getUserMessage());
-         }
-      });
-   }
-   
-   @Handler
-   public void onRenvHelp()
-   {
-      globalDisplay_.openRStudioLink("renv", false);
-   }
-   
-   @Handler
-   public void onRenvSnapshot()
-   {
-      renvAction("Snapshot");
-   }
-   
-   @Handler
-   public void onRenvRestore()
-   {
-      renvAction("Restore");
-   }
-   
-   // Miscellaneous ----
-   
    public void removePackage(final PackageInfo packageInfo)
    {
       withPackageInstallContext(new OperationWithInput<PackageInstallContext>(){
@@ -706,8 +634,8 @@ public class Packages
          @Override
          public void execute(final PackageInstallContext installContext)
          {
-            final boolean usingDefaultLibrary = packageInfo.getLibrary() ==
-                                       installContext.getDefaultLibraryPath();
+            final boolean usingDefaultLibrary = packageInfo.getLibrary().equals(
+                                       installContext.getDefaultLibraryPath());
             
             StringBuilder message = new StringBuilder();
             message.append("Are you sure you wish to permanently uninstall the '"); 
@@ -757,47 +685,39 @@ public class Packages
       server_.getPackageState(manualUpdate, new PackageStateUpdater());
    }
 
-   public void loadPackage(PackageInfo info)
-   {
+   public void loadPackage(final String packageName, final String libName)
+   {  
       // check status to make sure the package was unloaded
-      checkPackageStatusOnNextConsolePrompt(info.getName(), info.getLibrary());
+      checkPackageStatusOnNextConsolePrompt(packageName, libName);
       
       // send the command
       StringBuilder command = new StringBuilder();
-      if (info.getLibraryIndex() == 1)
-      {
-         command.append("library(")
-                .append(info.getName())
-                .append(")");
-      }
-      else
-      {
-         command.append("library(")
-                .append(info.getName())
-                .append(", lib.loc = \"")
-                .append(info.getLibraryAbsolute().replaceAll("\\\\", "\\\\\\\\"))
-                .append("\")");
-      }
-      
+      command.append("library(\"");
+      command.append(packageName);
+      command.append("\"");
+      command.append(", lib.loc=\"");
+      command.append(libName.replaceAll("\\\\", "\\\\\\\\"));
+      command.append("\"");
+      command.append(")");
       events_.fireEvent(new SendToConsoleEvent(command.toString(), true));
      
    }
 
-   public void unloadPackage(PackageInfo info)
+   public void unloadPackage(String packageName, String libName)
    { 
       // check status to make sure the package was unloaded
-      checkPackageStatusOnNextConsolePrompt(info.getName(), info.getLibrary());
+      checkPackageStatusOnNextConsolePrompt(packageName, libName);
       
       StringBuilder command = new StringBuilder();
       command.append("detach(\"package:");
-      command.append(info.getName());
-      command.append("\", unload = TRUE)");
+      command.append(packageName);
+      command.append("\", unload=TRUE)");
       events_.fireEvent(new SendToConsoleEvent(command.toString(), true));
    }
    
    public void showHelp(PackageInfo packageInfo)
    {
-      events_.fireEvent(new ShowHelpEvent(packageInfo.getHelpUrl()));
+      events_.fireEvent(new ShowHelpEvent(packageInfo.getUrl())) ;
    }
    
    public void onPackageStateChanged(PackageStateChangedEvent event)
@@ -833,8 +753,8 @@ public class Packages
       for (int i = 0; i<allPackages_.size(); i++)
       {
          PackageInfo packageInfo = allPackages_.get(i);
-         if (packageInfo.getName() == status.getName() &&
-             packageInfo.getLibrary() == status.getLib())
+         if (packageInfo.getName().equals(status.getName()) &&
+             packageInfo.getLibrary().equals(status.getLib()))
          {
             allPackages_.set(i, status.isLoaded() ? packageInfo.asLoaded() :
                                                     packageInfo.asUnloaded());
@@ -887,7 +807,7 @@ public class Packages
          packages = allPackages_;
       }
       
-      view_.setPackageState(projectContext_, packages);
+      view_.setPackageState(packratContext_, packages);
    }
    
    private void checkPackageStatusOnNextConsolePrompt(
@@ -1085,7 +1005,7 @@ public class Packages
       {
          setPackageState(response);
       }
-   }
+   };
    
    public static class Action
    {
@@ -1256,7 +1176,7 @@ public class Packages
          }
       }
       
-      projectContext_ = newState.getProjectContext();
+      packratContext_ = newState.getPackratContext();
       view_.setProgress(false);
       setViewPackageList();
    }
@@ -1275,13 +1195,12 @@ public class Packages
    private final Display view_;
    private final PackagesServerOperations server_;
    private final PackratServerOperations packratServer_;
-   private final RenvServerOperations renvServer_;
    private ArrayList<PackageInfo> allPackages_ = new ArrayList<PackageInfo>();
-   private ProjectContext projectContext_;
+   private PackratContext packratContext_;
    private String packageFilter_ = new String();
    private HandlerRegistration consolePromptHandlerReg_ = null;
-   private final EventBus events_;
-   private final GlobalDisplay globalDisplay_;
+   private final EventBus events_ ;
+   private final GlobalDisplay globalDisplay_ ;
    private final WorkbenchContext workbenchContext_;
    private final PackratUtil packratUtil_;
    private final RemoteFileSystemContext fsContext_;

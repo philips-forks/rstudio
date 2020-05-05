@@ -1,7 +1,7 @@
 /*
  * SessionHttpConnectionUtils.hpp
  *
- * Copyright (C) 2009-12 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -49,8 +49,6 @@ bool checkForAbort(boost::shared_ptr<HttpConnection> ptrConnection,
                    const boost::function<void()> cleanupHandler);
 
 bool checkForSuspend(boost::shared_ptr<HttpConnection> ptrConnection);
-
-bool checkForInterrupt(boost::shared_ptr<HttpConnection> ptrConnection);
 
 bool authenticate(boost::shared_ptr<HttpConnection> ptrConnection,
                   const std::string& secret);

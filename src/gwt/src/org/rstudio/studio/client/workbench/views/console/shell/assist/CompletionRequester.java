@@ -1,7 +1,7 @@
 /*
  * CompletionRequester.java
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -36,9 +36,8 @@ import org.rstudio.studio.client.common.icons.code.CodeIcons;
 import org.rstudio.studio.client.server.ServerError;
 import org.rstudio.studio.client.server.ServerRequestCallback;
 import org.rstudio.studio.client.workbench.codesearch.CodeSearchOracle;
-import org.rstudio.studio.client.workbench.prefs.model.UserPrefs;
+import org.rstudio.studio.client.workbench.prefs.model.UIPrefs;
 import org.rstudio.studio.client.workbench.snippets.SnippetHelper;
-import org.rstudio.studio.client.workbench.views.console.shell.ConsoleLanguageTracker;
 import org.rstudio.studio.client.workbench.views.console.shell.assist.RCompletionManager.AutocompletionContext;
 import org.rstudio.studio.client.workbench.views.source.editors.text.AceEditor;
 import org.rstudio.studio.client.workbench.views.source.editors.text.DocDisplay;
@@ -62,15 +61,15 @@ import java.util.List;
 
 public class CompletionRequester
 {
-   private CodeToolsServerOperations server_;
-   private UserPrefs uiPrefs_;
-   private final DocDisplay docDisplay_;
-   private final SnippetHelper snippets_;
+   private CodeToolsServerOperations server_ ;
+   private UIPrefs uiPrefs_;
+   private final DocDisplay docDisplay_ ;
+   private final SnippetHelper snippets_ ;
 
-   private String cachedLinePrefix_;
+   private String cachedLinePrefix_ ;
    private HashMap<String, CompletionResult> cachedCompletions_ =
          new HashMap<String, CompletionResult>();
-   private RnwCompletionContext rnwContext_;
+   private RnwCompletionContext rnwContext_ ;
    
    public CompletionRequester(RnwCompletionContext rnwContext,
                               DocDisplay docDisplay,
@@ -83,7 +82,7 @@ public class CompletionRequester
    }
    
    @Inject
-   void initialize(CodeToolsServerOperations server, UserPrefs uiPrefs)
+   void initialize(CodeToolsServerOperations server, UIPrefs uiPrefs)
    {
       server_ = server;
       uiPrefs_ = uiPrefs;
@@ -126,7 +125,7 @@ public class CompletionRequester
          // otherwise, produce a new completion list
          if (diff.length() > 0 && !diff.endsWith("::"))
          {
-            callback.onResponseReceived(narrow(cachedResult.token + diff, diff, cachedResult));
+            callback.onResponseReceived(narrow(token, diff, cachedResult)) ;
             return true;
          }
       }
@@ -179,7 +178,7 @@ public class CompletionRequester
          {
             if (StringUtil.isSubsequence(qname.name, tokenFuzzy, true) &&
                 filterStartsWithDot(qname.name, token))
-               newCompletions.add(qname);
+               newCompletions.add(qname) ;
          }
       }
       
@@ -212,7 +211,7 @@ public class CompletionRequester
             newCompletions,
             cachedResult.guessedFunctionName,
             cachedResult.suggestOnAccept,
-            cachedResult.dontInsertParens);
+            cachedResult.dontInsertParens) ;
       
       cachedCompletions_.put(diff, result);
       return result;
@@ -294,11 +293,10 @@ public class CompletionRequester
       JsArrayString pkgs = response.getPackages();
       JsArrayBoolean quote = response.getQuote();
       JsArrayInteger type = response.getType();
-      JsArrayString meta = response.getMeta();
       ArrayList<QualifiedName> newComp = new ArrayList<QualifiedName>();
       for (int i = 0; i < comp.length(); i++)
       {
-         newComp.add(new QualifiedName(comp.get(i), pkgs.get(i), quote.get(i), type.get(i), meta.get(i), response.getHelpHandler(), response.getLanguage()));
+         newComp.add(new QualifiedName(comp.get(i), pkgs.get(i), quote.get(i), type.get(i), response.getHelpHandler()));
       }
 
       CompletionResult result = new CompletionResult(
@@ -338,7 +336,6 @@ public class CompletionRequester
          final String filePath,
          final String documentId,
          final String line,
-         final boolean isConsole,
          final boolean implicit,
          final ServerRequestCallback<CompletionResult> callback)
    {
@@ -361,7 +358,6 @@ public class CompletionRequester
             filePath,
             documentId,
             line,
-            isConsole,
             new ServerRequestCallback<Completions>()
       {
          @Override
@@ -380,13 +376,12 @@ public class CompletionRequester
             JsArrayString pkgs = response.getPackages();
             JsArrayBoolean quote = response.getQuote();
             JsArrayInteger type = response.getType();
-            JsArrayString meta = response.getMeta();
             ArrayList<QualifiedName> newComp = new ArrayList<QualifiedName>();
             
             // Get function completions from the server
             for (int i = 0; i < comp.length(); i++)
                if (comp.get(i).endsWith(" = "))
-                  newComp.add(new QualifiedName(comp.get(i), pkgs.get(i), quote.get(i), type.get(i), meta.get(i), response.getHelpHandler(), response.getLanguage()));
+                  newComp.add(new QualifiedName(comp.get(i), pkgs.get(i), quote.get(i), type.get(i), response.getHelpHandler()));
             
             // Try getting our own function argument completions
             if (!response.getExcludeOtherCompletions())
@@ -405,23 +400,13 @@ public class CompletionRequester
             // Get other server completions
             for (int i = 0; i < comp.length(); i++)
                if (!comp.get(i).endsWith(" = "))
-                  newComp.add(new QualifiedName(comp.get(i), pkgs.get(i), quote.get(i), type.get(i), meta.get(i), response.getHelpHandler(), response.getLanguage()));
+                  newComp.add(new QualifiedName(comp.get(i), pkgs.get(i), quote.get(i), type.get(i), response.getHelpHandler()));
             
             // Get snippet completions. Bail if this isn't a top-level
             // completion -- TODO is to add some more context that allows us
             // to properly ascertain this.
             if (isTopLevelCompletionRequest())
-            {
-               // disable snippets if Python REPL is active for now
-               boolean noSnippets =
-                     isConsole &&
-                     !StringUtil.equals(response.getLanguage(), ConsoleLanguageTracker.LANGUAGE_R);
-               
-               if (!noSnippets)
-               {
-                  addSnippetCompletions(token, newComp);
-               }
-            }
+               addSnippetCompletions(token, newComp);
             
             // Remove duplicates
             newComp = resolveDuplicates(newComp);
@@ -440,7 +425,7 @@ public class CompletionRequester
 
             callback.onResponseReceived(result);
          }
-      });
+      }) ;
    }
    
    private ArrayList<QualifiedName>
@@ -652,7 +637,6 @@ public class CompletionRequester
          final String filePath,
          final String documentId,
          final String line,
-         final boolean isConsole,
          final ServerRequestCallback<Completions> requestCallback)
    {
       int optionsStartOffset;
@@ -676,7 +660,6 @@ public class CompletionRequester
                filePath,
                documentId,
                line,
-               isConsole,
                requestCallback);
       }
    }
@@ -707,12 +690,10 @@ public class CompletionRequester
                   JsUtil.toJsArrayString(pkgNames),
                   JsUtil.toJsArrayBoolean(new ArrayList<Boolean>(result.completions.length())),
                   JsUtil.toJsArrayInteger(new ArrayList<Integer>(result.completions.length())),
-                  JsUtil.toJsArrayString(new ArrayList<String>(result.completions.length())),
                   "",
                   false,
                   false,
                   true,
-                  null,
                   null);
             
             // Unlike other completion types, Sweave completions are not
@@ -738,7 +719,7 @@ public class CompletionRequester
 
    public void flushCache()
    {
-      cachedLinePrefix_ = null;
+      cachedLinePrefix_ = null ;
       cachedCompletions_.clear();
    }
    
@@ -750,52 +731,46 @@ public class CompletionRequester
                               boolean suggestOnAccept,
                               boolean dontInsertParens)
       {
-         this.token = token;
-         this.completions = completions;
-         this.guessedFunctionName = guessedFunctionName;
-         this.suggestOnAccept = suggestOnAccept;
-         this.dontInsertParens = dontInsertParens;
+         this.token = token ;
+         this.completions = completions ;
+         this.guessedFunctionName = guessedFunctionName ;
+         this.suggestOnAccept = suggestOnAccept ;
+         this.dontInsertParens = dontInsertParens ;
       }
       
-      public final String token;
-      public final ArrayList<QualifiedName> completions;
-      public final String guessedFunctionName;
-      public final boolean suggestOnAccept;
-      public final boolean dontInsertParens;
+      public final String token ;
+      public final ArrayList<QualifiedName> completions ;
+      public final String guessedFunctionName ;
+      public final boolean suggestOnAccept ;
+      public final boolean dontInsertParens ;
    }
    
    public static class QualifiedName implements Comparable<QualifiedName>
    {
-      public QualifiedName(String name,
-                           String source,
-                           boolean shouldQuote,
-                           int type)
+      public QualifiedName(
+            String name, String source, boolean shouldQuote, int type)
       {
-         this(name, source, shouldQuote, type, "", null, "R");
+         this(name, source, shouldQuote, type, null);
       }
       
-      
-      public QualifiedName(String name,
-                           String source)
-      {
-         this(name, source, false, RCompletionType.UNKNOWN, "", null, "R");
-      }
-      
-      public QualifiedName(String name,
-                           String source,
-                           boolean shouldQuote,
-                           int type,
-                           String meta,
-                           String helpHandler,
-                           String language)
+      public QualifiedName(
+            String name, String source, boolean shouldQuote, int type, String helpHandler)
       {
          this.name = name;
          this.source = source;
          this.shouldQuote = shouldQuote;
          this.type = type;
-         this.meta = meta;
          this.helpHandler = helpHandler;
-         this.language = language;
+         
+      }
+      
+      public QualifiedName(String name, String source)
+      {
+         this.name = name;
+         this.source = source;
+         this.shouldQuote = false;
+         this.type = RCompletionType.UNKNOWN;
+         this.helpHandler = null;
       }
       
       public static QualifiedName createSnippet(String name)
@@ -805,9 +780,7 @@ public class CompletionRequester
                "snippet",
                false,
                RCompletionType.SNIPPET,
-               "",
-               null,
-               "R");
+               null);
       }
       
       @Override
@@ -896,8 +869,7 @@ public class CompletionRequester
          // is a custom helpHandler provided, indicating that the "source"
          // isn't a package but rather some custom DollarNames scope)
          if ((RCompletionType.isFunctionType(type) ||
-             type == RCompletionType.SNIPPET ||
-             type == RCompletionType.DATASET) &&
+             type == RCompletionType.SNIPPET) &&
              helpHandler == null)
          {
             SafeHtmlUtil.appendSpan(
@@ -958,38 +930,38 @@ public class CompletionRequester
       
       private ImageResource getIconForFilename(String name)
       {
-         return FILE_TYPE_REGISTRY.getIconForFilename(name).getImageResource();
+         return FILE_TYPE_REGISTRY.getIconForFilename(name);
       }
 
       public static QualifiedName parseFromText(String val)
       {
          String name, pkgName = "";
-         int idx = val.indexOf('{');
+         int idx = val.indexOf('{') ;
          if (idx < 0)
          {
-            name = val;
+            name = val ;
          }
          else
          {
-            name = val.substring(0, idx).trim();
-            pkgName = val.substring(idx + 1, val.length() - 1);
+            name = val.substring(0, idx).trim() ;
+            pkgName = val.substring(idx + 1, val.length() - 1) ;
          }
          
-         return new QualifiedName(name, pkgName);
+         return new QualifiedName(name, pkgName) ;
       }
 
       public int compareTo(QualifiedName o)
       {
          if (name.endsWith("=") ^ o.name.endsWith("="))
-            return name.endsWith("=") ? -1 : 1;
+            return name.endsWith("=") ? -1 : 1 ;
          
-         int result = String.CASE_INSENSITIVE_ORDER.compare(name, o.name);
+         int result = String.CASE_INSENSITIVE_ORDER.compare(name, o.name) ;
          if (result != 0)
-            return result;
+            return result ;
          
-         String pkg = source == null ? "" : source;
-         String opkg = o.source == null ? "" : o.source;
-         return pkg.compareTo(opkg);
+         String pkg = source == null ? "" : source ;
+         String opkg = o.source == null ? "" : o.source ;
+         return pkg.compareTo(opkg) ;
       }
       
       @Override
@@ -1012,14 +984,11 @@ public class CompletionRequester
          return hash;
       }
 
-      public final String name;
-      public final String source;
-      public final boolean shouldQuote;
-      public final int type;
-      public final String meta;
+      public final String name ;
+      public final String source ;
+      public final boolean shouldQuote ;
+      public final int type ;
       public final String helpHandler;
-      public final String language;
-      
       private static final FileTypeRegistry FILE_TYPE_REGISTRY =
             RStudioGinjector.INSTANCE.getFileTypeRegistry();
    }

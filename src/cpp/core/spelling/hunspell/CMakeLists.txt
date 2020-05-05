@@ -1,7 +1,7 @@
 #
 # CMakeLists.txt
 #
-# Copyright (C) 2009-19 by RStudio, PBC
+# Copyright (C) 2009-11 by RStudio, Inc.
 #
 # Unless you have received this program directly from RStudio pursuant
 # to the terms of a commercial license agreement with RStudio, then
@@ -15,19 +15,12 @@
 
 project(CORE_HUNSPELL)
 
-configure_file(${CMAKE_CURRENT_SOURCE_DIR}/config.h.in
-               ${CMAKE_CURRENT_BINARY_DIR}/config.h)
+configure_file (${CMAKE_CURRENT_SOURCE_DIR}/config.h.in
+                ${CMAKE_CURRENT_BINARY_DIR}/config.h)
 
-if(NOT MSVC)
-   add_definitions(-w)
-endif()
-add_definitions(-DHUNSPELL_STATIC)
 
-if(MSVC)
-  # disable C4267 warning (typical example is assigning size_t to int)
-  # we don't want to try fixing these in this third-party code
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /wd4267")
-endif()
+# disable warnings
+add_definitions(-w)
 
 # include files
 file(GLOB_RECURSE CORE_HUNSPELL_HEADER_FILES "*.h*")
@@ -60,7 +53,6 @@ include_directories(
 add_library(rstudio-core-hunspell STATIC
    ${CORE_HUNSPELL_SOURCE_FILES}
    ${CORE_HUNSPELL_HEADER_FILES})
-define_source_file_names(rstudio-core-hunspell)
 
 # link dependencies
 target_link_libraries(rstudio-core-hunspell

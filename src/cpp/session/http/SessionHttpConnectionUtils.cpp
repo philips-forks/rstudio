@@ -1,7 +1,7 @@
 /*
  * SessionHttpConnectionUtils.cpp
  *
- * Copyright (C) 2009-12 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -16,11 +16,12 @@
 
 #include "SessionHttpConnectionUtils.hpp"
 
+
 #include <boost/algorithm/string/predicate.hpp>
 
-#include <shared_core/FilePath.hpp>
+#include <core/FilePath.hpp>
 #include <core/Log.hpp>
-#include <shared_core/Error.hpp>
+#include <core/Error.hpp>
 #include <core/FileSerializer.hpp>
 
 
@@ -30,10 +31,6 @@
 #include <core/json/JsonRpc.hpp>
 
 #include <core/r_util/RSessionContext.hpp>
-
-#include <core/system/Interrupts.hpp>
-
-#include <r/RExec.hpp>
 
 #include <session/SessionMain.hpp>
 #include <session/SessionOptions.hpp>
@@ -159,11 +156,8 @@ bool checkForAbort(boost::shared_ptr<HttpConnection> ptrConnection,
       // kill child processes before going down
       terminateAllChildProcesses();
 
-      // abort the process
-      // we no longer do this with ::abort because it generated unwanted exceptions
-      // ::_Exit should perform the same functionality (not running destructors and exiting process)
-      // without generating an exception
-      std::_Exit(EXIT_SUCCESS);
+      // abort
+      ::abort();
       return true;
    }
    else
@@ -218,45 +212,6 @@ bool checkForSuspend(boost::shared_ptr<HttpConnection> ptrConnection)
    }
 }
 #endif
-
-bool checkForInterrupt(boost::shared_ptr<HttpConnection> ptrConnection)
-{
-   using namespace rstudio::core;
-   using namespace rstudio::core::json;
-   
-   if (!isMethod(ptrConnection, "interrupt"))
-      return false;
-   
-   JsonRpcRequest request;
-   Error error = parseJsonRpcRequest(
-            ptrConnection->request().body(),
-            &request);
-   if (error)
-   {
-      ptrConnection->sendJsonRpcError(error);
-   }
-   else
-   {
-      // interrupt the session. note that we call core::system::interrupt()
-      // as this will signal the interrupt to all processes in the same
-      // process group, which implies that processes launched through e.g.
-      // system() in R can be successfully interrupted. however, in some
-      // cases, a running application in R might install their own interrupt
-      // handler, thereby preventing us from receiving the signal we're now
-      // broadcasting. (was observed with Shiny applications on Windows)
-      //
-      // to ensure that the R session always receives an interrupt, we explicitly
-      // set the interrupt flag even though the normal interrupt handler would do
-      // the same.
-      r::exec::setInterruptsPending(true);
-      core::system::interrupt();
-
-      // acknowledge request
-      ptrConnection->sendJsonRpcResponse();
-   }
-
-   return true;
-}
 
 bool authenticate(boost::shared_ptr<HttpConnection> ptrConnection,
                   const std::string& secret)

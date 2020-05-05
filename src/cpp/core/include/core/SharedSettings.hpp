@@ -1,7 +1,7 @@
 /*
  * SharedSettings.hpp
  *
- * Copyright (C) 2009-18 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -20,8 +20,8 @@
 
 #include <boost/algorithm/string/trim.hpp>
 
-#include <shared_core/Error.hpp>
-#include <shared_core/FilePath.hpp>
+#include <core/Error.hpp>
+#include <core/FilePath.hpp>
 #include <core/FileSerializer.hpp>
 
 namespace rstudio {
@@ -38,11 +38,10 @@ public:
          LOG_ERROR(error);
    }
 
-   // read setting from a folder
-   static std::string readSettingFromPath(const core::FilePath& settingsPath, const std::string& settingName)
+   std::string readSetting(const char * const settingName) const
    {
       using namespace rstudio::core;
-      FilePath readPath = settingsPath.completePath(settingName);
+      FilePath readPath = settingsPath_.complete(settingName);
       if (readPath.exists())
       {
          std::string value;
@@ -61,27 +60,14 @@ public:
       }
    }
 
-   // write setting to a folder
-   static void writeSettingToPath(const core::FilePath& settingsPath,
-                                  const std::string& settingName,
-                                  const std::string& value)
-   {
-      using namespace rstudio::core;
-      FilePath writePath = settingsPath.completePath(settingName);
-      Error error = core::writeStringToFile(writePath, value);
-      if (error)
-         LOG_ERROR(error);
-   }
-
-   std::string readSetting(const char * const settingName) const
-   {
-      return readSettingFromPath(settingsPath_, settingName);
-   }
-
    void writeSetting(const char * const settingName,
                      const std::string& value)
    {
-      writeSettingToPath(settingsPath_, settingName, value);
+      using namespace rstudio::core;
+      FilePath writePath = settingsPath_.complete(settingName);
+      Error error = core::writeStringToFile(writePath, value);
+      if (error)
+         LOG_ERROR(error);
    }
 
 private:

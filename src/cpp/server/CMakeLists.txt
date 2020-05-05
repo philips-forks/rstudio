@@ -1,7 +1,7 @@
 #
 # CMakeLists.txt
 #
-# Copyright (C) 2009-19 by RStudio, PBC
+# Copyright (C) 2009-12 by RStudio, Inc.
 #
 # Unless you have received this program directly from RStudio pursuant
 # to the terms of a commercial license agreement with RStudio, then
@@ -16,18 +16,17 @@
 project (SERVER)
 
 add_subdirectory(pam)
-add_subdirectory(crash-handler-proxy)
 
 # include files
 file(GLOB_RECURSE SERVER_HEADER_FILES "*.h*")
 
 # source files
 set(SERVER_SOURCE_FILES
+   ServerAppArmor.cpp
    ServerBrowser.cpp
    ServerErrorCategory.cpp
    ServerEval.cpp
    ServerInit.cpp
-   ServerLoginPages.cpp
    ServerMain.cpp
    ServerMainOverlay.cpp
    ServerMeta.cpp
@@ -38,21 +37,20 @@ set(SERVER_SOURCE_FILES
    ServerPAMAuthOverlay.cpp
    ServerProcessSupervisor.cpp
    ServerREnvironment.cpp
+   ServerSecureKeyFile.cpp
    ServerSessionProxy.cpp
-   ServerSessionProxyOverlay.cpp
    ServerSessionManager.cpp
+   dspcryptverifier.c 
    auth/ServerAuthHandler.cpp
-   auth/ServerAuthCommon.cpp
+   auth/ServerCSRFToken.cpp
+   auth/ServerSecureCookie.cpp
    auth/ServerSecureUriHandler.cpp
    auth/ServerValidateUser.cpp
    ${CMAKE_CURRENT_BINARY_DIR}/ServerAddins.cpp
 )
 
 # define core include dirs
-set(CORE_INCLUDE_DIRS
-    ${CORE_SOURCE_DIR}/include
-    ${SERVER_CORE_SOURCE_DIR}/include
-)
+set(CORE_INCLUDE_DIRS ${CORE_SOURCE_DIR}/include)
 
 # include addins
 if(RSTUDIO_ADDINS_PATH)
@@ -105,43 +103,13 @@ endforeach()
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/server-config.h.in
                ${CMAKE_CURRENT_BINARY_DIR}/server-config.h)
 
-# required on Fedora for dynamic library-related code to compile
+# required on Fedora for AppArmor-related code to compile
 if(NOT APPLE)
    find_library(DL_LIBRARIES dl)
 endif()
 
 # include directories and libraries
 set(SERVER_SYSTEM_LIBRARIES ${DL_LIBRARIES})
-
-# handle El Capitan moving OpenSSL away
-if(APPLE)
-   if(${MACOSX_VERSION} VERSION_GREATER "10.10"
-         AND EXISTS "/usr/local/opt/openssl")
-
-      set(SERVER_SYSTEM_LIBRARIES
-         ${SERVER_SYSTEM_LIBRARIES}
-         -L/usr/local/opt/openssl/lib -lssl -lcrypto)
-
-      set(CORE_INCLUDE_DIRS
-         ${CORE_INCLUDE_DIRS}
-         /usr/local/opt/openssl/include)
-
-      if(NOT DEFINED OPENSSL_ROOT_DIR)
-         set(OPENSSL_ROOT_DIR
-            /usr/local/opt/openssl)
-      endif()
-   endif()
-
-   find_package(OpenSSL REQUIRED QUIET)
-   set(SERVER_SYSTEM_LIBRARIES
-      ${SERVER_SYSTEM_LIBRARIES}
-      ${OPENSSL_LIBRARIES}
-   )
-   set(CORE_INCLUDE_DIRS
-      ${CORE_INCLUDE_DIRS}
-      ${OPENSSL_INCLUDE_DIR}
-   )
-endif()
 
 # set include directories
 include_directories(
@@ -152,51 +120,27 @@ include_directories(
    ${CORE_INCLUDE_DIRS}
    ${MONITOR_SOURCE_DIR}/include
    ${SESSION_SOURCE_DIR}/include
-   ${SHARED_CORE_SOURCE_DIR}/include
 )
 
 # define executable
-add_stripped_executable(rserver ${SERVER_SOURCE_FILES} ${SERVER_HEADER_FILES})
+add_executable(rserver ${SERVER_SOURCE_FILES} ${SERVER_HEADER_FILES})
+
+# add origin rpath for suse/sles
+if(RSTUDIO_PACKAGE_VARIANT STREQUAL "SLES")
+   set(CMAKE_BUILD_WITH_INSTALL_RPATH TRUE)
+   set_target_properties(rserver PROPERTIES
+                         INSTALL_RPATH \$ORIGIN)
+endif()
 
 # set link dependencies
 target_link_libraries(rserver
    rstudio-core
-   rstudio-server-core
    rstudio-monitor
-   ${CRASHPAD_LIBRARIES}
-   ${SOCI_LIBRARIES}
    ${SERVER_SYSTEM_LIBRARIES}
 )
 
 # install binary
 install(TARGETS rserver DESTINATION ${RSTUDIO_INSTALL_BIN})
-
-# set up to create a global theme directory for server installs.
-set (RSERVER_THEME_README "themes/README.md")
-configure_file("${CMAKE_CURRENT_SOURCE_DIR}/${RSERVER_THEME_README}"
-               "${CMAKE_CURRENT_BINARY_DIR}/extras/${RSERVER_THEME_README}")
-install(FILES "${CMAKE_CURRENT_BINARY_DIR}/extras/${RSERVER_THEME_README}"
-       DESTINATION "extras/themes")
-
-# do the same for fonts
-set (RSERVER_FONT_README "fonts/README.md")
-configure_file("${CMAKE_CURRENT_SOURCE_DIR}/${RSERVER_FONT_README}"
-               "${CMAKE_CURRENT_BINARY_DIR}/extras/${RSERVER_FONT_README}")
-install(FILES "${CMAKE_CURRENT_BINARY_DIR}/extras/${RSERVER_FONT_README}"
-       DESTINATION "extras/fonts")
-
-# install db migration scripts
-file(GLOB DB_MIGRATION_FILES_SQL "db/*.sql")
-file(GLOB DB_MIGRATION_FILES_SQLITE "db/*.sqlite")
-file(GLOB DB_MIGRATION_FILES_POSTGRESQL "db/*.postgresql")
-install(FILES ${DB_MIGRATION_FILES_SQL} ${DB_MIGRATION_FILES_SQLITE} ${DB_MIGRATION_FILES_POSTGRESQL}
-        DESTINATION "db")
-
-# install default database.conf file
-set(RSERVER_CONF_DIR "extras/conf")
-set(RSERVER_DATABASE_CONF_FILE "${RSERVER_CONF_DIR}/database.conf")
-install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/${RSERVER_DATABASE_CONF_FILE}
-        DESTINATION ${RSERVER_CONF_DIR})
 
 if (UNIX AND NOT APPLE)
 
@@ -236,6 +180,16 @@ if (UNIX AND NOT APPLE)
    set(RSERVER_PAM_PROFILE "${RSERVER_PAM_DIR}/rstudio")
    install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/${RSERVER_PAM_PROFILE}
            DESTINATION ${RSERVER_PAM_DIR})
+
+   # install configured apparmor profile
+   set(RSERVER_APPARMOR_DIR "extras/apparmor")
+   set(RSERVER_APPARMOR_PROFILE "${RSERVER_APPARMOR_DIR}/rstudio-server")
+   configure_file(${CMAKE_CURRENT_SOURCE_DIR}/${RSERVER_APPARMOR_PROFILE}.in
+                  ${CMAKE_CURRENT_BINARY_DIR}/${RSERVER_APPARMOR_PROFILE})
+   install(FILES ${CMAKE_CURRENT_BINARY_DIR}/${RSERVER_APPARMOR_PROFILE}
+           DESTINATION ${RSERVER_APPARMOR_DIR})
+   install(PROGRAMS ${CMAKE_CURRENT_SOURCE_DIR}/${RSERVER_APPARMOR_DIR}/apparmor-profile-load
+           DESTINATION ${RSERVER_APPARMOR_DIR})
 
    # install configured upstart profile
    set(RSERVER_UPSTART_DIR "extras/upstart")

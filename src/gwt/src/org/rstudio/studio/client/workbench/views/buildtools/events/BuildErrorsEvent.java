@@ -1,7 +1,7 @@
 /*
  * BuildErrorsEvent.java
  *
- * Copyright (C) 2009-12 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -36,14 +36,6 @@ public class BuildErrorsEvent extends GwtEvent<BuildErrorsEvent.Handler>
       public final native JsArray<SourceMarker> getErrors() /*-{
          return this.errors;
       }-*/;
-
-      public final native boolean openErrorList() /*-{
-         return this.open_error_list;
-      }-*/;
-
-      public final native String type() /*-{
-         return this.type;
-      }-*/;
    }
 
    
@@ -60,16 +52,6 @@ public class BuildErrorsEvent extends GwtEvent<BuildErrorsEvent.Handler>
    public String getBaseDirectory()
    {
       return data_.getBaseDirectory();
-   }
-
-   public boolean openErrorList()
-   {
-      return data_.openErrorList();
-   }
-
-   public String type()
-   {
-      return data_.type();
    }
    
    public JsArray<SourceMarker> getErrors()

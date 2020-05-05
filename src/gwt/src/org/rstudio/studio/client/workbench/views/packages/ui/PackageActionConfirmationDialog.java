@@ -1,7 +1,7 @@
 /*
  * PackageActionConfirmationDialog.java
  *
- * Copyright (C) 2009-20 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -17,10 +17,6 @@ package org.rstudio.studio.client.workbench.views.packages.ui;
 import java.util.ArrayList;
 import java.util.List;
 
-import com.google.gwt.aria.client.DialogRole;
-import org.rstudio.core.client.ElementIds;
-import org.rstudio.core.client.cellview.AriaLabeledCheckboxCell;
-import org.rstudio.core.client.cellview.LabeledBoolean;
 import org.rstudio.core.client.widget.ModalDialog;
 import org.rstudio.core.client.widget.Operation;
 import org.rstudio.core.client.widget.OperationWithInput;
@@ -29,11 +25,14 @@ import org.rstudio.studio.client.common.SimpleRequestCallback;
 import org.rstudio.studio.client.server.ServerDataSource;
 import org.rstudio.studio.client.server.ServerError;
 
+import com.google.gwt.cell.client.CheckboxCell;
 import com.google.gwt.cell.client.FieldUpdater;
 import com.google.gwt.core.client.GWT;
 import com.google.gwt.core.client.JavaScriptObject;
 import com.google.gwt.core.client.JsArray;
 import com.google.gwt.dom.client.Style.Unit;
+import com.google.gwt.event.dom.client.ClickEvent;
+import com.google.gwt.event.dom.client.ClickHandler;
 import com.google.gwt.resources.client.ClientBundle;
 import com.google.gwt.resources.client.CssResource;
 import com.google.gwt.user.cellview.client.CellTable;
@@ -51,25 +50,35 @@ public abstract class PackageActionConfirmationDialog<T extends JavaScriptObject
    public PackageActionConfirmationDialog(
          String caption,
          String okCaption,
-         DialogRole role,
          ServerDataSource<JsArray<T>> actionsDS,
          OperationWithInput<ArrayList<T>> checkOperation,
          Operation cancelOperation)
    {
-      super(caption, role, checkOperation, cancelOperation);
+      super(caption, checkOperation, cancelOperation);
       actionsDS_ = actionsDS;
       
       setOkButtonCaption(okCaption);
     
-      addLeftButton(selectAllButton_ = new ThemedButton("Select All",
-         event -> setGlobalPerformAction("Select All", true)), ElementIds.SELECT_ALL_BUTTON);
-      
-      selectAllButton_.getElement().getStyle().setMarginRight(10, Unit.PX);
+      addLeftButton(selectAllButton_ = new ThemedButton("Select All", 
+                                                        new ClickHandler() {
+         @Override
+         public void onClick(ClickEvent event)
+         {
+           setGlobalPerformAction(true);       
+         } 
+      }));
      
-      addLeftButton(selectNoneButton_ = new ThemedButton("Select None",
-         event -> setGlobalPerformAction("Select None", false)), ElementIds.SELECT_NONE_BUTTON);
+      addLeftButton(selectNoneButton_ = new ThemedButton("Select None", 
+                                                         new ClickHandler() {
+         @Override
+         public void onClick(ClickEvent event)
+         {
+            setGlobalPerformAction(false);   
+         } 
+      }));  
       
       enableOkButton(false);
+      enableCancelButton(false);
       selectAllButton_.setEnabled(false);
       selectNoneButton_.setEnabled(false);
    }
@@ -80,7 +89,7 @@ public abstract class PackageActionConfirmationDialog<T extends JavaScriptObject
       ArrayList<T> actions = new ArrayList<T>();
       for (PendingAction action : actionsDataProvider_.getList())
       {
-         if (action.getPerformAction().getBool())
+         if (action.getPerformAction())
             actions.add(action.getActionInfo());
       }
       return actions;
@@ -104,11 +113,11 @@ public abstract class PackageActionConfirmationDialog<T extends JavaScriptObject
          flowPanel.add(text);
       }
       
-      actionsTable_ = new CellTable<>(
+      actionsTable_ = new CellTable<PendingAction>(
             15,
             GWT.<PackagesCellTableResources> create(PackagesCellTableResources.class));
       actionsTable_.setKeyboardSelectionPolicy(KeyboardSelectionPolicy.DISABLED);
-      actionsTable_.setSelectionModel(new NoSelectionModel<>());
+      actionsTable_.setSelectionModel(new NoSelectionModel<PendingAction>());
       actionsTable_.setWidth("100%", true);
       
       ActionColumn actionColumn = new ActionColumn();
@@ -116,7 +125,8 @@ public abstract class PackageActionConfirmationDialog<T extends JavaScriptObject
       actionsTable_.setColumnWidth(actionColumn, 30, Unit.PX);
       
       addTableColumns(actionsTable_);
-
+     
+      
       ScrollPanel scrollPanel = new ScrollPanel();
       scrollPanel.setWidget(actionsTable_);
       scrollPanel.setStylePrimaryName(RESOURCES.styles().mainWidget());
@@ -130,19 +140,17 @@ public abstract class PackageActionConfirmationDialog<T extends JavaScriptObject
          {
             if (actions != null && actions.length() > 0)
             {
-               ArrayList<PendingAction> pendingActions = new ArrayList<>();
+               ArrayList<PendingAction> pendingActions = new ArrayList<PendingAction>();
                for (int i=0; i<actions.length(); i++)
-                  pendingActions.add(new PendingAction(actions.get(i),
-                     new LabeledBoolean(getActionName(actions.get(i)), false)));
+                  pendingActions.add(new PendingAction(actions.get(i), false));
                actionsTable_.setPageSize(pendingActions.size());
-               actionsDataProvider_ = new ListDataProvider<>();
+               actionsDataProvider_ = new ListDataProvider<PendingAction>();
                actionsDataProvider_.setList(pendingActions);
                actionsDataProvider_.addDataDisplay(actionsTable_);
                
+               enableCancelButton(true);
                selectAllButton_.setEnabled(true);
                selectNoneButton_.setEnabled(true);
-               refreshFocusableElements();
-               focusInitialControl();
             }
             else
             {
@@ -155,10 +163,10 @@ public abstract class PackageActionConfirmationDialog<T extends JavaScriptObject
          public void onError(ServerError error)
          {
             closeDialog();
-            super.onError(error);
-         }
+            super.onError(error);            
+         }  
       });
-
+ 
       return flowPanel;
    }
 
@@ -169,26 +177,26 @@ public abstract class PackageActionConfirmationDialog<T extends JavaScriptObject
    
    protected abstract void showNoActionsRequired(); 
    protected abstract void addTableColumns(CellTable<PendingAction> table);
-   protected abstract String getActionName(T action);
   
-   class ActionColumn extends Column<PendingAction, LabeledBoolean>
+   class ActionColumn extends Column<PendingAction, Boolean>
    {
       public ActionColumn()
       {
-         super(new AriaLabeledCheckboxCell(false, false));
+         super(new CheckboxCell(false, false));
          
-         setFieldUpdater(new FieldUpdater<PendingAction, LabeledBoolean>() {
-            public void update(int index, PendingAction action, LabeledBoolean value)
+         setFieldUpdater(new FieldUpdater<PendingAction,Boolean>() {
+            public void update(int index, PendingAction action, Boolean value)
             {
                List<PendingAction> actions = actionsDataProvider_.getList();
-               actions.set(actions.indexOf(action), new PendingAction(action.getActionInfo(), value));
+               actions.set(actions.indexOf(action), 
+                           new PendingAction(action.getActionInfo(), value));
                manageUIState();
-            }
+            }    
          });
       }
 
       @Override
-      public LabeledBoolean getValue(PendingAction update)
+      public Boolean getValue(PendingAction update)
       {
          return update.getPerformAction();
       }
@@ -196,7 +204,7 @@ public abstract class PackageActionConfirmationDialog<T extends JavaScriptObject
    
    protected class PendingAction
    {
-      public PendingAction(T actionInfo, LabeledBoolean performAction)
+      public PendingAction(T actionInfo, boolean performAction)
       {
          actionInfo_ = actionInfo;
          performAction_ = performAction;
@@ -207,21 +215,21 @@ public abstract class PackageActionConfirmationDialog<T extends JavaScriptObject
          return actionInfo_;
       }
       
-      public LabeledBoolean getPerformAction()
+      public boolean getPerformAction()
       {
          return performAction_;
       }
-
+      
       private final T actionInfo_;
-      private final LabeledBoolean performAction_;
+      private final boolean performAction_;
    }
    
-   private void setGlobalPerformAction(String label, Boolean performAction)
+   private void setGlobalPerformAction(Boolean performAction)
    {
       List<PendingAction> actions = actionsDataProvider_.getList();
       ArrayList<PendingAction> newActions = new ArrayList<PendingAction>();
       for(PendingAction action : actions)
-         newActions.add(new PendingAction(action.getActionInfo(), new LabeledBoolean(label, performAction)));
+         newActions.add(new PendingAction(action.getActionInfo(), performAction));
       actionsDataProvider_.setList(newActions);
       manageUIState();
    }
@@ -231,25 +239,25 @@ public abstract class PackageActionConfirmationDialog<T extends JavaScriptObject
       enableOkButton(collectInput().size() > 0);
    }
    
-   interface Styles extends CssResource
+   static interface Styles extends CssResource
    {
       String mainWidget();
       String explanatoryText();
    }
 
-   interface Resources extends ClientBundle
+   static interface Resources extends ClientBundle
    {
       @Source("PackageActionConfirmationDialog.css")
       Styles styles();
    }
 
-   static Resources RESOURCES = GWT.create(Resources.class);
+   static Resources RESOURCES = (Resources) GWT.create(Resources.class);
 
    public static void ensureStylesInjected()
    {
       RESOURCES.styles().ensureInjected();
    }
-
+   
    private CellTable<PendingAction> actionsTable_;
    private ServerDataSource<JsArray<T>> actionsDS_;
    private ListDataProvider<PendingAction> actionsDataProvider_;

@@ -1,7 +1,7 @@
 /*
  * URIUtils.java
  *
- * Copyright (C) 2009-18 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -15,8 +15,6 @@
 
 package org.rstudio.core.client;
 
-import org.rstudio.core.client.dom.DomUtils;
-
 import com.google.gwt.http.client.URL;
 
 public class URIUtils
@@ -24,7 +22,7 @@ public class URIUtils
    public static String addQueryParam(String url, String name, String value)
    {
       // first split into base and anchor
-      String base = StringUtil.create(url);
+      String base = new String(url);
       String anchor = new String();
       int anchorPos = base.indexOf('#');
       if (anchorPos != -1)
@@ -42,22 +40,5 @@ public class URIUtils
      
       // add the anchor back on
       return base + anchor;
-   }
-   
-   /**
-    * Indicates whether the given URL refers to a resource on a machine-local
-    * (loopback) network interface.
-    * 
-    * @param url The URL to test.
-    * @return True if the URL is local.
-    */
-   public static boolean isLocalUrl(String url)
-   {
-      // ensure URL is absolute
-      String absolute = DomUtils.makeAbsoluteUrl(url);
-      
-      // extract host and see if it's on the whitelist of loopback hosts
-      String host = StringUtil.getHostFromUrl(absolute);
-      return host.equals("localhost") || host.equals("127.0.0.1") || host.equals("::1");
    }
 }

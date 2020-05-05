@@ -1,7 +1,7 @@
 /*
  * PosixLibraryLoader.cpp
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -17,7 +17,7 @@
 
 #include <dlfcn.h>
 
-#include <shared_core/Error.hpp>
+#include <core/Error.hpp>
 
 namespace rstudio {
 namespace core {
@@ -28,7 +28,7 @@ namespace {
 void addLastDLErrorMessage(Error* pError)
 {
    const char* msg = ::dlerror();
-   if (msg != nullptr)
+   if (msg != NULL)
       pError->addProperty("dlerror", std::string(msg));
 }
 
@@ -36,9 +36,9 @@ void addLastDLErrorMessage(Error* pError)
 
 Error loadLibrary(const std::string& libPath, void** ppLib)
 {
-   *ppLib = nullptr;
+   *ppLib = NULL;
    *ppLib = ::dlopen(libPath.c_str(), RTLD_NOW);
-   if (*ppLib == nullptr)
+   if (*ppLib == NULL)
    {
       Error error = systemError(
                            boost::system::errc::no_such_file_or_directory,
@@ -55,9 +55,9 @@ Error loadLibrary(const std::string& libPath, void** ppLib)
 
 Error loadSymbol(void* pLib, const std::string& name, void** ppSymbol)
 {
-   *ppSymbol = nullptr;
+   *ppSymbol = NULL;
    *ppSymbol = ::dlsym(pLib, name.c_str());
-   if (*ppSymbol == nullptr)
+   if (*ppSymbol == NULL)
    {
       Error error = systemError(boost::system::errc::not_supported,
                                 ERROR_LOCATION);

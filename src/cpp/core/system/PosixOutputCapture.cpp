@@ -1,7 +1,7 @@
 /*
  * PosixOutputCapture.cpp
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -22,7 +22,7 @@
 #include <iostream>
 
 #include <core/Log.hpp>
-#include <shared_core/Error.hpp>
+#include <core/Error.hpp>
 #include <core/BoostThread.hpp>
 #include <core/BoostErrors.hpp>
 
@@ -38,7 +38,7 @@ void readFromPipe(
       int pipeFd,
       const boost::function<void(const std::string&)>& outputFunction)
 {
-   const int kBufferSize = 40960;
+   const int kBufferSize = 512;
    char buffer[kBufferSize];
    int bytesRead = 0;
    while ( (bytesRead = ::read(pipeFd, buffer, kBufferSize)) > 0 )
@@ -57,34 +57,10 @@ void readFromPipe(
 
 void standardStreamCaptureThread(
        int stdoutFd,
-       int dupStdoutFd,
        const boost::function<void(const std::string&)>& stdoutHandler,
        int stderrFd,
-       int dupStderrFd,
        const boost::function<void(const std::string&)>& stderrHandler)
 {
-   boost::function<void(const std::string&)> outHandler = stdoutHandler;
-   boost::function<void(const std::string&)> errHandler = stderrHandler;
-
-   auto wrapHandler =
-    [=](const boost::function<void(const std::string&)>& handler,
-        int dupFd,
-        const std::string& output)
-    {
-       handler(output);
-       if (::write(dupFd, output.c_str(), output.size()) == -1)
-       {
-          if (errno != EAGAIN && errno != EINTR)
-             LOG_ERROR(systemError(errno, ERROR_LOCATION));
-       }
-    };
-
-   if (dupStdoutFd != -1)
-      outHandler = boost::bind<void>(wrapHandler, stdoutHandler, dupStdoutFd, _1);
-
-   if (dupStderrFd != -1)
-      errHandler = boost::bind<void>(wrapHandler, stderrHandler, dupStderrFd, _1);
-
    try
    {
       while(true)
@@ -98,19 +74,16 @@ void standardStreamCaptureThread(
 
          // wait
          int highFd = std::max(stdoutFd, stderrFd);
-         int result = ::select(highFd+1, &fds, nullptr, nullptr, nullptr);
+         int result = ::select(highFd+1, &fds, NULL, NULL, NULL);
          if (result != -1)
          {
-            if (stdoutFd != -1)
-            {
-               if (FD_ISSET(stdoutFd, &fds))
-                  readFromPipe(stdoutFd, outHandler);
-            }
+            if (FD_ISSET(stdoutFd, &fds))
+               readFromPipe(stdoutFd, stdoutHandler);
 
             if (stderrFd != -1)
             {
                if (FD_ISSET(stderrFd, &fds))
-                  readFromPipe(stderrFd, errHandler);
+                  readFromPipe(stderrFd, stderrHandler);
             }
          }
          else if (errno != EINTR)
@@ -147,70 +120,32 @@ Error redirectToPipe(int fd, int* pPipeReadFd)
    return Success();
 }
 
-Error redirectToPipe(int fd,
-                     int *pPipeReadFd,
-                     int *pOriginalDup)
-{
-   int newFd = ::dup(fd);
-   if (newFd == -1)
-      return systemError(errno, ERROR_LOCATION);
-
-   Error error = redirectToPipe(fd, pPipeReadFd);
-   if (error)
-      return error;
-
-   *pOriginalDup = newFd;
-   return Success();
-}
-
 } // anonymous namespace
 
 Error captureStandardStreams(
             const boost::function<void(const std::string&)>& stdoutHandler,
-            const boost::function<void(const std::string&)>& stderrHandler,
-            bool forwardOutputToOriginalDescriptors)
+            const boost::function<void(const std::string&)>& stderrHandler)
 {
-   if (!stdoutHandler && !stderrHandler)
-   {
-      return systemError(boost::system::errc::invalid_argument,
-                         "At least one of stdoutHandler and stderrHandler must be set",
-                         ERROR_LOCATION);
-   }
 
-   Error error;
-   int stdoutReadPipe = -1;
+   // redirect stdout
+   int stdoutReadPipe = 0;
+   Error error = redirectToPipe(STDOUT_FILENO, &stdoutReadPipe);
+   if (error)
+      return error;
+
+   // set stdout to use unbuffered io
+   ::setvbuf(stdout, NULL, _IONBF, 0);
+
+   // optionally oredirect stderror if handler was provided
    int stderrReadPipe = -1;
-   int dupStdoutFd = -1;
-   int dupStderrFd = -1;
-
-   // redirect stdout if handler was provided
-   if (stdoutHandler)
-   {
-      if (!forwardOutputToOriginalDescriptors)
-         error = redirectToPipe(STDOUT_FILENO, &stdoutReadPipe);
-      else
-         error = redirectToPipe(STDOUT_FILENO, &stdoutReadPipe, &dupStdoutFd);
-
-      if (error)
-         return error;
-
-      // set stdout to use unbuffered io
-      ::setvbuf(stdout, nullptr, _IONBF, 0);
-   }
-
-   // redirect stderror if handler was provided
    if (stderrHandler)
    {
-      if (!forwardOutputToOriginalDescriptors)
-         error = redirectToPipe(STDERR_FILENO, &stderrReadPipe);
-      else
-         error = redirectToPipe(STDERR_FILENO, &stderrReadPipe, &dupStderrFd);
-
+      error = redirectToPipe(STDERR_FILENO, &stderrReadPipe);
       if (error)
          return error;
 
       // set stderr to use unbuffered io
-      ::setvbuf(stderr, nullptr, _IONBF, 0);
+      ::setvbuf(stderr, NULL, _IONBF, 0);
    }
 
    // sync c++ iostreams
@@ -228,10 +163,8 @@ Error captureStandardStreams(
 
       boost::thread t(boost::bind(standardStreamCaptureThread,
                                      stdoutReadPipe,
-                                     dupStdoutFd,
                                      stdoutHandler,
                                      stderrReadPipe,
-                                     dupStderrFd,
                                      stderrHandler));
 
       return Success();

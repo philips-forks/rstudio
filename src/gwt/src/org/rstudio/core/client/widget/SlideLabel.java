@@ -1,7 +1,7 @@
 /*
  * SlideLabel.java
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -15,7 +15,6 @@
 package org.rstudio.core.client.widget;
 
 import com.google.gwt.animation.client.Animation;
-import com.google.gwt.aria.client.Roles;
 import com.google.gwt.core.client.GWT;
 import com.google.gwt.core.client.Scheduler;
 import com.google.gwt.core.client.Scheduler.ScheduledCommand;
@@ -33,7 +32,6 @@ import com.google.gwt.user.client.ui.Composite;
 import com.google.gwt.user.client.ui.HTMLPanel;
 import com.google.gwt.user.client.ui.LayoutPanel;
 import com.google.gwt.user.client.ui.Widget;
-
 import org.rstudio.core.client.resources.CoreResources;
 
 public class SlideLabel extends Composite
@@ -132,7 +130,6 @@ public class SlideLabel extends Composite
                                           LayoutPanel panel)
    {
       final SlideLabel slideLabel = new SlideLabel(showProgressSpinner);
-      
       slideLabel.setText(label, asHtml);
       panel.add(slideLabel);
       panel.setWidgetLeftRight(slideLabel,
@@ -155,11 +152,8 @@ public class SlideLabel extends Composite
          progress_.getStyle().setDisplay(Style.Display.NONE);
       curtain_.setHeight("0px");
 
-      setCancelVisible(false);
-      Roles.getPresentationRole().set(border_);
-      Roles.getProgressbarRole().set(innerTable_);
-      progress_.setAlt("Spinner");
-      innerTable_.setAttribute("aria-hidden", "true");
+      cancel_.setVisible(false);
+
       cancel_.addClickHandler(new ClickHandler()
       {
          @Override
@@ -191,32 +185,17 @@ public class SlideLabel extends Composite
       assert autoHideMillis >= 0 || executeOnComplete == null:
             "Possible error: executeOnComplete will never be called with " +
             "negative value for autoHideMillis";
-      
-      // don't push a second deferred show onto the stack
-      if (deferredShow_)
-         return;
-
-      // remember that we will show on the next event loop
-      deferredShow_ = true;
 
       Scheduler.get().scheduleDeferred(new ScheduledCommand()
       {
          public void execute()
          {
-            // don't show if the label was hidden while waiting to be shown
-            if (!deferredShow_)
-               return;
-            
-            // mark deferred show as processed
-            deferredShow_ = false;
-
             stopCurrentAnimation();
             currentAnimation_ = new Animation() {
                @Override
                protected void onStart()
                {
                   setVisible(true);
-                  innerTable_.removeAttribute("aria-hidden");
                   curtain_.setHeight("0px");
                   height = content_.getOffsetHeight() + 14 + 14;
                   super.onStart();
@@ -260,15 +239,6 @@ public class SlideLabel extends Composite
 
    public void hide(final Command executeOnComplete)
    {
-      // if we're waiting to be shown, then we aren't visible yet (just cancel
-      // the queued show)
-      if (deferredShow_)
-      {
-         deferredShow_ = false;
-         if (executeOnComplete != null)
-            executeOnComplete.execute();
-      }
-
       stopCurrentAnimation();
       final int height = curtain_.getOffsetHeight();
       currentAnimation_ = new Animation() {
@@ -284,7 +254,6 @@ public class SlideLabel extends Composite
             currentAnimation_ = null;
             super.onComplete();
             setVisible(false);
-            innerTable_.setAttribute("aria-hidden", "true");
             if (executeOnComplete != null)
                executeOnComplete.execute();
          }
@@ -295,7 +264,7 @@ public class SlideLabel extends Composite
    public void onCancel(final Operation onCancel)
    {
       onCancel_ = onCancel;
-      setCancelVisible(onCancel != null);
+      cancel_.setVisible(onCancel != null);
    }
 
    private void setHeight(double height)
@@ -318,17 +287,6 @@ public class SlideLabel extends Composite
       }
    }
 
-   private void setCancelVisible(boolean visible)
-   {
-      cancel_.setVisible(visible);
-      
-      // also disable so it isn't picked up as potentially focusable via Tab key
-      if (!visible)
-         cancel_.getElement().setAttribute("disabled", "");
-      else
-         cancel_.getElement().removeAttribute("disabled");
-   }
-
    @UiField
    HTMLPanel curtain_;
    @UiField
@@ -339,12 +297,10 @@ public class SlideLabel extends Composite
    ImageElement progress_;
    @UiField
    SmallButton cancel_;
-   @UiField
-   TableElement innerTable_;
+
    private Animation currentAnimation_;
    private Timer currentAutoHideTimer_;
    private Operation onCancel_;
-   private boolean deferredShow_ = false;
 
    private static final int ANIM_MILLIS = 250;
 }

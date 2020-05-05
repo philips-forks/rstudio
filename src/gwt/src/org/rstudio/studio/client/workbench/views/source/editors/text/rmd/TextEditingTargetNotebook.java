@@ -1,7 +1,7 @@
 /*
  * TextEditingTargetNotebook.java
  *
- * Copyright (C) 2009-17 by RStudio, PBC
+ * Copyright (C) 2009-17 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -53,9 +53,8 @@ import org.rstudio.studio.client.server.VoidServerRequestCallback;
 import org.rstudio.studio.client.server.Void;
 import org.rstudio.studio.client.workbench.commands.Commands;
 import org.rstudio.studio.client.workbench.model.Session;
-import org.rstudio.studio.client.workbench.prefs.model.UserPrefs;
+import org.rstudio.studio.client.workbench.prefs.model.UIPrefs;
 import org.rstudio.studio.client.workbench.views.console.model.ConsoleServerOperations;
-import org.rstudio.studio.client.workbench.views.console.shell.ConsoleLanguageTracker;
 import org.rstudio.studio.client.workbench.views.source.Source;
 import org.rstudio.studio.client.workbench.views.source.SourceWindowManager;
 import org.rstudio.studio.client.workbench.views.source.editors.text.ChunkOutputWidget;
@@ -76,7 +75,7 @@ import org.rstudio.studio.client.workbench.views.source.editors.text.events.Scop
 import org.rstudio.studio.client.workbench.views.source.editors.text.events.ChunkSatelliteCacheEditorStyleEvent;
 import org.rstudio.studio.client.workbench.views.source.editors.text.events.ChunkSatelliteCloseAllWindowEvent;
 import org.rstudio.studio.client.workbench.views.source.editors.text.events.ChunkSatelliteCodeExecutingEvent;
-import org.rstudio.studio.client.workbench.views.source.editors.text.events.ChunkSatelliteWindowRegisteredEvent;
+import org.rstudio.studio.client.workbench.views.source.editors.text.events.ChunkSatelliteWindowOpenedEvent;
 import org.rstudio.studio.client.workbench.views.source.editors.text.events.EditorThemeStyleChangedEvent;
 import org.rstudio.studio.client.workbench.views.source.editors.text.rmd.events.InterruptChunkEvent;
 import org.rstudio.studio.client.workbench.views.source.events.ChunkChangeEvent;
@@ -123,7 +122,7 @@ public class TextEditingTargetNotebook
                           PinnedLineWidget.Host,
                           SourceDocAddedEvent.Handler,
                           RenderFinishedEvent.Handler,
-                          ChunkSatelliteWindowRegisteredEvent.Handler
+                          ChunkSatelliteWindowOpenedEvent.Handler
 {
    public TextEditingTargetNotebook(final TextEditingTarget editingTarget,
                                     TextEditingTargetChunks chunks,
@@ -271,9 +270,8 @@ public class TextEditingTargetNotebook
          ConsoleServerOperations console,
          SourceServerOperations source,
          Session session,
-         UserPrefs prefs,
+         UIPrefs prefs,
          Commands commands,
-         ConsoleLanguageTracker languageTracker,
          Provider<SourceWindowManager> pSourceWindowManager,
          DependencyManager dependencyManager)
    {
@@ -283,7 +281,6 @@ public class TextEditingTargetNotebook
       session_ = session;
       prefs_ = prefs;
       commands_ = commands;
-      languageTracker_ = languageTracker;
       pSourceWindowManager_ = pSourceWindowManager;
       queue_ = new NotebookQueueState(docDisplay_, editingTarget_, 
             docUpdateSentinel_, server, events, this);
@@ -309,12 +306,12 @@ public class TextEditingTargetNotebook
       releaseOnDismiss_.add(
             events_.addHandler(SourceDocAddedEvent.TYPE, this));
       releaseOnDismiss_.add(
-            events_.addHandler(ChunkSatelliteWindowRegisteredEvent.TYPE, this));
+            events_.addHandler(ChunkSatelliteWindowOpenedEvent.TYPE, this));
       
       // subscribe to global rmd output inline preference and sync
       // again when it changes
       releaseOnDismiss_.add(
-         prefs_.rmdChunkOutputInline().addValueChangeHandler(
+         prefs_.showRmdChunkOutputInline().addValueChangeHandler(
             new ValueChangeHandler<Boolean>() {
                @Override
                public void onValueChange(ValueChangeEvent<Boolean> event)
@@ -336,10 +333,6 @@ public class TextEditingTargetNotebook
          @Override
          public void onSaveFile(SaveFileEvent event)
          {
-            // ignore autosaves
-            if (event.isAutosave())
-               return;
-            
             // propagate output preference from YAML into doc preference
             String frontMatter = YamlFrontMatter.getFrontMatter(docDisplay_);
             if (!StringUtil.isNullOrEmpty(frontMatter))
@@ -413,18 +406,6 @@ public class TextEditingTargetNotebook
    }
    
    public void executeChunk(final Scope chunk)
-   {
-      // note that all chunks (including Python chunks) execute
-      // within the 'R' scope. this primarily implies ensuring
-      // that a reticulate REPL (if any) is deactivated before
-      // attempting to run a chunk of code, and the underlying
-      // notebook logic will ensure Python chunks use reticulate
-      languageTracker_.adaptToLanguage(
-            ConsoleLanguageTracker.LANGUAGE_R,
-            () -> { executeChunkImpl(chunk); });
-   }
-   
-   private void executeChunkImpl(final Scope chunk)
    {
       // maximize the source pane if we haven't yet this session
       if (!maximizedPane_ && 
@@ -914,7 +895,7 @@ public class TextEditingTargetNotebook
    }
 
    @Override
-   public void onChunkSatelliteWindowRegistered(ChunkSatelliteWindowRegisteredEvent event)
+   public void onChunkSatelliteWindowOpened(ChunkSatelliteWindowOpenedEvent event)
    {
       String docId = event.getDocId();
       String chunkId = event.getChunkId();
@@ -964,8 +945,8 @@ public class TextEditingTargetNotebook
          initialChunkDefs_ = null;
          
          // sync to editor style changes
-         releaseOnDismiss_.add(
-               editingTarget_.addEditorThemeStyleChangedHandler(TextEditingTargetNotebook.this));
+         editingTarget_.addEditorThemeStyleChangedHandler(
+                                       TextEditingTargetNotebook.this);
          
          // read and/or set initial render width
          lastPlotWidth_ = notebookDoc_.getChunkRenderedWidth();
@@ -1108,15 +1089,13 @@ public class TextEditingTargetNotebook
       {
          Position thisStart = thisScope.getBodyStart();
          Position thisEnd = thisScope.getEnd();
-         String chunkId = getCurrentChunkId();
-
          if (((lastStart_ == null && thisStart == null) ||
               (lastStart_ != null && lastStart_.compareTo(thisStart) == 0)) &&
              ((lastEnd_ == null && thisEnd == null) ||
-              (lastEnd_ != null && lastEnd_.compareTo(thisEnd) == 0)) &&
-             ((chunkId != null && outputs_.containsKey(chunkId)) &&
-              outputs_.get(chunkId).getChunkLabel() == thisScope.getLabel()))
+              (lastEnd_ != null && lastEnd_.compareTo(thisEnd) == 0))) 
+         {
             return;
+         }
 
          lastStart_ = Position.create(thisScope.getBodyStart());
          lastEnd_ = Position.create(thisScope.getEnd());
@@ -1141,8 +1120,6 @@ public class TextEditingTargetNotebook
                   docUpdateSentinel_.getId(), output.getChunkId(), "", 0, 
                   ChunkChangeEvent.CHANGE_REMOVE));
          }
-         if (!StringUtil.equals(scope.getChunkLabel(), output.getChunkLabel()))
-            output.setChunkLabel(scope.getChunkLabel());
       }
    }
 
@@ -1349,8 +1326,8 @@ public class TextEditingTargetNotebook
          // otherwise, use the global preference to set the value
          docDisplay_.setShowChunkOutputInline(
             docDisplay_.getModeId() == "mode/rmarkdown" &&
-            RStudioGinjector.INSTANCE.getUserPrefs()
-                                     .rmdChunkOutputInline().getValue());
+            RStudioGinjector.INSTANCE.getUIPrefs()
+                                     .showRmdChunkOutputInline().getValue());
       }
 
       // watch for scope tree changes if showing output inline
@@ -1862,9 +1839,8 @@ public class TextEditingTargetNotebook
    ArrayList<HandlerRegistration> releaseOnDismiss_;
    private Session session_;
    private Provider<SourceWindowManager> pSourceWindowManager_;
-   private UserPrefs prefs_;
+   private UIPrefs prefs_;
    private Commands commands_;
-   private ConsoleLanguageTracker languageTracker_;
    private NotebookHtmlRenderer htmlRenderer_;
 
    private RMarkdownServerOperations server_;

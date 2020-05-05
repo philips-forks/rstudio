@@ -1,7 +1,7 @@
 /*
  * SessionConsoleProcessInfoTests.cpp
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-17 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -13,11 +13,8 @@
  *
  */
 #include <core/system/Process.hpp>
-
 #include <session/SessionConsoleProcessInfo.hpp>
-
 #include <boost/lexical_cast.hpp>
-#include <boost/optional/optional_io.hpp>
 
 #define RSTUDIO_NO_TESTTHAT_ALIASES
 #include <tests/TestThat.hpp>
@@ -39,7 +36,7 @@ const std::string bogusHandle1("unit-test03");
 const int sequence = 1;
 const bool allowRestart = true;
 const InteractionMode mode = InteractionAlways;
-const TerminalShell::ShellType shellType = TerminalShell::ShellType::Default;
+const TerminalShell::TerminalShellType shellType = TerminalShell::DefaultShell;
 const ChannelMode channelMode = Rpc;
 const std::string channelId("some channel Id");
 const bool altActive = false;
@@ -62,15 +59,15 @@ const int maxLines = kDefaultTerminalMaxOutputLines;
 
 bool testHandle(const std::string& handle)
 {
-   return handle == handle1;
+   return !handle.compare(handle1);
 }
 
 // helper returns true if ConsoleProcessInfo objs have same field values
 bool sameCpi(const ConsoleProcessInfo& first, const ConsoleProcessInfo& second)
 {
-   return (first.getCaption() == second.getCaption() &&
-           first.getTitle() == second.getTitle() &&
-           first.getHandle() == second.getHandle() &&
+   return (!first.getCaption().compare(second.getCaption()) &&
+           !first.getTitle().compare(second.getTitle()) &&
+           !first.getHandle().compare(second.getHandle()) &&
            first.getTerminalSequence() == second.getTerminalSequence() &&
            first.getAllowRestart() == second.getAllowRestart() &&
            first.getInteractionMode() == second.getInteractionMode() &&
@@ -80,7 +77,7 @@ bool sameCpi(const ConsoleProcessInfo& first, const ConsoleProcessInfo& second)
            first.getHasChildProcs() == second.getHasChildProcs() &&
            first.getShellType() == second.getShellType() &&
            first.getChannelMode() == second.getChannelMode() &&
-           first.getChannelId() == second.getChannelId() &&
+           !first.getChannelId().compare(second.getChannelId()) &&
            first.getAltBufferActive() == second.getAltBufferActive() &&
            first.getCwd() == second.getCwd() &&
            first.getCols() == second.getCols() &&
@@ -105,7 +102,7 @@ TEST_CASE("ConsoleProcessInfo")
       CHECK_FALSE(title.compare(cpi.getTitle()));
       CHECK_FALSE(handle1.compare(cpi.getHandle()));
       CHECK((cpi.getTerminalSequence() == sequence));
-      CHECK(cpi.getAllowRestart());
+      CHECK((cpi.getAllowRestart() == true));
       CHECK((cpi.getInteractionMode() == InteractionAlways));
       CHECK((cpi.getMaxOutputLines() == maxLines));
 
@@ -187,7 +184,7 @@ TEST_CASE("ConsoleProcessInfo")
       std::string altChannelModeId = "Some other id";
       cpi.setChannelMode(altChannelMode, altChannelModeId);
       CHECK((altChannelMode == cpi.getChannelMode()));
-      CHECK(altChannelModeId == cpi.getChannelId());
+      CHECK(!altChannelModeId.compare(cpi.getChannelId()));
 
       cpi.setCwd(altCwd);
       CHECK((altCwd == cpi.getCwd()));
@@ -242,7 +239,7 @@ TEST_CASE("ConsoleProcessInfo")
       ConsoleProcessInfo cpiOrig(caption, title, handle1, sequence, shellType,
                                   altActive, cwd, cols, rows, zombie, trackEnv);
 
-      core::json::Object origJson = cpiOrig.toJson(PersistentSerialization);
+      core::json::Object origJson = cpiOrig.toJson();
       boost::shared_ptr<ConsoleProcessInfo> pCpiRestored =
             ConsoleProcessInfo::fromJson(origJson);
       CHECK(pCpiRestored);

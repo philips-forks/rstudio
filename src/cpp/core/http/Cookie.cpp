@@ -1,7 +1,7 @@
 /*
  * Cookie.cpp
  *
- * Copyright (C) 2009-12 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -15,9 +15,8 @@
 
 #include <core/http/Cookie.hpp>
 
-#include <core/http/Request.hpp>
 #include <core/http/URL.hpp>
-#include <shared_core/Error.hpp>
+#include <core/Error.hpp>
 #include <core/Log.hpp>
 
 using namespace boost::gregorian ;
@@ -30,14 +29,12 @@ Cookie::Cookie(const Request& request,
                const std::string& name,
                const std::string& value, 
                const std::string& path,
-               SameSite sameSite /*= SameSite::Undefined*/,
-               bool httpOnly /*= false*/, 
-               bool secure /*= false*/) 
+               bool httpOnly, 
+               bool secure) 
    :  name_(name), 
       value_(value), 
       path_(path), 
       expires_(not_a_date_time),
-      sameSite_(sameSite),
       httpOnly_(httpOnly),
       secure_(secure)
 {
@@ -58,21 +55,14 @@ Cookie::~Cookie()
 {
 }
 
-void Cookie::setExpires(const boost::posix_time::time_duration& expiresFromNow)
-{
-   expires_ = boost::posix_time::ptime(boost::posix_time::second_clock::universal_time() + expiresFromNow);
-}
-
 void Cookie::setExpires(const days& expiresDays) 
 {
-   expires_ = boost::posix_time::ptime(date(day_clock::universal_day() + expiresDays),
-                                       boost::posix_time::time_duration(23, 59, 59)) ;
+   expires_ = date(day_clock::universal_day() + expiresDays) ; 
 }
 
 void Cookie::setExpiresDelete() 
 {
-   expires_ = boost::posix_time::ptime(date(day_clock::universal_day() - days(2)),
-                                       boost::posix_time::time_duration(23, 59, 59)) ;
+   expires_ = date(day_clock::universal_day() - days(2)) ;
 }
 
 void Cookie::setHttpOnly()   
@@ -84,12 +74,7 @@ void Cookie::setSecure()
 {
    secure_ = true;
 }
-
-void Cookie::setSameSite(SameSite sameSite)
-{
-   sameSite_ = sameSite;
-}
-
+   
 std::string Cookie::cookieHeaderValue() const
 {
    // basic name/value
@@ -97,17 +82,15 @@ std::string Cookie::cookieHeaderValue() const
    headerValue << name() << "=" << value() ;
 
    // expiries if specified
-   if ( !expires().is_not_a_date_time() )
+   if ( !expires().is_not_a_date() )
    {
-      date::ymd_type ymd = expires_.date().year_month_day() ;
-      greg_weekday wd = expires_.date().day_of_week() ;
+      date::ymd_type ymd = expires_.year_month_day() ;
+      greg_weekday wd = expires_.day_of_week() ;
 
       headerValue << "; expires=" ;
       headerValue << wd.as_short_string() << ", " 
-                  << ymd.day << " " << ymd.month.as_short_string() << " "
-                  << ymd.year << " " << expires_.time_of_day().hours() << ":"
-                  << expires_.time_of_day().minutes() << ":"
-                  << expires_.time_of_day().seconds() << " GMT" ;
+                  << ymd.day << "-" << ymd.month.as_short_string() << "-" 
+                  << ymd.year << " 23:59:59 GMT" ;
    }
 
    // path if specified
@@ -121,22 +104,6 @@ std::string Cookie::cookieHeaderValue() const
    // http only if specified
    if (httpOnly_)
       headerValue << "; HttpOnly";
-
-   switch (sameSite_)
-   {
-      case SameSite::None:
-         headerValue << "; SameSite=None";
-         break;
-      case SameSite::Lax:
-         headerValue << "; SameSite=Lax";
-         break;
-      case SameSite::Strict:
-         headerValue << "; SameSite=Strict";
-         break;
-      case SameSite::Undefined:
-         // do nothing
-         break;
-   }
 
    // secure if specified
    if (secure_)

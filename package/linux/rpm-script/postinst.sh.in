@@ -1,40 +1,24 @@
 #!/bin/sh
 
 # errors shouldn't cause script to exit
-set +e
+set +e 
 
 # add rserver user account
-useradd -r -U rstudio-server
+useradd -r rstudio-server
+groupadd -r rstudio-server
 
 # create softlink to admin script in /usr/sbin
-ln -f -s "${CMAKE_INSTALL_PREFIX}"/bin/rstudio-server /usr/sbin/rstudio-server
+ln -f -s ${CMAKE_INSTALL_PREFIX}/bin/rstudio-server /usr/sbin/rstudio-server
 
 # create config directory and default config files
 mkdir -p /etc/rstudio
 if ! test -f /etc/rstudio/rserver.conf
 then
-   printf '# Server Configuration File\n\n' > /etc/rstudio/rserver.conf
+  printf '# Server Configuration File\n\n' > /etc/rstudio/rserver.conf
 fi
 if ! test -f /etc/rstudio/rsession.conf
 then
-   printf '# R Session Configuration File\n\n' > /etc/rstudio/rsession.conf
-fi
-if ! test -f /etc/rstudio/database.conf
-then
-  cp ${CMAKE_INSTALL_PREFIX}/extras/conf/database.conf /etc/rstudio/
-  chown rstudio-server /etc/rstudio/database.conf
-  chmod 600 /etc/rstudio/database.conf
-fi
-
-mkdir -p /etc/rstudio/themes
-if ! test -f /etc/rstudio/themes/README.md
-then
-   cp ${CMAKE_INSTALL_PREFIX}/extras/themes/README.md /etc/rstudio/themes/README.md
-fi
-mkdir -p /etc/rstudio/fonts
-if ! test -f /etc/rstudio/fonts/README.md
-then
-   cp ${CMAKE_INSTALL_PREFIX}/extras/fonts/README.md /etc/rstudio/fonts/README.md
+  printf '# R Session Configuration File\n\n' > /etc/rstudio/rsession.conf
 fi
 
 # create var directories
@@ -47,47 +31,30 @@ mkdir -p /var/lib/rstudio-server/body
 mkdir -p /var/lib/rstudio-server/proxy
 
 # suspend all sessions
-rstudio-server force-suspend-all > /dev/null 2>&1
+rstudio-server force-suspend-all
 
-# if /etc/os-release exists, source it to learn a bit more about what platform
-# we're on
-if test -f /etc/os-release
+# create openssl softlinks based off SuSE version 
+if test -f /etc/SuSE-release
 then
-   . /etc/os-release
-fi
+  if test -d /usr/lib64 || test -d /lib64
+  then
+    architecture_dir='lib64'
+  else
+    architecture_dir='lib'
+  fi
 
-# create openssl softlinks based off SuSE version
-if test -f /etc/SuSE-release || test "$ID_LIKE" = "suse"
-then
+  compare_versions() { test "$(echo "$@" | tr " " "\n" | sort -V | head -n 1)" != "$1"; }
+  version_number=$(cat /etc/SuSE-release | grep "VERSION" | sed 's/[^0-9,.]*//g')
 
-   # if we weren't provided a version by /etc/os-release, then
-   # try to find it in /etc/SuSE-release
-   if test -z "$VERSION_ID"; then
-      VERSION_ID="$(grep "VERSION" /etc/SuSE-release | sed 's/[^0-9,.]*//g')"
-   fi
-
-   # discover the version of OpenSSL that we expect to find on this system
-   compare_versions () { test "$(echo "$@" | tr " " "\\n" | sort -V | head -n 1)" != "$1"; }
-   if compare_versions "$VERSION_ID" "11"
-   then
-      sslversion=1.0.0
-   else
-      sslversion=0.9.8
-   fi
-
-   # look for these libraries in the common places
-   for dir in /usr/lib64 /lib64 /usr/lib /lib
-   do
-      if test -f $dir/libssl.so.$sslversion -a -f $dir/libcrypto.so.$sslversion
-      then
-         for file in libssl.so libcrypto.so
-         do
-            ln -s -f $dir/$file.$sslversion "${CMAKE_INSTALL_PREFIX}"/bin/$file.10
-         done
-         break
-      fi
-   done
-
+  # verify if release version number is greater than 11
+  if compare_versions $version_number 11
+  then
+    ln -s -f /$architecture_dir/libssl.so.1.0.0 ${CMAKE_INSTALL_PREFIX}/bin/libssl.so.10
+    ln -s -f /$architecture_dir/libcrypto.so.1.0.0 ${CMAKE_INSTALL_PREFIX}/bin/libcrypto.so.10
+  else
+    ln -s -f /usr/$architecture_dir/libssl.so.0.9.8 ${CMAKE_INSTALL_PREFIX}/bin/libssl.so.10
+    ln -s -f /usr/$architecture_dir/libcrypto.so.0.9.8 ${CMAKE_INSTALL_PREFIX}/bin/libcrypto.so.10
+  fi
 fi
 
 # determine which init system is in use
@@ -113,16 +80,7 @@ then
    
    systemctl stop rstudio-server.service 2>/dev/null
    systemctl disable rstudio-server.service 2>/dev/null
-
-   if test -e /lib/systemd
-   then
-      SYSTEMD_PREFIX="/lib/systemd"
-   else
-      SYSTEMD_PREFIX="/usr/lib/systemd"
-   fi
-
-   cp ${CMAKE_INSTALL_PREFIX}/extras/systemd/rstudio-server.redhat.service $${EMPTY}{SYSTEMD_PREFIX}/system/rstudio-server.service
-
+   cp ${CMAKE_INSTALL_PREFIX}/extras/systemd/rstudio-server.redhat.service /etc/systemd/system/rstudio-server.service
    systemctl daemon-reload
    systemctl enable rstudio-server.service
    systemctl start rstudio-server.service

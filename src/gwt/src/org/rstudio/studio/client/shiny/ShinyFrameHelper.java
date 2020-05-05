@@ -1,7 +1,7 @@
 /*
  * ShinyFrameHelper.java
  *
- * Copyright (C) 2009-14 by RStudio, PBC
+ * Copyright (C) 2009-14 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -117,15 +117,15 @@ public class ShinyFrameHelper
          return;
 
       String eventName = event.getEvent();
-      if (eventName == EVENT_SCROLL_CHANGE)
+      if (eventName.equals(EVENT_SCROLL_CHANGE))
       {
          scrollPosition_ = event.getIntData();
       }
-      else if (eventName == EVENT_HASH_CHANGE)
+      else if (eventName.equals(EVENT_HASH_CHANGE))
       {
          url_ = event.getStringData();
       }
-      else if (eventName == EVENT_READY)
+      else if (eventName.equals(EVENT_READY))
       {
          window_ = event.getSource();
          origin_ = event.getOrigin();
@@ -166,11 +166,6 @@ public class ShinyFrameHelper
       {
          window_.postMessage(method, origin_);
       }
-   }
-   
-   public WindowEx getWindow()
-   {
-      return window_;
    }
 
    private WindowEx window_ = null;

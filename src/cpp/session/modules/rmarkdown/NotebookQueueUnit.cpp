@@ -1,7 +1,7 @@
 /*
  * NotebookQueueUnit.cpp
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-16 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -15,10 +15,9 @@
 
 #include "NotebookQueueUnit.hpp"
 
-#include <gsl/gsl>
-
 #include <session/SessionModuleContext.hpp>
 
+#include <boost/foreach.hpp>
 #include <boost/algorithm/string.hpp>
 
 #include <core/json/JsonRpc.hpp>
@@ -51,14 +50,14 @@ namespace {
 Error fillExecRange(const json::Array& in, std::list<ExecRange>* pOut)
 {
    // process arrays
-   for (const json::Value val : in)
+   BOOST_FOREACH(const json::Value val, in) 
    {
       // ignore non-value types
-      if (!val.isObject())
+      if (val.type() != json::ObjectType)
          continue;
 
       ExecRange range(0, 0);
-      Error error = ExecRange::fromJson(val.getObject(), &range);
+      Error error = ExecRange::fromJson(val.get_obj(), &range);
       if (error)
          return error;
 
@@ -69,7 +68,7 @@ Error fillExecRange(const json::Array& in, std::list<ExecRange>* pOut)
 
 void fillJsonRange(const std::list<ExecRange>& in, json::Array* pOut)
 {
-   for (const ExecRange range : in)
+   BOOST_FOREACH(const ExecRange range, in)
    {
       pOut->push_back(range.toJson());
    }
@@ -81,8 +80,8 @@ Error ExecRange::fromJson(const json::Object& source,
                           ExecRange* pRange)
 {
    return json::readObject(source,
-         kQueueUnitRangeStart, pRange->start,
-         kQueueUnitRangeStop,  pRange->stop);
+         kQueueUnitRangeStart, &pRange->start,
+         kQueueUnitRangeStop,  &pRange->stop);
 }
 
 json::Object ExecRange::toJson() const
@@ -115,13 +114,13 @@ Error NotebookQueueUnit::fromJson(const json::Object& source,
    int execMode, execScope;
    std::string code;
    Error error = json::readObject(source, 
-         kQueueUnitCode,      code,
-         kQueueUnitDocId,     unit.docId_,
-         kQueueUnitChunkId,   unit.chunkId_,
-         kQueueUnitCompleted, completed,
-         kQueueUnitPending,   pending,
-         kQueueUnitExecMode,  execMode,
-         kQueueUnitExecScope, execScope);
+         kQueueUnitCode,      &code,
+         kQueueUnitDocId,     &unit.docId_,
+         kQueueUnitChunkId,   &unit.chunkId_,
+         kQueueUnitCompleted, &completed,
+         kQueueUnitPending,   &pending,
+         kQueueUnitExecMode,  &execMode,
+         kQueueUnitExecScope, &execScope);
    if (error)
       LOG_ERROR(error);
 
@@ -162,19 +161,19 @@ Error NotebookQueueUnit::parseOptions(json::Object* pOptions)
    // convert to JSON 
    json::Value jsonOptions;
    error = r::json::jsonValueFromList(sexpOptions, &jsonOptions);
-   if (jsonOptions.isArray() &&
-       jsonOptions.getArray().isEmpty())
+   if (jsonOptions.type() == json::ArrayType && 
+       jsonOptions.get_array().empty())
    {
       // treat empty array as empty object
       *pOptions = json::Object();
    }
-   else if (!jsonOptions.isObject())
+   else if (jsonOptions.type() != json::ObjectType)
    {
       return Error(json::errc::ParseError, ERROR_LOCATION);
    }
    else 
    {
-      *pOptions = jsonOptions.getObject();
+      *pOptions = jsonOptions.get_obj();
    }
 
    return Success();
@@ -258,12 +257,12 @@ std::string NotebookQueueUnit::popExecRange(ExecRange* pRange,
 
    // use the first line of the range if it's multi-line
    size_t idx = code_.find('\n', start + 1);
-   if (idx != std::string::npos && gsl::narrow_cast<int>(idx) < (stop - 1))
+   if (idx != std::string::npos && static_cast<int>(idx) < (stop - 1))
    {
-      stop = gsl::narrow_cast<int>(idx);
+      stop = idx;
 
       // adjust the range to account for the code we're about to send
-      range.start = gsl::narrow_cast<int>(idx) + 1;
+      range.start = idx + 1;
    }
    else
    {
@@ -330,7 +329,7 @@ void NotebookQueueUnit::replaceCode(const std::string& code)
 
    // replace the pending queue with one that executes exactly the code given
    pending_.clear();
-   pending_.push_back(ExecRange(0, gsl::narrow_cast<int>(code_.length())));
+   pending_.push_back(ExecRange(0, code_.length()));
 }
 
 } // namespace notebook

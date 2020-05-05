@@ -1,7 +1,7 @@
 /*
  * TextEditingTargetChunks.java
  *
- * Copyright (C) 2009-16 by RStudio, PBC
+ * Copyright (C) 2009-16 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -19,14 +19,13 @@ import java.util.Map;
 
 import org.rstudio.core.client.StringUtil;
 import org.rstudio.studio.client.RStudioGinjector;
-import org.rstudio.studio.client.workbench.prefs.model.UserPrefs;
-import org.rstudio.studio.client.workbench.prefs.model.UserState;
-import org.rstudio.studio.client.workbench.prefs.model.UserStateAccessor;
+import org.rstudio.studio.client.common.r.knitr.RMarkdownChunkHeaderParser;
+import org.rstudio.studio.client.workbench.prefs.model.UIPrefs;
 import org.rstudio.studio.client.workbench.views.source.editors.text.ace.LineWidget;
-import org.rstudio.studio.client.workbench.views.source.editors.text.assist.RChunkHeaderParser;
 import org.rstudio.studio.client.workbench.views.source.editors.text.events.EditorModeChangedEvent;
 import org.rstudio.studio.client.workbench.views.source.editors.text.events.ScopeTreeReadyEvent;
 import org.rstudio.studio.client.workbench.views.source.editors.text.rmd.ChunkContextUi;
+import org.rstudio.studio.client.workbench.views.source.editors.text.themes.AceThemes;
 
 import com.google.gwt.event.logical.shared.ValueChangeEvent;
 import com.google.gwt.event.logical.shared.ValueChangeHandler;
@@ -105,20 +104,22 @@ public class TextEditingTargetChunks
    // Private methods ---------------------------------------------------------
    
    @Inject
-   private void initialize(UserPrefs prefs, UserState state)
+   private void initialize(UIPrefs prefs, AceThemes themes)
    {
-      initialized_ = true;
+      themes_ = themes;
       prefs_ = prefs;
-      state_ = state;
-      dark_ = state.theme().getValue().getIsDark();
       
-      state_.theme().addValueChangeHandler(new ValueChangeHandler<UserStateAccessor.Theme>()
+      dark_ = themes_.isDark(themes_.getEffectiveThemeName(
+            prefs.theme().getValue()));
+      
+      prefs_.theme().addValueChangeHandler(new ValueChangeHandler<String>()
       {
          @Override
-         public void onValueChange(ValueChangeEvent<UserStateAccessor.Theme> theme)
+         public void onValueChange(ValueChangeEvent<String> theme)
          {
             // recompute dark state
-            boolean isDark = theme.getValue().getIsDark();
+            boolean isDark = themes_.isDark(
+                  themes_.getEffectiveThemeName(theme.getValue()));
             
             // redraw all the toolbars if necessary
             if (isDark != dark_)
@@ -240,7 +241,8 @@ public class TextEditingTargetChunks
       String header = target_.getDocDisplay().getLine(row);
       
       // parse contents
-      Map<String, String> options = RChunkHeaderParser.parse(header);
+      Map<String, String> options = 
+            RMarkdownChunkHeaderParser.parse(header);
       
       // check runnable engine
       String engine = StringUtil.stringValue(options.get("engine"));
@@ -249,18 +251,11 @@ public class TextEditingTargetChunks
    
    private boolean isExecutableKnitrEngine(String engine)
    {
-      if (target_.getDocDisplay().showChunkOutputInline())
-      {
-         // treat all chunks as executable in notebook mode
-         return true;
-      }
-      else
-      {
-         // when executing chunks in the R console, only R and Python chunks are
-         // executable
-         return engine.equalsIgnoreCase("r") ||
-                engine.equalsIgnoreCase("python");
-      }
+      // TODO: only enable non-R engine work for notebooks for now
+      if (!target_.getDocDisplay().showChunkOutputInline())
+         return engine.equalsIgnoreCase("r");
+      
+      return RE_RUNNABLE_ENGINES.indexOf(engine.toLowerCase() + "|") != -1;
    }
    
    private final TextEditingTarget target_;
@@ -269,10 +264,14 @@ public class TextEditingTargetChunks
    private boolean dark_;
    private boolean initialized_;
    
-   private UserPrefs prefs_;
-   private UserState state_;
+   private AceThemes themes_;
+   private UIPrefs prefs_;
 
    private int lastRow_;
+   
+   // runnable engines within the R Notebook mode
+   private static final String RE_RUNNABLE_ENGINES =
+         "r|rscript|rcpp|python|ruby|perl|bash|sh|stan|sql|";
    
    // renderPass_ need only be unique from one pass through the scope tree to
    // the next; we wrap it at 255 to avoid the possibility of overflow

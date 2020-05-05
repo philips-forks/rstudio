@@ -1,7 +1,7 @@
 /*
  * PresentationLog.cpp
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -17,14 +17,15 @@
 #include "PresentationLog.hpp"
 
 #include <boost/bind.hpp>
+#include <boost/foreach.hpp>
 #include <boost/algorithm/string/join.hpp>
 #include <boost/algorithm/string/trim.hpp>
 #include <boost/date_time/posix_time/posix_time.hpp>
 
-#include <shared_core/Error.hpp>
+#include <core/Error.hpp>
 #include <core/DateTime.hpp>
 #include <core/StringUtils.hpp>
-#include <shared_core/SafeConvert.hpp>
+#include <core/SafeConvert.hpp>
 #include <core/FileSerializer.hpp>
 
 #include <r/RSexp.hpp>
@@ -95,15 +96,15 @@ void Log::onSlideDeckChanged(const SlideDeck& slideDeck)
       slideTypes_.push_back(slides[i].type());
 
       const std::vector<Command>& commands = slides[i].commands();
-      for (const Command& command : commands)
+      BOOST_FOREACH(const Command& command, commands)
       {
-         recordCommand(gsl::narrow_cast<int>(i), command);
+         recordCommand(i, command);
       }
 
       const std::vector<AtCommand>& atCommands = slides[i].atCommands();
-      for (const AtCommand& atCommand : atCommands)
+      BOOST_FOREACH(const AtCommand& atCommand, atCommands)
       {
-         recordCommand(gsl::narrow_cast<int>(i), atCommand.command());
+         recordCommand(i, atCommand.command());
       }
    }
 }
@@ -113,7 +114,7 @@ void Log::onSlideIndexChanged(int index)
    currentSlideIndex_ = index;
 
    append(NavigationEntry,
-          gsl::narrow_cast<int>(currentSlideIndex_),
+          currentSlideIndex_,
           currentSlideType(),
           currentSlideHelpTopic(),
           currentSlideHelpDoc(),
@@ -138,10 +139,10 @@ void Log::onConsolePrompt(const std::string& prompt)
 
       // check to see if this command was one of the ones instrumented
       // by the current slide
-      if (slideDeckInputCommands_[gsl::narrow_cast<int>(currentSlideIndex_)].count(input) == 0)
+      if (slideDeckInputCommands_[currentSlideIndex_].count(input) == 0)
       {
          append(InputEntry,
-                gsl::narrow_cast<int>(currentSlideIndex_),
+                currentSlideIndex_,
                 currentSlideType(),
                 currentSlideHelpTopic(),
                 currentSlideHelpDoc(),
@@ -204,12 +205,12 @@ Error ensureTargetFile(const std::string& filename,
                        FilePath* pTargetFile)
 {
    using namespace module_context;
-   FilePath presDir = userScratchPath().completeChildPath("presentation");
+   FilePath presDir =  userScratchPath().childPath("presentation");
    Error error = presDir.ensureDirectory();
    if (error)
       return error;
 
-   *pTargetFile = presDir.completeChildPath(filename);
+   *pTargetFile = presDir.childPath(filename);
    if (!pTargetFile->exists())
    {
       Error error = core::writeStringToFile(*pTargetFile, header + "\n");

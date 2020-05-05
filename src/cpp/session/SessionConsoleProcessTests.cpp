@@ -1,7 +1,7 @@
 /*
  * SessionConsoleProcessTests.cpp
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-17 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -15,8 +15,6 @@
 
 #include <session/SessionConsoleProcess.hpp>
 
-#include <gsl/gsl>
-
 #include <boost/lexical_cast.hpp>
 #include <tests/TestThat.hpp>
 
@@ -27,7 +25,7 @@ namespace tests {
 
 using namespace console_process;
 
-test_context("queue and fetch input")
+context("queue and fetch input")
 {
    core::system::ProcessOptions procOptions;
    core::FilePath cwd("/usr/local");
@@ -35,7 +33,7 @@ test_context("queue and fetch input")
    boost::shared_ptr<ConsoleProcessInfo> pCPI =
          boost::shared_ptr<ConsoleProcessInfo>(new ConsoleProcessInfo(
             "test caption", "test title", "fakehandle", 9999 /*terminal*/,
-            TerminalShell::ShellType::Default, false /*altBuffer*/, cwd,
+            TerminalShell::DefaultShell, false /*altBuffer*/, cwd,
             core::system::kDefaultCols, core::system::kDefaultRows,
             false /*zombie*/, false /*trackEnv*/));
 
@@ -65,10 +63,10 @@ test_context("queue and fetch input")
    {
       const std::string orig = "abcdefghijklmnopqrstuvwxyz";
 
-      for (char ch : orig)
+      for (size_t i = 0; i < orig.length(); i++)
       {
          std::string oneChar;
-         oneChar.push_back(ch);
+         oneChar.push_back(orig[i]);
          pCP->enqueInput(ConsoleProcess::Input(oneChar));
       }
 
@@ -82,7 +80,7 @@ test_context("queue and fetch input")
          next = pCP->dequeInput();
       }
 
-      expect_true(orig == result);
+      expect_true(!orig.compare(result));
    }
 
    test_that("in-order sequenced input is FIFO")
@@ -93,7 +91,7 @@ test_context("queue and fetch input")
       {
          std::string oneChar;
          oneChar.push_back(orig[i]);
-         pCP->enqueInput(ConsoleProcess::Input(gsl::narrow_cast<int>(i), oneChar));
+         pCP->enqueInput(ConsoleProcess::Input(i, oneChar));
       }
 
       std::string result;
@@ -107,29 +105,29 @@ test_context("queue and fetch input")
          next = pCP->dequeInput();
       }
 
-      expect_true(orig == result);
+      expect_true(!orig.compare(result));
    }
 
    test_that("mixed-up input is returned in correct order")
    {
       const std::string expected = "HELLO WORLD!";
       std::vector<ConsoleProcess::Input> input;
-      input.emplace_back(1,  std::string("E"));
-      input.emplace_back(0,  std::string("H"));
-      input.emplace_back(2,  std::string("L"));
-      input.emplace_back(3,  std::string("L"));
-      input.emplace_back(4,  std::string("O"));
-      input.emplace_back(5,  std::string(" "));
-      input.emplace_back(7,  std::string("O"));
-      input.emplace_back(6,  std::string("W"));
-      input.emplace_back(8,  std::string("R"));
-      input.emplace_back(9,  std::string("L"));
-      input.emplace_back(10, std::string("D"));
-      input.emplace_back(11, std::string("!"));
+      input.push_back(ConsoleProcess::Input(1,  std::string("E")));
+      input.push_back(ConsoleProcess::Input(0,  std::string("H")));
+      input.push_back(ConsoleProcess::Input(2,  std::string("L")));
+      input.push_back(ConsoleProcess::Input(3,  std::string("L")));
+      input.push_back(ConsoleProcess::Input(4,  std::string("O")));
+      input.push_back(ConsoleProcess::Input(5,  std::string(" ")));
+      input.push_back(ConsoleProcess::Input(7,  std::string("O")));
+      input.push_back(ConsoleProcess::Input(6,  std::string("W")));
+      input.push_back(ConsoleProcess::Input(8,  std::string("R")));
+      input.push_back(ConsoleProcess::Input(9,  std::string("L")));
+      input.push_back(ConsoleProcess::Input(10, std::string("D")));
+      input.push_back(ConsoleProcess::Input(11, std::string("!")));
 
-      for (const auto &cpi : input)
+      for (size_t i = 0; i < input.size(); i++)
       {
-         pCP->enqueInput(cpi);
+         pCP->enqueInput(input[i]);
       }
 
       std::string result;
@@ -143,7 +141,7 @@ test_context("queue and fetch input")
          next = pCP->dequeInput();
       }
 
-      expect_true(expected == result);
+      expect_true(!expected.compare(result));
    }
 
    test_that("Autoflush kicks in when too much input with unresolved gap")
@@ -157,13 +155,13 @@ test_context("queue and fetch input")
       {
          std::string item = boost::lexical_cast<std::string>(i);
          expected += item;
-         input.emplace_back(gsl::narrow_cast<int>(i), item);
-         lastAdded = gsl::narrow_cast<int>(i);
+         input.push_back(ConsoleProcess::Input(i, item));
+         lastAdded = i;
       }
 
-      for (const auto &cpi : input)
+      for (size_t i = 0; i < input.size(); i++)
       {
-         pCP->enqueInput(cpi);
+         pCP->enqueInput(input[i]);
       }
 
       std::string result;
@@ -176,7 +174,7 @@ test_context("queue and fetch input")
          next = pCP->dequeInput();
       }
 
-      expect_true(expected == result);
+      expect_true(!expected.compare(result));
 
       // make sure we can resume adding and removing
       pCP->enqueInput(ConsoleProcess::Input(lastAdded + 1, "HELLO"));
@@ -191,7 +189,7 @@ test_context("queue and fetch input")
          next = pCP->dequeInput();
       }
 
-      expect_true(result == "HELLO WORLD");
+      expect_true(!result.compare("HELLO WORLD"));
    }
 
    test_that("Explicit flush returns input with gaps and resets sequence count")
@@ -206,30 +204,31 @@ test_context("queue and fetch input")
          {
             std::string item = boost::lexical_cast<std::string>(i);
             expected += item;
-            input.emplace_back(i, item);
+            input.push_back(ConsoleProcess::Input(i, item));
          }
       }
       std::string flushText = "FLUSH"; // value not significant
-      input.emplace_back(kFlushSequence, flushText);
+      input.push_back(ConsoleProcess::Input(kFlushSequence, flushText));
       expected += flushText;
       std::string postFlushText = "post-flush"; // value not significant
-      input.emplace_back(0, postFlushText);
+      input.push_back(ConsoleProcess::Input(0, postFlushText));
       expected += postFlushText;
 
-      for (const auto &cpi : input)
+      for (size_t i = 0; i < input.size(); i++)
       {
-         pCP->enqueInput(cpi);
+         pCP->enqueInput(input[i]);
       }
 
       std::string result;
       ConsoleProcess::Input next = pCP->dequeInput();
       expect_false(next.empty());
+      int itemCount = 1;
       while (!next.empty())
       {
          expect_false(next.interrupt);
          result += next.text;
 
-         if (next.text == postFlushText)
+         if (!next.text.compare(postFlushText))
             expect_true(next.sequence == 0);
          else
             expect_true(next.sequence == kIgnoreSequence);
@@ -237,7 +236,7 @@ test_context("queue and fetch input")
          next = pCP->dequeInput();
       }
 
-      expect_true(expected == result);
+      expect_true(!expected.compare(result));
    }
 }
 

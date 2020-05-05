@@ -1,7 +1,7 @@
 /*
  * RInterface.hpp
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-17 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -24,23 +24,18 @@
 #include <R_ext/Boolean.h>
 #include <R_ext/RStartup.h>
 
-extern "C" {
-
-void R_RestoreGlobalEnvFromFile(const char *, Rboolean);
-void R_SaveGlobalEnvToFile(const char *);
-void R_Suicide(const char *);
-char *R_HomeDir(void);
-void Rf_jump_to_toplevel(void);
-void Rf_onintr(void);
+extern "C" void R_RestoreGlobalEnvFromFile(const char *, Rboolean);
+extern "C" void R_SaveGlobalEnvToFile(const char *);
+extern "C" void R_Suicide(const char *);
+extern "C" char *R_HomeDir(void);
+extern "C" void Rf_jump_to_toplevel(void);
+extern "C" void Rf_onintr(void);
 #define R_ClearerrConsole void
-void R_FlushConsole();
-void run_Rmainloop();
-void Rf_mainloop(void);
-
-extern __declspec(dllimport) int R_SignalHandlers;
-extern __declspec(dllimport) void* R_GlobalContext;
-
-}
+extern "C" void R_FlushConsole();
+extern "C" int R_SignalHandlers;
+extern "C" void run_Rmainloop();
+extern "C" void Rf_mainloop(void);
+extern "C" void* R_GlobalContext;
 
 typedef struct SEXPREC *SEXP;
 
@@ -50,57 +45,6 @@ typedef struct SEXPREC *SEXP;
 #include <Rinterface.h>
 
 #endif
-
-typedef struct R_BCSTACK_T {
-   int tag;
-   int flags;
-   union {
-      int ival;
-      double dval;
-      SEXP sxpval;
-   } u;
-} R_BCSTACK_T;
-
-typedef struct RCNTXT_40 {
-    struct RCNTXT_40 *nextcontext;
-    int callflag;
-#ifdef _WIN32
-    struct
-    {
-      jmp_buf buf;
-      int sigmask;
-      int savedmask;
-    } cjumpbuf;
-#else
-    sigjmp_buf cjmpbuf;
-#endif
-    int cstacktop;
-    int evaldepth;
-    SEXP promargs;
-    SEXP callfun;
-    SEXP sysparent;
-    SEXP call;
-    SEXP cloenv;
-    SEXP conexit;
-    void (*cend)(void *);
-    void *cenddata;
-    void *vmax;
-    int intsusp;
-    int gcenabled;
-    int bcintactive;
-    SEXP bcbody;
-    void *bcpc;
-    SEXP handlerstack;
-    SEXP restartstack;
-    struct RPRSTACK *prstack;
-    R_BCSTACK_T *nodestack;
-    R_BCSTACK_T *bcprottop; // new in R 4.0
-    SEXP srcref;
-    int browserfinish;
-    SEXP returnValue;
-    struct RCNTXT_40 *jumptarget;
-    int jumpmask;
-} RCNTXT_40;
 
 typedef struct RCNTXT_34 {
     struct RCNTXT_34 *nextcontext;

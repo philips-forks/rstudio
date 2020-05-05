@@ -1,7 +1,7 @@
 /*
  * SessionNamedPipeHttpConnectionListener.cpp
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-17 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -26,7 +26,7 @@
 #include <boost/asio/buffer.hpp>
 
 #include <core/Log.hpp>
-#include <shared_core/Error.hpp>
+#include <core/Error.hpp>
 #include <core/Thread.hpp>
 
 #include <core/http/Request.hpp>
@@ -83,55 +83,29 @@ public:
       CHAR buff[kReadBufferSize];
       DWORD bytesRead;
 
-      bool skipWrite = false;
-
       while(TRUE)
       {
-         if (!skipWrite)
+         // read from pipe
+         BOOL result = ::ReadFile(hPipe_, buff, kReadBufferSize, &bytesRead, NULL);
+
+         // check for error
+         if (!result)
          {
-            // read from pipe
-            BOOL result = ::ReadFile(hPipe_, buff, kReadBufferSize, &bytesRead, nullptr);
+            Error error = systemError(::GetLastError(), ERROR_LOCATION);
+            if (!core::http::isConnectionTerminatedError(error))
+               LOG_ERROR(error);
 
-            // check for error
-            if (!result)
-            {
-               Error error = LAST_SYSTEM_ERROR();
-               if (!core::http::isConnectionTerminatedError(error))
-                  LOG_ERROR(error);
+            close();
 
-               close();
-
-               return false;
-            }
-
-            // end of file - we should never get this far (request parser
-            // should signal that we have the full request bfore we get here)
-            if (bytesRead == 0)
-            {
-               LOG_WARNING_MESSAGE("ReadFile returned 0 bytes");
-
-               core::http::Response response;
-               response.setStatusCode(core::http::status::BadRequest);
-               sendResponse(response);
-
-               return false;
-            }
-         }
-         else
-         {
-            skipWrite = false;
+            return false;
          }
 
-         // got input
-         // parse next chunk
-         http::RequestParser::status status = parser.parse(
-                                                request_,
-                                                buff,
-                                                buff + bytesRead);
-
-         // error - return bad request
-         if (status == core::http::RequestParser::error)
+         // end of file - we should never get this far (request parser
+         // should signal that we have the full request bfore we get here)
+         else if (bytesRead == 0)
          {
+            LOG_WARNING_MESSAGE("ReadFile returned 0 bytes");
+
             core::http::Response response;
             response.setStatusCode(core::http::status::BadRequest);
             sendResponse(response);
@@ -139,36 +113,37 @@ public:
             return false;
          }
 
-         // incomplete -- keep reading
-         else if (status == core::http::RequestParser::incomplete)
-         {
-            continue;
-         }
-
-         // headers parsed - body parsing has not yet begun
-         else if (status == core::http::RequestParser::headers_parsed)
-         {
-            requestId_ = request_.headerValue("X-RS-RID");
-
-            // we need to resume body parsing by recalling the parse
-            // method and providing the exact same buffer to continue
-            // from where we left off
-            skipWrite = true;
-            continue;
-         }
-
-         // form complete - do nothing since the form handler
-         // has been invoked by the request parser as appropriate
-         else if (status == core::http::RequestParser::form_complete)
-         {
-            return true;
-         }
-
-         // got valid request -- handle it
+         // got input
          else
          {
+            // parse next chunk
+            http::RequestParser::status status = parser.parse(
+                                                   request_,
+                                                   buff,
+                                                   buff + bytesRead);
 
-            return true;
+            // error - return bad request
+            if (status == core::http::RequestParser::error)
+            {
+               core::http::Response response;
+               response.setStatusCode(core::http::status::BadRequest);
+               sendResponse(response);
+
+               return false;
+            }
+
+            // incomplete -- keep reading
+            else if (status == core::http::RequestParser::incomplete)
+            {
+               continue;
+            }
+
+            // got valid request -- handle it
+            else
+            {
+               requestId_ = request_.headerValue("X-RS-RID");
+               return true;
+            }
          }
       }
 
@@ -194,12 +169,12 @@ public:
                   boost::asio::buffer_cast<const unsigned char*>(buffers[i]),
                   bytesToWrite,
                   &bytesWritten,
-                  nullptr);
+                  NULL);
 
          if (!success || (bytesWritten != bytesToWrite))
          {
             // establish error
-            Error error = LAST_SYSTEM_ERROR();
+            Error error = systemError(::GetLastError(), ERROR_LOCATION);
             error.addProperty("request-uri", request_.uri());
 
             // log the error if it wasn't connection terminated
@@ -220,19 +195,13 @@ public:
       if (hPipe_ != INVALID_HANDLE_VALUE)
       {
          if (!::FlushFileBuffers(hPipe_))
-         {
-            LOG_ERROR(LAST_SYSTEM_ERROR());
-         }
+            LOG_ERROR(systemError(::GetLastError(), ERROR_LOCATION));
 
          if (!::DisconnectNamedPipe(hPipe_))
-         {
-            LOG_ERROR(LAST_SYSTEM_ERROR());
-         }
+            LOG_ERROR(systemError(::GetLastError(), ERROR_LOCATION));
 
          if (!::CloseHandle(hPipe_))
-         {
-            LOG_ERROR(LAST_SYSTEM_ERROR());
-         }
+            LOG_ERROR(systemError(::GetLastError(), ERROR_LOCATION));
 
          hPipe_ = INVALID_HANDLE_VALUE;
      }
@@ -295,11 +264,11 @@ private:
          while (true)
          {
             // create security attributes
-            PSECURITY_ATTRIBUTES pSA = nullptr;
+            PSECURITY_ATTRIBUTES pSA = NULL;
             SECURITY_ATTRIBUTES sa;
             ZeroMemory(&sa, sizeof(sa));
             sa.nLength = sizeof(sa);
-            sa.lpSecurityDescriptor = nullptr;
+            sa.lpSecurityDescriptor = NULL;
             sa.bInheritHandle = FALSE;
 
             // get login session only descriptor -- proceed without one
@@ -310,8 +279,10 @@ private:
             if (sa.lpSecurityDescriptor)
                pSA = &sa;
 
-            // set pipe mode, specify rejection of remote clients
-            DWORD dwPipeMode = PIPE_TYPE_BYTE | PIPE_READMODE_BYTE | PIPE_WAIT | PIPE_REJECT_REMOTE_CLIENTS;
+            // set pipe mode, specify rejection of remote clients if >= vista
+            DWORD dwPipeMode = PIPE_TYPE_BYTE | PIPE_READMODE_BYTE | PIPE_WAIT;
+            if (core::system::isVistaOrLater())
+                dwPipeMode |= PIPE_REJECT_REMOTE_CLIENTS;
 
             // create pipe
             HANDLE hPipe = ::CreateNamedPipeA(pipeName_.c_str(),
@@ -322,7 +293,7 @@ private:
                                               kReadBufferSize,
                                               0,
                                               pSA);
-            auto lastError = ::GetLastError(); // capture err before LocalFree
+            DWORD lastError = ::GetLastError(); // capture err before LocalFree
 
             // free security descriptor if we used one
             if (pSA)
@@ -336,12 +307,9 @@ private:
             }
 
             // attempt to connect
-            BOOL connected = ::ConnectNamedPipe(hPipe, nullptr);
-            lastError = ::GetLastError();
-            if (!connected)
-            {
-               connected = (lastError == ERROR_PIPE_CONNECTED);
-            }
+            BOOL connected = ::ConnectNamedPipe(hPipe, NULL) ?
+                   TRUE : (::GetLastError() == ERROR_PIPE_CONNECTED);
+
             if (connected)
             {
                // create connection
@@ -354,7 +322,7 @@ private:
             }
             else
             {
-               LOG_ERROR(systemError(lastError, ERROR_LOCATION));
+               LOG_ERROR(systemError(::GetLastError(), ERROR_LOCATION));
             }
          }
       }
@@ -396,9 +364,6 @@ private:
       // to also initiate a suspend (e.g. an admin/supervisor process)
       if (connection::checkForSuspend(ptrHttpConnection))
          return;
-      
-      if (connection::checkForInterrupt(ptrHttpConnection))
-         return;
 
       // place the connection on the correct queue
       if (connection::isGetEvents(ptrHttpConnection))
@@ -429,7 +394,7 @@ private:
       if (error)
       {
          LOG_ERROR(error);
-         return nullptr;
+         return NULL;
       }
 
       ULONG sdSize;
@@ -444,44 +409,34 @@ private:
       }
       else
       {
-         LOG_ERROR(LAST_SYSTEM_ERROR());
-         return nullptr;
+         LOG_ERROR(systemError(::GetLastError(), ERROR_LOCATION));
+         return NULL;
       }
    }
 
    static core::Error logonSessionOnlyDescriptor(std::string* pDescriptor)
    {
       // token for current process
-      HANDLE hToken = nullptr;
+      HANDLE hToken = NULL;
       if (!OpenProcessToken(::GetCurrentProcess(), TOKEN_QUERY, &hToken))
-      {
-         return LAST_SYSTEM_ERROR();
-      }
+         return systemError(::GetLastError(), ERROR_LOCATION);
       core::system::CloseHandleOnExitScope tokenScope(&hToken, ERROR_LOCATION);
 
       // size of token groups structure (note that we expect the error
       // since we pass NULL for the token information buffer)
       DWORD tgSize = 0;
-      BOOL res = ::GetTokenInformation(hToken, TokenGroups, nullptr, 0, &tgSize);
-      if (res != FALSE)
-      {
-         auto lastErr = ::GetLastError();
-         if (lastErr != ERROR_INSUFFICIENT_BUFFER)
-         {
-            return systemError(lastErr, ERROR_LOCATION);
-         }
-      }
+      BOOL res = ::GetTokenInformation(hToken, TokenGroups, NULL, 0, &tgSize);
+      if (res != FALSE && ::GetLastError() != ERROR_INSUFFICIENT_BUFFER)
+         return systemError(::GetLastError(), ERROR_LOCATION);
 
       // get the token groups structure
       std::vector<char> tg(tgSize);
       TOKEN_GROUPS* pTG = reinterpret_cast<TOKEN_GROUPS*>(&tg[0]);
       if (!::GetTokenInformation(hToken, TokenGroups, pTG, tgSize, &tgSize))
-      {
-         return LAST_SYSTEM_ERROR();
-      }
+         return systemError(::GetLastError(), ERROR_LOCATION);
 
       // find login sid
-      SID* pSid = nullptr;
+      SID* pSid = NULL;
       for (DWORD i = 0; i < pTG->GroupCount ; ++i)
       {
          if ((pTG->Groups[i].Attributes & SE_GROUP_LOGON_ID)
@@ -493,7 +448,7 @@ private:
       }
 
       // ensure we found it
-      if (pSid == nullptr)
+      if (pSid == NULL)
       {
          return systemError(boost::system::windows_error::file_not_found,
                             "Failed to find SE_GROUP_LOGON_ID",
@@ -501,11 +456,9 @@ private:
       }
 
       // convert to a string
-      char* pSidString = nullptr;
+      char* pSidString = NULL;
       if (!::ConvertSidToStringSid(pSid, &pSidString))
-      {
-         return LAST_SYSTEM_ERROR();
-      }
+         return systemError(::GetLastError(), ERROR_LOCATION);
 
       // format string for caller
       boost::format fmt("D:(A;OICI;GA;;;%1%)");

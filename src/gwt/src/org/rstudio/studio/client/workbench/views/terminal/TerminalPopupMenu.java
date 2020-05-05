@@ -1,7 +1,7 @@
 /*
  * TerminalPopupMenu.java
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-17 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -16,11 +16,9 @@
 package org.rstudio.studio.client.workbench.views.terminal;
 
 import org.rstudio.core.client.Debug;
-import org.rstudio.core.client.ElementIds;
 import org.rstudio.core.client.StringUtil;
 import org.rstudio.core.client.command.AppCommand;
 import org.rstudio.core.client.widget.ToolbarButton;
-import org.rstudio.core.client.widget.ToolbarMenuButton;
 import org.rstudio.core.client.widget.ToolbarPopupMenu;
 import org.rstudio.studio.client.RStudioGinjector;
 import org.rstudio.studio.client.application.events.EventBus;
@@ -28,6 +26,7 @@ import org.rstudio.studio.client.common.icons.StandardIcons;
 import org.rstudio.studio.client.workbench.commands.Commands;
 import org.rstudio.studio.client.workbench.model.WorkbenchServerOperations;
 import org.rstudio.studio.client.workbench.views.terminal.events.SwitchToTerminalEvent;
+import org.rstudio.studio.client.workbench.views.terminal.events.TerminalBusyEvent;
 import org.rstudio.studio.client.server.ServerError;
 import org.rstudio.studio.client.server.ServerRequestCallback;
 import org.rstudio.studio.client.server.Void;
@@ -37,7 +36,7 @@ import com.google.gwt.user.client.ui.MenuItem;
 import com.google.inject.Inject;
 
 /**
- * Drop-down menu used in terminal pane. Has commands, and a list of
+ * Drop-down menu used in terminal pane. Has commands, and a list of 
  * terminal sessions.
  */
 public class TerminalPopupMenu extends ToolbarPopupMenu
@@ -46,6 +45,16 @@ public class TerminalPopupMenu extends ToolbarPopupMenu
    {
       RStudioGinjector.INSTANCE.injectMembers(this);
       terminals_ = terminals;
+
+      eventBus_.addHandler(TerminalBusyEvent.TYPE,
+                          new TerminalBusyEvent.Handler()
+      {
+         @Override
+         public void onTerminalBusy(TerminalBusyEvent event)
+         {
+            refreshActiveTerminal();
+         }
+      });
    }
 
    @Inject
@@ -57,12 +66,12 @@ public class TerminalPopupMenu extends ToolbarPopupMenu
       eventBus_ = events;
       server_ = server;
    }
-
+   
    @Override
    public void getDynamicPopupMenu(final DynamicPopupMenuCallback callback)
-   {
+   { 
       // clean out existing entries
-      clearItems();
+      clearItems(); 
       addItem(commands_.newTerminal().createMenuItem(false));
       addSeparator();
 
@@ -70,8 +79,14 @@ public class TerminalPopupMenu extends ToolbarPopupMenu
       {
          for (final String handle : terminals_)
          {
-            Scheduler.ScheduledCommand cmd = () ->
+            Scheduler.ScheduledCommand cmd = new Scheduler.ScheduledCommand()
+            {
+               @Override
+               public void execute()
+               {
                   eventBus_.fireEvent(new SwitchToTerminalEvent(handle, null));
+               }
+            };
 
             String caption = trimCaption(terminals_.getCaption(handle));
             if (caption == null)
@@ -92,7 +107,6 @@ public class TerminalPopupMenu extends ToolbarPopupMenu
             addItem(new MenuItem(menuHtml, true, cmd));
          }
          addSeparator();
-         addItem(commands_.setTerminalToCurrentDirectory().createMenuItem(false));
          addItem(commands_.renameTerminal().createMenuItem(false));
          addItem(commands_.sendTerminalToEditor().createMenuItem(false));
          addSeparator();
@@ -102,36 +116,30 @@ public class TerminalPopupMenu extends ToolbarPopupMenu
          addItem(commands_.interruptTerminal().createMenuItem(false));
          addItem(commands_.clearTerminalScrollbackBuffer().createMenuItem(false));
          addItem(commands_.closeTerminal().createMenuItem(false));
-         addSeparator();
-         addItem(commands_.closeAllTerminals().createMenuItem(false));
-         addSeparator();
       }
 
-      addItem(commands_.showTerminalOptions().createMenuItem(false));
       callback.onPopupMenu(this);
    }
-
+   
    public ToolbarButton getToolbarButton()
    {
       if (toolbarButton_ == null)
       {
          String buttonText = "Terminal";
-
-         toolbarButton_ = new ToolbarMenuButton(
-                buttonText,
-                ToolbarButton.NoTitle,
+         
+         toolbarButton_ = new ToolbarButton(
+                buttonText, 
                 StandardIcons.INSTANCE.empty_command(),
-                this,
+                this, 
                 false);
-
-         ElementIds.assignElementId(toolbarButton_, ElementIds.TERMINAL_DROPDOWN_MENUBUTTON);
 
          setNoActiveTerminal();
       }
       return toolbarButton_;
    }
-
+   
    /**
+    *       
     * @param caption caption of the active terminal
     * @param handle handle of the active terminal
     */
@@ -145,8 +153,16 @@ public class TerminalPopupMenu extends ToolbarPopupMenu
       }
       toolbarButton_.setText(trimmed);
 
-      updateTerminalCommands();
-
+      // Update terminal commands based on current selection
+      boolean haveActiveTerminal = activeTerminalHandle_ != null;
+      commands_.closeTerminal().setEnabled(haveActiveTerminal);
+      commands_.renameTerminal().setEnabled(haveActiveTerminal);
+      commands_.clearTerminalScrollbackBuffer().setEnabled(haveActiveTerminal);
+      commands_.interruptTerminal().setEnabled(haveActiveTerminal);
+      commands_.previousTerminal().setEnabled(getPreviousTerminalHandle() != null);
+      commands_.nextTerminal().setEnabled(getNextTerminalHandle() != null);
+      commands_.sendTerminalToEditor().setEnabled(haveActiveTerminal);
+      
       // inform server of the selection
       server_.processNotifyVisible(activeTerminalHandle_, new ServerRequestCallback<Void>() {
 
@@ -157,35 +173,21 @@ public class TerminalPopupMenu extends ToolbarPopupMenu
          }
       });
    }
-
-   /**
-    * Update terminal commands based on current selection
-    */
-   public void updateTerminalCommands()
-   {
-      boolean haveActiveTerminal = activeTerminalHandle_ != null;
-      commands_.setTerminalToCurrentDirectory().setEnabled(haveActiveTerminal);
-      commands_.closeTerminal().setEnabled(haveActiveTerminal);
-      commands_.renameTerminal().setEnabled(haveActiveTerminal);
-      commands_.clearTerminalScrollbackBuffer().setEnabled(haveActiveTerminal);
-      commands_.interruptTerminal().setEnabled(haveActiveTerminal);
-      commands_.previousTerminal().setEnabled(getPreviousTerminalHandle() != null);
-      commands_.nextTerminal().setEnabled(getNextTerminalHandle() != null);
-      commands_.sendTerminalToEditor().setEnabled(haveActiveTerminal);
-   }
-
-   public void setActiveTerminalByCaption(String caption, boolean createdByApi)
+   
+   public void setActiveTerminalByCaption(String caption)
    {
       String handle = terminals_.handleForCaption(caption);
       if (StringUtil.isNullOrEmpty(handle))
          return;
-      eventBus_.fireEvent(new SwitchToTerminalEvent(handle, null, createdByApi));
+      eventBus_.fireEvent(new SwitchToTerminalEvent(handle, null));
    }
 
    /**
     * Refresh caption of active terminal based on busy status.
+    * @param caption caption of the active terminal
+    * @param handle handle of the active terminal
     */
-   public void refreshActiveTerminal()
+   private void refreshActiveTerminal()
    {
       if (toolbarButton_ == null || activeTerminalHandle_ == null)
          return;
@@ -193,11 +195,11 @@ public class TerminalPopupMenu extends ToolbarPopupMenu
       String caption = terminals_.getCaption(activeTerminalHandle_);
       if (caption == null)
          return;
-
-      toolbarButton_.setText(addBusyIndicator(trimCaption(caption),
+      
+      toolbarButton_.setText(addBusyIndicator(trimCaption(caption), 
             terminals_.getHasSubprocs(activeTerminalHandle_)));
    }
-
+    
    /**
     * set state to indicate no active terminals
     */
@@ -275,8 +277,12 @@ public class TerminalPopupMenu extends ToolbarPopupMenu
          String prevHandle = null;
          for (final String handle : terminals_)
          {
-            if (StringUtil.equals(activeTerminalHandle_, handle))
+            if (activeTerminalHandle_.equals(handle))
             {
+               if (prevHandle == null)
+               {
+                  return null;
+               }
                return prevHandle;
             }
             else
@@ -298,11 +304,11 @@ public class TerminalPopupMenu extends ToolbarPopupMenu
          boolean foundCurrent = false;
          for (final String handle : terminals_)
          {
-            if (foundCurrent)
+            if (foundCurrent == true)
             {
                return handle;
             }
-            if (StringUtil.equals(activeTerminalHandle_, handle))
+            if (activeTerminalHandle_.equals(handle))
             {
                foundCurrent = true;
             }
@@ -311,11 +317,11 @@ public class TerminalPopupMenu extends ToolbarPopupMenu
       return null;
    }
 
-   private ToolbarMenuButton toolbarButton_;
+   private ToolbarButton toolbarButton_;
    private String activeTerminalHandle_;
-   private final TerminalList terminals_;
+   private TerminalList terminals_;
 
-   // Injected ----
+   // Injected ----  
    private Commands commands_;
    private EventBus eventBus_;
    private WorkbenchServerOperations server_;

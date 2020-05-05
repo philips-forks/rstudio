@@ -1,7 +1,7 @@
 /*
  * RmdTemplateData.java
  *
- * Copyright (C) 2009-18 by RStudio, PBC
+ * Copyright (C) 2009-14 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -87,8 +87,8 @@ public class RmdTemplateData
             option_type: "choice", 
             option_default: "default",
             option_nullable: true,
-            option_list: [ "default", "cerulean", "journal", "flatly", "readable", "spacelab", 
-                           "united", "cosmo", "lumen", "paper", "sandstone", "simplex", "yeti" ]
+            option_list: [ "default", "cerulean", "journal", "flatly",
+                           "readable", "spacelab", "united", "cosmo"]
             },
             {
             option_name: "highlight",
@@ -249,14 +249,6 @@ public class RmdTemplateData
                               "fig_crop", "fig_caption", "highlight", 
                               "keep_tex"],
             format_notes: "PDF output requires TeX (MiKTeX on Windows, MacTeX 2013+ on OS X, TeX Live 2013+ on Linux)."
-            },
-            {
-            format_name: "powerpoint_presentation",
-            format_ui_name: "PowerPoint",
-            format_extension: "pptx",
-            format_options: [ "toc", "fig_width", "fig_height", "fig_caption", 
-                              "df_print", "smart"],
-            format_notes: "PowerPoint previewing requires an installation of PowerPoint or OpenOffice."
             }
          ],
          template_options: [

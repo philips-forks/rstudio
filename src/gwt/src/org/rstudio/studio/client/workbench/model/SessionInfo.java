@@ -1,7 +1,7 @@
 /*
  * SessionInfo.java
  *
- * Copyright (C) 2009-20 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -20,21 +20,15 @@ import org.rstudio.core.client.js.JsObject;
 import org.rstudio.core.client.jsonrpc.RpcObjectList;
 import org.rstudio.studio.client.application.ApplicationUtils;
 import org.rstudio.studio.client.application.model.RVersionsInfo;
-import org.rstudio.studio.client.application.model.SessionInitOptions;
 import org.rstudio.studio.client.common.compilepdf.model.CompilePdfState;
 import org.rstudio.studio.client.common.console.ConsoleProcessInfo;
 import org.rstudio.studio.client.common.debugging.model.ErrorManagerState;
-import org.rstudio.studio.client.common.dependencies.model.DependencyList;
 import org.rstudio.studio.client.common.rnw.RnwWeave;
 import org.rstudio.studio.client.workbench.addins.Addins.RAddins;
-import org.rstudio.studio.client.workbench.prefs.model.PrefLayer;
-import org.rstudio.studio.client.workbench.prefs.model.UserPrefs;
-import org.rstudio.studio.client.workbench.prefs.model.UserState;
 import org.rstudio.studio.client.workbench.views.buildtools.model.BuildState;
 import org.rstudio.studio.client.workbench.views.connections.model.Connection;
 import org.rstudio.studio.client.workbench.views.connections.model.ConnectionId;
 import org.rstudio.studio.client.workbench.views.environment.model.EnvironmentContextData;
-import org.rstudio.studio.client.workbench.views.jobs.model.JobState;
 import org.rstudio.studio.client.workbench.views.output.find.model.FindInFilesState;
 import org.rstudio.studio.client.workbench.views.output.markers.model.MarkersState;
 import org.rstudio.studio.client.workbench.views.packages.model.PackageProvidedExtensions;
@@ -63,10 +57,6 @@ public class SessionInfo extends JavaScriptObject
       return this.userIdentity;
    }-*/;
 
-   public final native String getSystemUsername() /*-{
-      return this.systemUsername;
-   }-*/;
-   
    public final native String getSessionId() /*-{
       return this.session_id;
    }-*/;
@@ -107,32 +97,11 @@ public class SessionInfo extends JavaScriptObject
       return this.temp_dir;
    }-*/;
 
-   public final native JsArray<PrefLayer> getPrefs() /*-{
-      if (!this.user_prefs)
-         this.user_prefs = [ {} ];
-      return this.user_prefs;
+   public final native JsObject getUiPrefs() /*-{
+      if (!this.ui_prefs)
+         this.ui_prefs = {};
+      return this.ui_prefs;
    }-*/;
-   
-   public final JsObject getUserPrefs()
-   {
-      return getPrefs().get(Math.min(getPrefs().length(), UserPrefs.LAYER_USER)).getValues();
-   }
-
-   public final PrefLayer getUserPrefLayer()
-   {
-      return getPrefs().get(Math.min(getPrefs().length(), UserPrefs.LAYER_USER));
-   }
-
-   public final native JsArray<PrefLayer> getUserState() /*-{
-      if (!this.user_state)
-         this.user_state = [ {} ];
-      return this.user_state;
-   }-*/;
-
-   public final PrefLayer getUserStateLayer()
-   {
-      return getUserState().get(Math.min(getPrefs().length(), UserState.LAYER_USER));
-   }
 
    public final static String DESKTOP_MODE = "desktop";
    public final static String SERVER_MODE = "server";
@@ -164,10 +133,6 @@ public class SessionInfo extends JavaScriptObject
    public final native int getConsoleActionsLimit() /*-{
       return this.console_actions_limit;
    }-*/;
-   
-   public final native String getConsoleLanguage() /*-{
-      return this.console_language;
-   }-*/;
 
    public final native ClientInitState getClientState() /*-{
       return this.client_state;
@@ -185,6 +150,14 @@ public class SessionInfo extends JavaScriptObject
       return this.lists;
    }-*/;
 
+   public final native boolean hasAgreement() /*-{
+      return this.hasAgreement;
+   }-*/;
+   
+   public final native Agreement pendingAgreement() /*-{
+      return this.pendingAgreement;
+   }-*/;
+   
    public final native String docsURL() /*-{
       return this.docsURL;
    }-*/;
@@ -195,10 +168,6 @@ public class SessionInfo extends JavaScriptObject
 
    public final native String getSystemEncoding() /*-{
       return this.system_encoding;
-   }-*/;
-
-   public final native String getLicenseMessage() /*-{
-      return this.license_message;
    }-*/;
 
    public final boolean isVcsEnabled()
@@ -226,7 +195,7 @@ public class SessionInfo extends JavaScriptObject
       String[] availableVcs = getAvailableVCS();
       for (int i=0; i<availableVcs.length; i++)
       {
-         if (availableVcs[i] == id)
+         if (availableVcs[i].equals(id))
             return true;
       }
       
@@ -275,6 +244,12 @@ public class SessionInfo extends JavaScriptObject
       }
    }
   
+   public final native JsObject getProjectUIPrefs() /*-{
+      if (!this.project_ui_prefs)
+         this.project_ui_prefs = {};
+      return this.project_ui_prefs;
+   }-*/;
+   
    public final native JsArrayString getProjectOpenDocs() /*-{
       if (!this.project_open_docs)
          this.project_open_docs = {};
@@ -321,14 +296,6 @@ public class SessionInfo extends JavaScriptObject
    
    public final native String getBuildTargetDir() /*-{
       return this.build_target_dir;
-   }-*/;
-   
-   public final native BlogdownConfig getBlogdownConfig() /*-{
-      return this.blogdown_config;
-   }-*/;
-   
-   public final native boolean getIsDistillProject() /*-{
-      return this.is_distill_project;
    }-*/;
    
    public final native boolean getHasPackageSrcDir() /*-{
@@ -400,18 +367,6 @@ public class SessionInfo extends JavaScriptObject
       return this.allow_remove_public_folder;
    }-*/;
    
-   public final native boolean getAllowFullUI() /*-{
-      return this.allow_full_ui;
-   }-*/;
-   
-   public final native int getWebSocketPingInterval() /*-{
-      return this.websocket_ping_interval;
-   }-*/;
-   
-   public final native int getWebSocketConnectTimeout() /*-{
-      return this.websocket_connect_timeout;
-   }-*/;
-   
    public final native boolean getAllowExternalPublish() /*-{
       return this.allow_external_publish;
    }-*/;
@@ -422,22 +377,6 @@ public class SessionInfo extends JavaScriptObject
    
    public final native boolean getAllowOpenSharedProjects() /*-{
       return this.allow_open_shared_projects;
-   }-*/;
-   
-   public final native boolean getLauncherSession() /*-{
-      return this.launcher_session;
-   }-*/;
-
-   public final native boolean getCrashHandlerSettingsModifiable() /*-{
-      return this.crash_handler_settings_modifiable;
-   }-*/;
-
-   public final native boolean getPromptForCrashHandlerPermission() /*-{
-      return this.prompt_for_crash_handler_permission;
-   }-*/;
-
-   public final native JsObject getLaunchParameters() /*-{
-      return this.launch_parameters;
    }-*/;
    
    public final native EnvironmentContextData getEnvironmentState() /*-{
@@ -472,32 +411,12 @@ public class SessionInfo extends JavaScriptObject
       return this.rmarkdown_available;
    }-*/;
    
-   public final native void setRMarkdownPackageAvailable(boolean available) /*-{
-      this.rmarkdown_available = available;
-   }-*/;
-   
    public final native boolean getKnitParamsAvailable()  /*-{
       return this.knit_params_available;
    }-*/;
    
-   public final native void setKnitParamsAvailable(boolean available) /*-{
-      this.knit_params_available = available;
-   }-*/;
-   
    public final native boolean getKnitWorkingDirAvailable() /*-{
       return this.knit_working_dir_available;
-   }-*/;
-
-   public final native void setKnitWorkingDirAvailable(boolean available) /*-{
-      this.knit_working_dir_available = available;
-   }-*/;
-   
-   public final native boolean getPptAvailable() /*-{
-      return this.ppt_available;
-   }-*/;
-   
-   public final native void setPptAvailable(boolean available) /*-{
-      this.ppt_available = available;
    }-*/;
    
    public final native boolean getClangAvailable() /*-{
@@ -518,14 +437,6 @@ public class SessionInfo extends JavaScriptObject
 
    public final native JsArray<ConnectionId> getActiveConnections() /*-{
       return this.active_connections;
-   }-*/;
-   
-   public final native JobState getJobState() /*-{
-      return this.job_state;
-   }-*/;
-   
-   public final native boolean getLauncherJobsEnabled() /*-{
-      return this.launcher_jobs_enabled;
    }-*/;
    
    public final native boolean getShowHelpHome() /*-{
@@ -552,26 +463,14 @@ public class SessionInfo extends JavaScriptObject
       return this.tutorial_api_available;
    }-*/;
    
-   public final native boolean getTutorialApiParentNotifyAvailable() /*-{
-      return this.tutorial_api_parent_notify_available;
-   }-*/;
-   
    public final native String getTutorialApiClientOrigin() /*-{
       return this.tutorial_api_client_origin;
    }-*/;
    
-   public final native boolean getCloudFolderEnabled() /*-{
-      return this.cloud_folder_enabled;
-   }-*/;
-
-    public final native boolean getPackratAvailable() /*-{
+   public final native boolean getPackratAvailable() /*-{
       return this.packrat_available;
    }-*/;
-    
-    public final native boolean getRenvAvailable() /*-{
-      return this.renv_available;
-   }-*/;
-    
+   
    public final native boolean getShowUserHomePage() /*-{
       return this.show_user_home_page;
    }-*/;
@@ -610,33 +509,5 @@ public class SessionInfo extends JavaScriptObject
    
    public final native String getDefaultRSConnectServer() /*-{
       return this.default_rsconnect_server;
-   }-*/;
-   
-   public final native String getRLibsUser() /*-{
-      return this.r_libs_user;
-   }-*/;
-   
-
-   public final native SessionInitOptions getInitOptions() /*-{
-      return this.init_options;
-   }-*/;
-   
-   /**
-    * @return The list of R packages we depend on
-    */
-   public final native DependencyList getPackageDependencies() /*-{
-      return this.package_dependencies;
-   }-*/;
-   
-   /**
-    * @return project identifier (only meaningful in RStudio Server Pro)
-    */
-   public final native String getProjectId() /*-{
-      return this.project_id;
-   }-*/;
-   
-   public final native JsArrayString getGraphicsBackends()
-   /*-{
-     return this.graphics_backends;
    }-*/;
 }

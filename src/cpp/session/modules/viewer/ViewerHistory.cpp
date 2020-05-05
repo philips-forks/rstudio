@@ -1,7 +1,7 @@
 /*
  * ViewerHistory.cpp
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -15,11 +15,10 @@
 
 #include "ViewerHistory.hpp"
 
-#include <gsl/gsl>
-
 #include <boost/format.hpp>
+#include <boost/foreach.hpp>
 
-#include <shared_core/SafeConvert.hpp>
+#include <core/SafeConvert.hpp>
 #include <core/FileSerializer.hpp>
 
 #include <session/SessionModuleContext.hpp>
@@ -46,7 +45,7 @@ ViewerHistory::ViewerHistory()
 void ViewerHistory::add(const module_context::ViewerHistoryEntry& entry)
 {
    entries_.push_back(entry);
-   currentIndex_ = gsl::narrow_cast<int>(entries_.size() - 1);
+   currentIndex_ = entries_.size() - 1;
 }
 
 void ViewerHistory::clear()
@@ -78,7 +77,7 @@ void ViewerHistory::clearCurrent()
 
 bool ViewerHistory::hasNext() const
 {
-   int size = safe_convert::numberTo<std::size_t, int>(entries_.size() - 1, 0);
+   int size = safe_convert::numberTo<int>(entries_.size() - 1, 0);
    return currentIndex_ != -1 && currentIndex_ < size;
 }
 
@@ -107,12 +106,12 @@ namespace {
 
 FilePath historyEntriesPath(const core::FilePath& serializationPath)
 {
-   return serializationPath.completePath("history_entries");
+   return serializationPath.complete("history_entries");
 }
 
 FilePath currentIndexPath(const core::FilePath& serializationPath)
 {
-   return serializationPath.completePath("current_index");
+   return serializationPath.complete("current_index");
 }
 
 std::string historyEntryToString(const module_context::ViewerHistoryEntry& entry)
@@ -173,7 +172,7 @@ void ViewerHistory::saveTo(const core::FilePath& serializationPath) const
 
    // copy the files
    FilePath tempDir = module_context::tempDir();
-   for (const ViewerHistoryEntry& entry : entries_)
+   BOOST_FOREACH(const ViewerHistoryEntry& entry, entries_)
    {
       Error error = entry.copy(tempDir, serializationPath);
       if (error)
@@ -224,7 +223,7 @@ void ViewerHistory::restoreFrom(const core::FilePath& serializationPath)
 
    // copy the files to the session temp dir
    FilePath tempDir = module_context::tempDir();
-   for (const ViewerHistoryEntry& entry : entries_)
+   BOOST_FOREACH(const ViewerHistoryEntry& entry, entries_)
    {
       Error error = entry.copy(serializationPath, tempDir);
       if (error)
@@ -248,8 +247,8 @@ core::Error ViewerHistoryEntry::copy(
              const core::FilePath& destinationDir) const
 {
    // copy enclosing directory to the destinationDir
-   FilePath entryPath = sourceDir.completeChildPath(sessionTempPath_);
-   FilePath parentDir = entryPath.getParent();
+   FilePath entryPath = sourceDir.childPath(sessionTempPath_);
+   FilePath parentDir = entryPath.parent();
    return module_context::recursiveCopyDirectory(parentDir, destinationDir);
 }
 

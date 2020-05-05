@@ -1,7 +1,7 @@
 #
 # SessionObjectExplorer.R
 #
-# Copyright (C) 2009-17 by RStudio, PBC
+# Copyright (C) 2009-17 by RStudio, Inc.
 #
 # Unless you have received this program directly from RStudio pursuant
 # to the terms of a commercial license agreement with RStudio, then
@@ -25,10 +25,6 @@
    VIRTUAL    = "virtual"
 ))
 
-# NOTE: this should be synchronized with DEFAULT_ROW_LIMIT
-# in ObjectExplorerDataGrid.java
-.rs.setVar("explorer.defaultRowLimit", 1000)
-
 # this environment holds data objects currently open within
 # a viewer tab; this environment will be persisted across
 # RStudio sessions
@@ -46,11 +42,7 @@
                                                           start)
 {
    # retrieve object from cache
-   object <- .rs.explorer.getCachedObject(
-      id = id,
-      extractingCode = extractingCode,
-      refresh = FALSE
-   )
+   object  <- .rs.explorer.getCachedObject(id, extractingCode)
    
    # construct context
    context <- .rs.explorer.createContext(
@@ -59,7 +51,7 @@
       tags      = tags,
       recursive = 1,
       start     = start + 1,   # 0 -> 1-based indexing,
-      end       = start + .rs.explorer.defaultRowLimit
+      end       = start + 200  # 200 elements inclusive
    )
    
    # generate inspection result
@@ -69,31 +61,14 @@
 
 .rs.addJsonRpcHandler("explorer_begin_inspect", function(id, name)
 {
-   # retrieve object from cache
-   object <- .rs.explorer.getCachedObject(
-      id = id,
+   .rs.rpc.explorer_inspect_object(
+      id             = id,
       extractingCode = NULL,
-      refresh = TRUE
+      name           = name,
+      access         = NULL,
+      tags           = character(),
+      start          = 0
    )
-   
-   # construct context
-   context <- .rs.explorer.createContext(
-      name      = name,
-      access    = NULL,
-      tags      = character(),
-      recursive = 1,
-      start     = 1,
-      end       = .rs.explorer.defaultRowLimit
-   )
-   
-   # generate inspection result
-   result <- .rs.explorer.inspectObject(object, context)
-   result
-})
-
-.rs.addJsonRpcHandler("explorer_end_inspect", function(id)
-{
-   .rs.explorer.removeCachedObject(id)
 })
 
 .rs.addFunction("objectAddress", function(object)
@@ -123,8 +98,7 @@
    }
    else if (is.character(object) || is.numeric(object) ||
             is.raw(object) || is.complex(object) ||
-            is.list(object) || is.environment(object) ||
-            is.factor(object) || is.logical(object))
+            is.list(object) || is.environment(object))
    {
       type <- paste(type, sprintf("[%s]", length(object)))
    }
@@ -188,37 +162,13 @@
 })
 
 .rs.addFunction("explorer.getCachedObject", function(id,
-                                                     extractingCode = NULL,
-                                                     refresh = FALSE)
+                                                     extractingCode = NULL)
 {
-   # retrieve cached entry
    cache <- .rs.explorer.getCache()
-   entry <- cache[[id]]
-   
-   # handle NULL entries (e.g. the cache somehow became out-of-sync)
-   if (is.null(entry))
-      return(NULL)
-   
-   # get object (refreshing if requested). note that refreshes following a
-   # restart may lose reference to the original object if e.g. the object lived
-   # in the global environment but the global environment was not restored
-   if (refresh && is.character(entry$title)) {
-      tryCatch(
-         expr = {
-            object <- eval(parse(text = entry$title), envir = entry$envir)
-            entry$object <- object
-            cache[[id]] <- entry
-         },
-         error = identity
-      )
-   }
-   object <- entry$object
-   
-   # return if no sub-extraction needed
+   object <- cache[[id]]
    if (is.null(extractingCode))
       return(object)
    
-   # otherwise, evaluate expression to retrieve sub-object
    envir <- new.env(parent = globalenv())
    envir[["__OBJECT__"]] <- object
    
@@ -260,7 +210,7 @@
                                                    tags = character(),
                                                    recursive = FALSE,
                                                    start = 1,
-                                                   end = .rs.explorer.defaultRowLimit)
+                                                   end = 200)
 {
    list(
       name      = name,
@@ -289,7 +239,7 @@
       tags      = tags,
       recursive = recursive,
       start     = 1,
-      end       = .rs.explorer.defaultRowLimit
+      end       = 200
    )
 })
 
@@ -317,7 +267,7 @@
    name <- .rs.explorer.objectName(object, title)
    
    # generate a handle for this object
-   handle <- .rs.explorer.createHandle(object, name, title, envir)
+   handle <- .rs.explorer.createHandle(object, name, title)
    
    # fire event to client
    .rs.explorer.fireEvent(.rs.explorer.types$NEW, handle)
@@ -325,12 +275,10 @@
 
 .rs.addFunction("explorer.createHandle", function(object,
                                                   name,
-                                                  title,
-                                                  envir)
+                                                  title)
 {
    # save in cached data environment
-   entry <- list(object = object, name = name, title = title, envir = envir)
-   id <- .rs.explorer.setCachedObject(entry)
+   id <- .rs.explorer.setCachedObject(object)
    
    # return a handle object
    list(
@@ -381,9 +329,9 @@
       
       # is this a named atomic vector?
       (is.atomic(.$object) && !is.null(names(.$object)) && n > 0) ||
-
+      
       # do we have relevant attributes?
-      (.rs.explorer.hasRelevantAttributes(.$object) && n > 0)
+      .rs.explorer.hasRelevantAttributes(.$object)
    
    # extract attributes when relevant
    attributes <- NULL
@@ -769,7 +717,7 @@
 {
    output <- ""
    more <- FALSE
-   trailing <- " ..."
+   comma <- FALSE
    n <- 6L
    
    if (is.primitive(object))
@@ -806,18 +754,19 @@
    }
    else if (is.factor(object))
    {
-      fmt <- "%s with %i %s: %s"
-      header <- head(levels(object), n)
-      collapse <- if (is.ordered(object)) " < " else ", "
-      output <- sprintf(
-         fmt,
-         if (is.ordered(object)) "Ordered factor" else "Factor",
-         length(levels(object)),
-         if (length(levels(object)) == 1) "level" else "levels",
-         paste(.rs.surround(header, with = "\""), collapse = collapse)
-      )
-      more <- length(levels(object)) > n
-      trailing <- if (is.ordered(object)) " < ..." else ", ..."
+      fmt <- "Factor with %i levels: %s"
+      header <- head(object, n)
+      output <- sprintf(fmt, length(object), paste(.rs.surround(header, with = "\""), collapse = ", "))
+      more <- length(object) > n
+      comma <- TRUE
+   }
+   else if (is.ordered(object))
+   {
+      fmt <- "Ordered factor with %i levels: %s"
+      header <- head(object, n)
+      output <- sprintf(fmt, length(object), paste(.rs.surround(header, with = "\""), collapse = ", "))
+      more <- length(object) > n
+      comma <- TRUE
    }
    else if (is.character(object))
    {
@@ -840,24 +789,14 @@
    }
    else if (is.data.frame(object))
    {
-      fmt <- "A %s with %s %s and %s %s"
-      
+      fmt <- "A %s with %s rows and %s columns"
+    
       name <- if (inherits(object, "tbl"))
          "tibble"
-      else if (inherits(object, "data.table"))
-         "data.table"
       else
          "data.frame"
       
-      output <- sprintf(
-         fmt,
-         name,
-         nrow(object),
-         if (nrow(object) == 1) "row" else "rows",
-         ncol(object),
-         if (ncol(object) == 1) "column" else "columns"
-      )
-      
+      output <- sprintf(fmt, name, nrow(object), ncol(object))
       more <- FALSE
    }
    else if (is.pairlist(object))
@@ -929,19 +868,10 @@
       more <- FALSE
    }
    
-   # guard against unexpected inputs
-   if (length(output) == 0)
-   {
-      output <- ""
-   }
-   else if (is.na(output) || !is.character(output))
-   {
-      output <- "<NA>"
-   }
-   else if (more || nchar(output) > 80)
+   if (more || nchar(output) > 80)
    {
       truncated <- substring(output, 1, 80)
-      output <- paste(truncated, trailing, sep = "")
+      output <- paste(truncated, if (comma) ", ..." else "...")
    }
    
    output

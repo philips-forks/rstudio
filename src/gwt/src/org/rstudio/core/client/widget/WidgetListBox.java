@@ -1,7 +1,7 @@
 /*
  * WidgetListBox.java
  *
- * Copyright (C) 2009-20 by RStudio, PBC
+ * Copyright (C) 2009-14 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -17,10 +17,6 @@ package org.rstudio.core.client.widget;
 import java.util.ArrayList;
 import java.util.List;
 
-import com.google.gwt.aria.client.Id;
-import com.google.gwt.aria.client.Roles;
-import com.google.gwt.aria.client.SelectedValue;
-import com.google.gwt.user.client.DOM;
 import org.rstudio.core.client.events.HasSelectionCommitHandlers;
 import org.rstudio.core.client.events.SelectionCommitEvent;
 import org.rstudio.core.client.events.SelectionCommitHandler;
@@ -56,8 +52,7 @@ import com.google.gwt.user.client.ui.Widget;
 public class WidgetListBox<T extends Widget> 
    extends FocusPanel 
    implements HasChangeHandlers,
-              HasSelectionCommitHandlers<T>,
-              CanSetControlId
+              HasSelectionCommitHandlers<T>
 {
    private class ClickableHTMLPanel extends HTMLPanel
       implements HasClickHandlers
@@ -99,7 +94,6 @@ public class WidgetListBox<T extends Widget>
 
       // add styles to our own widget
       addStyleName(style_.outerPanel());
-      Roles.getListboxRole().set(getElement());
 
       // create the panel that will host the widgets
       panel_ = new VerticalPanel();
@@ -112,13 +106,9 @@ public class WidgetListBox<T extends Widget>
       add(scrollPanel_);
      
       emptyTextLabel_ = new Label();
-      emptyTextBox_ = new VerticalPanel();
-      emptyTextBox_.addStyleName(style_.scrollPanel());
-      emptyTextBox_.addStyleName(style_.emptyMessage());
-      emptyTextBox_.add(emptyTextLabel_);
-      emptyTextBox_.setCellHorizontalAlignment(emptyTextLabel_, VerticalPanel.ALIGN_CENTER);
-      emptyTextBox_.setCellVerticalAlignment(emptyTextLabel_, VerticalPanel.ALIGN_MIDDLE);
-
+      emptyTextLabel_.addStyleName(style_.scrollPanel());
+      emptyTextLabel_.addStyleName(style_.emptyMessage());
+      
       addKeyDownHandler(new KeyDownHandler()
       {
          @Override
@@ -151,11 +141,6 @@ public class WidgetListBox<T extends Widget>
    {
       return addHandler(handler, SelectionCommitEvent.getType());
    }
-
-   public void setAriaLabel(String label)
-   {
-      Roles.getListboxRole().setAriaLabelProperty(getElement(), label);
-   }
    
    public void addItem(T item)
    {
@@ -167,9 +152,6 @@ public class WidgetListBox<T extends Widget>
       // wrap the widget in a panel that can receive click events, indicate
       // selection, etc.
       final ClickableHTMLPanel panel = new ClickableHTMLPanel();
-      Roles.getOptionRole().set(panel.getElement());
-      panel.getElement().setId(DOM.createUniqueId());
-
       panel.addClickHandler(new ClickHandler()
       {
          @Override
@@ -229,13 +211,9 @@ public class WidgetListBox<T extends Widget>
    {
       String selectedStyle = resources_.listStyle().selectedItem();
       panel_.getWidget(selectedIdx_).removeStyleName(selectedStyle);
-      Roles.getOptionRole().setAriaSelectedState(panel_.getWidget(selectedIdx_).getElement(), SelectedValue.FALSE);
       selectedIdx_ = itemIdx;
       panel_.getWidget(selectedIdx_).addStyleName(selectedStyle);
       panel_.getWidget(selectedIdx_).getElement().scrollIntoView();
-      Roles.getOptionRole().setAriaSelectedState(panel_.getWidget(selectedIdx_).getElement(), SelectedValue.TRUE);
-      Roles.getListboxRole().setAriaActivedescendantProperty(getElement(), 
-            Id.of(panel_.getWidget(selectedIdx_).getElement().getId()));
       if (fireEvent)
       {
          DomEvent.fireNativeEvent(Document.get().createChangeEvent(),
@@ -287,39 +265,23 @@ public class WidgetListBox<T extends Widget>
       updateEmptyText();
    }
    
-   public void removeItem(int idx)
-   {
-      panel_.remove(idx);
-      options_.remove(idx);
-      items_.remove(idx);
-      if (selectedIdx_ == idx)
-         selectedIdx_ = 0;
-      updateEmptyText();
-   }
-   
    public void setEmptyText(String text)
    {
       emptyTextLabel_.setText(text);
       updateEmptyText();
    }
-
-   @Override
-   public void setElementId(String id)
-   {
-      getElement().setId(id);
-   }
-
+   
    private void updateEmptyText()
    {
-      if (emptyTextBox_.getParent() == this && items_.size() > 0)
+      if (emptyTextLabel_.getParent() == this && items_.size() > 0)
       {
          clear();
          add(scrollPanel_);
       }
-      else if (emptyTextBox_.getParent() != this && items_.size() == 0)
+      else if (emptyTextLabel_.getParent() != this && items_.size() == 0)
       {
          clear();
-         add(emptyTextBox_);
+         add(emptyTextLabel_);
       }
    }
    
@@ -327,7 +289,6 @@ public class WidgetListBox<T extends Widget>
 
    private ScrollPanel scrollPanel_;
    private VerticalPanel panel_;
-   private VerticalPanel emptyTextBox_;
    private Label emptyTextLabel_;
    private List<HTMLPanel> options_ = new ArrayList<HTMLPanel>();
    private List<T> items_ = new ArrayList<T>();

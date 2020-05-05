@@ -1,21 +1,12 @@
-# Updating xterm.js for RStudio
-
-## RStudio 1.3
-RStudio 1.3 uses xterm.js 3.14.5.
-
-### Getting the Code (1.3)
-Xterm.js and its addins are distribued via npm. Run the build-xterm script from this folder to 
-pull down the release and minify it into the source tree.
-
-## RStudio 1.1/1.2
-RStudio 1.1 and 1.2 use xterm.js 2.9.2. No more official development is happening on 2.x.
-
-As of March 19, 2018, we are using our own fork of xterm 2.9.2, at github.com/rstudio/xterm.js, for applying our own fixes.
+Updating xterm.js for RStudio
+=============================================================================
 
 To take a new drop of xterm.js for RStudio's terminal, follow these steps.
 
-### Getting the Code (1.2)
-- Visit https://github.com/rstudio/xterm.js/releases and get the hash of 
+Getting the Code
+-----------------------------------------------------------------------------
+
+- Visit https://github.com/sourcelair/xterm.js/releases and get the hash of 
 the version to integrate.
 
 - In the RStudio source tree, change to `src/gwt/tools` and edit the shell
@@ -30,7 +21,8 @@ make changes to the css allowing RStudio to do terminal theming.
 - If successful, it will finish with **Done!**. If it fails, 
 `tweak-xterm-css.R` requires updates.
 
-### Stylesheet Updates (1.2)
+Stylesheet Updates
+-----------------------------------------------------------------------------
 There are several steps in the stylesheet processing.
 
 1) `build-xterm` copies xterm.css to 
@@ -49,7 +41,8 @@ additional rules needed by the terminal. This includes modified versions
 of those removed in the previous step, plus additional ones needed by 
 the Console ANSI code feature.
 
-### Evaluating the Stylesheet Changes (1.2)
+Evaluating the Stylesheet Changes
+-----------------------------------------------------------------------------
 This part is tedious and error-prone. First, examine the modifications to
 xterm-orig.css. If there are none, then you are done with this step and can 
 proceed to evaluating the JavaScript changes.
@@ -88,7 +81,8 @@ they contain the rules removed by `tweak-xterm.cs.R`.
 changes from another dark theme such as Merbivore Soft and copy them over.
 Be careful to preserve foreground and background colors.
 
-### Evaluting the JavaScript Changes (1.2)
+Evaluting the JavaScript Changes
+-----------------------------------------------------------------------------
 Ideally, this would be completely handled by running the client-side unit 
 tests via **ant unittest**. This is not currently the case, however on the
 positive side, XTerm.js 2.x releases have rarely required code changes in 

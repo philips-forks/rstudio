@@ -1,7 +1,7 @@
 /*
  * AnsiCodeParserTests.cpp
  *
- * Copyright (C) 2009-17 by RStudio, PBC
+ * Copyright (C) 2009-17 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -22,7 +22,7 @@ namespace core {
 namespace text {
 namespace tests {
 
-test_context("Ansi Code Parsing")
+context("Ansi Code Parsing")
 {
    test_that("Ansi stripping doesn't modify plain text")
    {

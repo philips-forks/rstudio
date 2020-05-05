@@ -1,7 +1,7 @@
 #
 # ModuleTools.R
 #
-# Copyright (C) 2009-19 by RStudio, PBC
+# Copyright (C) 2009-15 by RStudio, Inc.
 #
 # Unless you have received this program directly from RStudio pursuant
 # to the terms of a commercial license agreement with RStudio, then
@@ -15,37 +15,30 @@
 
 .rs.addFunction("enqueClientEvent", function(type, data = NULL)
 {
-   .Call("rs_enqueClientEvent", type, data, PACKAGE = "(embedding)")
-})
-
-.rs.addFunction("invokeRpc", function(method, ...) 
-{
-   # callback to session to invoke RPC
-   args <- list(...)
-   .Call("rs_invokeRpc", method, .rs.scalarListFromList(args), PACKAGE = "(embedding)")
+   .Call("rs_enqueClientEvent", type, data)
 })
 
 .rs.addFunction("showErrorMessage", function(title, message)
 {
-   .Call("rs_showErrorMessage", title, message, PACKAGE = "(embedding)")
+   .Call("rs_showErrorMessage", title, message)
 })
 
 .rs.addFunction("logErrorMessage", function(message)
 {
-   .Call("rs_logErrorMessage", message, PACKAGE = "(embedding)")
+   .Call("rs_logErrorMessage", message)
 })
 
 .rs.addFunction("logWarningMessage", function(message)
 {
-   .Call("rs_logWarningMessage", message, PACKAGE = "(embedding)")
+   .Call("rs_logWarningMessage", message)
 })
 
-.rs.addFunction("getSignature", function(object)
+.rs.addFunction("getSignature", function(obj)
 {
-   signature <- base::format.default(base::args(object))
-   length(signature) <- length(signature) - 1
-   trimmed <- gsub("^\\s+", "", signature)
-   paste(trimmed, collapse = "")
+   sig = capture.output(print(args(obj)))
+   sig = sig[1:length(sig)-1]
+   sig = gsub('^\\s+', '', sig)
+   paste(sig, collapse='')
 })
 
 # Wrap a return value in this to give a hint to the
@@ -84,31 +77,7 @@
 
 .rs.addFunction("isRtoolsOnPath", function()
 {
-   # ensure that the Rtools utility 'bin' directory is on the PATH
-   # (this is just a heuristic but works okay in general)
-   if (!nzchar(Sys.which("ls.exe")))
-      return(FALSE)
-   
-   # for newer versions of R, ensure that BINPREF is set
-   # (since BINPREF may be going away in R 4.0.0 we don't require its
-   # existence here)
-   rv <- getRversion()
-   if (rv >= "3.3.0" && rv < "4.0.0")
-   {
-      if (is.na(Sys.getenv("BINPREF", unset = NA)))
-         return(FALSE)
-   }
-   
-   # for older versions of R (with the old toolchain) check for 'gcc.exe'
-   # on the PATH (assuming the old, multilib-variant of gcc)
-   if (rv < "3.3.0")
-   {
-      if (!nzchar(Sys.which("gcc.exe")))
-         return(FALSE)
-   }
-   
-   # survived all checks; return TRUE
-   TRUE
+   return (nzchar(Sys.which("ls.exe")) && nzchar(Sys.which("gcc.exe")))
 })
 
 .rs.addFunction("getPackageFunction", function(name, packageName)
@@ -152,17 +121,19 @@
   # the repos option is canonically a named character vector, but could also
   # be a named list
   if (is.character(repos) || is.list(repos)) {
-    # check for a repo named "CRAN"
-    repo <- as.character(repos["CRAN"])
-
-    # if no repo named "CRAN", blindly guess that the first repo is a CRAN mirror 
-    if (length(repo) < 1 || is.na(repo)) {
-      repo <- as.character(repos[[1]])
+    if (is.null(names(repos))) {
+      # no indication of which repo is which, presume the first entry to be
+      # CRAN if it's of character type
+      if (length(repos) > 0 && is.character(repos[[1]]))
+        repo <- repos[[1]]
+    } else {
+      # use repo named CRAN
+      repo <- as.character(repos["CRAN"])
     }
   }
 
   # if no default repo and no repo marked CRAN, give up
-  if (length(repo) < 1 || is.na(repo)) {
+  if (is.na(repo)) {
     return(list(version = "", satisfied = FALSE))
   }
 
@@ -241,7 +212,7 @@
 {
   pkgDir <- find.package(name)
   .rs.forceUnloadPackage(name)
-  .Call("rs_installPackage",  archive, dirname(pkgDir), PACKAGE = "(embedding)")
+  .Call("rs_installPackage",  archive, dirname(pkgDir))
 })
 
 
@@ -271,7 +242,7 @@
          yesLabel,
          noLabel,
          includeCancel,
-         yesIsDefault, PACKAGE = "(embedding)")
+         yesIsDefault)
 
    if (result == 0)
       "yes"
@@ -286,71 +257,35 @@
 .rs.addFunction("restartR", function(afterRestartCommand = "") {
    afterRestartCommand <- paste(as.character(afterRestartCommand),
                                 collapse = "\n")
-   .Call("rs_restartR", afterRestartCommand, PACKAGE = "(embedding)")
+   .Call("rs_restartR", afterRestartCommand)
 })
 
 .rs.addFunction("markdownToHTML", function(content) {
-   .Call("rs_markdownToHTML", content, PACKAGE = "(embedding)")
-})
-
-.rs.addFunction("readPrefInternal", function(method, prefName) {
-  if (missing(prefName) || is.null(prefName))
-    stop("No preference name supplied")
-  .Call(method, prefName, PACKAGE = "(embedding)")
-})
-
-.rs.addFunction("writePrefInternal", function(method, prefName, value) {
-  if (missing(prefName) || is.null(prefName))
-    stop("No preference name supplied")
-  if (missing(value))
-    stop("No value supplied")
-  invisible(.Call(method, prefName, .rs.scalar(value), PACKAGE = "(embedding)"))
-})
-
-.rs.addFunction("readApiPref", function(prefName) {
-  .rs.readPrefInternal("rs_readApiPref", prefName)
-})
-
-.rs.addFunction("writeApiPref", function(prefName, value) {
-  .rs.writePrefInternal("rs_writeApiPref", prefName, value)
+   .Call("rs_markdownToHTML", content)
 })
 
 .rs.addFunction("readUiPref", function(prefName) {
-  .rs.readPrefInternal("rs_readUserPref", prefName)
-})
-.rs.addFunction("readUserPref", .rs.readUiPref)
-
-.rs.addFunction("writeUiPref", function(prefName, value) {
-  .rs.writePrefInternal("rs_writeUserPref", prefName, value)
-})
-.rs.addFunction("writeUserPref", .rs.writeUiPref)
-
-.rs.addFunction("readUserState", function(stateName) {
-  if (missing(stateName) || is.null(stateName))
-    stop("No state name supplied")
-  .Call("rs_readUserState", stateName, PACKAGE = "(embedding)")
-})
-
-.rs.addFunction("allPrefs", function() {
-  .Call("rs_allPrefs", PACKAGE = "(embedding)")
-})
-
-.rs.addFunction("writeUserState", function(stateName, value) {
-  if (missing(stateName) || is.null(stateName))
-    stop("No state name supplied")
-  if (missing(value))
-    stop("No value supplied")
-  invisible(.Call("rs_writeUserState", stateName, .rs.scalar(value), PACKAGE = "(embedding)"))
-})
-
-.rs.addFunction("removePref", function(prefName) {
   if (missing(prefName) || is.null(prefName))
     stop("No preference name supplied")
-  invisible(.Call("rs_removePref", prefName, PACKAGE = "(embedding)"))
+  .Call("rs_readUiPref", prefName)
+})
+
+.rs.addFunction("writeUiPref", function(prefName, value) {
+  if (missing(prefName) || is.null(prefName))
+    stop("No preference name supplied")
+  if (missing(value))
+    stop("No value supplied")
+  invisible(.Call("rs_writeUiPref", prefName, .rs.scalar(value)))
+})
+
+.rs.addFunction("removeUiPref", function(prefName) {
+  if (missing(prefName) || is.null(prefName))
+    stop("No preference name supplied")
+  invisible(.Call("rs_removeUiPref", prefName))
 })
 
 .rs.addFunction("setUsingMingwGcc49", function(usingMingwGcc49) {
-  invisible(.Call("rs_setUsingMingwGcc49", usingMingwGcc49, PACKAGE = "(embedding)"))
+  invisible(.Call("rs_setUsingMingwGcc49", usingMingwGcc49))
 })
 
 
@@ -359,36 +294,27 @@
 })
 
 
-.rs.addFunction("pandocSelfContainedHtml", function(input, template, output) {
+.rs.addFunction("pandocSelfContainedHtml", function(input, output) {
    
    # make input file path absolute
    input <- normalizePath(input)
-
-   # create a temporary copy of the file for conversion
-   inputFile <- tempfile(tmpdir = dirname(input), fileext = ".html")
-   inputLines <- readLines(con = input, warn = FALSE)
-
-   # write all the lines from the input except the DOCTYPE declaration, which pandoc will not treat
-   # as HTML (starting in pandoc 2)
-   writeLines(text = inputLines[!grepl("<!DOCTYPE", inputLines, fixed = TRUE)],
-              con  = inputFile)
-
-   # ensure output file exists and make its path absolute
+   
+   # ensure output file exists and make it's path absolute
    if (!file.exists(output))
       file.create(output)
    output <- normalizePath(output)
    
-   # convert from markdown to html to get base64 encoding. note there is no markdown in the source
-   # document but we still need to do this "conversion" to get the base64 encoding; we also don't
-   # want to convert from HTML since that will cause pandoc to convert only the <body>
-   args <- c(inputFile)
+   # create a simple body-only template
+   template <- tempfile(fileext = ".html")
+   writeLines("$body$", template)
+   
+   # convert from markdown to html to get base64 encoding
+   # (note there is no markdown in the source document but
+   # we still need to do this "conversion" to get the
+   # base64 encoding)
+   args <- c(input)
    args <- c(args, "--from", "markdown_strict")
    args <- c(args, "--output", output)
-
-   # define a title for the document. this value is not actually consumed by the template, but
-   # pandoc requires it in metadata when converting to HTML, so supply a dummy value to keep the
-   # output clean.
-   args <- c(args, "--metadata", "title:RStudio")
    
    # set stack size
    stack_size <- getOption("pandoc.stack.size", default = "512m")
@@ -405,7 +331,7 @@
    # setwd temporarily
    wd <- getwd()
    on.exit(setwd(wd), add = TRUE)
-   setwd(dirname(inputFile))
+   setwd(dirname(input))
    
    # execute it
    result <- system(command)
@@ -418,106 +344,4 @@
    invisible(output)
 })
 
-# create an environment to hold original versions of S3 functions we have overridden
-assign(".rs.S3Originals", new.env(parent = emptyenv()), envir = .rs.toolsEnv())
-
-# create an environment to hold current S3 overrides
-assign(".rs.S3Overrides", new.env(parent = emptyenv()), envir = .rs.toolsEnv())
-
-if (getRversion() < "3.5") {
-   # prior to R 3.5, we can override S3 methods just by installing the override function into the
-   # tools:rstudio namespace, which is on the search path
-   .rs.addFunction("addS3Override", function(name, method) {
-      assign(name, method, envir = .rs.toolsEnv())
-   })
-
-   .rs.addFunction("removeS3Override", function(name) {
-      if (exists(name, envir = .rs.toolsEnv(), inherits = FALSE)) {
-         rm(list = name, envir = .rs.toolsEnv(), inherits = FALSE)
-      }
-   })
-
-   .rs.addFunction("reattachS3Overrides", function() {
-      # S3 methods on the search path maintain precedence
-   })
-} else {
-   # after R 3.5, S3 methods are not discovered on the search path, so we resort to injecting our
-   # overrides directly into the base namespace's S3 methods table
-   .rs.addFunction("addS3Override", function(name, method) {
-      # get a reference to the table of S3 methods stored in the base namespace
-      table <- .BaseNamespaceEnv[[".__S3MethodsTable__."]]
-
-      # cache old dispatch table entry if it exists
-      if (exists(name, envir = table)) {
-         assign(name, get(name, envir = table), envir = .rs.S3Originals)
-      }
-
-      # add a flag indicating that this method belongs to us
-      attr(method, ".rs.S3Override") <- TRUE
-
-      # ... and inject our own entry
-      assign(name, method, envir = table)
-
-      # make a copy in our override table so we can restore when overwritten by e.g. an attached
-      # package
-      assign(name, method, envir = .rs.S3Overrides)
-
-      invisible(NULL)
-   })
-
-   .rs.addFunction("removeS3Override", function(name) {
-      table <- .BaseNamespaceEnv[[".__S3MethodsTable__."]]
-
-      # see if there's an override to remove; if not, no work to do
-      if (!exists(name, envir = table))
-         return(invisible(NULL))
-      
-      # see if the copy that exists in the methods table is one that we put there.
-      if (!isTRUE(attr(get(name, envir = table), ".rs.S3Override", exact = TRUE)))
-      {
-         # it isn't, so don't touch it. we do this so that changes to the S3 dispatch table that
-         # have occurred since the call to .rs.addS3Override are persisted
-         return(invisible(NULL))
-      }
-
-      # see if we have a copy to restore
-      if (exists(name, envir = .rs.S3Originals))
-      {
-         # we do, so overwrite with our copy
-         assign(name, get(name, envir = .rs.S3Originals), envir = table)
-      }
-      else
-      {
-         # no copy to restore, so just remove from the dispatch table
-         rm(list = name, envir = table)
-      }
-
-      # remove from our override table if present
-      if (exists(name, envir = .rs.S3Overrides))
-         rm(list = name, envir = .rs.S3Overrides)
-
-      invisible(NULL)
-   })
-
-   # recovers from changes made to the S3 method dispatch table during e.g. package load
-   .rs.addFunction("reattachS3Overrides", function() {
-      # get a list of all of the methods that are currently overridden
-      names <- ls(envir = .rs.S3Overrides)
-      table <- .BaseNamespaceEnv[[".__S3MethodsTable__."]]
-      for (name in names) {
-         if (exists(name, envir = table)) {
-            # retrieve reference to method
-            method = get(name, envir = table)
-
-            # if we didn't put the method there, we've been replaced; reattach our own method. 
-            if (!isTRUE(attr(get(name, envir = table), ".rs.S3Override", exact = TRUE)))
-               .rs.addS3Override(name, get(name, envir = .rs.S3Overrides))
-         }
-      }
-   })
-}
-
-.rs.addFunction("sessionModulePath", function() {
-   .Call("rs_sessionModulePath", PACKAGE = "(embedding)")
-})
 

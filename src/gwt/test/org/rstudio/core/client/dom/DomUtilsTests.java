@@ -1,7 +1,7 @@
 /*
  * DomUtilsTests.java
  *
- * Copyright (C) 2009-17 by RStudio, PBC
+ * Copyright (C) 2009-17 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -49,18 +49,5 @@ public class DomUtilsTests extends GWTTestCase
       int trimmed = DomUtils.trimLines(pre, 2);
       Assert.assertEquals("Line3\n", pre.getInnerText());
       Assert.assertEquals(trimmed, 2);
-   }
-   
-   public void testMakeAbsoluteUrl()
-   {
-      // test prefixing relative URLs
-      String url1 = "path/to/file";
-      String absolute1 = DomUtils.makeAbsoluteUrl(url1);
-      Assert.assertEquals(absolute1.substring(0, 4), "http");
-      
-      // already-absolute URLs should be untouched
-      String url2 = "https://hostname:port/endpoint?query=yes";
-      String absolute2 = DomUtils.makeAbsoluteUrl(url2);
-      Assert.assertEquals(url2, absolute2);
    }
 }

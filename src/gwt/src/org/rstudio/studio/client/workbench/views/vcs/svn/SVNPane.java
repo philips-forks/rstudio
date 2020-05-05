@@ -1,7 +1,7 @@
 /*
  * SVNPane.java
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -21,7 +21,6 @@ import com.google.inject.Inject;
 import org.rstudio.core.client.resources.ImageResource2x;
 import org.rstudio.core.client.widget.Toolbar;
 import org.rstudio.core.client.widget.ToolbarButton;
-import org.rstudio.core.client.widget.ToolbarMenuButton;
 import org.rstudio.core.client.widget.ToolbarPopupMenu;
 import org.rstudio.studio.client.common.icons.StandardIcons;
 import org.rstudio.studio.client.common.vcs.StatusAndPath;
@@ -59,7 +58,7 @@ public class SVNPane extends WorkbenchPane implements Display
    @Override
    protected Toolbar createMainToolbar()
    {
-      Toolbar toolbar = new Toolbar("SVN Tab");
+      Toolbar toolbar = new Toolbar();
 
       toolbar.addLeftWidget(commands_.vcsDiff().createToolbarButton());
       toolbar.addLeftSeparator();
@@ -85,9 +84,8 @@ public class SVNPane extends WorkbenchPane implements Display
       moreMenu.addSeparator();
       moreMenu.addItem(commands_.showShellDialog().createMenuItem(false));
 
-      toolbar.addLeftWidget(new ToolbarMenuButton(
+      toolbar.addLeftWidget(new ToolbarButton(
           "More",
-          ToolbarButton.NoTitle,
           new ImageResource2x(StandardIcons.INSTANCE.more_actions2x()),
           moreMenu));
 

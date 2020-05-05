@@ -1,7 +1,7 @@
 /*
  * RSConnectAccountWizard.java
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-15 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -16,7 +16,6 @@ package org.rstudio.studio.client.rsconnect.ui;
 
 import java.util.ArrayList;
 
-import com.google.gwt.aria.client.Roles;
 import org.rstudio.core.client.resources.ImageResource2x;
 import org.rstudio.core.client.widget.OperationWithInput;
 import org.rstudio.core.client.widget.ProgressOperationWithInput;
@@ -38,7 +37,7 @@ public class RSConnectAccountWizard
          boolean showCloudPage,
          ProgressOperationWithInput<NewRSConnectAccountResult> operation)
    {
-      super("Connect Account", "Connect Account", Roles.getDialogRole(),
+      super("Connect Account", "Connect Account",
             new NewRSConnectAccountInput(server, display), 
             forFirstAccount ? 
                createIntroPage(showCloudPage) : 
@@ -123,5 +122,5 @@ public class RSConnectAccountWizard
    public static final String SERVICE_NAME =  "RStudio Connect";
    public static final String SERVICE_DESCRIPTION = 
      "RStudio Connect is a server product from RStudio " +
-     "for secure sharing of applications, reports, plots, and APIs.";
+     "for secure sharing of applications, reports, and plots.";
 }

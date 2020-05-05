@@ -1,7 +1,7 @@
 /*
  * VCSTab.java
  *
- * Copyright (C) 2009-12 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -45,8 +45,6 @@ public class VCSTab extends DelayLoadWorkbenchTab<VCSPresenter>
       public abstract void onVcsShowHistory();
       @Handler
       public abstract void onVcsPull();
-      @Handler
-      public abstract void onVcsPullRebase();
       @Handler
       public abstract void onVcsPush();
       @Handler

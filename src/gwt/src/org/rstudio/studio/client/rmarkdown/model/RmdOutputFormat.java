@@ -1,7 +1,7 @@
 /*
  * RmdOutputFormat.java
  *
- * Copyright (C) 2009-14 by RStudio, PBC
+ * Copyright (C) 2009-14 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -37,7 +37,6 @@ public class RmdOutputFormat extends JavaScriptObject
    public final static String OUTPUT_REVEALJS_PRESENTATION = "revealjs_presentation";
    public final static String OUTPUT_IOSLIDES_PRESENTATION = "ioslides_presentation";
    public final static String OUTPUT_SLIDY_PRESENTATION = "slidy_presentation";
-   public final static String OUTPUT_PPT_PRESENTATION = "powerpoint_presentation";
    public final static String OUTPUT_PRESENTATION_SUFFIX = "_presentation";
    public final static String OUTPUT_DASHBOARD_SUFFIX = "_dashboard";
    public final static String OUTPUT_WORD_DOCUMENT = "word_document";

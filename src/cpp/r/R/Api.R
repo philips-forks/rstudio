@@ -84,12 +84,19 @@
 
 .rs.addApiFunction("versionInfo", function() {
   info <- list()
-  info$citation <- .Call("rs_rstudioCitation", PACKAGE = "(embedding)")
-  info$mode <- .Call("rs_rstudioProgramMode", PACKAGE = "(embedding)")
-  info$edition <- .Call("rs_rstudioEdition", PACKAGE = "(embedding)")
-  info$version <- .Call("rs_rstudioVersion", PACKAGE = "(embedding)")
-  info$version <- package_version(info$version)
-  info$release_name <- .Call("rs_rstudioReleaseName", PACKAGE = "(embedding)")
+  info$citation <- .Call(getNativeSymbolInfo("rs_rstudioCitation",
+                                             PACKAGE=""))
+
+  info$mode <- .Call(getNativeSymbolInfo("rs_rstudioProgramMode",
+                                         PACKAGE=""))
+
+  info$edition <- .Call(getNativeSymbolInfo("rs_rstudioEdition",
+                                            PACKAGE=""))
+
+  info$version <- package_version(
+    .Call(getNativeSymbolInfo("rs_rstudioVersion", PACKAGE=""))
+  )
+
   info
 })
 
@@ -395,8 +402,7 @@
       code = .rs.scalar(code),
       echo = .rs.scalar(as.logical(echo)),
       execute = .rs.scalar(as.logical(execute)),
-      focus = .rs.scalar(as.logical(focus)),
-      language = "R"
+      focus = .rs.scalar(as.logical(focus))
    )
 
    .rs.enqueClientEvent("send_to_console", data)
@@ -417,19 +423,14 @@
 })
 
 .rs.addApiFunction("showDialog", function(title, message, url = "") {
-   
-   # ensure URL is a string
-   if (is.null(url) || is.na(url))
-      url <- ""
-   
    .Call("rs_showDialog",
       title = title,
       message = message,
       dialogIcon = .rs.dialogIcon()$info,
       prompt = FALSE,
-      promptDefault = "",
-      ok = "OK",
-      cancel = "Cancel",
+      promptDefault = NULL,
+      ok = NULL,
+      cancel = NULL,
       url = url)
 })
 
@@ -442,31 +443,18 @@
 })
 
 .rs.addApiFunction("showPrompt", function(title, message, default = "") {
-   
-   # ensure default is a string
-   if (is.null(default) || is.na(default))
-      default <- ""
-   
    .Call("rs_showDialog",
       title = title,
       message = message,
       dialogIcon = .rs.dialogIcon()$info,
       prompt = TRUE,
       promptDefault = default,
-      ok = "OK",
-      cancel = "Cancel",
-      url = "")
+      ok = NULL,
+      cancel = NULL,
+      url = NULL)
 })
 
-.rs.addApiFunction("showQuestion", function(title, message, ok = "OK", cancel = "Cancel") {
-   
-   # fix up ok, cancel
-   if (is.null(ok) || is.na(ok))
-      ok <- "OK"
-   
-   if (is.null(cancel) || is.na(cancel))
-      cancel <- "Cancel"
-   
+.rs.addApiFunction("showQuestion", function(title, message, ok = "", cancel = "") {
    .Call("rs_showDialog",
       title = title,
       message = message,
@@ -479,20 +467,11 @@
 })
 
 .rs.addApiFunction("writePreference", function(name, value) {
-  .rs.writeApiPref(name, value)
+  .rs.writeUiPref(paste("rstudioapi", name, sep = "_"), value)
 })
 
 .rs.addApiFunction("readPreference", function(name, default = NULL) {
-  value <- .rs.readApiPref(name)
-  if (is.null(value)) default else value
-})
-
-.rs.addApiFunction("writeRStudioPreference", function(name, value) {
-  .rs.writeUiPref(name, value)
-})
-
-.rs.addApiFunction("readRStudioPreference", function(name, default = NULL) {
-  value <- .rs.readUiPref(name)
+  value <- .rs.readUiPref(paste("rstudioapi", name, sep = "_"))
   if (is.null(value)) default else value
 })
 
@@ -505,56 +484,15 @@
 })
 
 .rs.addApiFunction("documentSave", function(id = NULL) {
-   # If no ID is specified, try to save the active editor.
    if (is.null(id)) {
-      context <- .rs.api.getSourceEditorContext()
-      if (!is.null(context)) {
-         id <- context$id
-      }
-   }
-   if (is.null(id)) {
-      # No ID specified and no document open; succeed without meaning
-      return(TRUE)
+      context <- .rs.api.getActiveDocumentContext()
+      id <- context$id
    }
    .Call("rs_requestDocumentSave", id, PACKAGE = "(embedding)")
 })
 
 .rs.addApiFunction("documentSaveAll", function() {
    .Call("rs_requestDocumentSave", NULL, PACKAGE = "(embedding)")
-})
-
-.rs.addApiFunction("documentNew", function(type, code, row = 0, column= 0, execute = FALSE) {
-   type <- switch(
-      type,
-      rmarkdown = "r_markdown",
-      sql = "sql",
-      "r_script"
-   )
-
-   .rs.enqueClientEvent("new_document_with_code", list(
-      type = .rs.scalar(type),
-      code = .rs.scalar(code),
-      row = .rs.scalar(row),
-      column = .rs.scalar(column),
-      execute = .rs.scalar(execute)
-   ))
-
-   invisible(NULL)
-})
-
-.rs.addApiFunction("documentClose", function(id = NULL, save = TRUE) {
-   # If no ID is specified, try to close the active editor.
-   if (is.null(id)) {
-      context <- .rs.api.getSourceEditorContext()
-      if (!is.null(context)) {
-         id <- context$id
-      }
-   }
-   if (is.null(id)) {
-      # No ID specified and no document open; succeed without meaning
-      return(TRUE)
-   }
-   .Call("rs_requestDocumentClose", id, save, PACKAGE = "(embedding)")
 })
 
 .rs.addApiFunction("getConsoleHasColor", function(name) {
@@ -581,25 +519,17 @@
   invisible(NULL)
 })
 
-.rs.addApiFunction("terminalCreate", function(caption = NULL, show = TRUE, shellType = NULL) {
-   if (!is.null(caption) && (!is.character(caption) || (length(caption) != 1)))
-      stop("'caption' must be NULL or a character vector of length one")
+.rs.addApiFunction("terminalCreate", function(id = "", show = TRUE) {
+   if (is.null(id))
+      id <- ""
+
+   if (!is.character(id))
+      stop("'id' must be NULL or a character vector of length one")
 
    if (is.null(show) || !is.logical(show))
       stop("'show' must be a logical vector")
 
-   if (!is.null(shellType) && (!is.character(shellType) || (length(shellType) != 1)))
-      stop("'shellType' must be NULL or a character vector of length one")
-
-   validShellType = TRUE
-   if (!is.null(shellType)) {
-      validShellType <- tolower(shellType) %in% c("default", "win-cmd", 
-            "win-ps", "win-git-bash", "win-wsl-bash", "ps-core", "custom")
-   }      
-   if (!validShellType)
-      stop("'shellType' must be NULL, or one of 'default', 'win-cmd', 'win-ps', 'win-git-bash', 'win-wsl-bash', 'ps-core', 'bash', 'zsh', or 'custom'.") 
-
-   .Call("rs_terminalCreate", caption, show, shellType)
+   .Call("rs_terminalCreate", id, show)
 })
 
 .rs.addApiFunction("terminalBusy", function(id) {
@@ -628,7 +558,10 @@
 })
 
 .rs.addApiFunction("terminalActivate", function(id = NULL, show = TRUE) {
-   if (!is.null(id) && (!is.character(id) || (length(id) != 1)))
+   if (is.null(id))
+      id <- ""
+
+   if (!is.character(id) || (length(id) != 1))
       stop("'id' must be NULL or a character vector of length one")
 
    if (!is.logical(show))
@@ -730,122 +663,46 @@ options(terminal.manager = list(terminalActivate = .rs.api.terminalActivate,
 })
 
 .rs.addApiFunction("getThemeInfo", function() {
-   
-   # read theme preferences
-   global <- .rs.readUiPref("global_theme")
-
-   theme <- .rs.readUserState("theme")
-   if (is.null(theme))
-      theme <- list("name" = "Textmate (default)", "isDark" = FALSE)
+   editor <- .Call("rs_readUiPref", "theme")
+   global <- .Call("rs_readUiPref", "flat_theme")
 
    global <- switch(
-      if (is.null(global)) "" else global,
-      alternate = "Sky",
-      default = "Modern",
-      "Classic"
-   )
+    if (is.null(global)) "" else global,
+    alternate = "Sky",
+    default = "Modern",
+    "Classic"
+  )
 
-   # default/fallback theme colors 
-   foreground <- "#000000";
-   background <- "#FFFFFF";
+  dark <- grepl(
+    paste(
+      "ambiance",
+      "chaos",
+      "clouds midnight",
+      "cobalt",
+      "idle fingers",
+      "kr theme",
+      "material",
+      "merbivore soft",
+      "merbivore",
+      "mono industrial",
+      "monokai",
+      "pastel on dark",
+      "solarized dark",
+      "tomorrow night blue",
+      "tomorrow night bright",
+      "tomorrow night 80s",
+      "tomorrow night",
+      "twilight",
+      "vibrant ink",
+      sep = "|"
+    ),
+    editor,
+    ignore.case = TRUE)
+  dark <- !identical(global, "Classic") && dark
 
-   # attempt to read colors from browser
-   colors <- .Call("rs_getThemeColors", PACKAGE = "(embedding)")
-   if (!is.null(colors)) {
-      foreground <- colors$foreground
-      background <- colors$background
-   }
-
-   list(
-      editor = theme$name,
-      global = global,
-      dark = theme$isDark,
-      foreground = foreground,
-      background = background
-   )
-})
-
-.rs.addApiFunction("askForSecret", function(name, title, prompt) {
-   .rs.askForSecret(name, title, prompt)
-})
-
-.rs.addApiFunction("previewSql", function(conn, statement, ...) {
-   .rs.previewSql(conn, statement, ...)
-})
-
-.rs.addApiFunction("buildToolsCheck", function() {
-   .Call("rs_canBuildCpp", PACKAGE = "(embedding)")
-})
-
-.rs.addApiFunction("buildToolsInstall", function(action) {
-   
-   # skip prompt if requested explicitly
-   if (is.null(action) || !nzchar(action))
-      return(.Call("rs_installBuildTools", PACKAGE = "(embedding)"))
-   
-   # otherwise, call prompting version
-   .rs.installBuildTools(action)
-})
-
-.rs.addApiFunction("buildToolsExec", function(expr) {
-   .rs.withBuildTools(expr)
-})
-
-.rs.addApiFunction("dictionariesPath", function() {
-   .Call("rs_dictionariesPath", PACKAGE = "(embedding)")
-})
-
-.rs.addApiFunction("userDictionariesPath", function() {
-   .Call("rs_userDictionariesPath", PACKAGE = "(embedding)")
-})
-
-# translate a local URL into an externally accessible URL on RStudio Server
-.rs.addApiFunction("translateLocalUrl", function(url, absolute = FALSE) {
-  .Call("rs_translateLocalUrl", url, absolute, PACKAGE = "(embedding)")
-})
-
-# execute an arbitrary RStudio application command (AppCommand)
-.rs.addApiFunction("executeCommand", function(commandId, quiet = FALSE) {
-  .Call("rs_executeAppCommand", commandId, quiet, PACKAGE = "(embedding)")
-})
-
-# return a list of all the R packages RStudio depends on in in some way
-.rs.addApiFunction("getPackageDependencies", function() {
-  .Call("rs_packageDependencies", PACKAGE = "(embedding)")
-})
-
-# highlight UI elements within the IDE
-.rs.addApiFunction("highlightUi", function(data = list()) {
-   .Call("rs_highlightUi", data, PACKAGE = "(embedding)")
-})
-
-# return display username (user identity)
-.rs.addApiFunction("userIdentity", function() {
-   .Call("rs_userIdentity", PACKAGE = "(embedding)")
-})
-
-# return system username 
-.rs.addApiFunction("systemUsername", function() {
-   .Call("rs_systemUsername", PACKAGE = "(embedding)")
-})
-
-# Tutorial ----
-
-# invoked by rstudioapi to instruct RStudio to open a particular
-# URL in the Tutorial pane. should be considered an internal contract
-# between the RStudio + rstudioapi packages rather than an official
-# user-facing API
-.rs.addApiFunction("tutorialLaunchBrowser", function(url) {
-   .rs.tutorial.launchBrowser(url)
-})
-
-# given a tutorial 'name' from package 'package', run that tutorial
-# and show the application in the Tutorial pane
-.rs.addApiFunction("tutorialRun", function(name, package, shiny_args = NULL) {
-   .rs.tutorial.runTutorial(name, package, shiny_args)
-})
-
-# stop a running tutorial
-.rs.addApiFunction("tutorialStop", function(name, package) {
-   .rs.tutorial.stopTutorial(name, package)
+  list(
+    editor = editor,
+    global = global,
+    dark = dark
+  )
 })

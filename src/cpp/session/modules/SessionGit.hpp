@@ -1,7 +1,7 @@
 /*
  * SessionGit.hpp
  *
- * Copyright (C) 2009-12 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -18,9 +18,9 @@
 
 #include <map>
 
-#include <shared_core/Error.hpp>
-#include <shared_core/FilePath.hpp>
-#include <shared_core/json/Json.hpp>
+#include <core/Error.hpp>
+#include <core/FilePath.hpp>
+#include <core/json/Json.hpp>
 
 #include "vcs/SessionVCSCore.hpp"
 
@@ -73,7 +73,7 @@ core::Error status(const core::FilePath& dir,
 core::Error fileStatus(const core::FilePath& filePath,
                        source_control::VCSStatus* pStatus);
 core::Error statusToJson(const core::FilePath& path,
-                         const source_control::VCSStatus& vcsStatus,
+                         const source_control::VCSStatus& status,
                          core::json::Object* pObject);
 
 core::Error clone(const std::string& url,

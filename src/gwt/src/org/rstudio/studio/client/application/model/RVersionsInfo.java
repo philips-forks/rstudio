@@ -1,7 +1,7 @@
 /*
  * RVersionsInfo.java
  *
- * Copyright (C) 2009-13 by RStudio, PBC
+ * Copyright (C) 2009-13 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -24,10 +24,6 @@ public class RVersionsInfo extends JavaScriptObject
    public final native String getRVersion() /*-{
       return this.r_version;
    }-*/;
-   
-   public final native String getRVersionLabel() /*-{
-      return this.r_version_label;
-   }-*/;
 
    public final native String getRVersionHome() /*-{
       return this.r_home_dir;
@@ -42,10 +38,6 @@ public class RVersionsInfo extends JavaScriptObject
    public final native String getDefaultRVersionHome() /*-{
       return this.default_r_version_home;
    }-*/;
-
-   public final native String getDefaultRVersionLabel() /*-{
-      return this.default_r_version_label;
-   }-*/;
    
    public final native boolean getRestoreProjectRVersion() /*-{
       return this.restore_project_r_version;
@@ -53,8 +45,7 @@ public class RVersionsInfo extends JavaScriptObject
    
    public final boolean isMultiVersion()
    {
-      JsArray<RVersionSpec> versions = getAvailableRVersions();
-      return versions != null && versions.length() > 0;
+      return getAvailableRVersions() != null;
    }
    
    public final native JsArray<RVersionSpec> getAvailableRVersions() /*-{

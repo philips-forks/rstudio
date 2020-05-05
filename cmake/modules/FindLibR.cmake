@@ -1,7 +1,7 @@
 #
 # FindLibR.cmake
 #
-# Copyright (C) 2009-19 by RStudio, PBC
+# Copyright (C) 2009-11 by RStudio, Inc.
 #
 # This program is licensed to you under the terms of version 3 of the
 # GNU Affero General Public License. This program is distributed WITHOUT
@@ -21,24 +21,11 @@
 if(APPLE)
 
    find_library(LIBR_LIBRARIES R)
-   
-   if(LIBR_LIBRARIES MATCHES ".*\\.framework")
+   if(LIBR_LIBRARIES)
       set(LIBR_HOME "${LIBR_LIBRARIES}/Resources" CACHE PATH "R home directory")
       set(LIBR_INCLUDE_DIRS "${LIBR_HOME}/include" CACHE PATH "R include directory")
       set(LIBR_DOC_DIR "${LIBR_HOME}/doc" CACHE PATH "R doc directory")
-      set(LIBR_EXECUTABLE "${LIBR_HOME}/bin/R" CACHE PATH "R executable")
-   else()
-      get_filename_component(_LIBR_LIBRARIES "${LIBR_LIBRARIES}" REALPATH)
-      get_filename_component(_LIBR_LIBRARIES_DIR "${_LIBR_LIBRARIES}" PATH)
-      set(LIBR_EXECUTABLE "${_LIBR_LIBRARIES_DIR}/../bin/R")
-      execute_process(
-         COMMAND ${LIBR_EXECUTABLE} "--slave" "--vanilla" "-e" "cat(R.home())"
-                   OUTPUT_VARIABLE LIBR_HOME
-      )
-      set(LIBR_HOME ${LIBR_HOME} CACHE PATH "R home directory")
-      set(LIBR_INCLUDE_DIRS "${LIBR_HOME}/include" CACHE PATH "R include directory")
-      set(LIBR_DOC_DIR "${LIBR_HOME}/doc" CACHE PATH "R doc directory")
-      set(LIBR_LIB_DIR "${LIBR_HOME}/lib" CACHE PATH "R lib directory")
+      set(LIBR_EXECUTABLE "${LIBR_HOME}/R" CACHE PATH "R executable")
    endif()
 
 # detection for UNIX & Win32
@@ -116,39 +103,11 @@ else()
       set(LIBR_INCLUDE_DIRS "${LIBR_HOME}/include" CACHE PATH "R include directory")
       set(LIBR_DOC_DIR "${LIBR_HOME}/doc" CACHE PATH "R doc directory")
 
-      # set library hint path based on whether we are doing a special session 32 build
-      if(LIBR_FIND_WINDOWS_32BIT)
-         set(LIBR_ARCH "i386")
-         set(LIBRARY_ARCH_HINT_PATH "${LIBR_HOME}/bin/i386")
-      else()
-         set(LIBR_ARCH "x64")
+      # set library hint path based on whether  we are doing a special session 64 build
+      if(LIBR_FIND_WINDOWS_64BIT)
          set(LIBRARY_ARCH_HINT_PATH "${LIBR_HOME}/bin/x64")
-      endif()
-
-      # call dll2lib.R to ensure export files are generated
-      execute_process(
-          
-         COMMAND
-            "${LIBR_HOME}/bin/${LIBR_ARCH}/Rscript.exe"
-            "dll2lib.R"
-            "${CMAKE_C_COMPILER}"
-            
-         WORKING_DIRECTORY
-            "${CMAKE_CURRENT_SOURCE_DIR}/tools"
-         
-         OUTPUT_VARIABLE
-            LIBR_DLL2LIB_STDOUT
-
-         ERROR_VARIABLE
-            LIBR_DLL2LIB_STDERR
-         
-         RESULT_VARIABLE
-            LIBR_DLL2LIB_RESULT)
-
-      if(NOT LIBR_DLL2LIB_RESULT EQUAL 0)
-         message(STATUS "${LIBR_DLL2LIB_STDOUT}")
-         message(STATUS "${LIBR_DLL2LIB_STDERR}")
-         message(FATAL_ERROR "Failed to generate .lib files for R DLLs!")
+      else()
+         set(LIBRARY_ARCH_HINT_PATH "${LIBR_HOME}/bin/i386")
       endif()
 
    endif()
@@ -214,7 +173,6 @@ find_package_handle_standard_args(LibR DEFAULT_MSG
 
 if(LIBR_FOUND)
    message(STATUS "Found R: ${LIBR_HOME}")
-   get_filename_component(LIBR_BIN_DIR "${LIBR_EXECUTABLE}" PATH CACHE)
 endif()
 
 # mark low-level variables from FIND_* calls as advanced

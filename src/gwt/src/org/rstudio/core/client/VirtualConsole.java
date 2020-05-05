@@ -1,7 +1,7 @@
 /*
  * VirtualConsole.java
  *
- * Copyright (C) 2009-20 by RStudio, PBC
+ * Copyright (C) 2009-17 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -23,18 +23,16 @@ import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.TreeSet;
 
-import com.google.inject.Provider;
-import com.google.inject.assistedinject.Assisted;
 import org.rstudio.core.client.regex.Match;
 import org.rstudio.core.client.regex.Pattern;
-import org.rstudio.studio.client.workbench.prefs.model.UserPrefs;
+import org.rstudio.studio.client.RStudioGinjector;
+import org.rstudio.studio.client.workbench.prefs.model.UIPrefs;
 
 import com.google.gwt.core.client.JsArrayString;
 import com.google.gwt.dom.client.Document;
 import com.google.gwt.dom.client.Element;
 import com.google.gwt.dom.client.SpanElement;
 import com.google.inject.Inject;
-import org.rstudio.studio.client.workbench.prefs.model.UserPrefsSubset;
 
 /**
  * Simulates a console that behaves like the R console, specifically with
@@ -42,48 +40,49 @@ import org.rstudio.studio.client.workbench.prefs.model.UserPrefsSubset;
  */
 public class VirtualConsole
 {
-   public interface Preferences
+   // use preference to determine ANSI color behavior
+   private final static int ANSI_COLOR_USE_PREF = -1;
+
+   // don't do any processing of ANSI escape codes
+   public final static int ANSI_COLOR_OFF = 0;
+   
+   // convert ANSI color escape codes into css styles
+   public final static int ANSI_COLOR_ON = 1;
+   
+   // strip out ANSI escape sequences but don't apply styles
+   public final static int ANSI_COLOR_STRIP = 2;
+  
+   public VirtualConsole()
    {
-      int truncateLongLinesInConsoleHistory();
-      String consoleAnsiMode();
-      boolean screenReaderEnabled();
+      this(null);
    }
 
-   public static class PreferencesImpl extends UserPrefsSubset
-                                       implements Preferences
+   public VirtualConsole(Element parent)
    {
-      @Inject
-      public PreferencesImpl(Provider<UserPrefs> pUserPrefs)
-      {
-         super(pUserPrefs);
-      }
+      this(parent, ANSI_COLOR_USE_PREF);
+   }   
 
-      @Override
-      public int truncateLongLinesInConsoleHistory()
-      {
-         return getUserPrefs().consoleLineLengthLimit().getGlobalValue();
-      }
-
-      @Override
-      public String consoleAnsiMode()
-      {
-         return getUserPrefs().ansiConsoleMode().getValue();
-      }
-
-      @Override
-      public boolean screenReaderEnabled()
-      {
-         return getUserPrefs().getScreenReaderEnabled();
-      }
-   }
-
-   @Inject
-   public VirtualConsole(@Assisted Element parent, final Preferences prefs)
+   /**
+    * VirtualConsole constructor
+    * @param parent parent element
+    * @param ansiColorMode ANSI_COLOR_OFF: don't process ANSI escapes,
+    * ANSI_COLOR_ON: translate ANSI escapes into css styles,
+    * ANSI_COLOR_STRIP: strip out ANSI escape sequences but don't apply styles, 
+    * ANSI_COLOR_USE_PREF: determine behavior from preference
+    */
+   public VirtualConsole(Element parent, int ansiColorMode)
    {
-      prefs_ = prefs;
+      RStudioGinjector.INSTANCE.injectMembers(this);
       parent_ = parent;
+      ansiColorMode_ = ansiColorMode;
    }
     
+   @Inject
+   private void initialize(UIPrefs prefs)
+   {
+      prefs_ = prefs;
+   }
+   
    public void clear()
    {
       formfeed();
@@ -129,43 +128,13 @@ public class VirtualConsole
    {
       partialAnsiCode_ = null;
    }
-
-   /**
-    * Debugging aid
-    * @param entry
-    * @return diagnostic string summarizing the Entry
-    */
-   private String debugDumpClassEntry(Entry<Integer, ClassRange> entry)
-   {
-      if (entry == null)
-         return("[null]");
-      else
-         return("[" + entry.getKey() + "]=" + entry.getValue().debugDump());
-   }
-
-   /**
-    * Debugging aid
-    */
-   @SuppressWarnings("unused")
-   private void debugDumpClassMap(String name, Map<Integer, ClassRange> map)
-   {
-      Debug.logToConsole("Dumping " + name);
-      if (map == null)
-         Debug.logToConsole("null");
-      else
-         for (Map.Entry<Integer, ClassRange> entry : map.entrySet())
-         {
-            Debug.logToConsole(name + debugDumpClassEntry(entry));
-         }
-      Debug.logToConsole("Done dumping " + name);
-   }
    
    @Override
    public String toString()
    {
       String output = output_.toString();
       
-      int maxLength = prefs_.truncateLongLinesInConsoleHistory();
+      int maxLength = prefs_.truncateLongLinesInConsoleHistory().getGlobalValue();
       if (maxLength == 0)
          return output;
       
@@ -179,13 +148,21 @@ public class VirtualConsole
          else if (string.length() > maxLength)
             splat.set(i, string.substring(0, maxLength));
       }
-
-      return splat.join("\n");
+      
+      String joined = splat.join("\n");
+      return joined;
    }
    
    public int getLength()
    {
       return output_.length();
+   }
+   
+   public static String consolify(String text)
+   {
+      VirtualConsole console = new VirtualConsole();
+      console.submit(text);
+      return console.toString();
    }
    
    public Element getParent()
@@ -205,7 +182,7 @@ public class VirtualConsole
    {
       Entry <Integer, ClassRange> last = class_.lastEntry();
       ClassRange range = last.getValue();
-      if (!forceNewRange && StringUtil.equals(range.clazz, clazz))
+      if (!forceNewRange && range.clazz == clazz)
       {
          // just append to the existing output stream
          range.appendRight(text, 0);
@@ -239,9 +216,9 @@ public class VirtualConsole
          view = class_.subMap(left.getKey(), true, right.getKey(), true);
       else if (left == null && right != null)
          view = class_.tailMap(right.getKey(), true);
-      else if (left != null)
+      else if (left != null && right == null)
          view = class_.headMap(left.getKey(), true);
-
+      
       // if no overlapping ranges exist, we can just create a new one
       if (view == null)
       {
@@ -254,18 +231,16 @@ public class VirtualConsole
       // accumulators for actions to take after we finish iterating over the
       // overlapping ranges (we don't do this in place to avoid invalidating
       // iterators)
-      Set<Integer> deletions = new TreeSet<>();
-      List<ClassRange> insertions = new ArrayList<>();
-      Map<Integer, Integer> moves = new TreeMap<>();
-
-      boolean haveInsertedRange = false;
+      Set<Integer> deletions = new TreeSet<Integer>();
+      List<ClassRange> insertions = new ArrayList<ClassRange>();
+      Map<Integer, Integer> moves = new TreeMap<Integer, Integer>();
 
       for (Entry<Integer, ClassRange> entry: view.entrySet())
       {
          ClassRange overlap = entry.getValue();
          int l = entry.getKey();
          int r = l + overlap.length;
-         boolean matches = StringUtil.equals(range.clazz, overlap.clazz);
+         boolean matches = range.clazz == overlap.clazz;
          if (start >= l && start < r && end >= r) 
          {
             // overlapping on the left side of the new range
@@ -281,12 +256,11 @@ public class VirtualConsole
                // reduce the original range and add ours
                overlap.trimRight(delta);
                insertions.add(range);
-               haveInsertedRange = true;
                if (parent_ != null)
                   parent_.insertAfter(range.element, overlap.element);
             }
          }
-         else if (start <= l && end <= r && end > l)
+         else if (start <= l && end <= r && end >= l)
          {
             // overlapping on the right side of the new range
             int delta = end - l;
@@ -294,31 +268,25 @@ public class VirtualConsole
             {
                // extend the original range
                overlap.appendLeft(range.text(), delta);
-
-               // If we previously inserted the new range (i.e. overlapped a prior
-               // range that had a different clazz) then undo that and use the one
-               // we found with the same clazz.
                range.clearText();
-               if (haveInsertedRange)
-               {
-                  insertions.remove(range);
-                  haveInsertedRange = false;
-               }
-
                moves.put(l, start);
             }
             else
             {
                // reduce the original range and add ours
+               boolean needTrimmed = overlap.length > delta;
                overlap.trimLeft(delta);
+               
+               insertions.add(range);
 
-               if (!range.text().isEmpty())
-                  insertions.add(range);
-
-               // move the shortened range to its new start position
-               moves.put(l, overlap.start);
-
-               if (parent_ != null && !range.text().isEmpty())
+               // If our new range is shorter than the existing one, need to 
+               // re-add the shortened range at its new start position 
+               // otherwise our new range stomps it and prevents any more 
+               // operations on it
+               if (needTrimmed)
+                  insertions.add(overlap);
+               
+               if (parent_ != null)
                   parent_.insertBefore(range.element, overlap.element);
               
             }
@@ -355,7 +323,8 @@ public class VirtualConsole
                ClassRange remainder = new ClassRange(
                      end,
                      overlap.clazz,
-                     text.substring((text.length() - (amountTrimmed - range.length))));
+                     text.substring((text.length() - (amountTrimmed - range.length)), 
+                                    text.length()));
                insertions.add(remainder);
                if (parent_ != null)
                   parent_.insertAfter(remainder.element, range.element);
@@ -368,14 +337,14 @@ public class VirtualConsole
       {
          class_.remove(key);
       }
-
+      
       for (Integer key: moves.keySet())
       {
          ClassRange moved = class_.get(key);
          class_.remove(key);
          class_.put(moves.get(key), moved);
       }
-
+      
       for (ClassRange val: insertions)
       {
          class_.put(val.start, val);
@@ -391,9 +360,6 @@ public class VirtualConsole
     */
    private void text(String text, String clazz, boolean forceNewRange)
    {
-      if (newText_ != null)
-         newText_.append(text);
-
       int start = cursor_;
       int end = cursor_ + text.length();
       
@@ -418,7 +384,7 @@ public class VirtualConsole
 
    public void submit(String data, String clazz)
    {
-      submit(data, clazz, false/*forceNewRange*/, false/*ariaLiveAnnounce*/);
+      submit(data, clazz, false/*forceNewRange*/);
    }
 
    /**
@@ -426,10 +392,9 @@ public class VirtualConsole
     * @param data text to output
     * @param clazz text style
     * @param forceNewRange force any output from this call to be in a new
-    * @param ariaLiveAnnounce include in aria-live output announcement
     * output range (span) even if style matches previous output
     */
-   public void submit(String data, String clazz, boolean forceNewRange, boolean ariaLiveAnnounce)
+   public void submit(String data, String clazz, boolean forceNewRange)
    {
       // Only capture new elements when dealing with error output, which
       // is only place that sets forceNewRange to true. This is just an 
@@ -437,9 +402,7 @@ public class VirtualConsole
       // output.
       captureNewElements_ = forceNewRange;
       newElements_.clear();
-
-      newText_ = ariaLiveAnnounce && prefs_.screenReaderEnabled() ? new StringBuilder() : null;
-
+      
       // If previous submit ended with an incomplete ANSI code, add new data
       // to the previous (unwritten) data so we can try again to recognize
       // ANSI code.
@@ -451,13 +414,14 @@ public class VirtualConsole
      
       String currentClazz = clazz;
 
-      String ansiColorMode = prefs_.consoleAnsiMode();
+      int ansiColorMode = (ansiColorMode_ == ANSI_COLOR_USE_PREF) ? 
+            prefs_.consoleAnsiMode().getValue() : ansiColorMode_;
 
       // If previously determined classes from ANSI codes are available,
       // combine them with input class so they are ready to use if
       // there is text to output before any other ANSI codes in the
       // data (or there are no more ANSI codes).
-      if (ansiColorMode == UserPrefs.ANSI_CONSOLE_MODE_ON && ansiCodeStyles_.inlineClazzes != null)
+      if (ansiColorMode == ANSI_COLOR_ON && ansiCodeStyles_.inlineClazzes != null)
       {
          if (clazz != null)
          {
@@ -469,7 +433,7 @@ public class VirtualConsole
          }
       }
 
-      Match match = (ansiColorMode == UserPrefs.ANSI_CONSOLE_MODE_OFF) ?
+      Match match = (ansiColorMode == ANSI_COLOR_OFF) ?
             CONTROL.match(data, 0) :
             AnsiCode.CONTROL_PATTERN.match(data, 0);
       if (match == null)
@@ -512,75 +476,38 @@ public class VirtualConsole
                break;
             case '\033':
             case '\233':
-               
-               // VirtualConsole only supports ANSI SGR codes (colors, font, etc).
-               // We want to identify and act on these codes, while discarding the codes
-               // we don't support. Tricky part is we might get codes split across
-               // submit calls.
-               
-               // match complete SGR codes
-               Match sgrMatch = AnsiCode.SGR_ESCAPE_PATTERN.match(data, pos);
-               if (sgrMatch == null)
+               Match ansiMatch = AnsiCode.ANSI_ESCAPE_PATTERN.match(data, pos);
+               if (ansiMatch == null || AnsiCode.partialSequence(ansiMatch.getValue()))
                {
-                  if (StringUtil.equals(data.substring(tail), "["))
-                  {
-                     // only have "[" at end, could be any ANSI code, so save remainder
-                     // of string to see if we can recognize it when more arrives
-                     partialAnsiCode_ = data.substring(pos);
-                     return;
-                  }
-                  
-                  // potentially an incomplete SGR code
-                  Match partialMatch = AnsiCode.SGR_PARTIAL_ESCAPE_PATTERN.match(data, pos);
-                  if (partialMatch != null)
-                  {
-                     // Might have an SGR ANSI code that was split across submit calls;
-                     // save remainder of string to see if we can recognize it
-                     // when more arrives
-                     partialAnsiCode_ = data.substring(pos);
-                     return;
-                  }
-                  
-                  // how about an unsupported ANSI code?
-                  Match ansiMatch = AnsiCode.ANSI_ESCAPE_PATTERN.match(data, pos);
-                  if (ansiMatch != null)
-                  {
-                     // discard it
-                     tail = pos + ansiMatch.getValue().length();
-                  }
-                  else
-                  {
-                     // nothing useful we can do, just throw away the ESC
-                     tail++;
-                  }
+                  // Might have an ANSI code that was split across submit calls;
+                  // save remainder of string to see if we can recognize it
+                  // when more arrives
+                  partialAnsiCode_ = data.substring(pos);
+                  return;
+               }
+               if (ansi_ == null)
+                  ansi_ = new AnsiCode();
+               ansiCodeStyles_ = ansi_.processCode(ansiMatch.getValue());
+               if (ansiColorMode == ANSI_COLOR_STRIP)
+               {
+                  currentClazz = clazz;
                }
                else
                {
-                  // process the SGR code
-                  if (ansi_ == null)
-                     ansi_ = new AnsiCode();
-                  ansiCodeStyles_ = ansi_.processCode(sgrMatch.getValue());
-                  if (ansiColorMode == UserPrefs.ANSI_CONSOLE_MODE_STRIP)
+                  if (clazz != null)
                   {
                      currentClazz = clazz;
+                     if (ansiCodeStyles_.inlineClazzes != null)
+                     {
+                        currentClazz = currentClazz + " " + ansiCodeStyles_.inlineClazzes;
+                     }
                   }
                   else
                   {
-                     if (clazz != null)
-                     {
-                        currentClazz = clazz;
-                        if (ansiCodeStyles_.inlineClazzes != null)
-                        {
-                           currentClazz = currentClazz + " " + ansiCodeStyles_.inlineClazzes;
-                        }
-                     }
-                     else
-                     {
-                        currentClazz = ansiCodeStyles_.inlineClazzes;
-                     }
+                     currentClazz = ansiCodeStyles_.inlineClazzes;
                   }
-                  tail = pos + sgrMatch.getValue().length();
                }
+               tail = pos + ansiMatch.getValue().length();
                break;
             default:
                assert false : "Unknown control char, please check regex";
@@ -601,15 +528,7 @@ public class VirtualConsole
    {
       return newElements_;
    }
-
-   // Text added by last submit() call (all ANSI codes and control characters except newlines
-   // stripped), only captured if screen reader is enabled when submit() is invoked. Intended
-   // for use in reporting output to screen readers.
-   public String getNewText()
-   {
-      return newText_ == null ? "" : newText_.toString();
-   }
-
+ 
    private class ClassRange
    {
       public ClassRange(int pos, String className, String text)
@@ -645,7 +564,7 @@ public class VirtualConsole
       public void appendLeft(String content, int delta)
       {
          length += content.length() - delta;
-         start -= (content.length() - delta);
+         start -= delta;
          element.setInnerText(content + 
                element.getInnerText().substring(delta));
       }
@@ -663,7 +582,7 @@ public class VirtualConsole
          String text = element.getInnerText();
          element.setInnerText(
                text.substring(0, pos) + content +
-               text.substring(pos + content.length()));
+               text.substring(pos + content.length(), text.length()));
       }
       
       public String text()
@@ -676,35 +595,28 @@ public class VirtualConsole
          element.setInnerText("");
       }
 
-      public String debugDump()
-      {
-         return "start=" + start + ", length=" + length + ", clazz=[" + clazz +
-               "], text=[" + text() + "]";
-      }
-
-      public final String clazz;
+      public String clazz;
       public int length;
       public int start;
-      public final SpanElement element;
+      public SpanElement element;
    }
 
    private static final Pattern CONTROL = Pattern.create("[\r\b\f\n]");
    
    private final StringBuilder output_ = new StringBuilder();
-   private final TreeMap<Integer, ClassRange> class_ = new TreeMap<>();
+   private final TreeMap<Integer, ClassRange> class_ = new TreeMap<Integer, ClassRange>();
    private final Element parent_;
    
    private int cursor_ = 0;
    private AnsiCode ansi_;
    private String partialAnsiCode_;
    private AnsiCode.AnsiClazzes ansiCodeStyles_ = new AnsiCode.AnsiClazzes();
+   private int ansiColorMode_;
    
    // Elements added by last submit call (only if forceNewRange was true)
    private boolean captureNewElements_ = false;
-   private final List<Element> newElements_ = new ArrayList<>();
+   private List<Element> newElements_ = new ArrayList<Element>();
    
-   private StringBuilder newText_;
-
    // Injected ----
-   private final Preferences prefs_;
+   private UIPrefs prefs_;
 }

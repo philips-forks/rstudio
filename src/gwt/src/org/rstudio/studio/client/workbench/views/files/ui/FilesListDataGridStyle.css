@@ -9,13 +9,6 @@
 .dataGridCell input[type=checkbox] {
    margin-top: 0;
    margin-bottom: 0;
-   zoom: 1.000001;
-}
-
-.rstudio-themes-flat .dataGridCell input[type=checkbox] {
-   margin-top: 0;
-   margin-bottom: 0;
-   zoom: 1;
 }
 
 .dataGridLastColumnHeader {
@@ -32,7 +25,7 @@
   color: #606060;
 }
 
-.rstudio-themes-flat .rstudio-themes-dark .dataGridCell img {
+.rstudio-themes-flat .rstudio-themes-dark .dataGridOddRowCell img {
    filter: brightness(90%) saturate(90%);
 }
 

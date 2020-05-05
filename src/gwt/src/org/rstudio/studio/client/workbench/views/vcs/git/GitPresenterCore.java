@@ -1,7 +1,7 @@
 /*
  * GitPresenterCore.java
  *
- * Copyright (C) 2009-12 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -98,18 +98,6 @@ public class GitPresenterCore
          }
       });
    }
-   
-   public void onVcsPullRebase()
-   {
-      server_.gitPullRebase(new SimpleRequestCallback<ConsoleProcess>()
-      {
-         @Override
-         public void onResponseReceived(ConsoleProcess proc)
-         {
-            new ConsoleProgressDialog(proc, server_).showModal();
-         }
-      });
-   }
 
    public void onVcsPush()
    {
@@ -154,7 +142,7 @@ public class GitPresenterCore
                @Override
                public boolean includeFile(FileSystemItem file)
                {
-                  return file.getName() != ".gitignore";
+                  return !file.getName().equals(".gitignore");
                }
             };
          }

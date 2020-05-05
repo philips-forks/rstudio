@@ -3,7 +3,7 @@
 #
 # install-dependencies-osx
 #
-# Copyright (C) 2009-19 by RStudio, PBC
+# Copyright (C) 2009-12 by RStudio, Inc.
 #
 # Unless you have received this program directly from RStudio pursuant
 # to the terms of a commercial license agreement with RStudio, then
@@ -22,28 +22,10 @@ then
   ./install-overlay
 fi
 
-# make sure brew is installed, and error if not
-if ! command -v brew &> /dev/null; then
-   echo "homebrew is not installed, but is needed to install dependencies"
-   exit 1
-fi
-
-# install postgres, needed by SOCI
-if brew list | grep postgresql &> /dev/null; then
-   echo "postgresql already installed"
-else
-   brew install postgresql
-fi
-
 cd ../common
-./install-common --install-crashpad-sudo
+./install-common
 cd ../osx
 
-# desktop dependencies (qt)
-if [ "$1" != "--exclude-qt-sdk" ]
-then
-  ./install-qt-macos
-fi
 
 # enable PAM
-sudo cp /etc/pam.d/cups /etc/pam.d/rstudio
+sudo cp /etc/pam.d/ftpd /etc/pam.d/rstudio

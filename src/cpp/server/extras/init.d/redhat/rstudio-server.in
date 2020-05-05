@@ -9,7 +9,6 @@
 
 rserver="${CMAKE_INSTALL_PREFIX}/bin/rserver"
 prog=$(basename $rserver)
-
 lockfile=/var/lock/subsys/rstudio-server
 
 # Exit if the package is not installed

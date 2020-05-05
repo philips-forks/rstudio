@@ -1,7 +1,7 @@
 /*
  * SessionRUtil.cpp
  *
- * Copyright (C) 2009-2015 by RStudio, PBC
+ * Copyright (C) 2009-2015 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -15,23 +15,21 @@
 
 #include <session/SessionRUtil.hpp>
 
-#include <shared_core/Error.hpp>
+#include <core/Error.hpp>
 #include <core/Log.hpp>
 #include <core/Exec.hpp>
-#include <core/FileSerializer.hpp>
 #include <core/Macros.hpp>
-#include <core/YamlUtil.hpp>
+
+#include <core/FileSerializer.hpp>
 
 #include <r/RExec.hpp>
 #include <r/RRoutines.hpp>
-#include <r/RSexp.hpp>
 
-#include <session/SessionAsyncRProcess.hpp>
 #include <session/SessionModuleContext.hpp>
 
-#include <boost/property_tree/ptree.hpp>
-#include <boost/property_tree/ini_parser.hpp>
 #include <boost/regex.hpp>
+
+#include <core/YamlUtil.hpp>
 
 #include "shiny/SessionShiny.hpp"
 
@@ -56,7 +54,7 @@ Error extractRCode(const std::string& contents,
    extract.addParam(contents);
    extract.addParam(reOpen);
    extract.addParam(reClose);
-   Error error = extract.callUtf8(pContent);
+   Error error = extract.call(pContent);
    return error;
 }
 
@@ -69,19 +67,19 @@ Error extractRCode(const std::string& fileContents,
    using namespace source_database;
    Error error = Success();
    
-   if (documentType == kSourceDocumentTypeRSource)
+   if (documentType == SourceDocument::SourceDocumentTypeRSource)
       *pCode = fileContents;
-   else if (documentType == kSourceDocumentTypeRMarkdown)
+   else if (documentType == SourceDocument::SourceDocumentTypeRMarkdown)
       error = extractRCode(fileContents,
                            "^\\s*[`]{3}{\\s*[Rr](?:}|[\\s,].*})\\s*$",
                            "^\\s*[`]{3}\\s*$",
                            pCode);
-   else if (documentType == kSourceDocumentTypeSweave)
+   else if (documentType == SourceDocument::SourceDocumentTypeSweave)
       error = extractRCode(fileContents,
                            "^\\s*<<.*>>=\\s*$",
                            "^\\s*@\\s*$",
                            pCode);
-   else if (documentType == kSourceDocumentTypeCpp)
+   else if (documentType == SourceDocument::SourceDocumentTypeCpp)
       error = extractRCode(fileContents,
                            "^\\s*/[*]{3,}\\s*[rR]\\s*$",
                            "^\\s*[*]+/",
@@ -119,7 +117,7 @@ SEXP rs_fromJSON(SEXP objectSEXP)
    std::string contents = r::sexp::asString(objectSEXP);
    
    json::Value jsonValue;
-   if (jsonValue.parse(contents))
+   if (!json::parse(contents, &jsonValue))
       return R_NilValue;
    
    r::sexp::Protect protect;
@@ -134,179 +132,16 @@ SEXP rs_isNullExternalPointer(SEXP objectSEXP)
    return create(isNullExternalPointer(objectSEXP), &protect);
 }
 
-SEXP readInitFileLevel(boost::property_tree::ptree pt, r::sexp::Protect& protect)
-{
-   using namespace boost::property_tree;
-
-   if (pt.empty())
-   {
-      std::string value = std::string(pt.data());
-      SEXP valueSEXP = create(value, &protect);
-      return valueSEXP;
-   }
-
-   std::map<std::string, SEXP> entries;
-   for (ptree::iterator it = pt.begin(); it != pt.end(); it++)
-   {
-      std::string key = it->first;
-      ptree value = it->second;
-
-      entries[key] = readInitFileLevel(value, protect);
-   }
-
-   return create(entries, &protect);
-}
-
-SEXP rs_readIniFile(SEXP iniPathSEXP)
-{
-    using namespace boost::property_tree;
-    std::string iniPath = r::sexp::asString(iniPathSEXP);
-    FilePath iniFile(iniPath);
-    if (!iniFile.exists())
-      return R_NilValue;
-
-   std::shared_ptr<std::istream> pIfs;
-   Error error = FilePath(iniFile).openForRead(pIfs);
-   if (error)
-   {
-      return R_NilValue;
-   }
-
-   try
-   {
-      ptree pt;
-      ini_parser::read_ini(iniFile.getAbsolutePath(), pt);
-
-      r::sexp::Protect protect;
-      return readInitFileLevel(pt, protect);
-   }
-   catch(const std::exception& e)
-   {
-      LOG_ERROR_MESSAGE("Error reading " + iniFile.getAbsolutePath() +
-                        ": " + std::string(e.what()));
-
-      return R_NilValue;
-   }
-}
-
-SEXP rs_rResourcesPath()
-{
-   r::sexp::Protect protect;
-   return r::sexp::create(session::options().rResourcesPath().getAbsolutePath(), &protect);
-}
-
-class Process;
-
-std::set<boost::shared_ptr<async_r::AsyncRProcess>> s_registry;
-
-class Process : public async_r::AsyncRProcess
-{
-public:
-   
-   Process(SEXP callbacks)
-      : callbacks_(callbacks)
-   {
-   }
-   
-   ~Process()
-   {
-   }
-   
-protected:
-   void onStarted(core::system::ProcessOperations& operations)
-   {
-      invokeCallback("started");
-   }
-   
-   bool onContinue()
-   {
-      bool ok = AsyncRProcess::onContinue();
-      if (!ok)
-         return false;
-      
-      invokeCallback("continue");
-      return true;
-   }
-   
-   void onStdout(const std::string& output)
-   {
-      invokeCallback("stdout", output);
-   }
-   
-   void onStderr(const std::string& output)
-   {
-      invokeCallback("stderr", output);
-   }
-   
-   void onCompleted(int exitStatus)
-   {
-      invokeCallback("completed", exitStatus);
-      s_registry.erase(shared_from_this());
-   }
-   
-private:
-   
-   template <typename T>
-   void invokeCallback(const std::string& event, const T& output)
-   {
-      SEXP callback = R_NilValue;
-      Error error = r::sexp::getNamedListSEXP(callbacks_.get(), event, &callback);
-      if (error)
-         return;
-      
-      r::exec::RFunction(callback).addParam(output).call();
-   }
-   
-   void invokeCallback(const std::string& event)
-   {
-      SEXP callback = R_NilValue;
-      Error error = r::sexp::getNamedListSEXP(callbacks_.get(), event, &callback);
-      if (error)
-         return;
-      
-      r::exec::RFunction(callback).call();
-   }
-   
-   r::sexp::PreservedSEXP callbacks_;
-};
-
-static void launchProcess(const std::string& code,
-                          const FilePath& workingDir,
-                          SEXP callbacks)
-{
-   boost::shared_ptr<Process> process = boost::make_shared<Process>(callbacks);
-   process->start(code.c_str(), workingDir, async_r::R_PROCESS_VANILLA);
-   s_registry.insert(process);
-}
-
-SEXP rs_runAsyncRProcess(SEXP codeSEXP,
-                         SEXP workingDirSEXP,
-                         SEXP callbacksSEXP)
-{
-   using namespace async_r;
-   
-   std::string code = r::sexp::asString(codeSEXP);
-   std::string workingDir = r::sexp::asString(workingDirSEXP);
-   boost::algorithm::replace_all(code, "\n", "; ");
-   launchProcess(code, module_context::resolveAliasedPath(workingDir), callbacksSEXP);
-   
-   r::sexp::Protect protect;
-   return r::sexp::create(true, &protect);
-}
-
 } // anonymous namespace
 
 Error initialize()
 {
    RS_REGISTER_CALL_METHOD(rs_fromJSON, 1);
    RS_REGISTER_CALL_METHOD(rs_isNullExternalPointer, 1);
-   RS_REGISTER_CALL_METHOD(rs_readIniFile, 1);
-   RS_REGISTER_CALL_METHOD(rs_rResourcesPath, 0);
-   RS_REGISTER_CALL_METHOD(rs_runAsyncRProcess, 3);
    
    using boost::bind;
    using namespace module_context;
-
+   
    ExecBlock initBlock;
    initBlock.addFunctions()
          (bind(sourceModuleRFile, "SessionRUtil.R"));

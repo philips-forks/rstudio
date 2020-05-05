@@ -1,7 +1,7 @@
 /*
  * ProjectBuildToolsPreferencesPane.java
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -17,7 +17,6 @@ package org.rstudio.studio.client.projects.ui.prefs.buildtools;
 import java.util.HashMap;
 
 import org.rstudio.core.client.BrowseCap;
-import org.rstudio.core.client.prefs.RestartRequirement;
 import org.rstudio.core.client.resources.ImageResource2x;
 import org.rstudio.core.client.widget.SelectWidget;
 import org.rstudio.studio.client.common.GlobalDisplay;
@@ -95,11 +94,11 @@ public class ProjectBuildToolsPreferencesPane extends ProjectPreferencesPane
       // if the initial type isn't package then we need to provide package
       // defaults if the user switches to a package
       providePackageBuildTypeDefaults_ = 
-            buildType != RProjectConfig.BUILD_TYPE_PACKAGE;
+            !buildType.equals(RProjectConfig.BUILD_TYPE_PACKAGE);
    }
    
    @Override
-   public RestartRequirement onApply(RProjectOptions options)
+   public boolean onApply(RProjectOptions options)
    {
       RProjectConfig config = options.getConfig();
          
@@ -111,8 +110,8 @@ public class ProjectBuildToolsPreferencesPane extends ProjectPreferencesPane
       // require reload if the build type or roxygen settings changed
       String initialBuildType = initialConfig_.getBuildType();
       String selectedBuildType = buildTypeSelect_.getValue();
-
-      return new RestartRequirement(initialBuildType != selectedBuildType, false);
+        
+      return !initialBuildType.equals(selectedBuildType);
    }
    
    
@@ -160,7 +159,7 @@ public class ProjectBuildToolsPreferencesPane extends ProjectPreferencesPane
             public void onChange(ChangeEvent event)
             {
                String buildType = getValue();
-               if (buildType == RProjectConfig.BUILD_TYPE_PACKAGE &&
+               if (buildType.equals(RProjectConfig.BUILD_TYPE_PACKAGE) &&
                    providePackageBuildTypeDefaults_)
                {
                   providePackageBuildTypeDefaults_ = false;

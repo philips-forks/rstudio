@@ -1,7 +1,7 @@
 /*
  * CodeCompleteResults.hpp
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -57,7 +57,7 @@ private:
 class CodeCompleteResults : boost::noncopyable
 {
 public:
-   CodeCompleteResults() : pResults_(nullptr) {}
+   CodeCompleteResults() : pResults_(NULL) {}
    explicit CodeCompleteResults(CXCodeCompleteResults* pResults)
       : pResults_(pResults)
    {
@@ -65,7 +65,7 @@ public:
 
    ~CodeCompleteResults();
 
-   bool empty() const { return pResults_ == nullptr; }
+   bool empty() const { return pResults_ == NULL; }
 
    void sort();
 

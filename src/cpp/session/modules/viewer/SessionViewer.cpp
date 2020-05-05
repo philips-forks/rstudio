@@ -1,7 +1,7 @@
 /*
  * SessionViewer.cpp
  *
- * Copyright (C) 2009-12 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -18,7 +18,7 @@
 #include <boost/format.hpp>
 #include <boost/algorithm/string/predicate.hpp>
 
-#include <shared_core/Error.hpp>
+#include <core/Error.hpp>
 #include <core/Exec.hpp>
 
 #include <r/RSexp.hpp>
@@ -30,7 +30,6 @@
 #include <r/session/RSessionUtils.hpp>
 
 #include <session/SessionModuleContext.hpp>
-#include <session/SessionUrlPorts.hpp>
 
 #include "ViewerHistory.hpp"
 
@@ -53,7 +52,7 @@ void viewerNavigate(const std::string& url,
                     bool bringToFront)
 {
    // record the url (for reloads)
-   s_currentUrl = url_ports::mapUrlPorts(url);
+   s_currentUrl = module_context::mapUrlPorts(url);
    s_isHTMLWidget = isHTMLWidget;
 
    // enque the event
@@ -86,7 +85,7 @@ Error viewerStopped(const json::JsonRpcRequest& request,
 }
 
 Error viewerBack(const json::JsonRpcRequest& request,
-                 json::JsonRpcResponse* pResponse)
+                     json::JsonRpcResponse* pResponse)
 {
    if (viewerHistory().hasPrevious())
       viewerNavigate(viewerHistory().goBack().url(), 0, true, true);
@@ -182,7 +181,7 @@ Error currentViewerSourcePath(FilePath* pSourcePath)
    }
 
    FilePath tempPath = module_context::tempDir();
-   *pSourcePath = tempPath.completePath(viewerEntry.sessionTempPath());
+   *pSourcePath = tempPath.complete(viewerEntry.sessionTempPath());
    return Success();
 }
 
@@ -260,8 +259,8 @@ bool isHTMLWidgetPath(const FilePath& filePath)
    // parent of parent must be session temp dir
    // (this is required because of the way we copy/restore
    // widget directories during suspend/resume)
-   FilePath parentDir = filePath.getParent();
-   if (parentDir.getParent() != tempDir)
+   FilePath parentDir = filePath.parent();
+   if (parentDir.parent() != tempDir)
       return false;
 
    // it is a widget!
@@ -295,12 +294,13 @@ SEXP rs_viewer(SEXP urlSEXP, SEXP heightSEXP)
          if (error)
             LOG_ERROR(error);
 
-         // if it's in the temp dir then we can serve it via the help server,
-         // otherwise we need to show it in an external browser
-         if (filePath.isWithin(tempDir))
+         // if it's in the temp dir and we're running R >= 2.14 then
+         // we can serve it via the help server, otherwise we need
+         // to show it in an external browser
+         if (filePath.isWithin(tempDir) && r::util::hasRequiredVersion("2.14"))
          {
             // calculate the relative path
-            std::string path = filePath.getRelativePath(tempDir);
+            std::string path = filePath.relativePath(tempDir);
 
             // add to history and treat as a widget if appropriate
             if (isHTMLWidgetPath(filePath))
@@ -353,7 +353,7 @@ SEXP rs_viewer(SEXP urlSEXP, SEXP heightSEXP)
 FilePath historySerializationPath()
 {
    FilePath historyPath = module_context::sessionScratchPath()
-      .completeChildPath("viewer_history");
+                                    .childPath("viewer_history");
    Error error = historyPath.ensureDirectory();
    if (error)
       LOG_ERROR(error);
@@ -383,7 +383,11 @@ void onClientInit()
 
 Error initialize()
 {
-   RS_REGISTER_CALL_METHOD(rs_viewer);
+   R_CallMethodDef methodDefViewer ;
+   methodDefViewer.name = "rs_viewer" ;
+   methodDefViewer.fun = (DL_FUNC) rs_viewer ;
+   methodDefViewer.numArgs = 2;
+   r::routines::addCallMethod(methodDefViewer);
 
    // install event handlers
    using namespace module_context;

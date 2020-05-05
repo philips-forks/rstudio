@@ -1,7 +1,7 @@
 /*
  * UnsavedChangesDialog.java
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -16,25 +16,24 @@ package org.rstudio.studio.client.workbench.ui.unsaved;
 
 import java.util.ArrayList;
 
-import com.google.gwt.aria.client.Roles;
-import org.rstudio.core.client.ElementIds;
 import org.rstudio.core.client.SafeHtmlUtil;
 import org.rstudio.core.client.StringUtil;
-import org.rstudio.core.client.cellview.AriaLabeledCheckboxCell;
-import org.rstudio.core.client.cellview.LabeledBoolean;
 import org.rstudio.core.client.widget.ModalDialog;
 import org.rstudio.core.client.widget.Operation;
 import org.rstudio.core.client.widget.OperationWithInput;
 import org.rstudio.core.client.widget.ThemedButton;
-import org.rstudio.studio.client.common.filetypes.FileIcon;
-import org.rstudio.studio.client.common.filetypes.FileIconResourceCell;
 import org.rstudio.studio.client.workbench.model.UnsavedChangesTarget;
 
 import com.google.gwt.cell.client.AbstractCell;
+import com.google.gwt.cell.client.CheckboxCell;
+import com.google.gwt.cell.client.ImageResourceCell;
 import com.google.gwt.core.client.GWT;
 import com.google.gwt.dom.client.Style.Unit;
+import com.google.gwt.event.dom.client.ClickEvent;
+import com.google.gwt.event.dom.client.ClickHandler;
 import com.google.gwt.resources.client.ClientBundle;
 import com.google.gwt.resources.client.CssResource;
+import com.google.gwt.resources.client.ImageResource;
 import com.google.gwt.safehtml.shared.SafeHtmlBuilder;
 import com.google.gwt.user.cellview.client.CellTable;
 import com.google.gwt.user.cellview.client.Column;
@@ -61,21 +60,21 @@ public class UnsavedChangesDialog extends ModalDialog<UnsavedChangesDialog.Resul
          saveTargets_ = saveTargets;
          alwaysSave_ = alwaysSave;
       }
-
+      
       public ArrayList<UnsavedChangesTarget> getSaveTargets()
       {
          return saveTargets_;
       }
-
+      
       public boolean getAlwaysSave()
       {
          return alwaysSave_;
       }
-
+      
       private ArrayList<UnsavedChangesTarget> saveTargets_;
       private boolean alwaysSave_;
    }
-
+   
    public UnsavedChangesDialog(
          String title,
          ArrayList<UnsavedChangesTarget> dirtyTargets,
@@ -84,7 +83,7 @@ public class UnsavedChangesDialog extends ModalDialog<UnsavedChangesDialog.Resul
    {
       this(title, null, dirtyTargets, saveOperation, onCancelled);
    }
-
+   
    public UnsavedChangesDialog(
          String title,
          String alwaysSaveOption,
@@ -92,166 +91,172 @@ public class UnsavedChangesDialog extends ModalDialog<UnsavedChangesDialog.Resul
          final OperationWithInput<Result> saveOperation,
          final Command onCancelled)
    {
-      super(title,
-            Roles.getAlertdialogRole(),
-            saveOperation,
-            onCancelled != null ? (Operation) () -> onCancelled.execute() : null);
+      super(title, 
+            saveOperation, 
+            onCancelled != null ? new Operation() {
+                                    @Override
+                                    public void execute()
+                                    {
+                                       onCancelled.execute();
+                                    }} :
+                                  null);
       alwaysSaveOption_ = StringUtil.notNull(alwaysSaveOption);
       targets_ = dirtyTargets;
-
+      
       setOkButtonCaption("Save Selected");
-
-      addLeftButton(new ThemedButton("Don't Save", event -> {
-         closeDialog();
-         saveOperation.execute(new Result(new ArrayList<>(), false));
-      }), ElementIds.DIALOG_NO_BUTTON);
-   }
-
-   @Override
-   protected void focusInitialControl()
-   {
-      focusOkButton();
+           	     
+      addLeftButton(new ThemedButton("Don't Save", new ClickHandler() {
+         @Override
+         public void onClick(ClickEvent event)
+         {
+           closeDialog();
+           saveOperation.execute(new Result(
+                                       new ArrayList<UnsavedChangesTarget>(),
+                                       false));
+         } 
+      }));    
    }
 
    @Override
    protected Widget createMainWidget()
    {
       // create cell table
-      targetsCellTable_ = new CellTable<>(
-            15,
-            UnsavedChangesCellTableResources.INSTANCE,
-            KEY_PROVIDER);
-      selectionModel_ = new MultiSelectionModel<>(KEY_PROVIDER);
+      targetsCellTable_ = new CellTable<UnsavedChangesTarget>(
+                                          15,
+                                          UnsavedChangesCellTableResources.INSTANCE,
+                                          KEY_PROVIDER);
+      selectionModel_ = new MultiSelectionModel<UnsavedChangesTarget>(KEY_PROVIDER);
       targetsCellTable_.setSelectionModel(
-            selectionModel_,
-            DefaultSelectionEventManager.createCheckboxManager());
+         selectionModel_, 
+         DefaultSelectionEventManager.<UnsavedChangesTarget> createCheckboxManager());
       targetsCellTable_.setWidth("100%", true);
-
+      
       // add columns
       addSelectionColumn();
       addIconColumn();
       addNameAndPathColumn();
-
+      
       // hook-up data provider 
-      dataProvider_ = new ListDataProvider<>();
+      dataProvider_ = new ListDataProvider<UnsavedChangesTarget>();
       dataProvider_.setList(targets_);
       dataProvider_.addDataDisplay(targetsCellTable_);
       targetsCellTable_.setPageSize(targets_.size());
-
+      
       // select all by default
       for (UnsavedChangesTarget editingTarget : dataProvider_.getList())
          selectionModel_.setSelected(editingTarget, true);
-
+      
       // enclose cell table in scroll panel
       ScrollPanel scrollPanel = new ScrollPanel();
       scrollPanel.setStylePrimaryName(RESOURCES.styles().targetScrollPanel());
       scrollPanel.setWidget(targetsCellTable_);
       if (dataProvider_.getList().size() > 4)
          scrollPanel.setHeight("280px");
-
+      
       // always save check box (may not be shown)
       chkAlwaysSave_ = new CheckBox(alwaysSaveOption_);
-
+      
       // main widget
       VerticalPanel panel = new VerticalPanel();
       Label captionLabel = new Label(
-         targets_.size() == 1 ?
-            "The following file has unsaved changes:" :
-            "The following " + targets_.size() + " files have unsaved changes:");
+                           "The following files have unsaved changes:");
       captionLabel.setStylePrimaryName(RESOURCES.styles().captionLabel());
       panel.add(captionLabel);
-
-      // read message when dialog shows
-      setARIADescribedBy(captionLabel.getElement());
-
-      panel.add(scrollPanel);
+      panel.add(scrollPanel);      
       if (!StringUtil.isNullOrEmpty(alwaysSaveOption_))
-      {
+      { 
          panel.add(chkAlwaysSave_);
          panel.setCellHeight(chkAlwaysSave_, "30px");
          panel.setCellVerticalAlignment(chkAlwaysSave_,
-               HasVerticalAlignment.ALIGN_MIDDLE);
-      }
+                                        HasVerticalAlignment.ALIGN_MIDDLE);
 
+      }
+      
       return panel;
    }
-
-   private Column<UnsavedChangesTarget, LabeledBoolean> addSelectionColumn()
+   
+   private Column<UnsavedChangesTarget, Boolean> addSelectionColumn()
    {
-      Column<UnsavedChangesTarget, LabeledBoolean> checkColumn =
-         new Column<UnsavedChangesTarget, LabeledBoolean>(new AriaLabeledCheckboxCell(true, false))
+      Column<UnsavedChangesTarget, Boolean> checkColumn = 
+         new Column<UnsavedChangesTarget, Boolean>(new CheckboxCell(true, false)) 
          {
             @Override
-            public LabeledBoolean getValue(UnsavedChangesTarget object)
+            public Boolean getValue(UnsavedChangesTarget object)
             {
-               return new LabeledBoolean(object.getTitle(), selectionModel_.isSelected(object));
-            }
+               return selectionModel_.isSelected(object);
+            }   
          };
       checkColumn.setVerticalAlignment(HasVerticalAlignment.ALIGN_TOP);
-      targetsCellTable_.addColumn(checkColumn);
+      targetsCellTable_.addColumn(checkColumn); 
       targetsCellTable_.setColumnWidth(checkColumn, 25, Unit.PX);
-
+      
       return checkColumn;
    }
-
-   private Column<UnsavedChangesTarget, FileIcon> addIconColumn()
+  
+   
+   private Column<UnsavedChangesTarget, ImageResource> addIconColumn()
    {
-      Column<UnsavedChangesTarget, FileIcon> iconColumn =
-         new Column<UnsavedChangesTarget, FileIcon>(new FileIconResourceCell()) {
+      Column<UnsavedChangesTarget, ImageResource> iconColumn = 
+         new Column<UnsavedChangesTarget, ImageResource>(new ImageResourceCell()) {
 
             @Override
-            public FileIcon getValue(UnsavedChangesTarget object)
+            public ImageResource getValue(UnsavedChangesTarget object)
             {
                return object.getIcon();
             }
          };
       targetsCellTable_.addColumn(iconColumn);
       targetsCellTable_.setColumnWidth(iconColumn, 20, Unit.PX);
-
+    
       return iconColumn;
    }
-
+    
    private class NameAndPathCell extends AbstractCell<UnsavedChangesTarget>
    {
+
       @Override
       public void render(
             com.google.gwt.cell.client.Cell.Context context,
             UnsavedChangesTarget value, SafeHtmlBuilder sb)
       {
-         if (value != null)
+         if (value != null) 
          {
-            Styles styles = RESOURCES.styles();
-
-            String path = value.getPath();
-            if (path != null)
-            {
-               SafeHtmlUtil.appendDiv(sb, styles.targetName(), value.getTitle());
-               SafeHtmlUtil.appendDiv(sb, styles.targetPath(), path);
-            }
-            else
-            {
-               SafeHtmlUtil.appendDiv(sb,
-                     styles.targetUntitled(),
-                     value.getTitle());
-            }
+           Styles styles = RESOURCES.styles();
+           
+           String path = value.getPath();
+           if (path != null)
+           {
+              SafeHtmlUtil.appendDiv(sb, styles.targetName(), value.getTitle());
+              SafeHtmlUtil.appendDiv(sb, styles.targetPath(), path); 
+           }
+           else
+           {
+              SafeHtmlUtil.appendDiv(sb, 
+                                     styles.targetUntitled(), 
+                                     value.getTitle());
+           }
          }
+         
       }
+      
    }
-
+   
    private IdentityColumn<UnsavedChangesTarget> addNameAndPathColumn()
    {
-      IdentityColumn<UnsavedChangesTarget> nameAndPathColumn =
-            new IdentityColumn<>(new NameAndPathCell());
-
+      IdentityColumn<UnsavedChangesTarget> nameAndPathColumn = 
+         new IdentityColumn<UnsavedChangesTarget>(new NameAndPathCell());
+      
       targetsCellTable_.addColumn(nameAndPathColumn);
       targetsCellTable_.setColumnWidth(nameAndPathColumn, 350, Unit.PX);
       return nameAndPathColumn;
    }
-
+   
    @Override
    protected Result collectInput()
    {
-      return new Result(new ArrayList<>(selectionModel_.getSelectedSet()), chkAlwaysSave_.getValue());
+      return new Result(new ArrayList<UnsavedChangesTarget>(
+                                          selectionModel_.getSelectedSet()),
+                        chkAlwaysSave_.getValue());
    }
 
    @Override
@@ -259,8 +264,8 @@ public class UnsavedChangesDialog extends ModalDialog<UnsavedChangesDialog.Resul
    {
       return true;
    }
-
-   interface Styles extends CssResource
+   
+   static interface Styles extends CssResource
    {
       String targetScrollPanel();
       String captionLabel();
@@ -269,27 +274,36 @@ public class UnsavedChangesDialog extends ModalDialog<UnsavedChangesDialog.Resul
       String targetUntitled();
    }
 
-   interface Resources extends ClientBundle
+   static interface Resources extends ClientBundle
    {
       @Source("UnsavedChangesDialog.css")
       Styles styles();
    }
 
-   static Resources RESOURCES = GWT.create(Resources.class);
+   static Resources RESOURCES = (Resources) GWT.create(Resources.class);
 
    public static void ensureStylesInjected()
    {
       RESOURCES.styles().ensureInjected();
    }
-
-   private static final ProvidesKey<UnsavedChangesTarget> KEY_PROVIDER = item -> item.getId();
-
+   
+   private static final ProvidesKey<UnsavedChangesTarget> KEY_PROVIDER = 
+      new ProvidesKey<UnsavedChangesTarget>() {
+         @Override
+         public Object getKey(UnsavedChangesTarget item)
+         {
+            return item.getId();
+         }
+    };
+   
    private final ArrayList<UnsavedChangesTarget> targets_;
-
-   private CellTable<UnsavedChangesTarget> targetsCellTable_;
+   
+   private CellTable<UnsavedChangesTarget> targetsCellTable_; 
    private ListDataProvider<UnsavedChangesTarget> dataProvider_;
    private MultiSelectionModel<UnsavedChangesTarget> selectionModel_;
-
+   
    private final String alwaysSaveOption_;
    private CheckBox chkAlwaysSave_;
+
+
 }

@@ -1,7 +1,7 @@
 /*
  * BuildCommands.java
  *
- * Copyright (C) 2009-15 by RStudio, PBC
+ * Copyright (C) 2009-15 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -32,7 +32,7 @@ public class BuildCommands
       
       // adapt or remove package commands if this isn't a package
       String type = sessionInfo.getBuildToolsType();
-      if (type != SessionInfo.BUILD_TOOLS_PACKAGE)
+      if (!type.equals(SessionInfo.BUILD_TOOLS_PACKAGE))
       {
          commands.devtoolsLoadAll().remove();
          commands.buildSourcePackage().remove();
@@ -51,20 +51,20 @@ public class BuildCommands
       }
       
       // remove makefile commands if this isn't a makefile
-      if (type == SessionInfo.BUILD_TOOLS_CUSTOM ||
-          type == SessionInfo.BUILD_TOOLS_WEBSITE)
+      if (type.equals(SessionInfo.BUILD_TOOLS_CUSTOM) ||
+          type.equals(SessionInfo.BUILD_TOOLS_WEBSITE))
       {
          commands.rebuildAll().remove();
       }
       
-      if (type == SessionInfo.BUILD_TOOLS_CUSTOM ||
-          type == SessionInfo.BUILD_TOOLS_PACKAGE)
+      if (type.equals(SessionInfo.BUILD_TOOLS_CUSTOM) ||
+          type.equals(SessionInfo.BUILD_TOOLS_PACKAGE))
       {
          commands.cleanAll().remove();
       }
       
       // remove all other commands if there are no build tools
-      if (type == SessionInfo.BUILD_TOOLS_NONE)
+      if (type.equals(SessionInfo.BUILD_TOOLS_NONE))
       {
          commands.buildAll().remove();
          commands.rebuildAll().remove();

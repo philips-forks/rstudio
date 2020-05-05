@@ -1,7 +1,7 @@
 /*
  * PosixSystem.hpp
  *
- * Copyright (C) 2009-18 by RStudio, PBC
+ * Copyright (C) 2009-17 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -15,8 +15,6 @@
 
 #ifndef CORE_SYSTEM_POSIX_SYSTEM_HPP
 #define CORE_SYSTEM_POSIX_SYSTEM_HPP
-
-#include <boost/date_time.hpp>
 
 #include <core/system/System.hpp>
 
@@ -37,10 +35,13 @@ namespace core {
 namespace rstudio {
 namespace core {
 namespace system {
-    class User;
+
+namespace user {
+   struct User;
+}
 
 // daemonize the process
-core::Error daemonize(const std::string& pidFile = std::string());
+core::Error daemonize();
 
 // umask
 // file creation masks and file modes
@@ -91,18 +92,19 @@ core::Error systemInformation(SysInfo* pSysInfo);
 
 core::Error pidof(const std::string& process, std::vector<PidType>* pPids);
 
-typedef boost::function<bool (const ProcessInfo&)> ProcessFilter;
+struct ProcessInfo
+{
+   ProcessInfo() : pid(0), ppid(0), pgrp(0) {}
+   PidType pid;
+   PidType ppid;
+   PidType pgrp;
+   std::string username;
+};
 
-// get process by process name, or all processes if process name is empty
-// optionally allows supressing of errors - recommended in most cases
-// as such errors are generally transient and benign
+typedef boost::function<bool (const ProcessInfo&)> ProcessFilter;
 core::Error processInfo(const std::string& process,
                         std::vector<ProcessInfo>* pInfo,
-                        bool suppressErrors = true,
                         ProcessFilter filter = ProcessFilter());
-
-// get process info for the specific process specified by pid
-core::Error processInfo(pid_t pid, ProcessInfo* pInfo);
 
 bool isProcessRunning(pid_t pid);
 
@@ -114,11 +116,10 @@ struct IpAddress
    std::string addr;
 };
 
-core::Error ipAddresses(std::vector<IpAddress>* pAddresses, bool includeIPv6 = false);
+core::Error ipAddresses(std::vector<IpAddress>* pAddresses);
 
 // core dump restriction
 core::Error restrictCoreDumps();
-core::Error enableCoreDumps();
 void printCoreDumpable(const std::string& context);
 
 // launching child processes
@@ -173,7 +174,7 @@ core::Error waitForProcessExit(PidType processId);
 
 // filter to call after the setuid has occurred (i.e. after
 // the user's home directory has become visible)
-typedef boost::function<void(const User&, ProcessConfig*)>
+typedef boost::function<void(const user::User&, ProcessConfig*)>
                                                    ProcessConfigFilter;
 
 core::Error launchChildProcess(std::string path,
@@ -182,13 +183,6 @@ core::Error launchChildProcess(std::string path,
                                ProcessConfigFilter configFilter,
                                PidType* pProcessId ) ;
 
-// runs a process, replacing the current process's image with that of the target
-// note, this does not create a child process, but replaces the currently running one
-Error runProcess(const std::string& path,
-                 const std::string& runAsUser,
-                 ProcessConfig& config,
-                 ProcessConfigFilter configFilter);
-
 // get this processes' child processes
 Error getChildProcesses(std::vector<rstudio::core::system::ProcessInfo> *pOutProcesses);
 
@@ -196,9 +190,6 @@ Error getChildProcesses(std::vector<rstudio::core::system::ProcessInfo> *pOutPro
 // get the child processes of the specified process
 Error getChildProcesses(pid_t pid,
                         std::vector<rstudio::core::system::ProcessInfo> *pOutProcesses);
-
-// kill a process with a specific sign
-Error killProcess(pid_t pid, int signal);
 
 // no-signal version specified in System.hpp
 // but on posix we can send any signal we want
@@ -211,33 +202,19 @@ Error terminateChildProcesses(pid_t pid,
 
 bool isUserNotFoundError(const core::Error& error);
 
-core::Error userBelongsToGroup(const User& user,
+core::Error userBelongsToGroup(const user::User& user,
                                const std::string& groupName,
                                bool* pBelongs);
 
 // query priv state
 bool realUserIsRoot();
+bool effectiveUserIsRoot();
 
 // privilege management (not thread safe, call from main thread at app startup
 // or just after fork() prior to exec() for new processes)
 core::Error temporarilyDropPriv(const std::string& newUsername);
 core::Error permanentlyDropPriv(const std::string& newUsername);
 core::Error restorePriv();
-
-// restoreRoot should be used to set the effective ID back to root (0) before using
-// the other privilege-modifying methods above - this is necessary because they maintain
-// state of the original effective user, and in most cases that should be root
-core::Error restoreRoot();
-
-namespace signal_safe {
-
-// signal-safe version of privilege drop
-int permanentlyDropPriv(UidType newUid);
-
-// signal-safe restore root priv
-int restoreRoot();
-
-} // namespace signal_safe
 
 #ifdef __APPLE__
 // Detect subprocesses via Mac-only BSD-ish APIs
@@ -254,19 +231,13 @@ std::vector<SubprocInfo> getSubprocessesViaPgrep(PidType pid);
 std::vector<SubprocInfo> getSubprocessesViaProcFs(PidType pid);
 #endif // !__APPLE__
 
-#ifdef __APPLE__
-// Detect current working directory via Mac-only APIs.
-// Note that this will only work reliably for child processes.
-FilePath currentWorkingDirMac(PidType pid);
-#endif
-
-#ifndef __APPLE__
 // Determine current working directory of a given process by shelling out
 // to lsof; used on systems without procfs.
 FilePath currentWorkingDirViaLsof(PidType pid);
 
 // Determine current working directory of a given process via procfs; returns
 // empty FilePath if unable to determine.
+#ifndef __APPLE__
 FilePath currentWorkingDirViaProcFs(PidType pid);
 #endif // !__APPLE__
 

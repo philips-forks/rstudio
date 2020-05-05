@@ -1,7 +1,7 @@
 /*
  * TextInput.java
  *
- * Copyright (C) 2009-12 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -23,7 +23,8 @@ public interface TextInput
    public void promptForText(String title,
                              String label,
                              String initialValue,
-                             int type,
+                             boolean usePasswordMask,
+                             boolean numbersOnly,
                              int selectionStart,
                              int selectionLength,
                              String okButtonCaption,
@@ -34,7 +35,7 @@ public interface TextInput
                           String title,
                           String label,
                           String initialValue,
-                          int type,
+                          boolean usePasswordMask,
                           // Null or "" means don't prompt for remembering pw
                           String extraOptionPrompt,
                           boolean extraOptionDefault,

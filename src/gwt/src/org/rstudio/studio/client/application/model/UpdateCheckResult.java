@@ -1,7 +1,7 @@
 /*
  * UpdateCheckResult.java
  *
- * Copyright (C) 2009-13 by RStudio, PBC
+ * Copyright (C) 2009-13 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -21,7 +21,7 @@ public class UpdateCheckResult extends JavaScriptObject
    protected UpdateCheckResult() {}
    
    public final native String getUpdateMessage() /*-{
-      return (this['update-message'] || "").trim();
+      return this['update-message'].trim();
    }-*/;
 
    public final native int getUpdateUrgency() /*-{
@@ -29,10 +29,10 @@ public class UpdateCheckResult extends JavaScriptObject
    }-*/;
    
    public final native String getUpdateUrl() /*-{
-      return (this['update-url'] || "").trim();
+      return this['update-url'].trim();
    }-*/;
 
    public final native String getUpdateVersion() /*-{
-      return (this['update-version'] || "").trim();
+      return this['update-version'].trim();
    }-*/;
 }

@@ -1,7 +1,7 @@
 /*
  * RSConnectDeployDialog.java
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-15 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -17,10 +17,8 @@ package org.rstudio.studio.client.rsconnect.ui;
 import java.util.HashMap;
 import java.util.Map;
 
-import com.google.gwt.aria.client.Roles;
 import org.rstudio.core.client.ElementIds;
 import org.rstudio.core.client.widget.OperationWithInput;
-import org.rstudio.core.client.widget.ProgressIndicator;
 import org.rstudio.core.client.widget.ThemedButton;
 import org.rstudio.studio.client.common.GlobalDisplay;
 import org.rstudio.studio.client.rsconnect.RSConnect;
@@ -47,12 +45,13 @@ public class RSConnectDeployDialog
                                 RSConnectPublishSource source,
                                 RSConnectDeploymentRecord fromPrevious)
    {
-      super(server, Roles.getDialogRole(), display, new RSConnectDeploy(source, 
+      super(server, display, new RSConnectDeploy(source, 
             contentType, fromPrevious, false));
       setText("Publish to Server");
       setWidth("350px");
       deployButton_ = new ThemedButton("Publish");
-      addOkButton(deployButton_, ElementIds.DEPLOY_CONTENT);
+      ElementIds.assignElementId(deployButton_.getElement(), ElementIds.DEPLOY_CONTENT);
+      addOkButton(deployButton_);
       addCancelButton();
       connect_ = connect;
       
@@ -141,14 +140,11 @@ public class RSConnectDeployDialog
    
    private void onDeploy()
    {
-      final ProgressIndicator indicator = addProgressIndicator();
-      indicator.onProgress("Deploying...");
       contents_.validateResult(new OperationWithInput<Boolean>()
       {
          @Override
          public void execute(Boolean valid)
          {
-            indicator.onCompleted();
             if (valid)
             {
                connect_.fireRSConnectPublishEvent(

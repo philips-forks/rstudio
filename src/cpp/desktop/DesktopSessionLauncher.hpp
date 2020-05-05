@@ -1,7 +1,7 @@
 /*
  * DesktopSessionLauncher.hpp
  *
- * Copyright (C) 2009-17 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -20,8 +20,8 @@
 
 #include <boost/utility.hpp>
 
-#include <shared_core/Error.hpp>
-#include <shared_core/FilePath.hpp>
+#include <core/Error.hpp>
+#include <core/FilePath.hpp>
 
 #include "DesktopApplicationLaunch.hpp"
 #include "DesktopMainWindow.hpp"
@@ -34,39 +34,33 @@ class SessionLauncher : public QObject
    Q_OBJECT
 public:
    SessionLauncher(const core::FilePath& sessionPath,
-                   const core::FilePath& confPath,
-                   const QString& filename,
-                   ApplicationLaunch* pAppLaunch)
+                   const core::FilePath& confPath)
       : confPath_(confPath),
         sessionPath_(sessionPath),
-        pAppLaunch_(pAppLaunch),
-        pMainWindow_(nullptr),
-        pRSessionProcess_(nullptr),
-        filename_(filename)
-{
-}
+        pAppLaunch_(NULL),
+        pMainWindow_(NULL),
+        pRSessionProcess_(NULL)
+   {
+   }
 
-   void launchFirstSession(const core::FilePath& installPath,
-                           bool devMode,
-                           const QStringList& arguments);
+   core::Error launchFirstSession(const QString& filename,
+                                  ApplicationLaunch* pAppLaunch);
 
    core::Error launchNextSession(bool reload);
 
    QString launchFailedErrorMessage() const;
 
-public Q_SLOTS:
+   void cleanupAtExit();
+
+public slots:
    void onRSessionExited(int exitCode, QProcess::ExitStatus exitStatus);
    void onReloadFrameForNextSession();
-   void onLaunchFirstSession();
-   void onLaunchError(QString message);
 
 private:
-   core::Error launchFirstSession();
-   void showLaunchErrorPage();
 
    QString collectAbendLogMessage() const;
 
-   void closeAllSatellites();
+   void closeAllSatillites();
 
    core::Error launchSession(const QStringList& argList,
                              QProcess** ppRSessionProcess);
@@ -84,7 +78,6 @@ private:
    MainWindow* pMainWindow_;
    QProcess* pRSessionProcess_;
    QUrl nextSessionUrl_;
-   QString filename_;
 };
 
 } // namespace desktop

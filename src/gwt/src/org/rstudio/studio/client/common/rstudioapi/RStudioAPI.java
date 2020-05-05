@@ -1,7 +1,7 @@
 /*
  * RStudioAPI.java
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-16 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -15,7 +15,6 @@
 
 package org.rstudio.studio.client.common.rstudioapi;
 
-import org.rstudio.core.client.ElementIds;
 import org.rstudio.core.client.MessageDisplay;
 import org.rstudio.core.client.MessageDisplay.PromptWithOptionResult;
 import org.rstudio.core.client.StringUtil;
@@ -30,9 +29,10 @@ import org.rstudio.studio.client.common.GlobalDisplay;
 import org.rstudio.studio.client.common.SimpleRequestCallback;
 import org.rstudio.studio.client.common.rstudioapi.events.RStudioAPIShowDialogEvent;
 import org.rstudio.studio.client.common.rstudioapi.model.RStudioAPIServerOperations;
-import org.rstudio.studio.client.common.satellite.Satellite;
 
 import com.google.gwt.core.client.GWT;
+import com.google.gwt.event.dom.client.ClickEvent;
+import com.google.gwt.event.dom.client.ClickHandler;
 import com.google.gwt.resources.client.ClientBundle;
 import com.google.gwt.resources.client.CssResource;
 import com.google.gwt.safehtml.shared.SafeHtml;
@@ -93,9 +93,15 @@ public class RStudioAPI implements RStudioAPIShowDialogEvent.Handler
       
       if (!StringUtil.isNullOrEmpty(url))
       {
-         HyperlinkLabel link = new HyperlinkLabel(url, () ->
-         {
-            RStudioGinjector.INSTANCE.getGlobalDisplay().openWindow(url);
+         HyperlinkLabel link = new HyperlinkLabel(url, 
+               new ClickHandler() {
+            @Override
+            public void onClick(ClickEvent event)
+            {
+               RStudioGinjector.INSTANCE.getGlobalDisplay()
+                  .openWindow(url);
+            }
+
          });
          link.addStyleName(RES.styles().installLink());
          verticalPanel.add(link);
@@ -106,7 +112,7 @@ public class RStudioAPI implements RStudioAPIShowDialogEvent.Handler
             verticalPanel
             );
 
-      dlg.addButton("OK", ElementIds.DIALOG_OK_BUTTON, new Operation() {
+      dlg.addButton("OK", new Operation() {
          @Override
          public void execute()
          {
@@ -126,9 +132,9 @@ public class RStudioAPI implements RStudioAPIShowDialogEvent.Handler
          title, 
          message, 
          prompt, 
-         MessageDisplay.INPUT_REQUIRED_TEXT,
+         false, 
          null, 
-         false,
+         false, 
          new ProgressOperationWithInput<PromptWithOptionResult>() {
             @Override
             public void execute(PromptWithOptionResult input,
@@ -184,14 +190,6 @@ public class RStudioAPI implements RStudioAPIShowDialogEvent.Handler
    @Override
    public void onRStudioAPIShowDialogEvent(RStudioAPIShowDialogEvent event)
    {
-      // Every window receives a copy of this event; for now, respond to the
-      // event only if this is the main window. (In the future, we could extend
-      // the API to allow for targeting the window with focus, or a named
-      // window, but in the API as it exists today, we presume that the main
-      // window is responsible.)
-      if (Satellite.isCurrentWindowSatellite())
-         return;
-
       if (event.getPrompt()) {
          showPrompt(
             event.getTitle(), 

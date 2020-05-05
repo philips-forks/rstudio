@@ -1,7 +1,7 @@
 /*
  * DomUtils.java
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-16 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -28,22 +28,16 @@ import com.google.gwt.event.dom.client.KeyPressEvent;
 import com.google.gwt.event.dom.client.KeyPressHandler;
 import com.google.gwt.event.dom.client.KeyUpEvent;
 import com.google.gwt.event.dom.client.KeyUpHandler;
-import com.google.gwt.resources.client.TextResource;
 import com.google.gwt.user.client.*;
 import com.google.gwt.user.client.ui.Label;
 import com.google.gwt.user.client.ui.RootPanel;
-import com.google.gwt.user.client.ui.TextBox;
 import com.google.gwt.user.client.ui.UIObject;
 import com.google.gwt.user.client.ui.Widget;
-
-import java.util.ArrayList;
-import java.util.List;
 
 import org.rstudio.core.client.BrowseCap;
 import org.rstudio.core.client.Debug;
 import org.rstudio.core.client.Point;
 import org.rstudio.core.client.Rectangle;
-import org.rstudio.core.client.StringUtil;
 import org.rstudio.core.client.command.KeyboardShortcut;
 import org.rstudio.core.client.dom.impl.DomUtilsImpl;
 import org.rstudio.core.client.dom.impl.NodeRelativePosition;
@@ -60,7 +54,7 @@ public class DomUtils
 {
    public interface NodePredicate
    {
-      boolean test(Node n);
+      boolean test(Node n) ;
    }
 
    public static native Element getActiveElement() /*-{
@@ -293,12 +287,12 @@ public class DomUtils
       // Otherwise, determine whether an item can be focused based
       // on its tag name.
       String tagName = element.getTagName().toLowerCase();
-      if (tagName == "a")
+      if (tagName.equals("a"))
       {
          return element.hasAttribute("href");
       }
-      else if (tagName == "input"    || tagName == "select" ||
-               tagName == "textarea" || tagName == "button")
+      else if (tagName.equals("input") || tagName.equals("select") ||
+               tagName.equals("textarea") || tagName.equals("button"))
       {
          return !element.hasAttribute("disabled");
       }
@@ -340,11 +334,11 @@ public class DomUtils
       while (descendant != null)
       {
          if (descendant == container)
-            return true;
+            return true ;
 
-         descendant = descendant.getParentNode();
+         descendant = descendant.getParentNode() ;
       }
-      return false;
+      return false ;
    }
 
    /**
@@ -364,7 +358,7 @@ public class DomUtils
 
    public static Rectangle getCursorBounds()
    {
-      return getCursorBounds(Document.get());
+      return getCursorBounds(Document.get()) ;
    }
 
    public static Rectangle getCursorBounds(Document doc)
@@ -396,11 +390,11 @@ public class DomUtils
 
    public static Text splitTextNodeAt(Element container, int offset)
    {
-      NodeRelativePosition pos = NodeRelativePosition.toPosition(container, offset);
+      NodeRelativePosition pos = NodeRelativePosition.toPosition(container, offset) ;
 
       if (pos != null)
       {
-         return ((Text)pos.node).splitText(pos.offset);
+         return ((Text)pos.node).splitText(pos.offset) ;
       }
       else
       {
@@ -411,14 +405,14 @@ public class DomUtils
    }
 
    public static native Element getTableCell(Element table, int row, int col) /*-{
-      return table.rows[row].cells[col];
+      return table.rows[row].cells[col] ;
    }-*/;
 
    public static void dump(Node node, String label)
    {
-      StringBuffer buffer = new StringBuffer();
-      dump(node, "", buffer, false);
-      Debug.log("Dumping " + label + ":\n\n" + buffer.toString());
+      StringBuffer buffer = new StringBuffer() ;
+      dump(node, "", buffer, false) ;
+      Debug.log("Dumping " + label + ":\n\n" + buffer.toString()) ;
    }
 
    private static void dump(Node node, 
@@ -427,21 +421,21 @@ public class DomUtils
                             boolean doSiblings)
    {
       if (node == null)
-         return;
+         return ;
       
       out.append(indent)
-         .append(node.getNodeName());
+         .append(node.getNodeName()) ;
       if (node.getNodeType() != 1)
       {
          out.append(": \"")
             .append(node.getNodeValue())
             .append("\"");
       }
-      out.append("\n");
+      out.append("\n") ;
       
-      dump(node.getFirstChild(), indent + "\u00A0\u00A0", out, true);
+      dump(node.getFirstChild(), indent + "\u00A0\u00A0", out, true) ;
       if (doSiblings)
-         dump(node.getNextSibling(), indent, out, true);
+         dump(node.getNextSibling(), indent, out, true) ;
    }
 
    public static native void ensureVisibleVert(
@@ -451,12 +445,12 @@ public class DomUtils
       if (!child)
          return;
 
-      var height = child.offsetHeight;
+      var height = child.offsetHeight ;
       var top = 0;
       while (child && child != container)
       {
-         top += child.offsetTop;
-         child = child.offsetParent;
+         top += child.offsetTop ;
+         child = child.offsetParent ;
       }
 
       if (!child)
@@ -468,11 +462,11 @@ public class DomUtils
 
       if (top < container.scrollTop)
       {
-         container.scrollTop = top;
+         container.scrollTop = top ;
       }
       else if (container.scrollTop + container.offsetHeight < top + height)
       {
-         container.scrollTop = top + height - container.offsetHeight;
+         container.scrollTop = top + height - container.offsetHeight ;
       }
    }-*/;
 
@@ -515,7 +509,7 @@ public class DomUtils
          child = child.getOffsetParent();
       }
 
-      return Point.create(left, top);
+      return new Point(left, top);
    }
 
    public static int ensureVisibleHoriz(Element container,
@@ -557,8 +551,8 @@ public class DomUtils
       var top = 0;
       while (child && child != container)
       {
-         top += child.offsetTop;
-         child = child.offsetParent;
+         top += child.offsetTop ;
+         child = child.offsetParent ;
       }
       if (!child)
          throw new Error("Child was not in container or " +
@@ -578,15 +572,15 @@ public class DomUtils
       switch (node.getNodeType())
       {
       case Node.DOCUMENT_NODE:
-         return ((ElementEx)node).getOuterHtml();
+         return ((ElementEx)node).getOuterHtml() ;
       case Node.ELEMENT_NODE:
-         return ((ElementEx)node).getOuterHtml();
+         return ((ElementEx)node).getOuterHtml() ;
       case Node.TEXT_NODE:
-         return node.getNodeValue();
+         return node.getNodeValue() ;
       default:
          assert false : 
-                  "Add case statement for node type " + node.getNodeType();
-         return node.getNodeValue();
+                  "Add case statement for node type " + node.getNodeType() ;
+         return node.getNodeValue() ;
       }
    }
 
@@ -597,9 +591,9 @@ public class DomUtils
            parent = parent.getParentNode())
       {
          if (parent.equals(ancestor))
-            return true;
+            return true ;
       }
-      return false;
+      return false ;
    }
    
    public static boolean isDescendantOfElementWithTag(Element el, String[] tags)
@@ -612,7 +606,7 @@ public class DomUtils
             if (tag.toLowerCase().equals(parent.getTagName().toLowerCase()))
                return true;
       }
-      return false;
+      return false ;
    }
    
    /**
@@ -629,78 +623,28 @@ public class DomUtils
                                boolean siblings, 
                                NodePredicate filter)
    {
-      List<Node> results = findNodes(start, 1, recursive ? 99 : 0, siblings, filter);
-      if (results.isEmpty())
-         return null;
-      return results.get(0);
-   }
-   
-   /**
-    * Finds a node that matches the predicate.
-    * 
-    * @param start The node from which to start.
-    * @param depth The maximum recursive depth
-    * @param siblings If true, looks at the next sibling from "start".
-    * @param filter The predicate that determines a match.
-    * @return The first matching node encountered in documented order, or null.
-    */
-   public static Node findNode(Node start, 
-                               int depth, 
-                               boolean siblings, 
-                               NodePredicate filter)
-   {
-      List<Node> results = findNodes(start, 1, depth, siblings, filter);
-      if (results.isEmpty())
-         return null;
-      return results.get(0);
-   }
-   
-   /**
-    * Finds all the nodes that match the predicate.
-    * 
-    * @param start The node from which to start.
-    * @param max The maximum number of nodes to find.
-    * @param depth The maximum recursive depth.
-    * @param siblings If true, looks at the next sibling from "start".
-    * @param filter The predicate that determines a match.
-    * @return The first matching node encountered in documented order, or null.
-    */
-   public static List<Node> findNodes(Node start,
-                                      int max,
-                                      int depth,
-                                      boolean siblings,
-                                      NodePredicate filter)
-   {
-      List<Node> results = new ArrayList<Node>();
-      int remaining = 0;
-      
       if (start == null)
-         return results;
+         return null ;
       
       if (filter.test(start))
+         return start ;
+      
+      if (recursive)
       {
-         results.add(start);
-         if (results.size() >= max)
-            return results;
+         Node result = findNode(start.getFirstChild(), true, true, filter) ;
+         if (result != null)
+            return result ;
       }
       
-      if (depth > 0)
+      if (siblings)
       {
-         remaining = max - results.size();
-         List<Node> matched = findNodes(start.getFirstChild(), remaining,
-               depth - 1, true, filter);
-         results.addAll(matched);
+         Node result = findNode(start.getNextSibling(), recursive, true, 
+                                filter) ;
+         if (result != null)
+            return result ;
       }
       
-      if (siblings && results.size() < max)
-      {
-         remaining = max - results.size();
-         List<Node> matched = findNodes(start.getNextSibling(), remaining,
-               depth, true, filter);
-         results.addAll(matched);
-      }
-      
-      return results;
+      return null ;
    }
 
    /**
@@ -777,9 +721,9 @@ public class DomUtils
                // the line breaks turn into <br _moz_dirty="true"/> or whatever.
                // We want to keep them in those cases. But in other cases
                // the _moz_dirty breaks are just spurious.
-               if (tag == "br" && (pasteMode || !childEl.hasAttribute("_moz_dirty")))
+               if (tag.equals("br") && (pasteMode || !childEl.hasAttribute("_moz_dirty")))
                   out.append("\n");
-               else if (tag == "script" || tag == "style")
+               else if (tag.equals("script") || tag.equals("style"))
                   continue;
                getInnerText(child, out, pasteMode);
                break;
@@ -892,7 +836,7 @@ public class DomUtils
    {
       Element[] elements = getElementsByClassName(parent, classes);
       if (elements.length == 0)
-         return null;
+   	   return null;
       return elements[0];
    }
    
@@ -973,7 +917,7 @@ public class DomUtils
    
    public static Element findParentElement(Element el,
                                            boolean includeSelf,
-                                           ElementPredicate predicate)
+   	                                     ElementPredicate predicate)
    {
       Element parent = includeSelf ? el : el.getParentElement();
       while (parent != null)
@@ -1018,7 +962,7 @@ public class DomUtils
    
    public static final boolean preventBackspaceCausingBrowserBack(NativeEvent event)
    {
-      if (Desktop.hasDesktopFrame())
+      if (Desktop.isDesktop())
          return false;
       
       if (event.getKeyCode() != KeyCodes.KEY_BACKSPACE)
@@ -1029,7 +973,7 @@ public class DomUtils
          return false;
       
       Element elementTarget = Element.as(target);
-      if (elementTarget.getNodeName() != "BODY")
+      if (!elementTarget.getNodeName().equals("BODY"))
          return false;
       
       event.preventDefault();
@@ -1115,149 +1059,6 @@ public class DomUtils
    {
       disableAutoBehavior(w.getElement());
    }
-
-   public static void disableSpellcheck(Element ele)
-   {
-      ele.setAttribute("spellcheck", "false");
-   }
-
-   public static void disableSpellcheck(Widget w)
-   {
-      disableSpellcheck(w.getElement());
-   }
-
-   /**
-    * Set placeholder attribute on an element (assumed to be a textbox).
-    * This is considered a somewhat dubious technique from an accessibility 
-    * standpoint, especially if the placeholder is serving as the de facto label 
-    * for the textbox. Avoid introducing new uses of placeholder text.
-    * @param ele
-    * @param placeholder
-    */
-   public static void setPlaceholder(Element ele, String placeholder)
-   {
-      ele.setAttribute("placeholder", placeholder);
-   }
-
-   /**
-    * Set placeholder attribute on a TextBox widget.
-    * This is considered a somewhat dubious technique from an accessibility 
-    * standpoint, especially if the placeholder is serving as the de facto label 
-    * for the textbox. Avoid introducing new uses of placeholder text.
-    * @param w
-    * @param placeholder
-    */
-   public static void setPlaceholder(TextBox w, String placeholder)
-   {
-      setPlaceholder(w.getElement(), placeholder);
-   }
-
-   /**
-    * Set disabled attribute on an element's child
-    * @param element The parent element
-    * @param ordinal The index representing the child to disable
-    * @param disable Whether we are adding or removing the disable attribute
-    */
-   public static void setOptionDisabled(Element element, int ordinal, boolean disable)
-   {
-      if (disable)
-         ((Element) element.getChild(ordinal))
-            .setAttribute("disabled", "disabled");
-      else
-         ((Element) element.getChild(ordinal)).removeAttribute("disabled");
-   }
-
-   /**
-    * If an element doesn't already have an id, assign one
-    * @param ele element to operate on
-    * @return id of the element
-    */
-   public static String ensureHasId(Element ele)
-   {
-      String controlId = ele.getId();
-      if (StringUtil.isNullOrEmpty(controlId))
-      {
-         controlId = DOM.createUniqueId();
-         ele.setId(controlId);
-      }
-      return controlId;
-   }
-
-   /**
-    * Given any URL, resolves it to an absolute URL (using the current window as
-    * the base URL), and returns the result.
-    * 
-    * @param url A relative or absolute URL.
-    * @return The same URL, in absolute form.
-    */
-   public final static native String makeAbsoluteUrl(String url) /*-{
-     var ele = document.createElement("a")
-     ele.href = url;
-     return ele.href;
-   }-*/;
-   
-   public static final int getScrollbarWidth()
-   {
-      if (SCROLLBAR_WIDTH == -1)
-         SCROLLBAR_WIDTH = getScrollbarWidthImpl();
-      
-      return SCROLLBAR_WIDTH;
-   }
-   
-   private static final native int getScrollbarWidthImpl()
-   /*-{
-      
-      // create our scroller
-      var div = $doc.createElement("div");
-      
-      // style to place offscreen
-      div.style.width    = "100px";
-      div.style.height   = "100px";
-      div.style.overflow = "scroll";
-      div.style.position = "absolute";
-      div.style.top      = "-10000px";
-      
-      // compute scrollbar width after attaching to DOM
-      $doc.body.appendChild(div);
-      var width = div.offsetWidth - div.clientWidth;
-      $doc.body.removeChild(div);
-      
-      return width;
-      
-   }-*/;
-   
-   /**
-    * Returns the path of a URL
-    *
-    * @param url A relative or absolute URL.
-    * @return The same URL, in absolute form.
-    */
-   public final static native String getUrlPath(String url) /*-{
-     var ele = document.createElement("a")
-     ele.href = url;
-     return ele.pathname;
-   }-*/;
-   
-   public static final native NodeList<Element> querySelectorAll(Element element, String query)
-   /*-{
-      return element.querySelectorAll(query);
-   }-*/;
-   
-   public static final void loadScript(TextResource resource)
-   {
-      ScriptElement scriptEl = Document.get().createScriptElement();
-      scriptEl.setAttribute("type", "text/javascript");
-      scriptEl.setText(resource.getText());
-      
-      HeadElement headEl = Document.get().getHead();
-      headEl.appendChild(scriptEl);
-   }
-   
-   public static final native DOMRect getBoundingClientRect(Element el)
-   /*-{
-      return el.getBoundingClientRect();
-   }-*/;
    
    public static final int ESTIMATED_SCROLLBAR_WIDTH = 19;
-   private static int SCROLLBAR_WIDTH = -1;
 }

@@ -1,7 +1,7 @@
 #
 # SessionEnvironment.R
 #
-# Copyright (C) 2009-16 by RStudio, PBC
+# Copyright (C) 2009-16 by RStudio, Inc.
 #
 # Unless you have received this program directly from RStudio pursuant
 # to the terms of a commercial license agreement with RStudio, then
@@ -366,40 +366,56 @@
    return ("")
 })
 
-.rs.addFunction("editor", function(name, file = "", title = file, ...)
-{
-   # if 'name' is missing, we're likely being invoked by
-   # 'utils::file.edit()', so just edit the requested file
-   if (missing(name))
-      return(.Call("rs_editFile", file, PACKAGE = "(embedding)"))
-   
-   # otherwise, we're more likely being invoked by 'edit()', which
-   # requires the parsed file to be valid R code -- so handle that
-   
-   # if no file has been supplied, generate one for the user
-   if (is.null(file) || !nzchar(file)) {
-      file <- tempfile("rstudio-scratch-", fileext = ".R")
-      on.exit(unlink(file), add = TRUE)
-   }
-   
-   # write deparsed R object to file
-   deparsed <- if (is.function(name))
-      .rs.deparseFunction(name, useSource = TRUE, asString = FALSE)
-   else
-      deparse(name)
-   writeLines(deparsed, con = file)
-   
-   # invoke edit
-   .Call("rs_editFile", file, PACKAGE = "(embedding)")
-   
-   # attempt to parse-eval the generated content
-   eval(parse(file), envir = globalenv())
-   
-})
 
-.rs.addFunction("registerFunctionEditor", function()
-{
-   options(editor = .rs.editor)
+.rs.addFunction("registerFunctionEditor", function() {
+
+   # save default editor
+   defaultEditor <- getOption("editor")
+
+   # ensure we have a scratch file
+   scratchFile <- tempfile()
+   cat("", file = scratchFile)
+
+   options(editor = function(name, file, title) {
+
+      # use internal editor for files and functions, otherwise
+      # delegate to the default editor
+      if (is.null(name) || is.function(name)) {
+
+         # if no name then use file
+         if (is.null(name)) {
+            if (!is.null(file) && nzchar(file))
+               targetFile <- file
+            else
+               targetFile <- scratchFile
+         }
+         # otherwise it's a function, write it to a file for editing
+         else {
+            functionSrc <- .rs.deparseFunction(name, TRUE, FALSE)
+            targetFile <- scratchFile
+            writeLines(functionSrc, targetFile)
+         }
+
+         # invoke the RStudio editor on the file
+         if (.Call("rs_editFile", targetFile)) {
+
+            # try to parse it back in
+            newFunc <- try(eval.parent(parse(targetFile)),
+                           silent = TRUE)
+            if (inherits(newFunc, "try-error")) {
+               stop(newFunc, "You can attempt to correct the error using ",
+                    title, " = edit()")
+            }
+
+            return(newFunc)
+         }
+         else {
+            stop("Error occurred while editing function '", name, "'")
+         }
+      }
+      else
+         edit(name, file, title, editor=defaultEditor)
+   })
 })
 
 
@@ -411,12 +427,12 @@
    return (className)
 })
 
-.rs.addFunction("describeObject", function(env, objName, computeSize = TRUE)
+.rs.addFunction("describeObject", function(env, objName)
 {
    obj <- get(objName, env)
    # objects containing null external pointers can crash when
    # evaluated--display generically (see case 4092)
-   hasNullPtr <- .Call("rs_hasExternalPointer", obj, TRUE, PACKAGE = "(embedding)")
+   hasNullPtr <- .rs.hasNullExternalPointer(obj)
    if (hasNullPtr) 
    {
       val <- "<Object with null pointer>"
@@ -428,10 +444,7 @@
    {
       val <- "(unknown)"
       desc <- ""
-
-      # some objects (e.g. ALTREP) have compact representations that are forced to materialize if
-      # an attempt is made to compute their metrics exactly; avoid computing the size for these
-      size <- if (computeSize) object.size(obj) else 0
+      size <- object.size(obj)
       len <- length(obj)
    }
    class <- .rs.getSingleClass(obj)
@@ -462,7 +475,7 @@
          else
          {
             val <- paste("Large ", class, " (", len_desc, 
-                         format(size, units="auto", standard="SI"), ")", sep="")
+                         capture.output(print(size, units="auto")), ")", sep="")
          }
          contents_deferred <- TRUE
       }
@@ -481,17 +494,7 @@
              is.data.frame(obj) ||
              isS4(obj))
          {
-            if (computeSize)
-            {
-               # normal object
-               contents <- .rs.valueContents(obj)
-            }
-            else
-            {
-               # don't prefetch content for altreps
-               val <- "NO_VALUE"
-               contents_deferred <- TRUE
-            }
+            contents <- .rs.valueContents(obj)
          }
       }
    }
@@ -640,13 +643,32 @@
    .rs.valueContents(get(objName, env));
 })
 
-.rs.addFunction("isAltrep", function(var)
+# attempt to determine whether the given object contains a null external
+# pointer
+.rs.addFunction("hasNullExternalPointer", function(obj)
 {
-   .Call("rs_isAltrep", var, PACKAGE="(embedding)")
+   if (isS4(obj)) 
+   {
+      # this is an S4 object; recursively check its slots for null pointers
+      any(sapply(slotNames(obj), function(name) {
+         hasNullPtr <- FALSE
+         # it's possible to cheat the S4 object system and destroy the contents
+         # of a slot via attr<- assignments; in this case slotNames will
+         # contain slots that don't exist, and trying to access those slots 
+         # throws an error.
+         tryCatch({
+           hasNullPtr <- .rs.hasNullExternalPointer(slot(obj, name))
+           }, 
+           error = function(err) {})
+         hasNullPtr
+      }))
+   } 
+   else
+   {
+      # check if object itself is a null external pointer
+      .rs.isNullExternalPointer(obj)
+   }
 })
 
-.rs.addFunction("hasAltrep", function(var)
-{
-   .Call("rs_hasAltrep", var, PACKAGE="(embedding)")
-})
+
 

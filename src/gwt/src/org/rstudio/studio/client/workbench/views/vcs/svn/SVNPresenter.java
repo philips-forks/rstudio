@@ -1,7 +1,7 @@
 /*
  * SVNPresenter.java
  *
- * Copyright (C) 2009-12 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -157,12 +157,6 @@ public class SVNPresenter extends BaseVcsPresenter
    }
    
    @Override
-   public void onVcsPullRebase()
-   {
-      commandHandler_.onVcsPullRebase();
-   }
-   
-   @Override
    public void onVcsCleanup()
    {
       server_.svnCleanup(new ProcessCallback(
@@ -190,7 +184,7 @@ public class SVNPresenter extends BaseVcsPresenter
       ArrayList<StatusAndPath> diffList = new ArrayList<StatusAndPath>();
       for (StatusAndPath item :  svnState_.getStatus())
       {
-         if (item.getRawPath() == file.getPath())
+         if (item.getRawPath().equals(file.getPath()))
          {
             diffList.add(item);
             break;

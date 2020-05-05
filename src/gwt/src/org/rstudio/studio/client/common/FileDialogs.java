@@ -1,7 +1,7 @@
 /*
  * FileDialogs.java
  *
- * Copyright (C) 2009-12 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -45,15 +45,6 @@ public interface FileDialogs
                  String filter,
                  boolean canChooseDirectories,
                  ProgressOperationWithInput<FileSystemItem> operation);
-   
-   void openFile(String caption,
-                 String label,
-                 FileSystemContext fsContext,
-                 FileSystemItem initialFilePath,
-                 String filter,
-                 boolean canChooseDirectories,
-                 boolean focusOwner,
-                 ProgressOperationWithInput<FileSystemItem> operation);
 
    void saveFile(String caption,
                  FileSystemContext fsContext,
@@ -70,16 +61,6 @@ public interface FileDialogs
                  boolean forceDefaultExtension,
                  ProgressOperationWithInput<FileSystemItem> operation);
    
-   void saveFile(String caption,
-                 String label,
-                 FileSystemContext fsContext,
-                 FileSystemItem initialFilePath,
-                 String defaultExtension,
-                 boolean forceDefaultExtension,
-                 boolean focusOwner,
-                 ProgressOperationWithInput<FileSystemItem> operation);
-   
-   
    void chooseFolder(String caption,
                      FileSystemContext fsContext,
                      FileSystemItem initialDir,
@@ -89,13 +70,6 @@ public interface FileDialogs
                      String label,
                      FileSystemContext fsContext,
                      FileSystemItem initialDir,
-                     ProgressOperationWithInput<FileSystemItem> operation);
-   
-   void chooseFolder(String caption,
-                     String label,
-                     FileSystemContext fsContext,
-                     FileSystemItem initialDir,
-                     boolean focusOwner,
                      ProgressOperationWithInput<FileSystemItem> operation);
    
 }

@@ -1,7 +1,7 @@
 /*
  * NewConnectionSnippetDialog.java
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-17 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -18,21 +18,20 @@ package org.rstudio.studio.client.workbench.views.connections.ui;
 import java.util.ArrayList;
 import java.util.HashMap;
 
-import com.google.gwt.aria.client.Roles;
-import org.rstudio.core.client.widget.FormLabel;
-import org.rstudio.core.client.widget.LayoutGrid;
 import org.rstudio.core.client.widget.ModalDialog;
 import org.rstudio.core.client.widget.OperationWithInput;
 import org.rstudio.studio.client.RStudioGinjector;
 import org.rstudio.studio.client.common.HelpLink;
-import org.rstudio.studio.client.workbench.views.connections.model.NewConnectionInfo;
+import org.rstudio.studio.client.workbench.views.connections.model.NewConnectionContext.NewConnectionInfo;
 
 import com.google.gwt.core.client.GWT;
 import com.google.gwt.event.dom.client.ChangeEvent;
 import com.google.gwt.event.dom.client.ChangeHandler;
 import com.google.gwt.resources.client.ClientBundle;
 import com.google.gwt.resources.client.CssResource;
+import com.google.gwt.user.client.ui.Grid;
 import com.google.gwt.user.client.ui.HasVerticalAlignment;
+import com.google.gwt.user.client.ui.Label;
 import com.google.gwt.user.client.ui.SimplePanel;
 import com.google.gwt.user.client.ui.TextBox;
 import com.google.gwt.user.client.ui.Widget;
@@ -54,7 +53,7 @@ public class NewConnectionSnippetDialog extends ModalDialog<HashMap<String, Stri
       ArrayList<NewConnectionSnippetParts> config,
       NewConnectionInfo newConnectionInfo)
    {
-      super("Advanced Options", Roles.getDialogRole(), operation);
+      super("Advanced Options", operation);
       initialConfig_ = config;
       newConnectionInfo_ = newConnectionInfo;
 
@@ -85,18 +84,17 @@ public class NewConnectionSnippetDialog extends ModalDialog<HashMap<String, Stri
       SimplePanel wrapper = new SimplePanel();
       wrapper.setStyleName(RES.styles().wrapper());
       
-      LayoutGrid connGrid = new LayoutGrid(initialConfig_.size(), 2);
+      Grid connGrid = new Grid(initialConfig_.size(), 2);
       connGrid.addStyleName(RES.styles().grid());
 
       for (int idxParams = 0; idxParams < initialConfig_.size(); idxParams++) {
          final String key = initialConfig_.get(idxParams).getKey();
-         FormLabel label = new FormLabel(key + ":");
+         Label label = new Label(key + ":");
          label.addStyleName(RES.styles().label());
          connGrid.setWidget(idxParams, 0, label);
          connGrid.getRowFormatter().setVerticalAlign(idxParams, HasVerticalAlignment.ALIGN_TOP);
          
          final TextBox textbox = new TextBox();
-         label.setFor(textbox);
          textbox.setText(initialConfig_.get(idxParams).getValue());
          textbox.addStyleName(RES.styles().textbox());
          connGrid.setWidget(idxParams, 1, textbox);

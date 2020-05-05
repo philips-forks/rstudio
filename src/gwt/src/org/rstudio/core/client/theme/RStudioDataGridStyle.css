@@ -1,9 +1,7 @@
 @external rstudio-themes-flat, rstudio-themes-dark;
 @external rstudio-themes-default, rstudio-themes-dark-grey, rstudio-themes-alternate;
-@external histBar;
 
-/* This is exposed to allow users to customize RStudio further with their rsthemes. */
-@external dataGridHeader;
+@eval fixedWidthFont org.rstudio.core.client.theme.ThemeFonts.getFixedWidthFont();
 
 @eval THEME_DEFAULT_BACKGROUND org.rstudio.core.client.theme.ThemeColors.defaultBackground;
 @eval THEME_DARKGREY_BACKGROUND org.rstudio.core.client.theme.ThemeColors.darkGreyBackground;
@@ -15,7 +13,7 @@
 @def selectionBorderWidth 1px;
 
 .dataGridHeader:active, .dataGridHeader:focus {
-   outline: 0;
+	outline: 0;
 }
 
 .dataGridWidget {
@@ -29,8 +27,8 @@
 }
 
 .dataGridWidget > div {
-   /* Override GWT styling set on element */
-   min-height: 16px !important;
+	/* Override GWT styling set on element */
+	min-height: 16px !important;
 }
 
 .dataGridFirstColumn {
@@ -227,11 +225,3 @@
    background: THEME_ALTERNATE_BACKGROUND;
    border-color: THEME_ALTERNATE_BORDER;
 }
-
-/**
- * Styles for brushing histograms
- */
-.histBar {
-   background-color: THEME_ALTERNATE_BACKGROUND;
-}
-

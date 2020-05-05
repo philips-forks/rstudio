@@ -1,7 +1,7 @@
 /*
  * Settings.hpp
  *
- * Copyright (C) 2009-12 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -22,7 +22,7 @@
 #include <boost/utility.hpp>
 #include <boost/function.hpp>
 
-#include <shared_core/FilePath.hpp>
+#include <core/FilePath.hpp>
 
 namespace rstudio {
 namespace core {
@@ -56,8 +56,6 @@ public:
 
    void beginUpdate();
    void endUpdate();
-
-   const FilePath& filePath() const { return settingsFile_; }
 
 private:
    void writeSettings() ;

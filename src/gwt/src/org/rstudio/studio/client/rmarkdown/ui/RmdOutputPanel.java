@@ -1,7 +1,7 @@
 /*
  * RmdOutputPanel.java
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-14 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -31,7 +31,7 @@ import com.google.inject.Inject;
 
 import org.rstudio.core.client.FilePosition;
 import org.rstudio.core.client.ScrollUtil;
-import org.rstudio.core.client.dom.DomUtils;
+import org.rstudio.core.client.StringUtil;
 import org.rstudio.core.client.dom.IFrameElementEx;
 import org.rstudio.core.client.dom.WindowEx;
 import org.rstudio.core.client.files.FileSystemItem;
@@ -101,7 +101,7 @@ public class RmdOutputPanel extends SatelliteFramePanel<AnchorableFrame>
       {
          fileLabel_.setVisible(false);
          fileLabelSeparator_.setVisible(false);
-         shinyUrl_ = DomUtils.makeAbsoluteUrl(params.getOutputUrl());
+         shinyUrl_ = StringUtil.makeAbsoluteUrl(params.getOutputUrl());
          isShiny_ = true;
       }
       else
@@ -204,7 +204,7 @@ public class RmdOutputPanel extends SatelliteFramePanel<AnchorableFrame>
                RStudioGinjector.INSTANCE.getGlobalDisplay().showMessage(
                      MessageDialog.INFO,
                      "Find in Page", 
-                     "No occurrences found",
+                     "No occurences found",
                      findInputSource);
             }     
          }
@@ -226,7 +226,7 @@ public class RmdOutputPanel extends SatelliteFramePanel<AnchorableFrame>
    @Override
    protected AnchorableFrame createFrame(String url)
    {
-      AnchorableFrame frame = new AnchorableFrame("Rmd Output Panel");
+      AnchorableFrame frame = new AnchorableFrame();
       
       // allow full screen
       Element el = frame.getElement();
@@ -305,7 +305,7 @@ public class RmdOutputPanel extends SatelliteFramePanel<AnchorableFrame>
       public void run()
       {
          String url = getCurrentUrl();
-         if (url != lastUrl_)
+         if (!url.equals(lastUrl_))
          {
             lastUrl_ = url;
             fireSlideIndexChanged();
@@ -371,12 +371,6 @@ public class RmdOutputPanel extends SatelliteFramePanel<AnchorableFrame>
    public String getTitle()
    {
       return title_;
-   }
-   
-   @Override
-   public String getName()
-   {
-      return shinyFrame_.getWindow().getName();
    }
    
    @Override

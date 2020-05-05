@@ -1,7 +1,7 @@
 /*
  * StanFileType.java
  *
- * Copyright (C) 2009-12 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -19,7 +19,6 @@ import java.util.HashSet;
 
 import org.rstudio.core.client.command.AppCommand;
 import org.rstudio.core.client.resources.ImageResource2x;
-import org.rstudio.studio.client.RStudioGinjector;
 import org.rstudio.studio.client.common.reditor.EditorLanguage;
 import org.rstudio.studio.client.workbench.commands.Commands;
 
@@ -28,8 +27,7 @@ public class StanFileType extends PreviewableFromRFileType
    public StanFileType()
    {
       super("stan", "Stan", EditorLanguage.LANG_STAN, ".stan",
-            new ImageResource2x(FileIconResources.INSTANCE.iconStan2x()), "rstan:::rstudio_stanc",
-            true);
+            new ImageResource2x(FileIconResources.INSTANCE.iconStan2x()), "rstan:::rstudio_stanc");
    }
    
    public String getPreviewButtonText()
@@ -38,17 +36,10 @@ public class StanFileType extends PreviewableFromRFileType
    }
    
    @Override
-   public boolean getWordWrap()
-   {
-      return RStudioGinjector.INSTANCE.getUserPrefs().softWrapRFiles().getValue();
-   }
-   
-   @Override
    public HashSet<AppCommand> getSupportedCommands(Commands commands)
    {
       HashSet<AppCommand> result = super.getSupportedCommands(commands);
       result.add(commands.commentUncomment());
-      result.add(commands.reindent());
       return result;
    }
 }

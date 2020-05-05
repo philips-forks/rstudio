@@ -1,7 +1,7 @@
 /*
  * CodeSearchOracle.java
  *
- * Copyright (C) 2009-20 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -82,7 +82,7 @@ public class CodeSearchOracle extends SuggestOracle
          // Less penalty if character follows special delim
          if (matchPos >= 1)
          {
-            char prevChar = StringUtil.charAt(suggestionLower, matchPos - 1);
+            char prevChar = suggestionLower.charAt(matchPos - 1);
             if (prevChar == '_' || prevChar == '-' ||
                   (!isFile && prevChar == '.'))
             {
@@ -91,12 +91,12 @@ public class CodeSearchOracle extends SuggestOracle
          }
          
          // Less penalty for case-sensitive matches
-         if (StringUtil.charAt(suggestion, matchPos) == query.charAt(j))
+         if (suggestion.charAt(matchPos) == query.charAt(j))
             penalty--;
          
          // More penalty for 'uninteresting' files
-         if (suggestion == "RcppExports.R" ||
-             suggestion == "RcppExports.cpp")
+         if (suggestion.equals("RcppExports.R") ||
+             suggestion.equals("RcppExports.cpp"))
             penalty += 6;
          
          // More penalty for 'uninteresting' extensions (e.g. .Rd)
@@ -131,7 +131,7 @@ public class CodeSearchOracle extends SuggestOracle
          SearchResult res = resultCache_.get(i);
          
          // exact match of previous query
-         if (request.getQuery() == res.getQuery())
+         if (request.getQuery().equals(res.getQuery()))
          {
             callback.onSuggestionsReady(request, 
                                         new Response(res.getSuggestions()));
@@ -363,7 +363,7 @@ public class CodeSearchOracle extends SuggestOracle
       private Callback callback_;
       private Invalidation.Token invalidationToken_;
       private boolean executing_;
-   }
+   };
    
    private void sortSuggestions(ArrayList<CodeSearchSuggestion> suggestions,
                                 String query)
@@ -440,7 +440,7 @@ public class CodeSearchOracle extends SuggestOracle
    
    private final Invalidation searchInvalidation_ = new Invalidation();
    
-   private final CodeSearchServerOperations server_;
+   private final CodeSearchServerOperations server_ ;
    private final WorkbenchContext workbenchContext_;
    private final CodeSearchCommand codeSearch_ = new CodeSearchCommand();
    

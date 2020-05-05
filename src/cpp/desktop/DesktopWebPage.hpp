@@ -1,7 +1,7 @@
 /*
  * DesktopWebPage.hpp
  *
- * Copyright (C) 2009-17 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -16,14 +16,9 @@
 #ifndef DESKTOP_WEB_PAGE_HPP
 #define DESKTOP_WEB_PAGE_HPP
 
-#include <queue>
-
 #include <QtGui>
-#include <QWebEnginePage>
-#include <QWebEngineUrlRequestInfo>
-
-#include "DesktopWebProfile.hpp"
-#include "DesktopUtils.hpp"
+#include <QtWebKit>
+#include <QWebPage>
 
 namespace rstudio {
 namespace desktop {
@@ -33,7 +28,7 @@ class MainWindow;
 struct PendingWindow
 {
    PendingWindow()
-      : name(), pMainWindow(nullptr), x(-1), y(-1), width(-1), height(-1),
+      : name(), pMainWindow(NULL), x(-1), y(-1), width(-1), height(-1),
         isSatellite(false), allowExternalNavigate(false), showToolbar(false)
    {
    }
@@ -43,11 +38,16 @@ struct PendingWindow
                  int screenX,
                  int screenY,
                  int width,
-                 int height);
+                 int height)
+      : name(name), pMainWindow(pMainWindow), x(screenX), y(screenY),
+        width(width), height(height), isSatellite(true),
+        allowExternalNavigate(false), showToolbar(false)
+   {
+   }
 
    PendingWindow(QString name, bool allowExternalNavigation,
                  bool showDesktopToolbar)
-      : name(name), pMainWindow(nullptr), isSatellite(false),
+      : name(name), pMainWindow(NULL), isSatellite(false),
         allowExternalNavigate(allowExternalNavigation),
         showToolbar(showDesktopToolbar)
    {
@@ -59,32 +59,25 @@ struct PendingWindow
 
    MainWindow* pMainWindow;
 
-   int x = 0;
-   int y = 0;
-   int width = 0;
-   int height = 0;
+   int x;
+   int y;
+   int width;
+   int height;
    bool isSatellite;
    bool allowExternalNavigate;
    bool showToolbar;
 };
 
 
-class WebPage : public QWebEnginePage
+class WebPage : public QWebPage
 {
    Q_OBJECT
 
 public:
-   explicit WebPage(QUrl baseUrl = QUrl(),
-                    QWidget *parent = nullptr,
-                    bool allowExternalNavigate = false);
-
-   explicit WebPage(QWebEngineProfile *profile,
-                    QUrl baseUrl = QUrl(),
-                    QWidget *parent = nullptr,
+   explicit WebPage(QUrl baseUrl = QUrl(), QWidget *parent = NULL,
                     bool allowExternalNavigate = false);
 
    void setBaseUrl(const QUrl& baseUrl);
-   void setTutorialUrl(const QString& tutorialUrl);
    void setViewerUrl(const QString& viewerUrl);
    void setShinyDialogUrl(const QString& shinyDialogUrl);
    void prepareExternalNavigate(const QString& externalUrl);
@@ -92,37 +85,30 @@ public:
    void activateWindow(QString name);
    void prepareForWindow(const PendingWindow& pendingWnd);
    void closeWindow(QString name);
+   virtual void triggerAction(QWebPage::WebAction action, bool checked = false);
 
-   void triggerAction(QWebEnginePage::WebAction action, bool checked = false) override;
-
-   inline WebProfile* profile() { return static_cast<WebProfile*>(QWebEnginePage::profile()); }
-
-public Q_SLOTS:
+public slots:
    bool shouldInterruptJavaScript();
    void closeRequested();
-   void onUrlIntercepted(const QUrl& url, int type);
 
 protected:
-   QWebEnginePage* createWindow(QWebEnginePage::WebWindowType type) override;
-   void javaScriptConsoleMessage(JavaScriptConsoleMessageLevel level, const QString& message,
-                                 int lineNumber, const QString& sourceID) override;
+   QWebPage* createWindow(QWebPage::WebWindowType type);
+   void javaScriptConsoleMessage(const QString& message, int lineNumber, const QString& sourceID);
    QString userAgentForUrl(const QUrl &url) const;
-   bool acceptNavigationRequest(const QUrl &url, NavigationType, bool isMainFrame) override;
-   
-   QString tutorialUrl();
-   QString viewerUrl();
+   bool acceptNavigationRequest(QWebFrame* frame,
+                                const QNetworkRequest& request,
+                                NavigationType type);
 
 private:
-   void init();
-   void handleBase64Download(QUrl url);
+   void handleBase64Download(QWebFrame* pWebFrame, QUrl url);
 
 private:
    QUrl baseUrl_;
-   QString tutorialUrl_;
    QString viewerUrl_;
    QString shinyDialogUrl_;
+   bool navigated_;
    bool allowExternalNav_;
-   std::queue<PendingWindow> pendingWindows_;
+   PendingWindow pendingWindow_;
    QDir defaultSaveDir_;
 };
 

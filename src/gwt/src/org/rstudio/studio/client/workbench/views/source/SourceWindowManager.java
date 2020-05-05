@@ -1,7 +1,7 @@
 /*
  * SourceWindowManager.java
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-16 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -51,8 +51,7 @@ import org.rstudio.studio.client.workbench.model.Session;
 import org.rstudio.studio.client.workbench.model.UnsavedChangesItem;
 import org.rstudio.studio.client.workbench.model.UnsavedChangesTarget;
 import org.rstudio.studio.client.workbench.model.helper.JSObjectStateValue;
-import org.rstudio.studio.client.workbench.prefs.model.UserPrefs;
-import org.rstudio.studio.client.workbench.prefs.model.UserPrefsAccessor;
+import org.rstudio.studio.client.workbench.prefs.model.UIPrefs;
 import org.rstudio.studio.client.workbench.ui.PaneConfig;
 import org.rstudio.studio.client.workbench.views.source.events.*;
 import org.rstudio.studio.client.workbench.views.source.model.SourceDocument;
@@ -104,7 +103,7 @@ public class SourceWindowManager implements PopoutDocEvent.Handler,
          GlobalDisplay display, 
          SourceShim sourceShim,
          Session session,
-         UserPrefs uiPrefs)
+         UIPrefs uiPrefs)
    {
       events_ = events;
       server_ = server;
@@ -113,7 +112,7 @@ public class SourceWindowManager implements PopoutDocEvent.Handler,
       pWorkbenchContext_ = pWorkbenchContext;
       display_ = display;
       sourceShim_ = sourceShim;
-      userPrefs_ = uiPrefs;
+      uiPrefs_ = uiPrefs;
       
       events_.addHandler(DocWindowChangedEvent.TYPE, this);
       
@@ -214,18 +213,14 @@ public class SourceWindowManager implements PopoutDocEvent.Handler,
       
       // signal that this window has focus
       if (WindowEx.get().getDocument().hasFocus())
-      {
-         MainWindowObject.lastFocusedWindow().set(WindowEx.getNative());
-         MainWindowObject.lastFocusedWindowId().set(getSourceWindowId());
-      }
+         MainWindowObject.lastFocusedWindow().set(getSourceWindowId());
       
       WindowEx.addFocusHandler(new FocusHandler()
       {
          @Override
          public void onFocus(FocusEvent event)
          {
-            MainWindowObject.lastFocusedWindow().set(WindowEx.getNative());
-            MainWindowObject.lastFocusedWindowId().set(getSourceWindowId());
+            MainWindowObject.lastFocusedWindow().set(getSourceWindowId());
          }
       });
    }
@@ -278,12 +273,12 @@ public class SourceWindowManager implements PopoutDocEvent.Handler,
    
    public String getLastFocusedSourceWindowId()
    {
-      return MainWindowObject.lastFocusedSourceWindowId().get();
+      return MainWindowObject.lastFocusedSourceWindow().get();
    }
    
    public String getLastFocusedWindowId()
    {
-      return MainWindowObject.lastFocusedWindowId().get();
+      return MainWindowObject.lastFocusedWindow().get();
    }
    
    public int getSourceWindowOrdinal()
@@ -309,45 +304,27 @@ public class SourceWindowManager implements PopoutDocEvent.Handler,
          return getMainWindowSourceDocs();
    }
    
-   /**
-    * Given a path to a source document, returns a data structure with information about the document.
-    * 
-    * @param path The path to the document.
-    * @return A data structure with document metadata, or null if no metadata was found.
-    */
-   public SourceDocument getDocFromPath(String path)
-   {
-      JsArray<SourceDocument> docs = getSourceDocs();
-      for (int i = 0; i < docs.length(); i++)
-      {
-         if (StringUtil.equals(docs.get(i).getPath(), path))
-         {
-            return docs.get(i);
-         }
-      }
-      return null;
-   }
-   
    public boolean isSourceWindowOpen(String windowId)
    {
       return sourceWindows_.containsKey(windowId);
    }
    
-   public boolean areSourceWindowsOpen()
-   {
-      return !sourceWindows_.isEmpty();
-   }
-   
    public String getWindowIdOfDocPath(String path)
    {
-      SourceDocument doc = getDocFromPath(path);
-      if (doc == null)
-         return null;
-      String windowId = doc.getSourceWindowId();
-      if (windowId != null)
-         return windowId;
-      else
-         return "";
+      JsArray<SourceDocument> docs = getSourceDocs();
+      for (int i = 0; i < docs.length(); i++)
+      {
+         if (docs.get(i).getPath() != null && 
+             docs.get(i).getPath().equals(path))
+         {
+            String windowId = docs.get(i).getSourceWindowId();
+            if (windowId != null)
+               return windowId;
+            else
+               return "";
+         }
+      }
+      return null;
    }
    
    public String getWindowIdOfDocId(String id)
@@ -384,6 +361,7 @@ public class SourceWindowManager implements PopoutDocEvent.Handler,
    public void saveUnsavedDocuments(final Set<String> ids,
                                     final Command onCompleted)
    {
+      
       doForAllSourceWindows(new SourceWindowCommand()
       {
          @Override
@@ -451,7 +429,7 @@ public class SourceWindowManager implements PopoutDocEvent.Handler,
          public void execute()
          {
             // return focus to the main window when finished
-            if (Desktop.hasDesktopFrame() || !isMainSourceWindow())
+            if (Desktop.isDesktop() || !isMainSourceWindow())
                pSatellite_.get().focusMainWindow();
             
             // complete operation
@@ -557,10 +535,10 @@ public class SourceWindowManager implements PopoutDocEvent.Handler,
       if (SourceWindowManager.isMainSourceWindow())
       {
          // see if the Source and Console are paired
-         PaneConfig paneConfig = userPrefs_.panes().getValue().cast();
+         PaneConfig paneConfig = uiPrefs_.paneConfig().getValue();
          if (paneConfig == null)
             paneConfig = PaneConfig.createDefault();
-         if (hasSourceAndConsolePaired(paneConfig.getQuadrants()))
+         if (hasSourceAndConsolePaired(paneConfig.getPanes()))
          {
             events_.fireEvent(new MaximizeSourceWindowEvent());
          }  
@@ -572,10 +550,10 @@ public class SourceWindowManager implements PopoutDocEvent.Handler,
       if (SourceWindowManager.isMainSourceWindow())
       {
          // see if the Source and Console are paired
-         PaneConfig paneConfig = userPrefs_.panes().getValue().cast();
+         PaneConfig paneConfig = uiPrefs_.paneConfig().getValue();
          if (paneConfig == null)
             paneConfig = PaneConfig.createDefault();
-         if (hasSourceAndConsolePaired(paneConfig.getQuadrants()))
+         if (hasSourceAndConsolePaired(paneConfig.getPanes()))
          {
             events_.fireEvent(new EnsureVisibleSourceWindowEvent());
          }  
@@ -600,20 +578,20 @@ public class SourceWindowManager implements PopoutDocEvent.Handler,
       EditorCommandEvent event = dispatchEvent.getEvent();
       
       String type = event.getType();
-      if (type == EditorCommandEvent.TYPE_EDITOR_CONTEXT)
+      if (type.equals(EditorCommandEvent.TYPE_EDITOR_CONTEXT))
       {
          GetEditorContextEvent.Data data = event.getData();
          fireEventToLastFocusedWindow(new GetEditorContextEvent(data));
       }
-      else if (type == EditorCommandEvent.TYPE_REPLACE_RANGES)
+      else if (type.equals(EditorCommandEvent.TYPE_REPLACE_RANGES))
       {
          ReplaceRangesEvent.Data data = event.getData();
-         fireEventForDocument(data.getId(), new ReplaceRangesEvent(data));
+         fireEventToLastFocusedWindow(new ReplaceRangesEvent(data));
       }
-      else if (type == EditorCommandEvent.TYPE_SET_SELECTION_RANGES)
+      else if (type.equals(EditorCommandEvent.TYPE_SET_SELECTION_RANGES))
       {
          SetSelectionRangesEvent.Data data = event.getData();
-         fireEventForDocument(data.getId(), new SetSelectionRangesEvent(data));
+         fireEventToLastFocusedWindow(new SetSelectionRangesEvent(data));
       }
       else
          assert false: "Unrecognized editor event type '" + type + "'";
@@ -810,7 +788,7 @@ public class SourceWindowManager implements PopoutDocEvent.Handler,
                   ? ""
                   : sourceWindowId(event.originWindowName());
 
-            MainWindowObject.lastFocusedSourceWindowId().set(id);
+            MainWindowObject.lastFocusedSourceWindow().set(id);
          }
       });
    }
@@ -822,21 +800,6 @@ public class SourceWindowManager implements PopoutDocEvent.Handler,
    }
 
    // Private methods ---------------------------------------------------------
-   
-   private void fireEventForDocument(String docId, CrossWindowEvent<?> event)
-   {
-      if (StringUtil.isNullOrEmpty(docId))
-      {
-         fireEventToLastFocusedWindow(event);
-         return;
-      }
-      
-      String windowId = getWindowIdOfDocId(docId);
-      if (StringUtil.isNullOrEmpty(windowId))
-         events_.fireEventToMainWindow(event);
-      else
-         fireEventToSourceWindow(windowId, event, false);
-   }
    
    private void fireEventToSourceWindow(String windowId, 
          CrossWindowEvent<?> evt,
@@ -895,7 +858,7 @@ public class SourceWindowManager implements PopoutDocEvent.Handler,
                size = new Size(window.getInnerWidth(), 
                      window.getInnerHeight());
                if (position == null)
-                  position = Point.create(
+                  position = new Point(
                         window.getScreenX() + 50,
                         window.getScreenY() + 50);
             }
@@ -1037,7 +1000,7 @@ public class SourceWindowManager implements PopoutDocEvent.Handler,
                changedWindows.add(windowId);
             }
             newGeometries.setObject(windowId, newGeometry);
-         }
+         };
       });
       
       if (changedWindows.size() > 0)
@@ -1181,7 +1144,7 @@ public class SourceWindowManager implements PopoutDocEvent.Handler,
    
    private static boolean canActivateSourceWindows()
    {
-      return Desktop.hasDesktopFrame() || BrowseCap.isInternetExplorer();
+      return Desktop.isDesktop() || BrowseCap.INSTANCE.isInternetExplorer();
    }
    
    private void focusSourceWindow(String windowId)
@@ -1189,7 +1152,7 @@ public class SourceWindowManager implements PopoutDocEvent.Handler,
       if (StringUtil.isNullOrEmpty(windowId))
       {
          // activate main window
-         if (Desktop.hasDesktopFrame())
+         if (Desktop.isDesktop())
             Desktop.getFrame().bringMainFrameToFront();
          else
             WindowEx.get().focus();
@@ -1307,7 +1270,7 @@ public class SourceWindowManager implements PopoutDocEvent.Handler,
    private WindowEx getLastFocusedSourceWindow()
    {
       String lastFocusedSourceWindow =
-            MainWindowObject.lastFocusedSourceWindowId().get();
+            MainWindowObject.lastFocusedSourceWindow().get();
             
       // if the last window focused was the main one, or there's no longer an
       // addressable window, there's nothing to do
@@ -1342,11 +1305,11 @@ public class SourceWindowManager implements PopoutDocEvent.Handler,
    
    private boolean hasSourceAndConsolePaired(String pane1, String pane2)
    {
-      return (pane1 == UserPrefsAccessor.Panes.QUADRANTS_SOURCE &&
-              pane2 == UserPrefsAccessor.Panes.QUADRANTS_CONSOLE)
+      return (pane1.equals(PaneConfig.SOURCE) &&
+              pane2.equals(PaneConfig.CONSOLE))
                  ||
-             (pane1 == UserPrefsAccessor.Panes.QUADRANTS_CONSOLE &&
-              pane2 == UserPrefsAccessor.Panes.QUADRANTS_SOURCE);
+             (pane1.equals(PaneConfig.CONSOLE) &&
+              pane2.equals(PaneConfig.SOURCE));
    }
 
    // Private types -----------------------------------------------------------
@@ -1366,7 +1329,7 @@ public class SourceWindowManager implements PopoutDocEvent.Handler,
    private final SourceServerOperations server_;
    private final GlobalDisplay display_;
    private final SourceShim sourceShim_;
-   private final UserPrefs userPrefs_;
+   private final UIPrefs uiPrefs_;
 
    private HashMap<String, Integer> sourceWindows_ = 
          new HashMap<String,Integer>();

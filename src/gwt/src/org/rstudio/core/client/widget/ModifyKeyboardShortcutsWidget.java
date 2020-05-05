@@ -1,7 +1,7 @@
 /*
  * ModifyKeyboardShortcutsWidget.java
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -14,14 +14,12 @@
  */
 package org.rstudio.core.client.widget;
 
-import com.google.gwt.aria.client.Roles;
 import com.google.gwt.cell.client.EditTextCell;
 import com.google.gwt.cell.client.FieldUpdater;
 import com.google.gwt.cell.client.ValueUpdater;
 import com.google.gwt.core.client.GWT;
 import com.google.gwt.core.client.JsArray;
 import com.google.gwt.core.client.JsArrayString;
-import com.google.gwt.core.client.Scheduler;
 import com.google.gwt.dom.client.Element;
 import com.google.gwt.dom.client.NativeEvent;
 import com.google.gwt.dom.client.Style;
@@ -69,6 +67,7 @@ import org.rstudio.core.client.StringUtil;
 import org.rstudio.core.client.command.*;
 import org.rstudio.core.client.command.EditorCommandManager.EditorKeyBinding;
 import org.rstudio.core.client.command.EditorCommandManager.EditorKeyBindings;
+import org.rstudio.core.client.command.KeyboardShortcut.KeySequence;
 import org.rstudio.core.client.command.ShortcutManager.Handle;
 import org.rstudio.core.client.dom.DomUtils;
 import org.rstudio.core.client.dom.DomUtils.ElementPredicate;
@@ -167,7 +166,7 @@ public class ModifyKeyboardShortcutsWidget extends ModalDialogBase
       
       public void setKeySequence(KeySequence keys)
       {
-         if (keys == keySequence_)
+         if (keys.equals(keySequence_))
             newKeySequence_ = null;
          else
             newKeySequence_ = keys.clone();
@@ -197,7 +196,7 @@ public class ModifyKeyboardShortcutsWidget extends ModalDialogBase
          KeyboardShortcutEntry other = (KeyboardShortcutEntry) object;
          return
                commandType_ == other.commandType_ &&
-               id_ == other.id_;
+               id_.equals(other.id_);
       }
       
       private final String id_;
@@ -226,7 +225,6 @@ public class ModifyKeyboardShortcutsWidget extends ModalDialogBase
    
    public ModifyKeyboardShortcutsWidget(String filterText)
    {
-      super(Roles.getDialogRole());
       RStudioGinjector.INSTANCE.injectMembers(this);
       
       initialFilterText_ = filterText;
@@ -235,7 +233,7 @@ public class ModifyKeyboardShortcutsWidget extends ModalDialogBase
       changes_ = new HashMap<KeyboardShortcutEntry, KeyboardShortcutEntry>();
       buffer_ = new KeySequence();
       
-      table_ = new RStudioDataGrid<KeyboardShortcutEntry>(1000, RES, KEY_PROVIDER);
+      table_ = new DataGrid<KeyboardShortcutEntry>(1000, RES, KEY_PROVIDER);
       
       FlowPanel emptyWidget = new FlowPanel();
       Label emptyLabel = new Label("No bindings available");
@@ -354,7 +352,7 @@ public class ModifyKeyboardShortcutsWidget extends ModalDialogBase
          }
       });
       
-      filterWidget_ = new SearchWidget("Filter keyboard shortcuts", new SuggestOracle() {
+      filterWidget_ = new SearchWidget(new SuggestOracle() {
 
          @Override
          public void requestSuggestions(Request request, Callback callback)
@@ -440,7 +438,7 @@ public class ModifyKeyboardShortcutsWidget extends ModalDialogBase
          // Get all commands with this ID.
          List<KeyboardShortcutEntry> bindingsWithId = new ArrayList<KeyboardShortcutEntry>();
          for (KeyboardShortcutEntry binding : originalBindings_)
-            if (binding.getId() == id)
+            if (binding.getId().equals(id))
                bindingsWithId.add(binding);
          
          // Collect all shortcuts.
@@ -576,7 +574,7 @@ public class ModifyKeyboardShortcutsWidget extends ModalDialogBase
             // element (thereby committing the current selection) and ensure
             // that selection has been appropriately reset in an earlier preview
             // handler.
-            if (event.getType()    == "keyup" &&
+            if (event.getType().equals("keyup") &&
                 event.getKeyCode() == KeyCodes.KEY_ESCAPE)
             {
                parent.getFirstChildElement().blur();
@@ -606,7 +604,7 @@ public class ModifyKeyboardShortcutsWidget extends ModalDialogBase
             
             // Differentiate between resetting the key sequence and
             // adding a new key sequence.
-            if (keys == binding.getOriginalKeySequence())
+            if (keys.equals(binding.getOriginalKeySequence()))
             {
                changes_.remove(binding);
                binding.restoreOriginalKeySequence();
@@ -766,11 +764,11 @@ public class ModifyKeyboardShortcutsWidget extends ModalDialogBase
    {
       NativeEvent event = preview.getNativeEvent();
       String type = event.getType();
-      if (type == "blur")
+      if (type.equals("blur"))
       {
          buffer_.clear();
       }
-      else if (type == "keydown")
+      else if (type.equals("keydown"))
       {
          int keyCode = event.getKeyCode();
          int modifiers = KeyboardShortcut.getModifierValue(event);
@@ -806,7 +804,7 @@ public class ModifyKeyboardShortcutsWidget extends ModalDialogBase
       NativeEvent event = preview.getNativeEvent();
       String type = event.getType();
       
-      if (type == "keydown")
+      if (type.equals("keydown"))
       {
          int keyCode = event.getKeyCode();
          int modifiers = KeyboardShortcut.getModifierValue(event);
@@ -936,12 +934,6 @@ public class ModifyKeyboardShortcutsWidget extends ModalDialogBase
                      }
                   }
 
-                  // If Help link has focus, Enter shouldn't close the widget
-                  if (keyCode == KeyCodes.KEY_ENTER && helpLink_.hasFocus())
-                  {
-                     return;
-                  }
-
                   // Otherwise, handle Enter / Escape 'modally' as we might normally do.
                   preview.cancel();
                   preview.getNativeEvent().stopPropagation();
@@ -968,7 +960,7 @@ public class ModifyKeyboardShortcutsWidget extends ModalDialogBase
          public void onAttachOrDetach(AttachEvent event)
          {
             if (event.isAttached())
-               Scheduler.get().scheduleDeferred(() -> filterWidget_.focus());
+               ;
             else
                previewHandler_.removeHandler();
          }
@@ -981,27 +973,21 @@ public class ModifyKeyboardShortcutsWidget extends ModalDialogBase
       Label radioLabel = new Label("Show:");
       radioLabel.getElement().getStyle().setFloat(Style.Float.LEFT);
       radioLabel.getElement().getStyle().setMarginRight(8, Unit.PX);
-
       headerPanel.add(radioLabel);
-      FieldSetPanel showFieldsetPanel = new FieldSetPanel(radioLabel);
-      showFieldsetPanel.setStyleName(RES.dataGridStyle().showChoice());
-      FlowPanel radioPanel = new FlowPanel();
-      showFieldsetPanel.add(radioPanel);
-      headerPanel.add(showFieldsetPanel);
-      radioPanel.add(radioAll_);
+      headerPanel.add(radioAll_);
       radioAll_.setValue(true);
-      radioPanel.add(radioCustomized_);
+      headerPanel.add(radioCustomized_);
       
       filterWidget_.getElement().getStyle().setFloat(Style.Float.LEFT);
       filterWidget_.getElement().getStyle().setMarginLeft(10, Unit.PX);
       filterWidget_.getElement().getStyle().setMarginTop(-1, Unit.PX);
       headerPanel.add(filterWidget_);
       
-      helpLink_ = new HelpLink(
+      HelpLink link = new HelpLink(
             "Customizing Keyboard Shortcuts",
             "custom_keyboard_shortcuts");
-      helpLink_.getElement().getStyle().setFloat(Style.Float.RIGHT);
-      headerPanel.add(helpLink_);
+      link.getElement().getStyle().setFloat(Style.Float.RIGHT);
+      headerPanel.add(link);
       
       container.add(headerPanel);
       
@@ -1443,8 +1429,8 @@ public class ModifyKeyboardShortcutsWidget extends ModalDialogBase
    
    private final RadioButton radioAll_;
    private final RadioButton radioCustomized_;
-   private static final String RADIO_BUTTON_GROUP = "radioCustomizeKeyboardShortcuts";
-   private HelpLink helpLink_;
+   private static final String RADIO_BUTTON_GROUP =
+         "radioCustomizeKeyboardShortcuts";
    
    private HandlerRegistration previewHandler_;
    private List<KeyboardShortcutEntry> originalBindings_;
@@ -1480,7 +1466,6 @@ public class ModifyKeyboardShortcutsWidget extends ModalDialogBase
       String conflictRow();
       String shortcutInput();
       String icon();
-      String showChoice();
    }
    
    private static final Resources RES = GWT.create(Resources.class);

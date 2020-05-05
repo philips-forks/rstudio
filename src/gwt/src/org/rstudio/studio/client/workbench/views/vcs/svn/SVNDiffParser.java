@@ -1,7 +1,7 @@
 /*
  * SVNDiffParser.java
  *
- * Copyright (C) 2009-12 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -103,7 +103,7 @@ public class SVNDiffParser implements DiffParser
 
       sectionsToUse.add(sections_.remove(0));
       String filename = sectionsToUse.get(0).filename;
-      while (sections_.size() > 0 && sections_.get(0).filename == filename)
+      while (sections_.size() > 0 && sections_.get(0).filename.equals(filename))
       {
          sectionsToUse.add(sections_.remove(0));
       }

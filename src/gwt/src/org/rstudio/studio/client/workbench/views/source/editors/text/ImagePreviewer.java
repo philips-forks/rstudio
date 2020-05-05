@@ -1,7 +1,7 @@
 /*
  * ImagePreviewer.java
  *
- * Copyright (C) 2009-16 by RStudio, PBC
+ * Copyright (C) 2009-16 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -22,13 +22,13 @@ import org.rstudio.core.client.Mutable;
 import org.rstudio.core.client.StringUtil;
 import org.rstudio.core.client.dom.ImageElementEx;
 import org.rstudio.core.client.html.HTMLAttributesParser;
-import org.rstudio.core.client.html.HTMLAttributesParser.Attributes;
 import org.rstudio.core.client.js.JsUtil;
 import org.rstudio.core.client.layout.FadeOutAnimation;
 import org.rstudio.core.client.regex.Pattern;
 import org.rstudio.studio.client.common.FilePathUtils;
 import org.rstudio.studio.client.rmarkdown.model.RmdChunkOptions;
-import org.rstudio.studio.client.workbench.prefs.model.UserPrefs;
+import org.rstudio.studio.client.workbench.prefs.model.UIPrefs;
+import org.rstudio.studio.client.workbench.prefs.model.UIPrefsAccessor;
 import org.rstudio.studio.client.workbench.views.source.editors.text.ace.LineWidget;
 import org.rstudio.studio.client.workbench.views.source.editors.text.ace.Position;
 import org.rstudio.studio.client.workbench.views.source.editors.text.ace.Range;
@@ -63,7 +63,7 @@ import com.google.gwt.user.client.ui.SimplePanel;
 public class ImagePreviewer
 {
    public ImagePreviewer(DocDisplay display, DocUpdateSentinel sentinel, 
-         UserPrefs prefs)
+         UIPrefs prefs)
    {
       display_ = display;
       prefs_ = prefs;
@@ -97,7 +97,7 @@ public class ImagePreviewer
    }
 
    public static void onPreviewLink(DocDisplay display, 
-         DocUpdateSentinel sentinel, UserPrefs prefs, Position position)
+         DocUpdateSentinel sentinel, UIPrefs prefs, Position position)
    {
       Token token = display.getTokenAt(position);
       if (token == null)
@@ -243,26 +243,17 @@ public class ImagePreviewer
       String srcPath = imgSrcPathFromHref(sentinel, href);
       final Image image = new Image(srcPath);
       image.addStyleName(RES.styles().image());
-      final Element imgEl = image.getElement();
       
-      // parse and inject attributes, if we have any
-      if (attributes != null)
+      // parse and inject attributes
+      Map<String, String> parsedAttributes = HTMLAttributesParser.parseAttributes(attributes);
+      final Element imgEl = image.getElement();
+      for (Map.Entry<String, String> entry : parsedAttributes.entrySet())
       {
-         Attributes parsedAttributes = HTMLAttributesParser.parseAttributes(attributes);
-         for (Map.Entry<String, String> entry : parsedAttributes.getAttributes().entrySet())
-         {
-            String key = entry.getKey();
-            String val = entry.getValue();
-            if (StringUtil.isNullOrEmpty(key) || StringUtil.isNullOrEmpty(val))
-               continue;
-            imgEl.setAttribute(key, val);
-         }
-
-         if (!parsedAttributes.getIdentifier().isEmpty())
-            imgEl.setId(parsedAttributes.getIdentifier());
-
-         for (String className : parsedAttributes.getClasses())
-            imgEl.addClassName(className);
+         String key = entry.getKey();
+         String val = entry.getValue();
+         if (StringUtil.isNullOrEmpty(key) || StringUtil.isNullOrEmpty(val))
+            continue;
+         imgEl.setAttribute(key, val);
       }
       
       // add load handlers to image
@@ -359,9 +350,9 @@ public class ImagePreviewer
                      sentinel, href_));
                
                // parse and inject attributes
-               Attributes parsedAttributes = HTMLAttributesParser.parseAttributes(attributes_);
+               Map<String, String> parsedAttributes = HTMLAttributesParser.parseAttributes(attributes_);
                final Element imgEl = image.getElement();
-               for (Map.Entry<String, String> entry : parsedAttributes.getAttributes().entrySet())
+               for (Map.Entry<String, String> entry : parsedAttributes.entrySet())
                {
                   String key = entry.getKey();
                   String val = entry.getValue();
@@ -369,12 +360,6 @@ public class ImagePreviewer
                      continue;
                   imgEl.setAttribute(key, val);
                }
-               
-               if (!parsedAttributes.getIdentifier().isEmpty())
-                  imgEl.setId(parsedAttributes.getIdentifier());
-               
-               for (String className : parsedAttributes.getClasses())
-                  imgEl.addClassName(className);
             }
          };
          
@@ -414,7 +399,7 @@ public class ImagePreviewer
                   
                   // if we have the same href as before, don't update
                   // (avoid flickering + re-requests of same URL)
-                  if (hrefToken.getValue() == href_ && attributes == attributes_)
+                  if (hrefToken.getValue().equals(href_) && attributes.equals(attributes_))
                      return;
                   
                   // cache href and schedule refresh of image
@@ -436,7 +421,7 @@ public class ImagePreviewer
             // ignore 'removeLines' events as they won't mutate the actual
             // line containing the markdown link
             String action = event.getEvent().getAction();
-            if (action == "removeLines")
+            if (action.equals("removeLines"))
                return;
             
             Scheduler.get().scheduleDeferred(new ScheduledCommand()
@@ -499,15 +484,9 @@ public class ImagePreviewer
           href.endsWith(".gif")  ||
           href.endsWith(".svg");
    }
-   
-   public static String imgSrcPathFromHref(DocUpdateSentinel sentinel, String href)
-   {
-      String docPath = sentinel.getPath();
-      String docDir = FilePathUtils.dirFromFile(docPath);
-      return imgSrcPathFromHref(docDir, href);
-   }
 
-   public static String imgSrcPathFromHref(String docDir, String href)
+   private static String imgSrcPathFromHref(DocUpdateSentinel sentinel, 
+                                            String href)
    {
       // return paths that have a custom / external protocol as-is
       Pattern reProtocol = Pattern.create("^\\w+://");
@@ -518,7 +497,8 @@ public class ImagePreviewer
       String absPath = href;
       if (FilePathUtils.pathIsRelative(href))
       {
-         absPath = docDir + "/" + absPath;
+         String docPath = sentinel.getPath();
+         absPath = FilePathUtils.dirFromFile(docPath) + "/" + absPath;
       }
       
       return "file_show?path=" + StringUtil.encodeURIComponent(absPath) + 
@@ -527,7 +507,7 @@ public class ImagePreviewer
    
    private static void onPreviewImage(DocDisplay display, 
                                       DocUpdateSentinel sentinel,
-                                      UserPrefs prefs,
+                                      UIPrefs prefs,
                                       String href,
                                       String attributes,
                                       Position position,
@@ -540,12 +520,12 @@ public class ImagePreviewer
       if (el != null)
          return;
       
-      String pref = prefs.latexPreviewOnCursorIdle().getValue();
+      String pref = prefs.showLatexPreviewOnCursorIdle().getValue();
       
       // skip if disabled entirely
       if (!sentinel.getBoolProperty(
             TextEditingTargetNotebook.CONTENT_PREVIEW_ENABLED, 
-            pref != UserPrefs.LATEX_PREVIEW_ON_CURSOR_IDLE_NEVER))
+            pref != UIPrefsAccessor.LATEX_PREVIEW_SHOW_NEVER))
          return;
       
       // display stand-alone links as line widgets (if enabled)
@@ -553,17 +533,13 @@ public class ImagePreviewer
       if (isStandaloneMarkdownLink(line) && 
           sentinel.getBoolProperty(
             TextEditingTargetNotebook.CONTENT_PREVIEW_INLINE, 
-            prefs.latexPreviewOnCursorIdle().getValue() == 
-                UserPrefs.LATEX_PREVIEW_ON_CURSOR_IDLE_ALWAYS))
+            prefs.showLatexPreviewOnCursorIdle().getValue() == 
+                UIPrefsAccessor.LATEX_PREVIEW_SHOW_ALWAYS))
       {
          onPreviewImageLineWidget(display, sentinel,
                href, attributes, position, tokenRange);
          return;
       }
-      
-      // don't show preview if we are in visual mode
-      if (sentinel.getBoolProperty(TextEditingTarget.RMD_VISUAL_MODE, false))
-         return;
       
       // construct image el, place in popup, and show
       ImagePreviewPopup panel = new ImagePreviewPopup(display, tokenRange, 
@@ -578,9 +554,9 @@ public class ImagePreviewer
    
    private final DocDisplay display_;
    private final DocUpdateSentinel sentinel_;
-   private final UserPrefs prefs_;
+   private final UIPrefs prefs_;
 
-   private static final String LINE_WIDGET_TYPE = "image-preview";
+   private static final String LINE_WIDGET_TYPE = "image-preview" ;
    private static int IMAGE_ID = 0;
    
    interface Styles extends CssResource

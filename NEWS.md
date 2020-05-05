@@ -1,46 +1,149 @@
-## v1.4 - Release Notes
+## v1.1 - Release Notes
 
-### Plots
+### Connections
 
-* The default renderer used for the RStudio graphics device can now be customized. (#2142)
-* The AGG renderer (as provided by the ragg package) is now a supported backend. (#6539)
+* New Connections tab for working with a wide variety of data sources
+* Connections to data sources are saved and can be easily reconnected and reused
+* Objects inside data sources can be browsed and contents viewed inside RStudio
+* Works with ODBC data sources and Spark, and can integrate with other R packages
 
-### Workbench
+### Terminal
 
-* Any tab can be hidden from view through Global Options. (#6428)
+* New Terminal tab for fluid shell interaction within the IDE
+* Support for xterm emulation including color output and full-screen console apps
+* Support for multiple terminals, each with persistent scrollback buffer
+* Web links in terminal can be clicked and opened in default browser (new tab for server)
+* Windows terminal supports multiple terminal shell types
+  * Git Bash, if installed
+  * Command Prompt (cmd.exe), 32-bit and 64-bit depending on OS support
+  * PowerShell, 32-bit and 64-bit depending on OS support
+  * Bash on Windows Subsystem for Linux, if installed on 64-bit Windows 10
+* Default Windows terminal shell type set in new Global Options/Terminal preferences pane
+
+### Object Explorer
+
+* New view for the exploration of hierarchical / deeply-nested R objects
+* Can recursively inspect R lists, environments, functions, S4 objects
+* Integration with the xml2 package for exploration of XML documents
+* Generate R code that can be used to access a particular item within object
+
+### Themes
+
+* New flat, modern UI theme
+* New dark theme option
+* Retina-quality icons throughout
+
+### Data Import
+
+* Add support for all file encodings supported by R
+* Restore text import dialog from previous releases (uses only base R functions)
+* Code generator in import dialog now creates a relative path to data file 
+
+### R Markdown
+
+* Added option to specify the working directory when executing R Markdown chunks
+* Added option to set preview mode (in viewer, window, etc.) in YAML header
+* Added option to skip knitting before publishing in YAML header
+* Multiline strings in YAML header are now properly highlighted
+
+### R Notebooks
+
+* Python chunks now respect virtualenv if present
+* 'Rename in Scope' now works within R chunks
+* Global chunk options (e.g. 'echo') now properly respected in Notebook mode
+* Fixed an issue where non-R chunk output could become duplicated
+* Added option to set notebook mode in the document's YAML header
+* Allow setting default chunk connection option to raw connection object
+* Added an 'Use paged tables' checkbox under chunk options popup
+
+### Git Integration
+
+* Add support for creating new Git branches and setting upstream remotes
+* Git branch list is now searchable
+* RStudio warns when attempting to commit large files (>10 MB)
+* Implemented 'ignore whitespace' option for Git Diff view
+* Wait for index.lock file to clear before performing git operations (with recovery)
+* Improve handling of paths containing special characters
 
 ### Miscellaneous
 
-* The Files pane now sorts file names naturally, so that e.g. `step10.R` comes after `step9.R`. (#5766)
-* Added command to File pane's "More" menu to copy path to clipboard (#6344)
-* Table summaries are shown for `tibble` objects in R Notebooks. (#5970)
-* The user data folder `~/.rstudio` has been moved to `~/.local/share/rstudio`, and its location can now be customized with `XDG_DATA_HOME`. (#1846)
-* The font used in the editor and console can now be customized on RStudio Server. (#2534)
-* `XDG_CONFIG_DIRS` can be used to specify alternate directories for server configuration files. (Pro #1607)
-* For added security, all cookies are now marked as `SameSite=Lax`. The new option `www-iframe-embedding` marks cookies as `SameSite=None` so RStudio can be used embedded in an IFrame. The new option `www-legacy-cookies` provides a behavior compatible with older browsers. (#6608)
-* RStudio now infers document type from shebang (e.g. #!/usr/bin/env sh) for R, Python and shell scripts (#5643)
-* New option to configure soft wrapping for R Markdown files, and command to change the soft wrap mode of the editor on the fly (#2341)
+* ANSI escape code support in console for colored output
+* Add support for custom, user-provided [project templates](https://rstudio.github.io/rstudio-extensions/rstudio_project_templates.html)
+* Add support for middle-click pasting using X11 global selection (Linux Desktop only)
+* Document cursor position is now saved and restored between RStudio sessions
+* Addins are now fully searchable in dropdown toolbar menu
+* Add support for changing editor tabs with the mouse wheel
+* Snippets can now be inserted in the R console
+* Add option to knit in current working directory or project directory
+* Cmd/Ctrl+Enter in Help pane now sends selected example code to console
+* View(vignette(...)) now opens editor with vignette source
+* Ctrl+P/Ctrl+N to visit previous/next console history line (like readline)
+* Ctrl+R to search console history incrementally (like readline)
+* New "Copy To" command in Files pane to copy and rename in one step
+* F2 in source editor opens data frame under cursor in a new tab
+* Highlight markdown inside ROxygen comments
+* Minor fixes to C++ syntax highlighting
+* Added syntax highlighting for TOML files
+* Provide autocompletion support for R6 'new()' methods
+* Improve performance of autocompletion for installed packages
+* Add option to run multiple consecutive lines of R with Ctrl+Enter
+* Add commands to run a line, statement, or consecutive lines 
+* Add Clear Console button to top of Console pane
+* Add option to wrap around when navigating to previous or next editor tab
+* Allow opening directories as projects (Server and macOS only)
+* Vim: Use `]f` and `[f` to open adjacent files on the file system
+* Show disambiguation in overflow list when two editor tabs have the same filename
+* Respect control characters in error output; makes e.g. curl output correct
+* Add new cheat sheet links to Help: Data Import, Interfacing Spark
+* macOS: Always show project label on dock tiles
+* Remove 100 column limit in data viewer
+* Make columns in data viewer resizable
+* Add option to kill child processes when session exits
+* Upgrade to [pandoc](http://pandoc.org/) 1.19.2.1
+* Remove Packrat package sync notifications; replace with Check Library Status command
+* Add support for ligature coding fonts in RStudio Desktop for Windows and Linux
+* Added page viewer (accessible via getOption("page_viewer")) for viewing web content in an external window.
+* Add editor theme Dracula (thanks to [Fabian Mundt](https://github.com/inventionate))
+* Server Pro: Add option to disable file uploads
+* Server Pro: Upgrade to TurboActivate 4.0; improves licensing
+* Server Pro: Add support for floating (lease-based) licenses
+* Server Pro: Show the size of suspended sessions
+* Server Pro: Add user-defined session labels
+* Server Pro: Upgrade to nginx 1.12.0
+* Server Pro: Add support for NFSv4 Access Control Lists in Project Sharing
+* Server Pro: Add support for user-initiated session quit and force-terminate
+* Server Pro: Add support for admin-supplied notifications in R sessions
+* Server Pro: New session-timeout-kill-hours option to expire and cleanly remove old R sessions
 
-### RStudio Server Pro
+### Bug Fixes
 
-* SAML is now supported as an authentication mechanism (Pro #1194)
-* New option `server-project-sharing-root-dir` allows project sharing outside user home directories (Pro #1340)
-* New `X-RSP-Request` header for specifying originating URL behind path-rewriting proxies (Pro #1579)
-* New user profile option `session-limit` allow limiting the maximum number of sessions a user can have (Pro #540)
-* Project sharing is automatically disabled and a warning is issued when `server-multiple-sessions=0`. (Pro #1263)
-* New `load-balancer` option `timeout` limits how long to wait for a response from a node, defaults to 10 seconds. (Pro #1642)
-* New `load-balancer` option `verify-ssl-certs` for testing nodes with self-signed certificates when using SSL. (Pro #1504)
-* New `launcher-verify-ssl-certs` and `launcher-sessions-callback-verify-ssl-certs` options for testing with self-signed certificates when using SSL. (Pro #1504)
+* Fixed an issue where dragging tabs out multiple times could revert contents to older version
+* macOS: fixed 'crash on wake' issue with late-2016 Macbooks
+* Fixed mangling of YAML header string values containing backticks 
+* Fixed mangling of YAML indentation when re-indenting R Markdown documents
+* File downloads from the internal browser are now saved correctly on Linux and Windows
+* Rendering or running an R Markdown document no longer saves it unnecessarily
+* 'Insert assignment operator' shortcut now works on Firefox
+* Fixed issue where 'execute current statement' behaved poorly with unclosed statements
+* Fixed issue where tibble warnings could be emitted by autocompletion engine
+* Fixed issue where 'Copy Plot to Clipboard' from Viewer failed with macOS Sierra
+* Fixed issue where keybinding changes were not reflected in popped-out windows
+* Fix hang when replacing a misspelled word with word and punctuation
+* Fixed issue where cursor would begin blinking even when 'Blinking Cursor' preference disabled
+* Editor now responds correctly when renaming an open file using the Files pane
+* Fixed an issue that could cause the data viewer cache to contain orphaned entries
+* Fixed highlighting of Markdown text within Markdown blockquote
+* Invoke R without --vanilla when building R Markdown websites
+* Fixed an issue in which R Markdown documents could get stuck in notebook mode
+* Fixed an issue preventing plain .md files from being published if not rendered
+* Fixed runtime crashes in R packages that use Boost libraries
+* Fixed startup crashes associated with Boost regular expressions
+* Fixed an issue where scroll position in History pane could be lost when losing focus
+* Fixed an issue where RStudio would fail to discover build tools if R was not on PATH
+* Improve stability of crashed session recovery system
+* Fixed issues arising from restoring a session suspended with a different R version
+* Color errors in the R console correctly when resuming a session
+* Fixed an issue in which notebook tables would not print data with lists of lists
+* Server Pro: Fix issue with dirty indicator/saving after collaborative editing ends
+* Server Pro: Fix issue with using multiple R versions feature when multi-session is off
 
-### Bugfixes
-
-* Fixed an issue where hovering mouse cursor over C++ completion popup would steal focus. (#5941)
-* Git integration now works properly for project names containing the '!' character. (#6160)
-* Fixed header resizing in Data Viewer (#1665)
-* Fixed resizing last column in Data Viewer (#2642)
-* Fixed inconsistencies in the resizing between a column and its header (#4361)
-* Fixed submission of inconsistently indented Python blocks to `reticulate` (#5094)
-* Fixed error when redirecting inside Plumber applications in RStudio Server Pro (Pro #1570)
-* Fixed failure to open files after an attempt to open a very large file (#6637)
-* Fixed Data Viewer getting out of sync with the underlying data when changing live viewer object (#1819)
-* Fixed issue where attempts to plot could fail if R tempdir was deleted (#2214)

@@ -1,7 +1,7 @@
 /*
  * ServerSessionProxy.hpp
  *
- * Copyright (C) 2009-12 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -19,7 +19,6 @@
 #include <string>
 
 #include <core/http/AsyncConnection.hpp>
-#include <core/http/TcpIpAsyncClient.hpp>
 
 #include <core/r_util/RSessionContext.hpp>
 
@@ -35,41 +34,16 @@ namespace rstudio {
 namespace server {
 namespace session_proxy {
 
-struct RequestType
-{
-   enum
-   {
-      Rpc,
-      Content,
-      Events,
-      ClientInit,
-      Jupyter,
-      VSCode
-   };
-};
-
-typedef boost::function<void (const core::http::Response&,
-                              const std::string& baseAddress,
-                              boost::shared_ptr<core::http::IAsyncClient>)> LocalhostResponseHandler;
-
 core::Error initialize();
 
 core::Error runVerifyInstallationSession();
-
+   
 void proxyContentRequest(
       const std::string& username,
       boost::shared_ptr<core::http::AsyncConnection> ptrConnection) ;
 
-bool proxyUploadRequest(
-      const std::string& username,
-      const std::string& userIdentifier,
-      boost::shared_ptr<core::http::AsyncConnection> ptrConnection,
-      const std::string& formData,
-      bool keepGoing);
-
 void proxyRpcRequest(
       const std::string& username,
-      const std::string& userIdentifier,
       boost::shared_ptr<core::http::AsyncConnection> ptrConnection) ;
 
 void proxyEventsRequest(
@@ -77,15 +51,6 @@ void proxyEventsRequest(
       boost::shared_ptr<core::http::AsyncConnection> ptrConnection);
 
 void proxyLocalhostRequest(
-      bool ipv6,
-      const std::string& username,
-      boost::shared_ptr<core::http::AsyncConnection> ptrConnection);
-
-void proxyJupyterRequest(
-      const std::string& username,
-      boost::shared_ptr<core::http::AsyncConnection> ptrConnection);
-
-void proxyVSCodeRequest(
       const std::string& username,
       boost::shared_ptr<core::http::AsyncConnection> ptrConnection);
    
@@ -105,10 +70,6 @@ typedef boost::function<bool(
     const std::string&,
     core::r_util::SessionContext*)> SessionContextSource;
 void setSessionContextSource(SessionContextSource source);
-
-typedef boost::function<void(const boost::shared_ptr<core::http::IAsyncClient>&)> ClientHandler;
-
-core::http::Headers getAuthCookies(const core::http::Response& response);
 
 } // namespace session_proxy
 } // namespace server

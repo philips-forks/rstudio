@@ -1,7 +1,7 @@
 /*
  * SessionConsoleProcessTable.cpp
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-17 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -15,9 +15,10 @@
 
 #include "SessionConsoleProcessTable.hpp"
 
+#include <boost/foreach.hpp>
 #include <boost/range/adaptor/map.hpp>
 
-#include <shared_core/SafeConvert.hpp>
+#include <core/SafeConvert.hpp>
 
 #include <session/SessionModuleContext.hpp>
 
@@ -39,18 +40,18 @@ typedef std::map<std::string, ConsoleProcessPtr> ProcTable;
 
 ProcTable s_procs;
 
-std::string serializeConsoleProcs(SerializationMode serialMode)
+std::string serializeConsoleProcs()
 {
    json::Array array;
    for (ProcTable::const_iterator it = s_procs.begin();
         it != s_procs.end();
         it++)
    {
-      array.push_back(it->second->toJson(serialMode));
+      array.push_back(it->second->toJson());
    }
 
    std::ostringstream ostr;
-   array.write(ostr);
+   json::write(array, ostr);
    return ostr.str();
 }
 
@@ -59,18 +60,18 @@ void deserializeConsoleProcs(const std::string& jsonStr)
    if (jsonStr.empty())
       return;
    json::Value value;
-   if (value.parse(jsonStr))
+   if (!json::parse(jsonStr, &value))
    {
       LOG_WARNING_MESSAGE("invalid console process json: " + jsonStr);
       return;
    }
 
-   const json::Array& procs = value.getArray();
-   for (json::Array::Iterator it = procs.begin();
+   json::Array procs = value.get_array();
+   for (json::Array::iterator it = procs.begin();
         it != procs.end();
         it++)
    {
-      ConsoleProcessPtr proc = ConsoleProcess::fromJson((*it).getObject());
+      ConsoleProcessPtr proc = ConsoleProcess::fromJson(it->get_obj());
 
       // Deserializing consoleprocs list only happens during session
       // initialization, therefore they do not represent an actual running
@@ -87,12 +88,12 @@ void deserializeConsoleProcs(const std::string& jsonStr)
 
 bool isKnownProcHandle(const std::string& handle)
 {
-   return findProcByHandle(handle) != nullptr;
+   return findProcByHandle(handle) != NULL;
 }
 
 void onSuspend(core::Settings* /*pSettings*/)
 {
-   serializeConsoleProcs(PersistentSerialization);
+   serializeConsoleProcs();
    s_visibleTerminalHandle.clear();
 }
 
@@ -122,7 +123,7 @@ ConsoleProcessPtr findProcByHandle(const std::string& handle)
 
 ConsoleProcessPtr findProcByCaption(const std::string& caption)
 {
-   for (ConsoleProcessPtr& proc : s_procs | boost::adaptors::map_values)
+   BOOST_FOREACH(ConsoleProcessPtr& proc, s_procs | boost::adaptors::map_values)
    {
       if (proc->getCaption() == caption)
          return proc;
@@ -145,21 +146,21 @@ void setVisibleProc(const std::string& handle)
    s_visibleTerminalHandle = handle;
 }
 
-std::vector<std::string> getAllHandles()
+std::vector<std::string> getAllCaptions()
 {
-   std::vector<std::string> allHandles;
+   std::vector<std::string> allCaptions;
    for (ProcTable::const_iterator it = s_procs.begin(); it != s_procs.end(); it++)
    {
-      allHandles.push_back(it->second->handle());
+      allCaptions.push_back(it->second->getCaption());
    }
-   return allHandles;
+   return allCaptions;
 }
 
 // Determine next terminal sequence and name
 std::pair<int, std::string> nextTerminalName()
 {
    int maxNum = kNoTerminal;
-   for (ConsoleProcessPtr& proc : s_procs | boost::adaptors::map_values)
+   BOOST_FOREACH(ConsoleProcessPtr& proc, s_procs | boost::adaptors::map_values)
    {
       maxNum = std::max(maxNum, proc->getTerminalSequence());
    }
@@ -172,7 +173,7 @@ std::pair<int, std::string> nextTerminalName()
 
 void saveConsoleProcesses()
 {
-   ConsoleProcessInfo::saveConsoleProcesses(serializeConsoleProcs(PersistentSerialization));
+   ConsoleProcessInfo::saveConsoleProcesses(serializeConsoleProcs());
 }
 
 void saveConsoleProcessesAtShutdown(bool terminatedNormally)
@@ -182,14 +183,14 @@ void saveConsoleProcessesAtShutdown(bool terminatedNormally)
 
    // When shutting down, only preserve ConsoleProcesses that are marked
    // with allow_restart. Others should not survive a shutdown/restart.
-   ProcTable::const_iterator nextIt;
+   ProcTable::const_iterator nextIt = s_procs.begin();
    for (ProcTable::const_iterator it = s_procs.begin();
         it != s_procs.end();
         it = nextIt)
    {
       nextIt = it;
       ++nextIt;
-      if (!it->second->getAllowRestart())
+      if (it->second->getAllowRestart() == false)
       {
          s_procs.erase(it->second->handle());
       }
@@ -219,14 +220,14 @@ Error reapConsoleProcess(const ConsoleProcess& proc)
    return Success();
 }
 
-core::json::Array allProcessesAsJson(SerializationMode serialMode)
+core::json::Array allProcessesAsJson()
 {
    json::Array procInfos;
    for (ProcTable::const_iterator it = s_procs.begin();
         it != s_procs.end();
         it++)
    {
-      procInfos.push_back(it->second->toJson(serialMode));
+      procInfos.push_back(it->second->toJson());
    }
    return procInfos;
 }
@@ -280,7 +281,7 @@ Error createTerminalConsoleProc(boost::shared_ptr<ConsoleProcessInfo> cpi,
 
    cpi->setCaption(computedCaption);
 
-   TerminalShell::ShellType actualShellType;
+   TerminalShell::TerminalShellType actualShellType;
    core::system::ProcessOptions options = ConsoleProcess::createTerminalProcOptions(
             *cpi, &actualShellType);
 
@@ -347,7 +348,7 @@ Error createTerminalExecuteConsoleProc(
                title,
                std::string() /*handle*/,
                termSequence,
-               TerminalShell::ShellType::NoShell,
+               TerminalShell::NoShell,
                false /*altBuffer*/,
                cwd,
                core::system::kDefaultCols, core::system::kDefaultRows,

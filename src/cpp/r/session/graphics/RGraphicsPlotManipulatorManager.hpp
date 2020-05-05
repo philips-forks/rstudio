@@ -1,7 +1,7 @@
 /*
  * RGraphicsPlotManipulatorManager.hpp
  *
- * Copyright (C) 2009-12 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -16,9 +16,10 @@
 #ifndef R_SESSION_GRAPHICS_PLOT_MANIPULATOR_MANAGER_HPP
 #define R_SESSION_GRAPHICS_PLOT_MANIPULATOR_MANAGER_HPP
 
-#include <core/BoostSignals.hpp>
-#include <shared_core/Error.hpp>
-#include <shared_core/json/Json.hpp>
+#include <boost/signal.hpp>
+
+#include <core/Error.hpp>
+#include <core/json/Json.hpp>
 
 #include <r/RSexp.hpp>
 
@@ -52,7 +53,7 @@ public:
 public:
    core::Error initialize(const UnitConversionFunctions& convert);
 
-   RSTUDIO_BOOST_SIGNAL<void ()>& onShowManipulator() ;
+   boost::signal<void ()>& onShowManipulator() ;
    void setPlotManipulatorValues(const core::json::Object& values);
    void manipulatorPlotClicked(int x, int y);
    
@@ -84,7 +85,7 @@ private:
    bool replayingManipulator_;
 
    // manipulator event hook
-   RSTUDIO_BOOST_SIGNAL<void ()> onShowManipulator_;
+   boost::signal<void ()> onShowManipulator_;
 
    // unit conversion function
    UnitConversionFunctions convert_;

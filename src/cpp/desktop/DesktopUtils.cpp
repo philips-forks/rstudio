@@ -1,7 +1,7 @@
 /*
  * DesktopUtils.cpp
  *
- * Copyright (C) 2009-20 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -15,18 +15,20 @@
 
 #include "DesktopUtils.hpp"
 
-#include <set>
-
+#include <QProcess>
 #include <QPushButton>
-#include <QTimer>
 #include <QDesktopServices>
 
+#include <boost/foreach.hpp>
+
+#include <core/Error.hpp>
+#include <core/FilePath.hpp>
 #include <core/FileSerializer.hpp>
+#include <core/system/Process.hpp>
+#include <core/system/System.hpp>
 #include <core/system/Environment.hpp>
-#include <core/system/Xdg.hpp>
 
 #include "DesktopOptions.hpp"
-#include "DesktopMainWindow.hpp"
 
 #ifdef Q_OS_WIN
 #include <windows.h>
@@ -65,23 +67,9 @@ FilePath userLogPath()
 {
    FilePath userHomePath = core::system::userHomePath("R_USER|HOME");
    FilePath logPath = core::system::userSettingsPath(
-      userHomePath,
-      "RStudio-Desktop").completeChildPath("log");
+         userHomePath,
+         "RStudio-Desktop").childPath("log");
    return logPath;
-}
-
-FilePath userWebCachePath()
-{
-   return core::system::xdg::userDataDir().completeChildPath("web-cache");
-}
-
-bool isWindows()
-{
-#ifdef Q_OS_WIN
-   return true;
-#else
-   return false;
-#endif
 }
 
 #ifndef Q_OS_MAC
@@ -90,7 +78,7 @@ double devicePixelRatio(QMainWindow* pMainWindow)
    return 1.0;
 }
 
-bool isMacOS()
+bool isOSXMavericks()
 {
    return false;
 }
@@ -111,80 +99,6 @@ bool isCentOS()
           contents.find("Red Hat Enterprise Linux") != std::string::npos;
 }
 
-QString browseDirectory(const QString& caption,
-                        const QString& label,
-                        const QString& dir,
-                        QWidget* pOwner)
-{
-   QFileDialog dialog(
-            pOwner,
-            caption,
-            resolveAliasedPath(dir));
-
-   dialog.setLabelText(QFileDialog::Accept, label);
-   dialog.setFileMode(QFileDialog::Directory);
-   dialog.setOption(QFileDialog::ShowDirsOnly, true);
-   dialog.setWindowModality(Qt::WindowModal);
-
-   QString result;
-   if (dialog.exec() == QDialog::Accepted)
-      result = dialog.selectedFiles().value(0);
-
-   if (pOwner)
-      raiseAndActivateWindow(pOwner);
-
-   return createAliasedPath(result);
-}
-
-#endif
-
-bool isGnomeDesktop()
-{
-   if (core::system::getenv("DESKTOP_SESSION") == "gnome")
-      return true;
-
-   std::string desktop = core::system::getenv("XDG_CURRENT_DESKTOP");
-   if (desktop.find("GNOME") != std::string::npos)
-      return true;
-
-   return false;
-}
-
-#ifndef Q_OS_MAC
-
-QString getFixedWidthFontList()
-{
-   return desktopInfo().getFixedWidthFontList();
-}
-
-#endif
-
-void applyDesktopTheme(QWidget* window, bool isDark)
-{
-#ifndef Q_OS_MAC
-   std::string lightSheetName = isWindows()
-         ? "rstudio-windows-light.qss"
-         : "rstudio-gnome-light.qss";
-
-   std::string darkSheetName = isWindows()
-         ? "rstudio-windows-dark.qss"
-         : "rstudio-gnome-dark.qss";
-
-   FilePath stylePath = isDark
-         ? options().resourcesPath().completePath("stylesheets").completePath(darkSheetName)
-         : options().resourcesPath().completePath("stylesheets").completePath(lightSheetName);
-
-   std::string stylesheet;
-   Error error = core::readStringFromFile(stylePath, &stylesheet);
-   if (error)
-      LOG_ERROR(error);
-
-   window->setStyleSheet(QString::fromStdString(stylesheet));
-#endif
-}
-
-#ifndef Q_OS_MAC
-
 void enableFullscreenMode(QMainWindow* pMainWindow, bool primary)
 {
 
@@ -202,11 +116,6 @@ bool supportsFullscreenMode(QMainWindow* pMainWindow)
 
 void initializeLang()
 {
-}
-
-void finalPlatformInitialize(MainWindow* pMainWindow)
-{
-
 }
 
 #endif
@@ -254,30 +163,25 @@ QMessageBox::Icon safeMessageBoxIcon(QMessageBox::Icon icon)
 #endif
 }
 
+
 bool showYesNoDialog(QMessageBox::Icon icon,
                      QWidget *parent,
                      const QString &title,
-                     const QString& text,
-                     const QString& informativeText,
-                     bool yesDefault)
+                     const QString& text)
 {
    // basic message box attributes
-   QMessageBox messageBox(parent);
-   messageBox.setIcon(safeMessageBoxIcon(icon));
-   messageBox.setWindowTitle(title);
-   messageBox.setText(text);
-   if (informativeText.length() > 0)
-      messageBox.setInformativeText(informativeText);
+   QMessageBox messageBox(safeMessageBoxIcon(icon),
+                          title,
+                          text,
+                          QMessageBox::NoButton,
+                          parent);
    messageBox.setWindowModality(Qt::WindowModal);
-   messageBox.setWindowFlag(Qt::WindowContextHelpButtonHint, false);
 
    // initialize buttons
-   QPushButton* pYes = messageBox.addButton(QMessageBox::Yes);
-   QPushButton* pNo = messageBox.addButton(QMessageBox::No);
-   if (yesDefault)
-      messageBox.setDefaultButton(pYes);
-   else
-      messageBox.setDefaultButton(pNo);
+   QPushButton* pYes = new QPushButton(QString::fromUtf8("Yes"));
+   messageBox.addButton(pYes, QMessageBox::YesRole);
+   messageBox.addButton(new QPushButton(QString::fromUtf8("No")), QMessageBox::NoRole);
+   messageBox.setDefaultButton(pYes);
 
    // show the dialog modally
    messageBox.exec();
@@ -289,43 +193,27 @@ bool showYesNoDialog(QMessageBox::Icon icon,
 void showMessageBox(QMessageBox::Icon icon,
                     QWidget *parent,
                     const QString &title,
-                    const QString& text,
-                    const QString& informativeText)
+                    const QString& text)
 {
-   QMessageBox messageBox(parent);
-   messageBox.setIcon(safeMessageBoxIcon(icon));
-   messageBox.setWindowTitle(title);
-   messageBox.setText(text);
-   if (informativeText.length() > 0)
-      messageBox.setInformativeText(informativeText);
+   // basic message box attributes
+   QMessageBox messageBox(safeMessageBoxIcon(icon),
+                          title,
+                          text,
+                          QMessageBox::NoButton,
+                          parent);
    messageBox.setWindowModality(Qt::WindowModal);
-   messageBox.setWindowFlag(Qt::WindowContextHelpButtonHint, false);
    messageBox.addButton(new QPushButton(QString::fromUtf8("OK")), QMessageBox::AcceptRole);
    messageBox.exec();
 }
 
-void showError(QWidget *parent,
-               const QString &title,
-               const QString& text,
-               const QString& informativeText)
+void showWarning(QWidget *parent, const QString &title, const QString& text)
 {
-   showMessageBox(QMessageBox::Critical, parent, title, text, informativeText);
+   showMessageBox(QMessageBox::Warning, parent, title, text);
 }
 
-void showWarning(QWidget *parent,
-                 const QString &title,
-                 const QString& text,
-                 const QString& informativeText)
+void showInfo(QWidget* parent, const QString& title, const QString& text)
 {
-   showMessageBox(QMessageBox::Warning, parent, title, text, informativeText);
-}
-
-void showInfo(QWidget* parent,
-              const QString& title,
-              const QString& text,
-              const QString& informativeText)
-{
-   showMessageBox(QMessageBox::Information, parent, title, text, informativeText);
+   showMessageBox(QMessageBox::Information, parent, title, text);
 }
 
 void showFileError(const QString& action,
@@ -336,20 +224,45 @@ void showFileError(const QString& action,
                  QString::fromUtf8(" ") + file +
                  QString::fromUtf8(" - ") + error;
    showMessageBox(QMessageBox::Critical,
-                  nullptr,
+                  NULL,
                   QString::fromUtf8("File Error"),
-                  msg,
-                  QString());
+                  msg);
+}
+
+void launchRStudio(const std::vector<std::string>& args)
+{
+#ifdef _WIN32
+   core::system::ProcessOptions options;
+   options.breakawayFromJob = true;
+   options.detachProcess = true;
+   Error error = core::system::runProgram(
+      desktop::options().executablePath().absolutePath(),
+      args,
+      "",
+      options,
+      NULL);
+   if (error)
+      LOG_ERROR(error);
+#else
+   QStringList argList;
+   BOOST_FOREACH(const std::string& arg, args)
+   {
+      argList.append(QString::fromStdString(arg));
+   }
+   QString exePath = QString::fromUtf8(
+      desktop::options().executablePath().absolutePath().c_str());
+   QProcess::startDetached(exePath, argList);
+#endif
 }
 
 bool isFixedWidthFont(const QFont& font)
 {
    QFontMetrics metrics(font);
-   int width = metrics.horizontalAdvance(QChar::fromLatin1(' '));
+   int width = metrics.width(QChar::fromLatin1(' '));
    char chars[] = {'m', 'i', 'A', '/', '-', '1', 'l', '!', 'x', 'X', 'y', 'Y'};
-   for (char i : chars)
+   for (size_t i = 0; i < sizeof(chars); i++)
    {
-      if (metrics.horizontalAdvance(QChar::fromLatin1(i)) != width)
+      if (metrics.width(QChar::fromLatin1(chars[i])) != width)
          return false;
    }
    return true;
@@ -357,27 +270,35 @@ bool isFixedWidthFont(const QFont& font)
 
 int getDpi()
 {
-   // TODO: we may need to tweak this to ensure that the DPI
-   // discovered respects the screen a particular instance
-   // that RStudio lives on (e.g. for users with multiple
-   // displays with different DPIs)
-   return (int) qApp->primaryScreen()->logicalDotsPerInch();
+#ifdef _WIN32
+   HDC defaultDC = GetDC(NULL);
+   int dpi = GetDeviceCaps(defaultDC, LOGPIXELSX);
+   ReleaseDC(NULL, defaultDC);
+   return dpi;
+#else
+   // presume 96 DPI on other Qt platforms (i.e. Linux) for now
+   return 96;
+#endif
 }
 
 double getDpiZoomScaling()
 {
-   // TODO: because Qt is already high-DPI aware and automatically
-   // scales in most scenarios, we no longer need to detect and
-   // apply a custom scale -- but more testing is warranted
-   return 1.0;
+   double dpiZoomScaling = 1.0;
+   int dpi = getDpi();
+   if (dpi >= 192)
+   {
+      // Corresponds to 200% scaling (introduced in Windows 8.1)
+      dpiZoomScaling = 1.5;
+   }
+   else if (dpi >= 144)
+   {
+      // Corresponds to 150% scaling
+      dpiZoomScaling = 1.2;
+   }
+   return dpiZoomScaling;
 }
 
 #ifdef _WIN32
-
-void openFile(const QString& file)
-{
-   return openUrl(QUrl::fromLocalFile(file));
-}
 
 // on Win32 open urls using our special urlopener.exe -- this is
 // so that the shell exec is made out from under our windows "job"
@@ -402,7 +323,7 @@ void openUrl(const QUrl& url)
 
       core::system::ProcessResult result;
       Error error = core::system::runProgram(
-            desktop::options().urlopenerPath().getAbsolutePath(),
+            desktop::options().urlopenerPath().absolutePath(),
             args,
             "",
             options,
@@ -421,15 +342,14 @@ void openUrl(const QUrl& url)
 // on Win32
 QFileDialog::Options standardFileDialogOptions()
 {
-   return 0;
+    bool isWindowsXP = QSysInfo::windowsVersion() == QSysInfo::WV_XP;
+    if (isWindowsXP || core::system::isWin64())
+        return 0;
+    else
+        return QFileDialog::DontUseNativeDialog;
 }
 
 #else
-
-void openFile(const QString& file)
-{
-   QDesktopServices::openUrl(QUrl::fromLocalFile(file));
-}
 
 void openUrl(const QUrl& url)
 {
@@ -438,29 +358,10 @@ void openUrl(const QUrl& url)
 
 QFileDialog::Options standardFileDialogOptions()
 {
-   return nullptr;
+   return 0;
 }
 
 #endif
-
-FilePath userHomePath()
-{
-   return core::system::userHomePath("R_USER|HOME");
-}
-
-QString createAliasedPath(const QString& path)
-{
-   std::string aliased = FilePath::createAliasedPath(
-         FilePath(path.toUtf8().constData()), desktop::userHomePath());
-   return QString::fromUtf8(aliased.c_str());
-}
-
-QString resolveAliasedPath(const QString& path)
-{
-   FilePath resolved(FilePath::resolveAliasedPath(path.toUtf8().constData(),
-                                                  userHomePath()));
-   return QString::fromUtf8(resolved.getAbsolutePath().c_str());
-}
 
 } // namespace desktop
 } // namespace rstudio

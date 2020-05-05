@@ -1,7 +1,7 @@
 /*
  * ObjectExplorerDataGrid.java
  *
- * Copyright (C) 2009-17 by RStudio, PBC
+ * Copyright (C) 2009-17 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -21,7 +21,6 @@ import org.rstudio.core.client.Debug;
 import org.rstudio.core.client.JsVectorString;
 import org.rstudio.core.client.ListUtil;
 import org.rstudio.core.client.ListUtil.FilterPredicate;
-import org.rstudio.core.client.command.KeyboardShortcut;
 import org.rstudio.core.client.SafeHtmlUtil;
 import org.rstudio.core.client.StringUtil;
 import org.rstudio.core.client.dom.DomUtils;
@@ -33,7 +32,6 @@ import org.rstudio.core.client.widget.events.SelectionChangedEvent;
 import org.rstudio.core.client.widget.events.SelectionChangedHandler;
 import org.rstudio.studio.client.RStudioGinjector;
 import org.rstudio.studio.client.ResizableHeader;
-import org.rstudio.studio.client.application.Desktop;
 import org.rstudio.studio.client.application.events.EventBus;
 import org.rstudio.studio.client.server.ServerError;
 import org.rstudio.studio.client.server.ServerRequestCallback;
@@ -692,92 +690,70 @@ public class ObjectExplorerDataGrid
       setKeyboardSelectedColumn(0);
    }
    
-   private static final native boolean isRepeating(Event event)
-   /*-{
-      return event.repeat || false;
-   }-*/;
-   
    @Override
    public void onCellPreview(CellPreviewEvent<Data> preview)
    {
       Event event = Event.getCurrentEvent();
       int code = event.getKeyCode();
-      int modifier = KeyboardShortcut.getModifierValue(event);
       int type = event.getTypeInt();
       int row = getKeyboardSelectedRow();
-      boolean eventHandled = false;
+      boolean isDefault = false;
       
       if (type == Event.ONKEYDOWN || type == Event.ONKEYPRESS)
       {
-         // detect whether we've received a non-repeating keydown event
-         // this is used to screen out keyup events for which the source
-         // of the keydown was a different event target
-         if (!isRepeating(event))
-            didReceiveNonRepeatingKeyDownEvent_ = true;
-
-         if (modifier == 0)
+         switch (code)
          {
-            switch (code)
-            {
-            case KeyCodes.KEY_UP:
-               selectRowRelative(-1);
-               eventHandled = true;
-               break;
+         case KeyCodes.KEY_UP:
+            selectRowRelative(-1);
+            break;
 
-            case KeyCodes.KEY_DOWN:
-               selectRowRelative(+1);
-               eventHandled = true;
-               break;
+         case KeyCodes.KEY_DOWN:
+            selectRowRelative(+1);
+            break;
 
-            case KeyCodes.KEY_PAGEUP:
-               selectRowRelative(-10);
-               eventHandled = true;
-               break;
+         case KeyCodes.KEY_PAGEUP:
+            selectRowRelative(-10);
+            break;
 
-            case KeyCodes.KEY_PAGEDOWN:
-               selectRowRelative(+10);
-               eventHandled = true;
-               break;
+         case KeyCodes.KEY_PAGEDOWN:
+            selectRowRelative(+10);
+            break;
 
-            case KeyCodes.KEY_LEFT:
-               selectParentOrClose(row);
-               eventHandled = true;
-               break;
+         case KeyCodes.KEY_LEFT:
+            selectParentOrClose(row);
+            break;
 
-            case KeyCodes.KEY_RIGHT:
-               selectChildOrOpen(row);
-               eventHandled = true;
-               break;
-            }
-         }
-      }
-
-      else if (type == Event.ONKEYUP)
-      {
-         // on Desktop, we need to ensure that the origin of the
-         // original keydown event matches the keyup event
-         if (!Desktop.hasDesktopFrame() || didReceiveNonRepeatingKeyDownEvent_)
-         {
-            didReceiveNonRepeatingKeyDownEvent_ = false;
-
-            switch (code)
-            {
-            case KeyCodes.KEY_ENTER:
-            case KeyCodes.KEY_SPACE:
-               toggleExpansion(row);
-               eventHandled = true;
-               break;
-            }
+         case KeyCodes.KEY_RIGHT:
+            selectChildOrOpen(row);
+            break;
+            
+         default:
+            isDefault = true;
+            break;
          }
       }
       
-      else if (type == Event.ONBLUR)
+      else if (type == Event.ONKEYUP)
       {
-         didReceiveNonRepeatingKeyDownEvent_ = false;
+         switch (code)
+         {
+         case KeyCodes.KEY_ENTER:
+         case KeyCodes.KEY_SPACE:
+            toggleExpansion(row);
+            break;
+
+         default:
+            isDefault = true;
+            break;
+         }
+      }
+      else
+      {
+         isDefault = true;
       }
       
       // eat any non-default handled events
-      if (eventHandled)
+      if (!isDefault)
       {
          preview.setCanceled(true);
          event.stopPropagation();
@@ -875,9 +851,6 @@ public class ObjectExplorerDataGrid
       else if (n == 3)
          buttonWidth = 48;
 
-      // add a bit of extra padding for the scroll bar
-      buttonWidth += DomUtils.getScrollbarWidth();
-      
       int totalWidth = getOffsetWidth();
       int remainingWidth = totalWidth - otherWidth - buttonWidth - 20;
       
@@ -958,19 +931,19 @@ public class ObjectExplorerDataGrid
    
    private void performAction(String action, int row)
    {
-      if (action == ACTION_OPEN)
+      if (action.equals(ACTION_OPEN))
       {
          openRow(row);
       }
-      else if (action == ACTION_CLOSE)
+      else if (action.equals(ACTION_CLOSE))
       {
          closeRow(row);
       }
-      else if (action == ACTION_EXTRACT)
+      else if (action.equals(ACTION_EXTRACT))
       {
          extractCode(row);
       }
-      else if (action == ACTION_VIEW)
+      else if (action.equals(ACTION_VIEW))
       {
          viewRow(row);
       }
@@ -1180,18 +1153,6 @@ public class ObjectExplorerDataGrid
                   root_.updateChildOwnership();
                   root_.setExpansionState(ExpansionState.OPEN);
                   synchronize();
-                  
-                  Scheduler.get().scheduleDeferred(new ScheduledCommand()
-                  {
-                     @Override
-                     public void execute()
-                     {
-                        if (getData().size() > 0)
-                        {
-                           setKeyboardSelectedRow(0, true);
-                        }
-                     }
-                  });
                }
                
                @Override
@@ -1349,13 +1310,13 @@ public class ObjectExplorerDataGrid
    
    private void saveScrollPosition()
    {
-      scrollPosition_ = getScrollPanel().getVerticalScrollPosition();
+      scrollPosition_ = getScrollPanel().getScrollPosition();
    }
    
    private void restoreScrollPosition()
    {
       if (scrollPosition_ != -1)
-         getScrollPanel().setVerticalScrollPosition(scrollPosition_);
+         getScrollPanel().setScrollPosition(scrollPosition_);
       scrollPosition_ = -1;
    }
    
@@ -1364,6 +1325,7 @@ public class ObjectExplorerDataGrid
    private final ObjectExplorerHandle handle_;
    private Data root_;
    
+   @SuppressWarnings("unused")
    private final SourceDocument document_;
    
    private final IdentityColumn<Data> nameColumn_;
@@ -1376,7 +1338,6 @@ public class ObjectExplorerDataGrid
    private TableRowElement hoveredRow_;
    private boolean showAttributes_;
    private String filter_;
-   private boolean didReceiveNonRepeatingKeyDownEvent_ = false;
    
    // Injected ----
    private ObjectExplorerServerOperations server_;
@@ -1386,8 +1347,6 @@ public class ObjectExplorerDataGrid
    private static final int DEFAULT_NAME_COLUMN_WIDTH = 180;
    private static final int DEFAULT_TYPE_COLUMN_WIDTH = 180;
    
-   // NOTE: this should be synchronized with '.rs.explorer.defaultRowLimit' in
-   // SessionObjectExplorer.R
    private static final int DEFAULT_ROW_LIMIT = 1000;
    
    private static final String ACTION_OPEN    = "open";

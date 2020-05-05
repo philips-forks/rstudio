@@ -1,7 +1,7 @@
 /*
  * ChunkPlotPage.java
  *
- * Copyright (C) 2009-16 by RStudio, PBC
+ * Copyright (C) 2009-16 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -51,16 +51,20 @@ public class ChunkPlotPage extends ChunkOutputPage
             @Override
             public void execute()
             {
+               ImageElementEx plot = plot_.getElement().cast();
                ImageElementEx img = thumbnail.getElement().cast();
-               
-               img.getStyle().setProperty("width", "100%");
-               img.getStyle().setProperty("height", "100%");
-               img.getStyle().setProperty("objectFit", "contain");
-               
+               if (plot.naturalHeight() < plot.naturalWidth())
+               {
+                  img.getStyle().setProperty("width", "100%");
+                  img.getStyle().setProperty("height", "auto");
+               }
+               else
+               {
+                  img.getStyle().setProperty("height", "100%");
+                  img.getStyle().setProperty("width", "auto");
+               }
                thumbnail.setUrl(url);
-               
-               if (onRenderComplete != null)
-                  onRenderComplete.execute();
+               onRenderComplete.execute();
             }
          }, chunkOutputSize);
       }

@@ -1,7 +1,7 @@
 /*
  * ServerSessionManager.cpp
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-16 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -13,28 +13,31 @@
  *
  */
 
-#include <core/CrashHandler.hpp>
-
 #include <server/ServerSessionManager.hpp>
 
+#include <vector>
+
+#include <boost/foreach.hpp>
 #include <boost/format.hpp>
 
-#include <shared_core/SafeConvert.hpp>
+#include <core/Error.hpp>
+#include <core/Log.hpp>
+#include <core/SafeConvert.hpp>
+#include <core/system/PosixSystem.hpp>
 #include <core/system/PosixUser.hpp>
 #include <core/system/Environment.hpp>
-#include <core/json/JsonRpc.hpp>
+#include <core/r_util/RSessionContext.hpp>
 
 #include <monitor/MonitorClient.hpp>
 #include <session/SessionConstants.hpp>
 
 #include <server/ServerOptions.hpp>
-#include <server/ServerPaths.hpp>
+
 #include <server/ServerErrorCategory.hpp>
 
 #include <server/auth/ServerValidateUser.hpp>
 
 #include "ServerREnvironment.hpp"
-#include "server-config.h"
 
 
 using namespace rstudio::core;
@@ -45,31 +48,6 @@ namespace server {
 namespace {
 
 static std::string s_launcherToken;
-
-void readRequestArgs(const core::http::Request& request, core::system::Options *pArgs)
-{
-   // we only do this when establishing new sessions via client_init
-   if (!boost::algorithm::ends_with(request.uri(), "client_init"))
-      return;
-
-   // parse the request (okay if it fails, none of the below is critical)
-   json::JsonRpcRequest clientInit;
-   Error error = json::parseJsonRpcRequest(request.body(), &clientInit);
-   if (error)
-      return;
-   
-   // read parameters from the request if present
-   int restoreWorkspace = -1;
-   json::getOptionalParam<int>(clientInit.kwparams, "restore_workspace", -1, &restoreWorkspace);
-   if (restoreWorkspace != -1)
-      pArgs->push_back(std::make_pair("--r-restore-workspace", 
-               safe_convert::numberToString(restoreWorkspace)));
-   int runRprofile = -1;
-   json::getOptionalParam<int>(clientInit.kwparams, "run_rprofile", -1, &runRprofile);
-   if (runRprofile != -1)
-      pArgs->push_back(std::make_pair("--r-run-rprofile", 
-            safe_convert::numberToString(runRprofile)));
-}
 
 core::system::ProcessConfig sessionProcessConfig(
          r_util::SessionContext context,
@@ -102,16 +80,6 @@ core::system::ProcessConfig sessionProcessConfig(
       args.push_back(std::make_pair("-" kScopeSessionOptionShort,
                                     context.scope.id()));
    }
-
-   // ensure cookies are marked secure if applicable
-   bool useSecureCookies = options.authCookiesForceSecure() ||
-                           options.getOverlayOption("ssl-enabled") == "1";
-   args.push_back(std::make_pair("--" kUseSecureCookiesSessionOption,
-                                 useSecureCookies ? "1" : "0"));
-   args.push_back(std::make_pair("--" kIFrameEmbeddingSessionOption,
-                                 options.wwwIFrameEmbedding() ? "1" : "0"));
-   args.push_back(std::make_pair("--" kLegacyCookiesSessionOption,
-                                 options.wwwLegacyCookies() ? "1" : "0"));
 
    // create launch token if we haven't already
    if (s_launcherToken.empty())
@@ -146,7 +114,9 @@ core::system::ProcessConfig sessionProcessConfig(
                               context.scope.id()));
    }
 
-   sessionProcessConfigOverlay(&args, &environment);
+   // log to stderr if we aren't daemonized
+   if (!options.serverDaemonize())
+      args.push_back(std::make_pair("--log-stderr", "1"));
 
    // pass extra params
    std::copy(extraArgs.begin(), extraArgs.end(), std::back_inserter(args));
@@ -162,7 +132,7 @@ core::system::ProcessConfig sessionProcessConfig(
                         rVersion.number());
    core::system::setenv(&environment,
                         kRStudioDefaultRVersionHome,
-                        rVersion.homeDir().getAbsolutePath());
+                        rVersion.homeDir().absolutePath());
 
    // forward the auth options
    core::system::setenv(&environment,
@@ -176,23 +146,6 @@ core::system::ProcessConfig sessionProcessConfig(
    // add monitor shared secret
    environment.push_back(std::make_pair(kMonitorSharedSecretEnvVar,
                                         options.monitorSharedSecret()));
-
-   // stamp the version number of the rserver process that is launching this session
-   // the session should log an error if its version does not match, as that is
-   // likely an unsupported configuration
-   environment.push_back({kRStudioVersion, RSTUDIO_VERSION});
-
-   // forward over crash handler environment if we have it (used for development mode)
-   if (!core::system::getenv(kCrashHandlerEnvVar).empty())
-      environment.push_back({kCrashHandlerEnvVar, core::system::getenv(kCrashHandlerEnvVar)});
-
-   if (!core::system::getenv(kCrashpadHandlerEnvVar).empty())
-      environment.push_back({kCrashpadHandlerEnvVar, core::system::getenv(kCrashpadHandlerEnvVar)});
-
-
-   // forward path for session temp dir (used for local stream path)
-   environment.push_back(
-         std::make_pair(kSessionTmpDirEnvVar, sessionTmpDir().getAbsolutePath()));
 
    // build the config object and return it
    core::system::ProcessConfig config;
@@ -222,10 +175,7 @@ SessionManager::SessionManager()
 }
 
 Error SessionManager::launchSession(boost::asio::io_service& ioService,
-                                    const r_util::SessionContext& context,
-                                    const http::Request& request,
-                                    const http::ResponseHandler& onLaunch,
-                                    const http::ErrorHandler& onError)
+      const r_util::SessionContext& context)
 {
    using namespace boost::posix_time;
    LOCK_MUTEX(launchesMutex_)
@@ -257,24 +207,20 @@ Error SessionManager::launchSession(boost::asio::io_service& ioService,
    }
    END_LOCK_MUTEX
 
-   // translate querystring arguments into extra session args 
-   core::system::Options args;
-   readRequestArgs(request, &args);
-
    // determine launch options
    r_util::SessionLaunchProfile profile;
    profile.context = context;
    profile.executablePath = server::options().rsessionPath();
-   profile.config = sessionProcessConfig(context, args);
+   profile.config = sessionProcessConfig(context);
 
    // pass the profile to any filters we have
-   for (SessionLaunchProfileFilter f : sessionLaunchProfileFilters_)
+   BOOST_FOREACH(SessionLaunchProfileFilter f, sessionLaunchProfileFilters_)
    {
       f(&profile);
    }
 
    // launch the session
-   Error error = sessionLaunchFunction_(ioService, profile, request, onLaunch, onError);
+   Error error = sessionLaunchFunction_(ioService, profile);
    if (error)
    {
       removePendingLaunch(context);
@@ -286,7 +232,6 @@ Error SessionManager::launchSession(boost::asio::io_service& ioService,
 
 namespace {
 
-boost::mutex s_configFilterMutex;
 core::system::ProcessConfigFilter s_processConfigFilter;
 
 } // anonymous namespace
@@ -294,11 +239,7 @@ core::system::ProcessConfigFilter s_processConfigFilter;
 
 void setProcessConfigFilter(const core::system::ProcessConfigFilter& filter)
 {
-   LOCK_MUTEX(s_configFilterMutex)
-   {
-      s_processConfigFilter = filter;
-   }
-   END_LOCK_MUTEX
+   s_processConfigFilter = filter;
 }
 
 // default session launcher -- does the launch then tracks the pid
@@ -311,19 +252,12 @@ Error SessionManager::launchAndTrackSession(
    using namespace rstudio::core::system;
    std::string runAsUser = realUserIsRoot() ? profile.context.username : "";
 
-   core::system::ProcessConfigFilter configFilter;
-   LOCK_MUTEX(s_configFilterMutex)
-   {
-      configFilter = s_processConfigFilter;
-   }
-   END_LOCK_MUTEX
-
    // launch the session
    PidType pid = 0;
    Error error = launchChildProcess(profile.executablePath,
                                     runAsUser,
                                     profile.config,
-                                    configFilter,
+                                    s_processConfigFilter,
                                     &pid);
    if (error)
       return error;
@@ -363,23 +297,6 @@ void SessionManager::notifySIGCHLD()
    processTracker_.notifySIGCHILD();
 }
 
-r_util::SessionLaunchProfile createSessionLaunchProfile(const r_util::SessionContext& context,
-                                                        const core::system::Options& extraArgs)
-{
-   r_util::SessionLaunchProfile profile;
-   profile.context = context;
-   profile.executablePath = server::options().rsessionPath();
-   profile.config = sessionProcessConfig(context, extraArgs);
-
-   // pass the profile to any filters we have
-   for (const SessionManager::SessionLaunchProfileFilter f : sessionManager().getSessionLaunchProfileFilters())
-   {
-      f(&profile);
-   }
-
-   return profile;
-}
-
 // helper function for verify-installation
 Error launchSession(const r_util::SessionContext& context,
                     const core::system::Options& extraArgs,
@@ -399,6 +316,7 @@ Error launchSession(const r_util::SessionContext& context,
                                            core::system::ProcessConfigFilter(),
                                            pPid);
 }
+
 
 } // namespace server
 } // namespace rstudio

@@ -1,7 +1,7 @@
 /*
  * SourceIndex.cpp
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -15,20 +15,15 @@
 
 #include <core/libclang/SourceIndex.hpp>
 
-#include <boost/scoped_ptr.hpp>
+#include <boost/foreach.hpp>
 
-#include <gsl/gsl>
-
-#include <core/Debug.hpp>
-#include <core/Log.hpp>
+#include <core/FilePath.hpp>
 #include <core/PerformanceTimer.hpp>
 
 #include <core/system/ProcessArgs.hpp>
 
 #include <core/libclang/LibClang.hpp>
 #include <core/libclang/UnsavedFiles.hpp>
-
-#include <shared_core/FilePath.hpp>
 
 namespace rstudio {
 namespace core {
@@ -51,7 +46,7 @@ bool isHeaderExtension(const std::string& ex)
 
 bool SourceIndex::isSourceFile(const FilePath& filePath)
 {
-   std::string ex = filePath.getExtensionLowerCase();
+   std::string ex = filePath.extensionLowerCase();
    return  isHeaderExtension(ex) ||
            ex == ".c" || ex == ".cc" || ex == ".cpp" ||
            ex == ".m" || ex == ".mm";
@@ -64,7 +59,7 @@ bool SourceIndex::isSourceFile(const std::string& filename)
 
 bool SourceIndex::isHeaderFile(const FilePath& filePath)
 {
-   return isHeaderExtension(filePath.getExtensionLowerCase());
+   return isHeaderExtension(filePath.extensionLowerCase());
 }
 
 SourceIndex::SourceIndex(CompilationDatabase compilationDB, int verbose)
@@ -82,7 +77,7 @@ SourceIndex::~SourceIndex()
       removeAllTranslationUnits();
 
       // dispose the index
-      if (index_ != nullptr)
+      if (index_ != NULL)
          clang().disposeIndex(index_);
    }
    catch(...)
@@ -146,7 +141,7 @@ std::map<std::string,TranslationUnit>
                            SourceIndex::getIndexedTranslationUnits()
 {
    std::map<std::string,TranslationUnit> units;
-   for (TranslationUnits::value_type& t : translationUnits_)
+   BOOST_FOREACH(TranslationUnits::value_type& t, translationUnits_)
    {
       TranslationUnit unit(t.first, t.second.tu, &unsavedFiles_);
       units.insert(std::make_pair(t.first, unit));
@@ -162,8 +157,8 @@ TranslationUnit SourceIndex::getTranslationUnit(const std::string& filename,
    boost::scoped_ptr<core::PerformanceTimer> pTimer;
    if (verbose_ > 0)
    {
-      std::cerr << "CLANG INDEXING: " << filePath.getAbsolutePath() << std::endl;
-      pTimer.reset(new core::PerformanceTimer(filePath.getFilename()));
+      std::cerr << "CLANG INDEXING: " << filePath.absolutePath() << std::endl;
+      pTimer.reset(new core::PerformanceTimer(filePath.filename()));
    }
 
    // get the arguments and last write time for this file
@@ -174,7 +169,7 @@ TranslationUnit SourceIndex::getTranslationUnit(const std::string& filename,
       if (args.empty())
          return TranslationUnit();
    }
-   std::time_t lastWriteTime = filePath.getLastWriteTime();
+   std::time_t lastWriteTime = filePath.lastWriteTime();
 
    // look it up
    TranslationUnits::iterator it = translationUnits_.find(filename);
@@ -239,13 +234,6 @@ TranslationUnit SourceIndex::getTranslationUnit(const std::string& filename,
    if (verbose_ >= 2)
      args.push_back("-v");
 
-   // report to user if requested
-   if (verbose_ > 1)
-   {
-      std::cerr << "COMPILATION ARGUMENTS:" << std::endl;
-      core::debug::print(args);
-   }
-
    // get the args in the fashion libclang expects (char**)
    core::system::ProcessArgs argsArray(args);
 
@@ -259,14 +247,14 @@ TranslationUnit SourceIndex::getTranslationUnit(const std::string& filename,
                          index_,
                          filename.c_str(),
                          argsArray.args(),
-                         gsl::narrow_cast<int>(argsArray.argCount()),
+                         argsArray.argCount(),
                          unsavedFiles().unsavedFilesArray(),
                          unsavedFiles().numUnsavedFiles(),
                          options);
 
 
    // save and return it if we succeeded
-   if (tu != nullptr)
+   if (tu != NULL)
    {
       translationUnits_[filename] = StoredTranslationUnit(args,
                                                           lastWriteTime,
@@ -287,7 +275,7 @@ TranslationUnit SourceIndex::getTranslationUnit(const std::string& filename,
 Cursor SourceIndex::referencedCursorForFileLocation(const FileLocation &loc)
 {
    // get the translation unit
-   std::string filename = loc.filePath.getAbsolutePath();
+   std::string filename = loc.filePath.absolutePath();
    TranslationUnit tu = getTranslationUnit(filename, true);
    if (tu.empty())
       return Cursor();

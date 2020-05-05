@@ -1,7 +1,7 @@
 /*
  * VoidServerRequestCallback.java
  *
- * Copyright (C) 2009-12 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -26,7 +26,7 @@ public class VoidServerRequestCallback extends ServerRequestCallback<Void>
    
    public VoidServerRequestCallback(ProgressIndicator progress)
    {
-      progress_ = progress;
+      progress_ = progress ;
    }
    
    public void onResponseReceived(Void response)
@@ -43,10 +43,7 @@ public class VoidServerRequestCallback extends ServerRequestCallback<Void>
       Debug.logError(error);
 
       if (progress_ != null)
-      {
          progress_.onError(error.getUserMessage());
-         progress_.onCompleted();
-      }
       
       onFailure();
       onCompleted();
@@ -67,5 +64,5 @@ public class VoidServerRequestCallback extends ServerRequestCallback<Void>
       
    }
    
-   private ProgressIndicator progress_;
+   private ProgressIndicator progress_ ;
 }

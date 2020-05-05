@@ -1,7 +1,7 @@
 /*
  * ViewerTab.java
  *
- * Copyright (C) 2009-18 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * This program is licensed to you under the terms of version 3 of the
  * GNU Affero General Public License. This program is distributed WITHOUT
@@ -15,7 +15,6 @@ package org.rstudio.studio.client.workbench.views.viewer;
 import com.google.inject.Inject;
 
 import org.rstudio.studio.client.application.events.EventBus;
-import org.rstudio.studio.client.plumber.events.PlumberAPIStatusEvent;
 import org.rstudio.studio.client.shiny.events.ShinyApplicationStatusEvent;
 import org.rstudio.studio.client.workbench.model.Session;
 import org.rstudio.studio.client.workbench.ui.DelayLoadTabShim;
@@ -31,8 +30,7 @@ public class ViewerTab extends DelayLoadWorkbenchTab<ViewerPresenter>
         implements ViewerNavigateEvent.Handler,
                    ViewerPreviewRmdEvent.Handler,
                    ViewerClearedEvent.Handler,
-                   ShinyApplicationStatusEvent.Handler,
-                   PlumberAPIStatusEvent.Handler {}
+                   ShinyApplicationStatusEvent.Handler {}
 
    @Inject
    public ViewerTab(Shim shim, Session session, EventBus eventBus)
@@ -44,7 +42,6 @@ public class ViewerTab extends DelayLoadWorkbenchTab<ViewerPresenter>
       eventBus.addHandler(ViewerPreviewRmdEvent.TYPE, shim);
       eventBus.addHandler(ViewerClearedEvent.TYPE, shim);
       eventBus.addHandler(ShinyApplicationStatusEvent.TYPE, shim);
-      eventBus.addHandler(PlumberAPIStatusEvent.TYPE, shim);
    }
    
    @SuppressWarnings("unused")

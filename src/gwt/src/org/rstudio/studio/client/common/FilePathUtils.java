@@ -1,7 +1,7 @@
 /*
  * FilePathUtils.java
  *
- * Copyright (C) 2009-12 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -36,14 +36,6 @@ public class FilePathUtils
       return idx > 0 ?
             fileName.substring(0, idx) :
             fileName;
-   }
-
-   public static String parent(String path)
-   {
-      int idx = path.lastIndexOf("/");
-      return idx > 0 ?
-            path.substring(0, idx) :
-            path;
    }
    
    public static boolean pathIsAbsolute(String path)

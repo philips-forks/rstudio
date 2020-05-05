@@ -1,7 +1,7 @@
 /*
  * HTMLPreviewPanel.java
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -38,7 +38,6 @@ import org.rstudio.core.client.widget.AnchorableFrame;
 import org.rstudio.core.client.widget.Toolbar;
 import org.rstudio.core.client.widget.ToolbarButton;
 import org.rstudio.core.client.widget.ToolbarLabel;
-import org.rstudio.core.client.widget.ToolbarMenuButton;
 import org.rstudio.core.client.widget.ToolbarPopupMenu;
 import org.rstudio.studio.client.RStudioGinjector;
 import org.rstudio.studio.client.application.Desktop;
@@ -62,7 +61,7 @@ public class HTMLPreviewPanel extends ResizeComposite
       layoutPanel_.setWidgetLeftRight(toolbar_, 0, Unit.PX, 0, Unit.PX);
       layoutPanel_.setWidgetTopHeight(toolbar_, 0, Unit.PX, tbHeight_, Unit.PX);
       
-      previewFrame_ = new AnchorableFrame("HTML Preview Panel");
+      previewFrame_ = new AnchorableFrame();
       previewFrame_.setSize("100%", "100%");
       layoutPanel_.add(previewFrame_);
       layoutPanel_.setWidgetLeftRight(previewFrame_,  0, Unit.PX, 0, Unit.PX);
@@ -76,12 +75,12 @@ public class HTMLPreviewPanel extends ResizeComposite
    {
       toolbar_.setVisible(visible);
       int frameTop = visible ? tbHeight_+1 : 0;
-      layoutPanel_.setWidgetTopBottom(previewFrame_, frameTop, Unit.PX, 0, Unit.PX);
+      layoutPanel_.setWidgetTopBottom(previewFrame_, frameTop, Unit.PX, 0, Unit.PX);    
    }
    
    private Toolbar createToolbar(Commands commands)
    {
-      Toolbar toolbar = new Toolbar("Preview Tab");
+      Toolbar toolbar = new Toolbar();
       
       fileCaption_ = new ToolbarLabel("Preview: ");
       toolbar.addLeftWidget(fileCaption_);
@@ -98,7 +97,7 @@ public class HTMLPreviewPanel extends ResizeComposite
       toolbar.addLeftWidget(showLogButton_);
       
       saveHtmlPreviewAsSeparator_ = toolbar.addLeftSeparator();
-      if (Desktop.hasDesktopFrame())
+      if (Desktop.isDesktop())
       { 
          saveHtmlPreviewAs_ = commands.saveHtmlPreviewAs().createToolbarButton();
          toolbar.addLeftWidget(saveHtmlPreviewAs_);
@@ -109,9 +108,8 @@ public class HTMLPreviewPanel extends ResizeComposite
          menu.addItem(commands.saveHtmlPreviewAs().createMenuItem(false));
          menu.addItem(commands.saveHtmlPreviewAsLocalFile().createMenuItem(false));
       
-         saveHtmlPreviewAs_ = toolbar.addLeftWidget(new ToolbarMenuButton(
-               "Save As",
-               ToolbarButton.NoTitle,
+         saveHtmlPreviewAs_ = toolbar.addLeftWidget(new ToolbarButton(
+               "Save As", 
                commands.saveSourceDoc().getImageResource(),
                menu));
          
@@ -160,7 +158,7 @@ public class HTMLPreviewPanel extends ResizeComposite
                RStudioGinjector.INSTANCE.getGlobalDisplay().showMessage(
                      MessageDialog.INFO,
                      "Find in Page", 
-                     "No occurrences found",
+                     "No occurences found",
                      findInputSource);
             }     
          }
@@ -300,9 +298,8 @@ public class HTMLPreviewPanel extends ResizeComposite
    private void navigate(String url)
    {
       if (Desktop.isDesktop())
-         Desktop.getFrame().setViewerUrl(StringUtil.notNull(url));
-      // use setUrl rather than navigate to deal with same origin policy
-      previewFrame_.setUrl(url);
+         Desktop.getFrame().setViewerUrl(url);
+      previewFrame_.navigate(url);
    }
    
    private final LayoutPanel layoutPanel_;

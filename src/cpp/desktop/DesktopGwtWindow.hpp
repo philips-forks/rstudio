@@ -1,7 +1,7 @@
 /*
  * DesktopGwtWindow.hpp
  *
- * Copyright (C) 2009-18 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -17,7 +17,6 @@
 #define DESKTOP_GWT_WINDOW_HPP
 
 #include "DesktopBrowserWindow.hpp"
-#include "DesktopWebPage.hpp"
 
 namespace rstudio {
 namespace desktop {
@@ -30,25 +29,21 @@ public:
                       bool adjustTitle,
                       QString name,
                       QUrl baseUrl = QUrl(),
-                      QWidget *parent = nullptr,
-                      WebPage* opener = nullptr,
-                      bool isRemoteDesktop = false);
+                      QWidget *parent = NULL);
 
    const std::vector<double>& zoomLevels() const { return zoomLevels_; }
 
-public Q_SLOTS:
-   void onCloseWindowShortcut();
-
-   void zoomActualSize();
-   void setZoomLevel(double zoomLevel);
+public slots:
    void zoomIn();
    void zoomOut();
 
-protected Q_SLOTS:
-   void finishLoading(bool) override;
+protected slots:
+   virtual void onJavaScriptWindowObjectCleared();
 
 protected:
-   bool event(QEvent* pEvent) override;
+   virtual bool event(QEvent* pEvent);
+   virtual double getZoomLevel();
+   virtual void setZoomLevel(double zoomLevel);
 
 private:
    virtual void onActivated()
@@ -57,7 +52,6 @@ private:
 
    std::vector<double> zoomLevels_;
    double zoomLevel_;
-   QElapsedTimer lastZoomTimer_;
 };
 
 } // namespace desktop

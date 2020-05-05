@@ -1,7 +1,7 @@
 /*
  * CodeBrowserContents.java
  *
- * Copyright (C) 2009-12 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -29,7 +29,7 @@ public class CodeBrowserContents extends JavaScriptObject
    public static final native CodeBrowserContents create(String context) /*-{
       var contents = new Object();
       contents.context = context;
-      return contents;
+      return contents ;
    }-*/;
    
    
@@ -39,8 +39,9 @@ public class CodeBrowserContents extends JavaScriptObject
    
    public final boolean equalTo(CodeBrowserContents other)
    {
-      return getContext() == other.getContext();
+      return getContext().equals(other.getContext());
    }
+   
    
    public final void fillProperties(HashMap<String, String> properties)
    {

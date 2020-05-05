@@ -1,7 +1,7 @@
 /*
  * RProjectOptions.java
  *
- * Copyright (C) 2009-12 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -15,7 +15,6 @@
 package org.rstudio.studio.client.projects.model;
 
 import org.rstudio.studio.client.packrat.model.PackratContext;
-import org.rstudio.studio.client.workbench.projects.RenvContext;
 
 import com.google.gwt.core.client.JavaScriptObject;
 
@@ -30,24 +29,20 @@ public class RProjectOptions extends JavaScriptObject
       return create(RProjectConfig.createEmpty(), 
                     RProjectVcsOptions.createEmpty(),
                     RProjectBuildOptions.createEmpty(),
-                    RProjectPackratOptions.createEmpty(),
-                    RProjectRenvOptions.createEmpty());
+                    RProjectPackratOptions.createEmpty());
    }
    
    public native static final RProjectOptions create(
                                     RProjectConfig config,
                                     RProjectVcsOptions vcsOptions,
                                     RProjectBuildOptions buildOptions,
-                                    RProjectPackratOptions packratOptions,
-                                    RProjectRenvOptions renvOptions)
-   /*-{
+                                    RProjectPackratOptions packratOptions) /*-{
       var options = new Object();
       options.config = config;
       options.vcs_options = vcsOptions;
       options.vcs_options_default = new Object();
       options.build_options = buildOptions;
       options.packrat_options = packratOptions;
-      options.renv_options = renvOptions;
       return options;
    }-*/;
    
@@ -66,10 +61,6 @@ public class RProjectOptions extends JavaScriptObject
    public native final RProjectPackratOptions getPackratOptions() /*-{
       return this.packrat_options;
    }-*/;
-   
-   public native final RProjectRenvOptions getRenvOptions() /*-{
-      return this.renv_options;
-   }-*/;
 
    public native final RProjectVcsContext getVcsContext() /*-{
       return this.vcs_context;
@@ -81,10 +72,6 @@ public class RProjectOptions extends JavaScriptObject
    
    public native final PackratContext getPackratContext() /*-{
       return this.packrat_context;
-   }-*/;
-   
-   public native final RenvContext getRenvContext() /*-{
-      return this.renv_context;
    }-*/;
    
    

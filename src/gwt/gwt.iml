@@ -3,13 +3,22 @@
   <component name="FacetManager">
     <facet type="gwt" name="GWT">
       <configuration>
-        <setting name="compilerMaxHeapSize" value="1024" />
-        <setting name="gwtScriptOutputStyle" value="DETAILED" />
-        <setting name="gwtSdkUrl" value="file://$MODULE_DIR$/lib/gwt/gwt-rstudio" />
+        <setting name="compilerMaxHeapSize" value="128" />
+        <setting name="gwtScriptOutputStyle" value="PRETTY" />
+        <setting name="gwtSdkUrl" value="file://$MODULE_DIR$/lib/gwt/2.7.0" />
+        <packaging>
+          <module name="com.google.gwt.widgetideas.SliderBar" path="/com.google.gwt.widgetideas.SliderBar" />
+          <module name="org.rstudio.codemirror.CodeMirror" path="/com.rstudio.codemirror.CodeMirror" />
+          <module name="org.rstudio.core.Core" path="/com.rstudio.core.Core" />
+          <module name="org.rstudio.studio.PlainTextEditor" path="/com.rstudio.studio.PlainTextEditor" />
+          <module name="org.rstudio.studio.RStudio" path="/rstudio" />
+          <module name="org.rstudio.studio.RStudioDesktop" path="/rstudio" />
+          <module name="org.rstudio.studio.RStudioDraft" path="/rstudio" />
+        </packaging>
       </configuration>
     </facet>
   </component>
-  <component name="NewModuleRootManager">
+  <component name="NewModuleRootManager" inherit-compiler-output="false">
     <output url="file://$MODULE_DIR$/bin" />
     <output-test url="file://$MODULE_DIR$/bin.test" />
     <exclude-output />
@@ -25,14 +34,12 @@
       <excludeFolder url="file://$MODULE_DIR$/lib" />
       <excludeFolder url="file://$MODULE_DIR$/sdk" />
       <excludeFolder url="file://$MODULE_DIR$/tools" />
-      <excludeFolder url="file://$MODULE_DIR$/www/WEB-INF/deploy" />
       <excludeFolder url="file://$MODULE_DIR$/www/rstudio" />
     </content>
     <orderEntry type="inheritedJdk" />
     <orderEntry type="sourceFolder" forTests="false" />
-    <orderEntry type="library" name="gwt" level="project" />
     <orderEntry type="library" name="gin" level="project" />
-    <orderEntry type="library" scope="TEST" name="junit-4.9b3" level="project" />
-    <orderEntry type="library" name="elemental2" level="project" />
+    <orderEntry type="library" name="gwt" level="project" />
   </component>
 </module>
+

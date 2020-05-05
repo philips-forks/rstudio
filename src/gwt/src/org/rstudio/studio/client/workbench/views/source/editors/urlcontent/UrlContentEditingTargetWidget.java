@@ -1,7 +1,7 @@
 /*
  * UrlContentEditingTargetWidget.java
  *
- * Copyright (C) 2009-20 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -14,11 +14,10 @@
  */
 package org.rstudio.studio.client.workbench.views.source.editors.urlcontent;
 
-import com.google.gwt.aria.client.Roles;
 import com.google.gwt.user.client.ui.Composite;
 import com.google.gwt.user.client.ui.Widget;
-import org.rstudio.core.client.StringUtil;
 import org.rstudio.core.client.dom.IFrameElementEx;
+import org.rstudio.core.client.widget.RStudioFrame;
 import org.rstudio.core.client.widget.RStudioThemedFrame;
 import org.rstudio.core.client.widget.Toolbar;
 import org.rstudio.studio.client.workbench.commands.Commands;
@@ -28,17 +27,18 @@ import org.rstudio.studio.client.workbench.views.source.editors.EditingTargetToo
 public class UrlContentEditingTargetWidget extends Composite
    implements UrlContentEditingTarget.Display
 {
-   public UrlContentEditingTargetWidget(String title, Commands commands, String url)
+   public UrlContentEditingTargetWidget(Commands commands, String url)
    {
       commands_ = commands;
 
-      frame_ = new RStudioThemedFrame(title, url, true, "allow-same-origin", null, null, false, true);
+      frame_ = new RStudioThemedFrame(url, true, "allow-same-origin", null, null, false);
       frame_.setSize("100%", "100%");
 
-      panel_ = new PanelWithToolbars(createToolbar(), frame_);
-      Roles.getTabpanelRole().set(panel_.getElement());
-      setAccessibleName(null);
-      initWidget(panel_);
+      PanelWithToolbars panel = new PanelWithToolbars(createToolbar(),
+                                                    frame_);
+
+      initWidget(panel);
+
    }
 
    private Toolbar createToolbar()
@@ -58,15 +58,6 @@ public class UrlContentEditingTargetWidget extends Composite
       return this;
    }
 
-   @Override
-   public void setAccessibleName(String name)
-   {
-      if (StringUtil.isNullOrEmpty(name))
-         name = "Untitled URL Browser";
-      Roles.getTabpanelRole().setAriaLabelProperty(panel_.getElement(), name + " URL Browser");
-   }
-
    private final Commands commands_;
    private RStudioThemedFrame frame_;
-   private final PanelWithToolbars panel_;
 }

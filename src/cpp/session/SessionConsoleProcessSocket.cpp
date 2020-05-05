@@ -1,7 +1,7 @@
 /*
  * SessionConsoleProcessSocket.cpp
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-17 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -14,15 +14,11 @@
  */
 
 #include <session/SessionConsoleProcessSocket.hpp>
-#include <session/SessionHttpConnectionListener.hpp>
-#include <session/SessionConsoleProcessSocketPacket.hpp>
-
-#include "http/SessionTcpIpHttpConnectionListener.hpp"
 
 #include <boost/make_shared.hpp>
 
-#include <shared_core/FilePath.hpp>
-#include <shared_core/json/Json.hpp>
+#include <core/FilePath.hpp>
+#include <core/json/Json.hpp>
 
 
 namespace rstudio {
@@ -67,52 +63,19 @@ Error ConsoleProcessSocket::ensureServerRunning()
    // initialize seed for random port selection
    if (!s_didSeedRand)
    {
-      srand(static_cast<unsigned int>(time(nullptr)));
+      srand(time(NULL));
       s_didSeedRand = true;
    }
 
-   std::string portStr = session::options().terminalPort();
-   if (portStr.empty())
-   {
-      // no user-specified port; pick a random port
-      port = 3000 + (rand() % 5000);
-   }
-   else
-   {
-      // use user-specified port, but fallback to random if
-      // the port specified is invalid
-      port = safe_convert::stringTo(portStr, 3000 + (rand() % 5000));
-   }
+   // no user-specified port; pick a random port
+   port = 3000 + (rand() % 5000);
 
    try
    {
       pwsServer_.reset(new terminalServer());
-     
-      switch (session::options().webSocketLogLevel())
-      {
-         case 0:
-         default:
-            pwsServer_->set_access_channels(websocketpp::log::alevel::none);
-            pwsServer_->set_error_channels(websocketpp::log::elevel::none);
-            break;
-         case 1:
-            pwsServer_->set_access_channels(websocketpp::log::alevel::none);
-            pwsServer_->set_error_channels(websocketpp::log::elevel::all);
-            break;
-         case 2:
-            pwsServer_->set_access_channels(websocketpp::log::alevel::access_core);
-            pwsServer_->set_error_channels(websocketpp::log::elevel::none);
-            break;
-         case 3:
-            pwsServer_->set_access_channels(websocketpp::log::alevel::all);
-            pwsServer_->set_error_channels(websocketpp::log::elevel::all);
-            break;
-      }
 
+      pwsServer_->set_access_channels(websocketpp::log::alevel::none);
       pwsServer_->init_asio();
-      
-      pwsServer_->set_open_handshake_timeout(session::options().webSocketHandshakeTimeoutMs());
-      pwsServer_->set_close_handshake_timeout(session::options().webSocketHandshakeTimeoutMs());
 
       pwsServer_->set_message_handler(
                boost::bind(&ConsoleProcessSocket::onMessage, this, &*pwsServer_, _1, _2));
@@ -122,41 +85,26 @@ Error ConsoleProcessSocket::ensureServerRunning()
                boost::bind(&ConsoleProcessSocket::onClose, this, &*pwsServer_, _1));
       pwsServer_->set_open_handler(
                boost::bind(&ConsoleProcessSocket::onOpen, this, &*pwsServer_, _1));
-      pwsServer_->set_fail_handler(
-            boost::bind(&ConsoleProcessSocket::onFail, this, &*pwsServer_, _1));
 
       // try to bind to the given port
       do
       {
          try
          {
-            if (session::options().standalone())
+            // TODO (gary) can we just try ipv6 without sniffing, then do
+            // ipv4 if ipv6 fails?
+#if !defined(_WIN32) && !defined(__APPLE__)
+            if (core::FilePath("/proc/net/if_inet6").exists())
             {
-               // if we are in standalone mode, try to bind to the same address
-               // that the server bound to
-               TcpIpHttpConnectionListener& listener =
-                     static_cast<TcpIpHttpConnectionListener&>(httpConnectionListener());
-
-               boost::asio::ip::tcp::endpoint endpoint = listener.getLocalEndpoint();
-               pwsServer_->listen(endpoint.address(), static_cast<uint16_t>(port));
+               // listen will fail without ipv6 support on the machine so we
+               // only use it for machines with a ipv6 stack
+               pwsServer_->listen(port);
             }
             else
-            {
-               // TODO (gary) can we just try ipv6 without sniffing, then do
-               // ipv4 if ipv6 fails?
-#if !defined(_WIN32) && !defined(__APPLE__)
-               if (core::FilePath("/proc/net/if_inet6").exists())
-               {
-                  // listen will fail without ipv6 support on the machine so we
-                  // only use it for machines with a ipv6 stack
-                  pwsServer_->listen(boost::asio::ip::tcp::v6(), port);
-               }
-               else
 #endif
-               {
-                  // no ipv6 support, fall back to ipv4
-                  pwsServer_->listen(boost::asio::ip::tcp::v4(), static_cast<uint16_t>(port));
-               }
+            {
+               // no ipv6 support, fall back to ipv4
+               pwsServer_->listen(boost::asio::ip::tcp::v4(), port);
             }
 
             pwsServer_->start_accept();
@@ -259,8 +207,8 @@ Error ConsoleProcessSocket::stopListening(const std::string& terminalHandle)
    return Success();
 }
 
-Error ConsoleProcessSocket::sendRawText(const std::string& terminalHandle,
-                                        const std::string& message)
+Error ConsoleProcessSocket::sendText(const std::string& terminalHandle,
+                                     const std::string& message)
 {
    // do we know about this handle?
    ConsoleProcessSocketConnectionDetails details = connections_.get(terminalHandle);
@@ -289,17 +237,6 @@ Error ConsoleProcessSocket::sendRawText(const std::string& terminalHandle,
    return Success();
 }
 
-Error ConsoleProcessSocket::sendText(const std::string& terminalHandle,
-                                     const std::string& message)
-{
-   return sendRawText(terminalHandle, ConsoleProcessSocketPacket::textPacket(message));
-}
-
-Error ConsoleProcessSocket::sendPong(const std::string& terminalHandle)
-{
-   return sendRawText(terminalHandle, ConsoleProcessSocketPacket::keepAlivePacket());
-}
-
 void ConsoleProcessSocket::releaseAllConnections()
 {
    connections_.clear();
@@ -324,15 +261,9 @@ void ConsoleProcessSocket::onMessage(terminalServer* s,
       return;
    ConsoleProcessSocketConnectionDetails details = connections_.get(handle);
 
-   std::string payload = msg->get_payload();
-   if (ConsoleProcessSocketPacket::isKeepAlive(payload))
-   {
-      sendPong(handle);
-   }
-   else if (details.connectionCallbacks_.onReceivedInput)
-   {
-      details.connectionCallbacks_.onReceivedInput(ConsoleProcessSocketPacket::getMessage(payload));
-   }
+   std::string message = msg->get_payload();
+   if (details.connectionCallbacks_.onReceivedInput)
+      details.connectionCallbacks_.onReceivedInput(message);
 }
 
 void ConsoleProcessSocket::onClose(terminalServer* s, websocketpp::connection_hdl hdl)
@@ -373,13 +304,6 @@ void ConsoleProcessSocket::onHttp(terminalServer* s, websocketpp::connection_hdl
    // We could return diagnostics here if we had some, but for now just 404
    terminalServer::connection_ptr con = s->get_con_from_hdl(hdl);
    con->set_status(websocketpp::http::status_code::not_found);
-}
-
-void ConsoleProcessSocket::onFail(terminalServer* s, websocketpp::connection_hdl hdl)
-{
-   terminalServer::connection_ptr con = s->get_con_from_hdl(hdl);
-   std::string message = "Terminal websocket failure: " + con->get_ec().message();
-   LOG_ERROR_MESSAGE(message);
 }
 
 std::string ConsoleProcessSocket::getHandle(terminalServer* s, websocketpp::connection_hdl hdl)

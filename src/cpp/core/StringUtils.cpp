@@ -1,7 +1,7 @@
 /*
  * StringUtils.cpp
  *
- * Copyright (C) 2009-20 by RStudio, PBC
+ * Copyright (C) 2009-17 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -18,7 +18,6 @@
 #include <algorithm>
 #include <map>
 #include <ostream>
-#include <gsl/gsl>
 
 #include <boost/algorithm/string.hpp>
 #include <boost/algorithm/string/case_conv.hpp>
@@ -27,10 +26,9 @@
 #include <boost/algorithm/string/split.hpp>
 #include <boost/regex.hpp>
 
-#include <core/Algorithm.hpp>
 #include <core/Log.hpp>
-#include <shared_core/SafeConvert.hpp>
-#include <shared_core/json/Json.hpp>
+#include <core/SafeConvert.hpp>
+#include <core/json/Json.hpp>
 
 #ifdef _WIN32
 #include <windows.h>
@@ -44,22 +42,6 @@
 namespace rstudio {
 namespace core {
 namespace string_utils {
-
-bool isTruthy(const std::string& string,
-              bool valueIfEmpty)
-{
-   // allow user-configurable behavior for empty strings
-   if (string.empty())
-      return valueIfEmpty;
-   
-   // check for special 'falsy' values
-   std::string lower = toLower(string);
-   if (lower == "0" || lower == "false")
-      return false;
-   
-   // assume all other values are 'truthy'
-   return true;
-}
 
 bool isSubsequence(std::string const& self,
                    std::string const& other,
@@ -138,7 +120,7 @@ std::vector<int> subsequenceIndices(std::string const& sequence,
       if (index == std::string::npos)
          continue;
       
-      result.push_back(gsl::narrow_cast<int>(index));
+      result.push_back(index);
       prevMatchIndex = index;
    }
    
@@ -152,12 +134,12 @@ bool subsequenceIndices(std::string const& sequence,
    pIndices->clear();
    pIndices->reserve(query.length());
    
-   int query_n = gsl::narrow_cast<int>(query.length());
+   int query_n = query.length();
    int prevMatchIndex = -1;
    
    for (int i = 0; i < query_n; i++)
    {
-      int index = gsl::narrow_cast<int>(sequence.find(query[i], prevMatchIndex + 1));
+      int index = sequence.find(query[i], prevMatchIndex + 1);
       if (index == -1)
          return false;
       
@@ -208,8 +190,8 @@ bool detectLineEndings(const FilePath& filePath, LineEnding* pType)
    if (!filePath.exists())
       return false;
 
-   std::shared_ptr<std::istream> pIfs;
-   Error error = filePath.openForRead(pIfs);
+   boost::shared_ptr<std::istream> pIfs;
+   Error error = filePath.open_r(&pIfs);
    if (error)
    {
       LOG_ERROR(error);
@@ -245,7 +227,7 @@ bool detectLineEndings(const FilePath& filePath, LineEnding* pType)
          else if (pIfs->fail())
          {
             LOG_WARNING_MESSAGE("I/O Error reading file " +
-                                   filePath.getAbsolutePath());
+                                filePath.absolutePath());
             break;
          }
       }
@@ -263,28 +245,21 @@ std::string utf8ToSystem(const std::string& str,
       return std::string();
 
 #ifdef _WIN32
-
-   std::vector<wchar_t> wide(str.length() + 1);
-   int chars = ::MultiByteToWideChar(
-            CP_UTF8, 0,
-            str.c_str(), -1,
-            &wide[0], gsl::narrow_cast<int>(wide.size()));
-
+   wchar_t wide[str.length() + 1];
+   int chars = ::MultiByteToWideChar(CP_UTF8, 0, str.c_str(), -1, wide, sizeof(wide));
    if (chars < 0)
    {
-      LOG_ERROR(LAST_SYSTEM_ERROR());
+      LOG_ERROR(systemError(::GetLastError(), ERROR_LOCATION));
       return str;
    }
 
    std::ostringstream output;
-   char buffer[16];
-
+   char mbbuf[10];
    // Only go up to chars - 1 because last char is \0
    for (int i = 0; i < chars - 1; i++)
    {
-      int n = wctomb(buffer, wide[i]);
-
-      if (n == -1)
+      int mbc = wctomb(mbbuf, wide[i]);
+      if (mbc == -1)
       {
          if (escapeInvalidChars)
             output << "\\u{" << std::hex << wide[i] << "}";
@@ -292,9 +267,7 @@ std::string utf8ToSystem(const std::string& str,
             output << "?"; // TODO: Use GetCPInfo()
       }
       else
-      {
-         output.write(buffer, n);
-      }
+         output.write(mbbuf, mbc);
    }
    return output.str();
 #else
@@ -309,31 +282,26 @@ std::string systemToUtf8(const std::string& str, int codepage)
       return std::string();
 
 #ifdef _WIN32
-   std::vector<wchar_t> wide(str.length() + 1);
-   int chars = ::MultiByteToWideChar(codepage,
-                                     0,
-                                     str.c_str(),
-                                     gsl::narrow_cast<int>(str.length()),
-                                     &wide[0],
-                                     gsl::narrow_cast<int>(wide.size()));
+   wchar_t wide[str.length() + 1];
+   int chars = ::MultiByteToWideChar(codepage, 0, str.c_str(), str.length(), wide, sizeof(wide));
    if (chars < 0)
    {
-      LOG_ERROR(LAST_SYSTEM_ERROR());
+      LOG_ERROR(systemError(::GetLastError(), ERROR_LOCATION));
       return str;
    }
 
-   int bytesRequired = ::WideCharToMultiByte(CP_UTF8, 0, &wide[0], chars,
-                                             nullptr, 0,
-                                             nullptr, nullptr);
+   int bytesRequired = ::WideCharToMultiByte(CP_UTF8, 0, wide, chars,
+                                             NULL, 0,
+                                             NULL, NULL);
    if (bytesRequired == 0)
    {
-      LOG_ERROR(LAST_SYSTEM_ERROR());
+      LOG_ERROR(systemError(::GetLastError(), ERROR_LOCATION));
       return str;
    }
    std::vector<char> buf(bytesRequired, 0);
-   int bytesWritten = ::WideCharToMultiByte(CP_UTF8, 0, &wide[0], chars,
-                                            &(buf[0]), static_cast<int>(buf.size()),
-                                            nullptr, nullptr);
+   int bytesWritten = ::WideCharToMultiByte(CP_UTF8, 0, wide, chars,
+                                            &(buf[0]), buf.size(),
+                                            NULL, NULL);
    return std::string(buf.begin(), buf.end());
 #else
    return str;
@@ -355,7 +323,7 @@ std::string toUpper(const std::string& str)
 std::string toLower(const std::string& str)
 {
    std::string lower = str;
-   std::transform(lower.begin(), lower.end(), lower.begin(), core::tolower);
+   std::transform(lower.begin(), lower.end(), lower.begin(), ::tolower);
    return lower;
 }
    
@@ -427,7 +395,7 @@ std::string jsLiteralEscape(const std::string& str)
    subs['"'] = "\\\"";
    subs['\r'] = "\\r";
    subs['\n'] = "\\n";
-   subs['<'] = "\\074";
+   subs['<'] = "\074";
 
    return escape(escapes, subs, str);
 }
@@ -450,13 +418,13 @@ std::string jsonLiteralEscape(const std::string& str)
 std::string jsonLiteralUnescape(const std::string& str)
 {
    json::Value value;
-   if (value.parse(str) || !json::isType<std::string>(value))
+   if (!json::parse(str, &value) || !json::isType<std::string>(value))
    {
       LOG_ERROR_MESSAGE("Failed to unescape JS literal");
       return str;
    }
 
-   return value.getString();
+   return value.get_str();
 }
 
 std::string singleQuotedStrEscape(const std::string& str)
@@ -545,10 +513,11 @@ bool parseVersion(const std::string& str, uint64_t* pVersion)
 
    for (size_t i = 0; i < chunks.size() && i < 4; i++)
    {
-      boost::optional<uint16_t> value = core::safe_convert::stringTo<uint16_t>(chunks[i]);
-      if (!value)
+      uint16_t value = core::safe_convert::stringTo<uint16_t>(
+            chunks[i], std::numeric_limits<uint16_t>::max());
+      if (value == std::numeric_limits<uint16_t>::max())
          return false;
-      version += static_cast<uint64_t>(value.get()) << ((3-i) * 16);
+      version += static_cast<uint64_t>(value) << ((3-i) * 16);
    }
    if (pVersion)
       *pVersion = version;
@@ -558,16 +527,13 @@ bool parseVersion(const std::string& str, uint64_t* pVersion)
 bool trimLeadingLines(int maxLines, std::string* pLines)
 {
    bool didTrim = false;
-   if (pLines->length() > static_cast<unsigned int>(maxLines * 2))
+   if (pLines->length() > static_cast<unsigned int>(maxLines*2))
    {
       int lineCount = 0;
       std::string::const_iterator begin = pLines->begin();
       std::string::iterator pos = pLines->end();
-
-      for (;;)
+      while (--pos >= begin)
       {
-         --pos;
-
          if (*pos == '\n')
          {
             if (++lineCount > maxLines)
@@ -577,9 +543,6 @@ bool trimLeadingLines(int maxLines, std::string* pLines)
                break;
             }
          }
-
-         if (pos == begin)
-            break;
       }
    }
    return didTrim;
@@ -605,7 +568,7 @@ void stripQuotes(std::string* pStr)
    if (pStr->length() > 0 && (pStr->at(0) == '\'' || pStr->at(0) == '"'))
       *pStr = pStr->substr(1);
 
-   auto len = pStr->length();
+   int len = pStr->length();
 
    if (len > 0 && (pStr->at(len-1) == '\'' || pStr->at(len-1) == '"'))
       *pStr = pStr->substr(0, len -1);
@@ -717,69 +680,6 @@ std::string makeRandomByteString(std::size_t n)
    for (std::size_t i = 0; i < n; ++i)
       result[i] = (unsigned char) (::rand() % UCHAR_MAX);
    return result;
-}
-
-bool extractCommentHeader(const std::string& contents,
-                          const std::string& reCommentPrefix,
-                          std::string* pHeader)
-{
-   // construct newline-based token iterator
-   boost::regex reNewline("(?:\\r?\\n|$)");
-   boost::sregex_token_iterator it(
-            contents.begin(),
-            contents.end(),
-            reNewline,
-            -1);
-   boost::sregex_token_iterator end;
-   
-   // first, skip blank lines
-   boost::regex reWhitespace("^\\s*$");
-   while (it != end)
-   {
-      if (boost::regex_match(it->begin(), it->end(), reWhitespace))
-      {
-         ++it;
-         continue;
-      }
-      
-      break;
-   }
-   
-   // if we're at the end now, bail
-   if (it == end)
-      return false;
-   
-   // check to see if we landed on our comment prefix and
-   // quit early if we haven't
-   boost::regex rePrefix(reCommentPrefix);
-   if (!boost::regex_search(it->begin(), it->end(), rePrefix))
-      return false;
-   
-   // we have a prefix: start iterating and extracting these
-   for (; it != end; ++it)
-   {
-      boost::smatch match;
-      if (!boost::regex_search(it->begin(), it->end(), match, rePrefix))
-      {
-         // this is no longer a commented line; time to go home
-         break;
-      }
-         
-      // extract the line (sans prefix)
-      std::string line(it->begin() + match.length(), it->end());
-      pHeader->append(line + "\n");
-   }
-   
-   // report success to the user
-   return true;
-}
-
-std::string extractIndent(const std::string& line)
-{
-   auto index = line.find_first_not_of(" \t");
-   if (index == std::string::npos)
-      return std::string();
-   return line.substr(0, index);
 }
 
 } // namespace string_utils

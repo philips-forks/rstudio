@@ -1,7 +1,7 @@
 /*
  * ImageFrame.java
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -20,10 +20,9 @@ import com.google.gwt.user.client.ui.Frame;
 
 public class ImageFrame extends Frame
 {
-   public ImageFrame(String title)
+   public ImageFrame()
    {
       setUrl("javascript:false");
-      setTitle(title);
    }
 
    @Override

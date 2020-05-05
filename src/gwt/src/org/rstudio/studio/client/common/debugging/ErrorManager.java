@@ -1,7 +1,7 @@
 /*
  * ErrorManager.java
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -17,11 +17,11 @@
 package org.rstudio.studio.client.common.debugging;
 
 import org.rstudio.studio.client.server.Void;
-import org.rstudio.core.client.StringUtil;
 import org.rstudio.core.client.command.CommandBinder;
 import org.rstudio.core.client.command.Handler;
 import org.rstudio.studio.client.application.events.EventBus;
 import org.rstudio.studio.client.common.debugging.events.ErrorHandlerChangedEvent;
+import org.rstudio.studio.client.common.debugging.model.ErrorHandlerType;
 import org.rstudio.studio.client.common.debugging.model.ErrorManagerState;
 import org.rstudio.studio.client.server.ServerError;
 import org.rstudio.studio.client.server.ServerRequestCallback;
@@ -29,7 +29,6 @@ import org.rstudio.studio.client.workbench.commands.Commands;
 import org.rstudio.studio.client.workbench.events.SessionInitEvent;
 import org.rstudio.studio.client.workbench.events.SessionInitHandler;
 import org.rstudio.studio.client.workbench.model.Session;
-import org.rstudio.studio.client.workbench.prefs.model.UserState;
 import org.rstudio.studio.client.workbench.views.environment.events.DebugModeChangedEvent;
 
 import com.google.inject.Inject;
@@ -86,8 +85,8 @@ public class ErrorManager
    @Override
    public void onErrorHandlerChanged(ErrorHandlerChangedEvent event)
    {
-      String newType = event.getHandlerType();
-      if (!StringUtil.equals(newType, errorManagerState_.getErrorHandlerType()))
+      int newType = event.getHandlerType().getType();
+      if (newType != errorManagerState_.getErrorHandlerType())
       {
          errorManagerState_.setErrorHandlerType(newType);
          syncHandlerCommandsCheckedState();
@@ -116,28 +115,28 @@ public class ErrorManager
    @Handler
    public void onErrorsMessage()
    {
-      setErrorManagementTypeCommand(UserState.ERROR_HANDLER_TYPE_MESSAGE);
+      setErrorManagementTypeCommand(ErrorHandlerType.ERRORS_MESSAGE);
    }
    
    @Handler 
    public void onErrorsTraceback()
    {
-      setErrorManagementTypeCommand(UserState.ERROR_HANDLER_TYPE_TRACEBACK);
+      setErrorManagementTypeCommand(ErrorHandlerType.ERRORS_TRACEBACK);
    }
 
    @Handler 
    public void onErrorsBreak()
    {
-      setErrorManagementTypeCommand(UserState.ERROR_HANDLER_TYPE_BREAK);
+      setErrorManagementTypeCommand(ErrorHandlerType.ERRORS_BREAK);
    }
    
    // Public methods ----------------------------------------------------------
 
    public void setDebugSessionHandlerType(
-         String type, 
+         int type, 
          final ServerRequestCallback<Void> callback)
    {
-      if (StringUtil.equals(type, errorManagerState_.getErrorHandlerType()))
+      if (type == errorManagerState_.getErrorHandlerType())
          return;
       
       setErrorManagementType(type, new ServerRequestCallback<Void>()
@@ -158,14 +157,14 @@ public class ErrorManager
       });
    }
 
-   public String getErrorHandlerType()
+   public int getErrorHandlerType()
    {
       return errorManagerState_.getErrorHandlerType();
    }
    
    // Private methods ---------------------------------------------------------
 
-   private void setErrorManagementTypeCommand(String type)
+   private void setErrorManagementTypeCommand(int type)
    {
       // The error handler may be currently overridden for debug mode. If the
       // user changes the setting via command during debug mode, we don't want
@@ -175,13 +174,13 @@ public class ErrorManager
    }
 
    private void setErrorManagementType(
-         String type, 
+         int type, 
          ServerRequestCallback<Void> callback)
    {
       server_.setErrorManagementType(type, callback);
    }
       
-   private void setErrorManagementType(String type)
+   private void setErrorManagementType(int type)
    {
       setErrorManagementType(type, 
             new ServerRequestCallback<Void>()
@@ -197,13 +196,13 @@ public class ErrorManager
    
    private void syncHandlerCommandsCheckedState()
    {
-      String type = getErrorHandlerType();
+      int type = getErrorHandlerType();
       commands_.errorsMessage().setChecked(
-            StringUtil.equals(type, UserState.ERROR_HANDLER_TYPE_MESSAGE));
+            type == ErrorHandlerType.ERRORS_MESSAGE);
       commands_.errorsTraceback().setChecked(
-            StringUtil.equals(type, UserState.ERROR_HANDLER_TYPE_TRACEBACK));
+            type == ErrorHandlerType.ERRORS_TRACEBACK);
       commands_.errorsBreak().setChecked(
-            StringUtil.equals(type, UserState.ERROR_HANDLER_TYPE_BREAK));
+            type == ErrorHandlerType.ERRORS_BREAK);
    }
 
    private final EventBus events_;
@@ -213,5 +212,5 @@ public class ErrorManager
 
    private DebugHandlerState debugHandlerState_ = DebugHandlerState.None;
    private ErrorManagerState errorManagerState_; 
-   private String previousHandlerType_;
+   private int previousHandlerType_;
 }

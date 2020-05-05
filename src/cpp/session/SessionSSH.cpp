@@ -1,7 +1,7 @@
 /*
  * SessionSSH.cpp
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -13,6 +13,8 @@
  *
  */
 #include <session/SessionSSH.hpp>
+
+#include <boost/foreach.hpp>
 
 #include <core/system/Environment.hpp>
 
@@ -57,7 +59,7 @@ core::system::ProcessOptions ProcessOptionsCreator::processOptions() const
    core::system::Options envOpts;
    core::system::environment(&envOpts);
    typedef std::pair<std::string, std::string> StringPair;
-   for (StringPair var : env_)
+   BOOST_FOREACH(StringPair var, env_)
    {
       if (var.second.empty())
          core::system::unsetenv(&envOpts, var.first);
@@ -68,19 +70,19 @@ core::system::ProcessOptions ProcessOptionsCreator::processOptions() const
    if (!pathDirs_.empty())
    {
       std::string path = core::system::getenv(envOpts, "PATH");
-      for (FilePath pathDir : pathDirs_)
+      BOOST_FOREACH(FilePath pathDir, pathDirs_)
       {
 #ifdef _WIN32
          path += ";";
 #else
          path += ":";
 #endif
-         path += pathDir.getAbsolutePathNative();
+         path += pathDir.absolutePathNative();
       }
       core::system::setenv(&envOpts, "PATH", path);
    }
 
-   if (!workingDir_.isEmpty())
+   if (!workingDir_.empty())
    {
       options.workingDir = workingDir_;
    }

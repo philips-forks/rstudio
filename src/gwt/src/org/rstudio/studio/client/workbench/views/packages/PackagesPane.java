@@ -1,7 +1,7 @@
 /*
  * PackagesPane.java
  *
- * Copyright (C) 2009-20 by RStudio, PBC
+ * Copyright (C) 2009-17 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -16,33 +16,24 @@ package org.rstudio.studio.client.workbench.views.packages;
 
 import java.util.ArrayList;
 import java.util.List;
+
 import org.rstudio.core.client.Debug;
-import org.rstudio.core.client.ElementIds;
-import org.rstudio.core.client.cellview.AriaLabeledCheckboxCell;
 import org.rstudio.core.client.cellview.ImageButtonColumn;
-import org.rstudio.core.client.cellview.ImageButtonColumn.TitleProvider;
-import org.rstudio.core.client.cellview.LabeledBoolean;
 import org.rstudio.core.client.cellview.LinkColumn;
-import org.rstudio.core.client.dom.DomUtils;
 import org.rstudio.core.client.resources.ImageResource2x;
 import org.rstudio.core.client.theme.res.ThemeResources;
 import org.rstudio.core.client.theme.res.ThemeStyles;
 import org.rstudio.core.client.widget.OperationWithInput;
-import org.rstudio.core.client.widget.RStudioDataGrid;
 import org.rstudio.core.client.widget.SearchWidget;
 import org.rstudio.core.client.widget.Toolbar;
 import org.rstudio.core.client.widget.ToolbarButton;
-import org.rstudio.core.client.widget.ToolbarMenuButton;
 import org.rstudio.core.client.widget.ToolbarPopupMenu;
-import org.rstudio.studio.client.RStudioGinjector;
 import org.rstudio.studio.client.application.events.EventBus;
 import org.rstudio.studio.client.common.GlobalDisplay;
 import org.rstudio.studio.client.common.SuperDevMode;
 import org.rstudio.studio.client.packrat.model.PackratContext;
 import org.rstudio.studio.client.workbench.commands.Commands;
 import org.rstudio.studio.client.workbench.model.Session;
-import org.rstudio.studio.client.workbench.projects.ProjectContext;
-import org.rstudio.studio.client.workbench.projects.RenvContext;
 import org.rstudio.studio.client.workbench.ui.WorkbenchPane;
 import org.rstudio.studio.client.workbench.views.packages.model.PackageInfo;
 import org.rstudio.studio.client.workbench.views.packages.model.PackageInstallContext;
@@ -56,6 +47,7 @@ import org.rstudio.studio.client.workbench.views.packages.ui.PackagesCellTableRe
 import org.rstudio.studio.client.workbench.views.packages.ui.PackagesDataGridResources;
 
 import com.google.gwt.cell.client.AbstractCell;
+import com.google.gwt.cell.client.CheckboxCell;
 import com.google.gwt.cell.client.FieldUpdater;
 import com.google.gwt.core.shared.GWT;
 import com.google.gwt.dom.builder.shared.TableCellBuilder;
@@ -75,7 +67,6 @@ import com.google.gwt.user.client.Timer;
 import com.google.gwt.user.client.ui.LayoutPanel;
 import com.google.gwt.user.client.ui.SuggestOracle;
 import com.google.gwt.user.client.ui.Widget;
-import com.google.gwt.view.client.HasData;
 import com.google.gwt.view.client.ListDataProvider;
 import com.google.gwt.view.client.NoSelectionModel;
 import com.google.inject.Inject;
@@ -88,11 +79,10 @@ public class PackagesPane extends WorkbenchPane implements Packages.Display
                        GlobalDisplay display,
                        EventBus events)
    {
-      super("Packages", events);
+      super("Packages");
       commands_ = commands;
       session_ = session;
       display_ = display;
-      
       dataGridRes_ = (PackagesDataGridResources) 
             GWT.create(PackagesDataGridResources.class);
       ensureWidget();
@@ -101,30 +91,28 @@ public class PackagesPane extends WorkbenchPane implements Packages.Display
    @Override
    public void setObserver(PackagesDisplayObserver observer)
    {
-      observer_ = observer;
+      observer_ = observer ;  
    }
    
    @Override
-   public void setPackageState(ProjectContext projectContext, 
+   public void setPackageState(PackratContext packratContext, 
                                List<PackageInfo> packages)
    {
-      projectContext_ = projectContext;
+      packratContext_ = packratContext;
       packagesDataProvider_.setList(packages);
       createPackagesTable();
 
-      // manage visibility of Packrat / renv menu buttons
-      PackratContext packratContext = projectContext_.getPackratContext();
-      RenvContext renvContext = projectContext_.getRenvContext();
+      // show the bootstrap button if this state is eligible for Packrat but the
+      // project isn't currently under Packrat control
+      packratBootstrapButton_.setVisible(
+         packratContext_.isApplicable() && 
+         (!packratContext_.isPackified() || !packratContext_.isModeOn()));
       
-      packratMenuButton_.setVisible(false);
-      renvMenuButton_.setVisible(false);
-      if (packratContext.isModeOn())
-         packratMenuButton_.setVisible(true);
-      else if (renvContext.active)
-         renvMenuButton_.setVisible(true);
+      // show the toolbar button if Packrat mode is on
+      packratMenuButton_.setVisible(packratContext_.isModeOn());
       
       // always show the separator before the packrat commands
-      projectButtonSeparator_.setVisible(true);
+      prePackratSeparator_.setVisible(true);
    }
    
    @Override
@@ -144,7 +132,7 @@ public class PackagesPane extends WorkbenchPane implements Packages.Display
    @Override
    public void setPackageStatus(PackageStatus status)
    {
-      int row = packageRow(status.getName(), status.getLib());
+      int row = packageRow(status.getName(), status.getLib()) ;
       
       if (row != -1)
       {
@@ -158,7 +146,7 @@ public class PackagesPane extends WorkbenchPane implements Packages.Display
       List<PackageInfo> packages = packagesDataProvider_.getList();
       for (int i=0; i<packages.size(); i++)
       {
-         if (packages.get(i).getName() == status.getName() &&
+         if (packages.get(i).getName().equals(status.getName()) &&
              i != row)
          {
             packages.set(i, packages.get(i).asUnloaded());
@@ -168,7 +156,7 @@ public class PackagesPane extends WorkbenchPane implements Packages.Display
    
    private int packageRow(String packageName, String packageLib)
    {
-      // if we haven't retrieved packages yet then return not found
+      // if we haven't retreived packages yet then return not found
       if (packagesDataProvider_ == null)
          return -1;
       
@@ -179,20 +167,20 @@ public class PackagesPane extends WorkbenchPane implements Packages.Display
       for (int i=0; i<packages.size(); i++)
       {
          PackageInfo packageInfo = packages.get(i);
-         if (packageInfo.getName() == packageName &&
-             packageInfo.getLibrary() == packageLib)
+         if (packageInfo.getName().equals(packageName) &&
+             packageInfo.getLibrary().equals(packageLib))
          {
-            row = i;
+            row = i ;
             break;
          }
       }
-      return row;
+      return row ;
    }
    
    @Override
    protected Toolbar createMainToolbar()
    {
-      Toolbar toolbar = new Toolbar("Packages Tab");
+      Toolbar toolbar = new Toolbar();
      
       // install packages
       toolbar.addLeftWidget(commands_.installPackage().createToolbarButton());
@@ -200,11 +188,16 @@ public class PackagesPane extends WorkbenchPane implements Packages.Display
       
       // update packages
       toolbar.addLeftWidget(commands_.updatePackages().createToolbarButton());
-      projectButtonSeparator_ = toolbar.addLeftSeparator();
+      prePackratSeparator_ = toolbar.addLeftSeparator();
       
       // packrat (all packrat UI starts out hidden and then appears
       // in response to changes in the packages state)
 
+      // create packrat bootstrap button
+      packratBootstrapButton_ = commands_.packratBootstrap().createToolbarButton(false);
+      toolbar.addLeftWidget(packratBootstrapButton_);
+      packratBootstrapButton_.setVisible(false);
+      
       // create packrat menu + button
       ToolbarPopupMenu packratMenu = new ToolbarPopupMenu();
       packratMenu.addItem(commands_.packratHelp().createMenuItem(false));
@@ -214,31 +207,14 @@ public class PackagesPane extends WorkbenchPane implements Packages.Display
       packratMenu.addItem(commands_.packratBundle().createMenuItem(false));
       packratMenu.addSeparator();
       packratMenu.addItem(commands_.packratOptions().createMenuItem(false));
-      packratMenuButton_ = new ToolbarMenuButton(
-            "Packrat", 
-            ToolbarButton.NoTitle,
-            commands_.packratBootstrap().getImageResource(),
+      packratMenuButton_ = new ToolbarButton(
+            "Packrat", commands_.packratBootstrap().getImageResource(), 
             packratMenu
        );
       toolbar.addLeftWidget(packratMenuButton_);
       packratMenuButton_.setVisible(false);
-      
-      // create renv menu + button
-      ToolbarPopupMenu renvMenu = new ToolbarPopupMenu();
-      renvMenu.addItem(commands_.renvHelp().createMenuItem(false));
-      renvMenu.addSeparator();
-      renvMenu.addItem(commands_.renvSnapshot().createMenuItem(false));
-      renvMenu.addItem(commands_.renvRestore().createMenuItem(false));
-      
-      renvMenuButton_ = new ToolbarMenuButton(
-            "renv",
-            ToolbarButton.NoTitle,
-            commands_.packratBootstrap().getImageResource(), // TODO
-            renvMenu);
-      toolbar.addLeftWidget(renvMenuButton_);
-      renvMenuButton_.setVisible(false);
             
-      searchWidget_ = new SearchWidget("Filter by package name", new SuggestOracle() {
+      searchWidget_ = new SearchWidget(new SuggestOracle() {
          @Override
          public void requestSuggestions(Request request, Callback callback)
          {
@@ -248,7 +224,6 @@ public class PackagesPane extends WorkbenchPane implements Packages.Display
                   new Response(new ArrayList<Suggestion>()));
          }
       });
-      
       searchWidget_.addValueChangeHandler(new ValueChangeHandler<String>() {
          @Override
          public void onValueChange(ValueChangeEvent<String> event)
@@ -256,8 +231,6 @@ public class PackagesPane extends WorkbenchPane implements Packages.Display
             observer_.onPackageFilterChanged(event.getValue().trim());   
          }
       });
-      
-      ElementIds.assignElementId(searchWidget_, ElementIds.SW_PACKAGES);
       toolbar.addRightWidget(searchWidget_);
       
       toolbar.addRightSeparator();
@@ -334,7 +307,7 @@ public class PackagesPane extends WorkbenchPane implements Packages.Display
       try
       {
          packagesTableContainer_.clear();
-         packagesTable_ = new RStudioDataGrid<PackageInfo>(
+         packagesTable_ = new DataGrid<PackageInfo>(
             packagesDataProvider_.getList().size(), dataGridRes_);
       }
       catch (Exception e)
@@ -367,15 +340,6 @@ public class PackagesPane extends WorkbenchPane implements Packages.Display
       }
    }
    
-   private boolean showButtonImpl(PackageInfo object)
-   {
-      if (object.getPackageSource() == null)
-         return false;
-      
-      PackageInfo.Source source = PackageInfo.Source.valueOf(object.getPackageSource());
-      return source != PackageInfo.Source.Base;
-   }
-   
    private void initPackagesTable()
    {
       packagesTable_.setKeyboardSelectionPolicy(KeyboardSelectionPolicy.DISABLED);
@@ -404,62 +368,18 @@ public class PackagesPane extends WorkbenchPane implements Packages.Display
                return object;
             }
       };
-
-      ImageButtonColumn<PackageInfo> browseColumn = new ImageButtonColumn<PackageInfo>(
-            new ImageResource2x(ThemeResources.INSTANCE.browsePackage2x()),
-            new OperationWithInput<PackageInfo>() {
-               @Override
-               public void execute(PackageInfo packageInfo)
-               {
-                  RStudioGinjector.INSTANCE.getGlobalDisplay().openWindow(packageInfo.getBrowseUrl());
-               }
-            },
-            new TitleProvider<PackageInfo>()
-            {
-               @Override
-               public String get(PackageInfo object)
-               {
-                  if (object.getPackageSource() == null)
-                     return "Browse package on CRAN";
-                  
-                  PackageInfo.Source source = PackageInfo.Source.valueOf(object.getPackageSource());
-                  switch (source)
-                  {
-                  case Base         : return "";
-                  case Bioconductor : return "Browse package on Bioconductor";
-                  case CRAN         : return "Browse package on CRAN";
-                  case Custom       : return "Browse package [" + object.getBrowseUrl() + "]";
-                  case GitHub       : return "Browse package on GitHub";
-                  case Unknown      : return "Browse package on CRAN";
-                  default           : return "Browse package on CRAN";
-                  }
-               }
-            })
-      {
-         @Override
-         public boolean showButton(PackageInfo object)
-         {
-            return showButtonImpl(object);
-         }
-      };
       
-      ImageButtonColumn<PackageInfo> removeColumn = new ImageButtonColumn<PackageInfo>(
-            new ImageResource2x(ThemeResources.INSTANCE.removePackage2x()),
-            new OperationWithInput<PackageInfo>() {
-               @Override
-               public void execute(PackageInfo packageInfo)
-               {
-                  observer_.removePackage(packageInfo);
-               }
-            },
-            "Remove package")
-      {
-         @Override
-         public boolean showButton(PackageInfo object)
-         {
-            return showButtonImpl(object);
-         }
-      };
+      ImageButtonColumn<PackageInfo> removeColumn = 
+        new ImageButtonColumn<PackageInfo>(
+          new ImageResource2x(ThemeResources.INSTANCE.removePackage2x()),
+          new OperationWithInput<PackageInfo>() {
+            @Override
+            public void execute(PackageInfo packageInfo)
+            {
+               observer_.removePackage(packageInfo);          
+            }  
+          },
+          "Remove package");
 
       // add common columns
       packagesTable_.addColumn(loadedColumn, new TextHeader(""));
@@ -468,10 +388,11 @@ public class PackagesPane extends WorkbenchPane implements Packages.Display
       packagesTable_.addColumn(versionColumn, new TextHeader("Version"));
       packagesTable_.setColumnWidth(loadedColumn, 30, Unit.PX);
 
-      // add columns when using project-local library
-      if (projectContext_.isActive())
+      // set up Packrat-specific columns
+      if (packratContext_ != null &&
+          packratContext_.isModeOn())
       {
-         Column<PackageInfo, PackageInfo> lockfileVersionColumn = 
+         Column<PackageInfo, PackageInfo> packratVersionColumn = 
             new Column<PackageInfo, PackageInfo>(new VersionCell(true)) {
 
                @Override
@@ -481,19 +402,19 @@ public class PackagesPane extends WorkbenchPane implements Packages.Display
                }
          };
       
-         TextColumn<PackageInfo> packageSourceColumn = 
+         TextColumn<PackageInfo> packratSourceColumn = 
                new TextColumn<PackageInfo>() {
                   @Override
                   public String getValue(PackageInfo pkgInfo)
                   {
-                     if (pkgInfo.isInProjectLibrary())
+                     if (pkgInfo.getInPackratLibary())
                      {
                         String source = pkgInfo.getPackratSource();
-                        if (source == "github")
+                        if (source.equals("github"))
                            return "GitHub";
-                        else if (source == "Bioconductor")
+                        else if (source.equals("Bioconductor"))
                            return "BioC";
-                        else if (source == "source")
+                        else if (source.equals("source"))
                            return "Source";
                         else
                            return source;
@@ -503,15 +424,15 @@ public class PackagesPane extends WorkbenchPane implements Packages.Display
                   }
          };
 
-         packagesTable_.addColumn(lockfileVersionColumn, new TextHeader("Lockfile"));
-         packagesTable_.addColumn(packageSourceColumn, new TextHeader("Source"));
+         packagesTable_.addColumn(packratVersionColumn, new TextHeader("Packrat"));
+         packagesTable_.addColumn(packratSourceColumn, new TextHeader("Source"));
 
          // distribute columns for extended package information
          packagesTable_.setColumnWidth(nameColumn, 20, Unit.PCT);
          packagesTable_.setColumnWidth(descColumn, 40, Unit.PCT);
          packagesTable_.setColumnWidth(versionColumn, 15, Unit.PCT);
-         packagesTable_.setColumnWidth(lockfileVersionColumn, 15, Unit.PCT);
-         packagesTable_.setColumnWidth(packageSourceColumn, 10, Unit.PCT);
+         packagesTable_.setColumnWidth(packratVersionColumn, 15, Unit.PCT);
+         packagesTable_.setColumnWidth(packratSourceColumn, 10, Unit.PCT);
       }
       else
       {
@@ -521,18 +442,9 @@ public class PackagesPane extends WorkbenchPane implements Packages.Display
          packagesTable_.setColumnWidth(versionColumn, 15, Unit.PCT);
       }
      
-      // browse column is common
-      packagesTable_.addColumn(browseColumn, new TextHeader(""));
-      packagesTable_.setColumnWidth(browseColumn, 20, Unit.PX);
-
-      // remove column is common (note that we allocate extra column
-      // width to provide space for a scrollbar if needed)
-      int scrollWidth = DomUtils.getScrollbarWidth();
-      if (scrollWidth > 0)
-         scrollWidth += 3;
-      
+      // remove column is common
       packagesTable_.addColumn(removeColumn, new TextHeader(""));
-      packagesTable_.setColumnWidth(removeColumn, 20 + scrollWidth, Unit.PX);
+      packagesTable_.setColumnWidth(removeColumn, 35, Unit.PX);
 
       packagesTable_.setTableBuilder(new 
             PackageTableBuilder(packagesTable_));
@@ -540,10 +452,6 @@ public class PackagesPane extends WorkbenchPane implements Packages.Display
       
       packagesTableContainer_.add(packagesTable_);
       layoutPackagesTable();
-      
-      // unbind old table from data provider in case we've re-generated the pane
-      for (HasData<PackageInfo> display : packagesDataProvider_.getDataDisplays())
-         packagesDataProvider_.removeDataDisplay(display);
       
       packagesDataProvider_.addDataDisplay(packagesTable_);
    }
@@ -561,15 +469,15 @@ public class PackagesPane extends WorkbenchPane implements Packages.Display
             packagesTable_, top, Unit.PX, 0, Unit.PX);
    }
    
-   class LoadedColumn extends Column<PackageInfo, LabeledBoolean>
+   class LoadedColumn extends Column<PackageInfo, Boolean>
    {
       public LoadedColumn()
       {
-         super(new AriaLabeledCheckboxCell(false, false));
+         super(new CheckboxCell(false, false));
          
-         setFieldUpdater(new FieldUpdater<PackageInfo, LabeledBoolean>() {
+         setFieldUpdater(new FieldUpdater<PackageInfo,Boolean>() {
             @Override
-            public void update(int index, PackageInfo packageInfo, LabeledBoolean value)
+            public void update(int index, PackageInfo packageInfo, Boolean value)
             {
                if (packageInfo.getLibrary() == null ||
                    packageInfo.getLibrary().length() == 0)
@@ -582,19 +490,21 @@ public class PackagesPane extends WorkbenchPane implements Packages.Display
                }
                else
                {
-                  if (value.getBool())
-                     observer_.loadPackage(packageInfo);
+                  if (value.booleanValue())
+                     observer_.loadPackage(packageInfo.getName(),
+                                           packageInfo.getSourceLibrary()) ;
                   else
-                     observer_.unloadPackage(packageInfo);
+                     observer_.unloadPackage(packageInfo.getName(),
+                                             packageInfo.getSourceLibrary()) ;
                }
             }    
          });
       }
       
       @Override
-      public LabeledBoolean getValue(PackageInfo packageInfo)
+      public Boolean getValue(PackageInfo packageInfo)
       {
-         return new LabeledBoolean(packageInfo.getName(), packageInfo.isLoaded());
+         return packageInfo.isLoaded();
       }
       
    }
@@ -610,8 +520,8 @@ public class PackagesPane extends WorkbenchPane implements Packages.Display
                   @Override
                   public void execute(PackageInfo packageInfo)
                   {
-                     if (packageInfo.getHelpUrl() == null || 
-                         packageInfo.getHelpUrl().length() == 0)
+                     if (packageInfo.getUrl() == null || 
+                         packageInfo.getUrl().length() == 0)
                      {
                         display_.showMessage(GlobalDisplay.MSG_INFO, 
                               "Help Not Available", 
@@ -645,7 +555,7 @@ public class PackagesPane extends WorkbenchPane implements Packages.Display
       @Override
       public void buildRowImpl(PackageInfo pkg, int idx)
       {
-         String library = pkg.isInProjectLibrary() ? 
+         String library = pkg.getInPackratLibary() ? 
                pkg.getSourceLibrary() : pkg.getLibrary();
          if (pkg.isFirstInLibrary())
          {
@@ -686,15 +596,14 @@ public class PackagesPane extends WorkbenchPane implements Packages.Display
    private DataGrid<PackageInfo> packagesTable_;
    private ListDataProvider<PackageInfo> packagesDataProvider_;
    private SearchWidget searchWidget_;
-   private PackagesDisplayObserver observer_;
+   private PackagesDisplayObserver observer_ ;
    
-   private ToolbarMenuButton packratMenuButton_;
-   private ToolbarMenuButton renvMenuButton_;
-   private Widget projectButtonSeparator_;
-   
+   private ToolbarButton packratBootstrapButton_;
+   private ToolbarButton packratMenuButton_;
+   private Widget prePackratSeparator_;
    private LayoutPanel packagesTableContainer_;
    private int gridRenderRetryCount_;
-   private ProjectContext projectContext_;
+   private PackratContext packratContext_ = PackratContext.empty();
 
    private final Commands commands_;
    private final Session session_;

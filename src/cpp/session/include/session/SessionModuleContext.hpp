@@ -1,8 +1,8 @@
 /*
  * SessionModuleContext.hpp
  *
- * Copyright (C) 2009-20 by RStudio, PBC
- *
+ * Copyright (C) 2009-17 by RStudio, Inc.
+
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -21,9 +21,9 @@
 
 #include <boost/utility.hpp>
 #include <boost/function.hpp>
+#include <boost/signals.hpp>
 #include <boost/shared_ptr.hpp>
 
-#include <core/BoostSignals.hpp>
 #include <core/HtmlUtils.hpp>
 #include <core/system/System.hpp>
 #include <core/system/ShellUtils.hpp>
@@ -40,12 +40,12 @@
 
 namespace rstudio {
 namespace core {
-   class DistributedEvent;
    class Error;
    class Success;
    class FilePath;
    class FileInfo;
    class Settings;
+   class DistributedEvent;
    namespace system {
       class ProcessSupervisor;
       struct ProcessResult;
@@ -85,10 +85,8 @@ std::string createAliasedPath(const core::FilePath& path);
 std::string createFileUrl(const core::FilePath& path);
 core::FilePath resolveAliasedPath(const std::string& aliasedPath);
 core::FilePath userScratchPath();
-core::FilePath userUploadedFilesScratchPath();
 core::FilePath scopedScratchPath();
 core::FilePath sharedScratchPath();
-core::FilePath sharedProjectScratchPath();
 core::FilePath sessionScratchPath();
 core::FilePath oldScopedScratchPath();
 bool isVisibleUserFile(const core::FilePath& filePath);
@@ -100,7 +98,6 @@ core::json::Object createFileSystemItem(const core::FilePath& filePath);
    
 // r session info
 std::string rVersion();
-std::string rVersionLabel();
 std::string rHomeDir();
 
 // active sessions
@@ -113,12 +110,9 @@ core::FilePath tempFile(const std::string& prefix,
 
 core::FilePath tempDir();
 
-std::string rLibsUser();
-
 // find out the location of a binary
 core::FilePath findProgram(const std::string& name);
 
-bool addTinytexToPathIfNecessary();
 bool isPdfLatexInstalled();
 
 // is the file a text file
@@ -189,10 +183,6 @@ core::Error registerAsyncUriHandler(
 core::Error registerUriHandler(
                         const std::string& name,
                         const core::http::UriHandlerFunction& handlerFunction);
-
-// register an inbound upload handler (include a leading slash)
-core::Error registerUploadHandler(const std::string& name,
-                                  const core::http::UriAsyncUploadHandlerFunction& handlerFunction);
 
 // register a local uri handler (scoped by a special prefix which indicates
 // a local scope)
@@ -325,35 +315,35 @@ struct firstNonEmpty
 // session events
 struct Events : boost::noncopyable
 {
-   RSTUDIO_BOOST_SIGNAL<void (core::json::Object*)> onSessionInfo;
-   RSTUDIO_BOOST_SIGNAL<void ()>                    onClientInit;
-   RSTUDIO_BOOST_SIGNAL<void ()>                    onBeforeExecute;
-   RSTUDIO_BOOST_SIGNAL<void(const std::string&)>   onConsolePrompt;
-   RSTUDIO_BOOST_SIGNAL<void(const std::string&)>   onConsoleInput;
-   RSTUDIO_BOOST_SIGNAL<void(const std::string&, const std::string&)>  
+   boost::signal<void (core::json::Object*)> onSessionInfo;
+   boost::signal<void ()>                    onClientInit;
+   boost::signal<void ()>                    onBeforeExecute;
+   boost::signal<void(const std::string&)>   onConsolePrompt;
+   boost::signal<void(const std::string&)>   onConsoleInput;
+   boost::signal<void(const std::string&, const std::string&)>  
                                              onActiveConsoleChanged;
-   RSTUDIO_BOOST_SIGNAL<void (ConsoleOutputType, const std::string&)>
+   boost::signal<void (ConsoleOutputType, const std::string&)>
                                              onConsoleOutput;
-   RSTUDIO_BOOST_SIGNAL<void()>                     onUserInterrupt;
-   RSTUDIO_BOOST_SIGNAL<void (ChangeSource)>        onDetectChanges;
-   RSTUDIO_BOOST_SIGNAL<void (core::FilePath)>      onSourceEditorFileSaved;
-   RSTUDIO_BOOST_SIGNAL<void(bool)>                 onDeferredInit;
-   RSTUDIO_BOOST_SIGNAL<void(bool)>                 afterSessionInitHook;
-   RSTUDIO_BOOST_SIGNAL<void(bool)>                 onBackgroundProcessing;
-   RSTUDIO_BOOST_SIGNAL<void(bool)>                 onShutdown;
-   RSTUDIO_BOOST_SIGNAL<void ()>                    onQuit;
-   RSTUDIO_BOOST_SIGNAL<void ()>                    onDestroyed;
-   RSTUDIO_BOOST_SIGNAL<void (const std::vector<std::string>&)>
+   boost::signal<void()>                     onUserInterrupt;
+   boost::signal<void (ChangeSource)>        onDetectChanges;
+   boost::signal<void (core::FilePath)>      onSourceEditorFileSaved;
+   boost::signal<void(bool)>                 onDeferredInit;
+   boost::signal<void(bool)>                 afterSessionInitHook;
+   boost::signal<void(bool)>                 onBackgroundProcessing;
+   boost::signal<void(bool)>                 onShutdown;
+   boost::signal<void ()>                    onQuit;
+   boost::signal<void ()>                    onDestroyed;
+   boost::signal<void (const std::vector<std::string>&)>
                                              onLibPathsChanged;
-   RSTUDIO_BOOST_SIGNAL<void (const std::string&)>  onPackageLoaded;
-   RSTUDIO_BOOST_SIGNAL<void ()>                    onPackageLibraryMutated;
-   RSTUDIO_BOOST_SIGNAL<void ()>                    onPreferencesSaved;
-   RSTUDIO_BOOST_SIGNAL<void (const core::DistributedEvent&)>
+   boost::signal<void (const std::string&)>  onPackageLoaded;
+   boost::signal<void ()>                    onPackageLibraryMutated;
+   boost::signal<void ()>                    onPreferencesSaved;
+   boost::signal<void (const core::DistributedEvent&)>
                                              onDistributedEvent;
-   RSTUDIO_BOOST_SIGNAL<void (core::FilePath)>      onPermissionsChanged;
+   boost::signal<void (core::FilePath)>      onPermissionsChanged;
 
    // signal for detecting extended type of documents
-   RSTUDIO_BOOST_SIGNAL<std::string(boost::shared_ptr<source_database::SourceDocument>),
+   boost::signal<std::string(boost::shared_ptr<source_database::SourceDocument>),
                  firstNonEmpty<std::string> > onDetectSourceExtendedType;
 };
 
@@ -433,7 +423,7 @@ bool isDirectoryMonitored(const core::FilePath& directory);
 bool isRScriptInPackageBuildTarget(const core::FilePath& filePath);
 
 // convenience method for filtering out file listing and changes
-bool fileListingFilter(const core::FileInfo& fileInfo, bool hideObjectFiles);
+bool fileListingFilter(const core::FileInfo& fileInfo);
 
 // enque file changed events
 void enqueFileChangedEvent(const core::system::FileChangeEvent& event);
@@ -445,9 +435,6 @@ void enqueFileChangedEvents(const core::FilePath& vcsStatusRoot,
 typedef boost::function<void(const core::system::FileChangeEvent&)> OnFileChange;
 core::FilePath registerMonitoredUserScratchDir(const std::string& dirName,
                                                const OnFileChange& onFileChange);
-
-// enqueue new console input
-core::Error enqueueConsoleInput(const std::string& input);
 
 // write output to the console (convenience wrapper for enquing a 
 // kConsoleWriteOutput event)
@@ -468,6 +455,10 @@ void showContent(const std::string& title, const core::FilePath& filePath);
 
 std::string resourceFileAsString(const std::string& fileName);
 
+bool portmapPathForLocalhostUrl(const std::string& url, std::string* pPath);
+
+std::string mapUrlPorts(const std::string& url);
+
 std::string pathRelativeTo(const core::FilePath& sourcePath,
                            const core::FilePath& targetPath);
 
@@ -486,14 +477,19 @@ bool addRtoolsToPathIfNecessary(std::string* pPath,
 bool addRtoolsToPathIfNecessary(core::system::Options* pEnvironment,
                                 std::string* pWarningMessage);
 
-bool isMacOS();
-bool hasMacOSDeveloperTools();
-bool hasMacOSCommandLineTools();
-void checkXcodeLicense();
-
 #ifdef __APPLE__
+bool isOSXMavericks();
+bool hasOSXMavericksDeveloperTools();
 core::Error copyImageToCocoaPasteboard(const core::FilePath& filePath);
 #else
+inline bool isOSXMavericks()
+{
+   return false;
+}
+inline bool hasOSXMavericksDeveloperTools()
+{
+   return false;
+}
 inline core::Error copyImageToCocoaPasteboard(const core::FilePath& filePath)
 {
    return core::systemError(boost::system::errc::not_supported, ERROR_LOCATION);
@@ -658,17 +654,12 @@ struct PackratContext
    bool modeOn;
 };
 
-// implemented in SessionPackrat.cpp
 bool isRequiredPackratInstalled();
+
 PackratContext packratContext();
 core::json::Object packratContextAsJson();
-core::json::Object packratOptionsAsJson();
 
-// implemented in SessionRenv.cpp
-bool isRequiredRenvInstalled();
-bool isRenvActive();
-core::json::Value renvContextAsJson();
-core::json::Value renvOptionsAsJson();
+core::json::Object packratOptionsAsJson();
 
 // R command invocation -- has two representations, one to be submitted
 // (shellCmd_) and one to show the user (cmdString_)
@@ -702,7 +693,7 @@ public:
 
    RCommand& operator<<(const core::FilePath& arg)
    {
-      cmdString_ += " " + arg.getAbsolutePath();
+      cmdString_ += " " + arg.absolutePath();
       shellCmd_ << arg;
       return *this;
    }
@@ -846,18 +837,12 @@ bool usingMingwGcc49();
 
 bool isWebsiteProject();
 bool isBookdownWebsite();
-bool isBlogdownProject();
-bool isDistillProject();
 std::string websiteOutputDir();
 
 core::FilePath extractOutputFileCreated(const core::FilePath& inputFile,
                                         const std::string& output);
 
-bool isPathViewAllowed(const core::FilePath& path);
-
 void onBackgroundProcessing(bool isIdle);
-
-void initializeConsoleCtrlHandler();
 
 } // namespace module_context
 } // namespace session

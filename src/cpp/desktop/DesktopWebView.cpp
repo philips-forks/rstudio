@@ -1,7 +1,7 @@
 /*
  * DesktopWebView.cpp
  *
- * Copyright (C) 2009-20 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -14,20 +14,17 @@
  */
 
 #include "DesktopWebView.hpp"
-
-#include <QApplication>
-#include <QClipboard>
-#include <QMenu>
+#include <QNetworkRequest>
 #include <QNetworkReply>
+#include <QTemporaryFile>
 #include <QStyleFactory>
 
-#include <QWebEngineContextMenuData>
-#include <QWebEngineSettings>
-#include <QWebEngineHistory>
-
+#include <core/system/System.hpp>
 #include <core/system/Environment.hpp>
-
-#include "DesktopBrowserWindow.hpp"
+#include "DesktopDownloadHelper.hpp"
+#include "DesktopOptions.hpp"
+#include "DesktopWebPage.hpp"
+#include "DesktopUtils.hpp"
 
 #ifdef _WIN32
 #include <windows.h>
@@ -37,62 +34,11 @@
 namespace rstudio {
 namespace desktop {
 
-namespace {
-
-class DevToolsWindow : public QMainWindow
-{
-public:
-   
-   DevToolsWindow()
-      : webPage_(new QWebEnginePage(this)),
-        webView_(new QWebEngineView(this))
-   {
-      webView_->setPage(webPage_);
-      
-      QScreen* screen = QApplication::primaryScreen();
-      QRect geometry = screen->geometry();
-      resize(geometry.width() * 0.7, geometry.height() * 0.7);
-      
-      setWindowTitle(QStringLiteral("RStudio DevTools"));
-      setAttribute(Qt::WA_DeleteOnClose, true);
-      setAttribute(Qt::WA_QuitOnClose, true);
-      
-      setCentralWidget(webView_);
-   }
-   
-   QWebEnginePage* webPage() { return webPage_; }
-   QWebEngineView* webView() { return webView_; }
-   
-private:
-   QWebEnginePage* webPage_;
-   QWebEngineView* webView_;
-};
-
-std::map<QWebEnginePage*, DevToolsWindow*> s_devToolsWindows;
-
-} // end anonymous namespace
-
 WebView::WebView(QUrl baseUrl, QWidget *parent, bool allowExternalNavigate) :
-    QWebEngineView(parent),
-    baseUrl_(baseUrl)
-{
-
-   pWebPage_ = new WebPage(baseUrl, this, allowExternalNavigate);
-   init();
-}
-
-WebView::WebView(QWebEngineProfile *profile,
-                 QUrl baseUrl,
-                 QWidget *parent,
-                 bool allowExternalNavigate) :
-   QWebEngineView(parent),
-   baseUrl_(baseUrl)
-{
-   pWebPage_ = new WebPage(profile, baseUrl, this, allowExternalNavigate);
-   init();
-}
-
-void WebView::init()
+    QWebView(parent),
+    baseUrl_(baseUrl),
+    pWebInspector_(NULL),
+    dpiZoomScaling_(getDpiZoomScaling())
 {
 #ifdef Q_OS_LINUX
    if (!core::system::getenv("KDE_FULL_SESSION").empty())
@@ -102,19 +48,30 @@ void WebView::init()
          setStyle(QStyleFactory::create(fusion));
    }
 #endif
-
+   pWebPage_ = new WebPage(baseUrl, this, allowExternalNavigate);
    setPage(pWebPage_);
+
+   // QWebView can create its own QWebInspector instance, but it doesn't always
+   // destroy it correctly if the inspector is open when the associated browser
+   // window is closed (see case 3889), leading to a crash. To work around this,
+   // we create our own unbound web inspector, and clean it up manually when the
+   // WebView closes.
+   pWebInspector_ = new QWebInspector();
+   pWebInspector_->setVisible(false);
+   pWebInspector_->setPage(pWebPage_);
+
+   page()->setForwardUnsupportedContent(true);
+
+   connect(page(), SIGNAL(downloadRequested(QNetworkRequest)),
+           this, SLOT(downloadRequested(QNetworkRequest)));
+   connect(page(), SIGNAL(unsupportedContent(QNetworkReply*)),
+           this, SLOT(unsupportedContent(QNetworkReply*)));
 }
 
 void WebView::setBaseUrl(const QUrl& baseUrl)
 {
    baseUrl_ = baseUrl;
    pWebPage_->setBaseUrl(baseUrl_);
-}
-
-QUrl WebView::baseUrl()
-{
-   return baseUrl_;
 }
 
 void WebView::activateSatelliteWindow(QString name)
@@ -128,7 +85,7 @@ void WebView::prepareForWindow(const PendingWindow& pendingWnd)
 }
 
 QString WebView::promptForFilename(const QNetworkRequest& request,
-                                   QNetworkReply* pReply = nullptr)
+                                   QNetworkReply* pReply = NULL)
 {
    QString defaultFileName = QFileInfo(request.url().path()).fileName();
 
@@ -148,26 +105,138 @@ QString WebView::promptForFilename(const QNetworkRequest& request,
                                                    tr("Download File"),
                                                    defaultFileName,
                                                    QString(),
-                                                   nullptr,
+                                                   0,
                                                    standardFileDialogOptions());
    return fileName;
 }
 
-void WebView::keyPressEvent(QKeyEvent* pEvent)
+void WebView::keyPressEvent(QKeyEvent* pEv)
 {
-   
-#ifdef Q_OS_MAC
-   // on macOS, intercept Cmd+W and emit the window close signal
-   if (pEvent->key() == Qt::Key_W && pEvent->modifiers() == Qt::CTRL)
+   // emit close window shortcut signal if appropriate
+#ifndef _WIN32
+   if (pEv->key() == 'W')
    {
-      onCloseWindowShortcut();
-      return;
+      // check modifier and emit signal
+      if (pEv->modifiers() & Qt::ControlModifier)
+         onCloseWindowShortcut();
    }
 #endif
- 
-   // use default behavior otherwise
-   QWebEngineView::keyPressEvent(pEvent);
-   
+
+  // flip control and meta on the mac
+#ifdef Q_OS_MAC
+   Qt::KeyboardModifiers modifiers = pEv->modifiers();
+   if (modifiers & Qt::MetaModifier && !(modifiers & Qt::ControlModifier))
+   {
+      modifiers &= ~Qt::MetaModifier;
+      modifiers |= Qt::ControlModifier;
+   }
+   else if (modifiers & Qt::ControlModifier && !(modifiers & Qt::MetaModifier))
+   {
+      modifiers &= ~Qt::ControlModifier;
+      modifiers |= Qt::MetaModifier;
+   }
+#endif
+
+   // Work around bugs in QtWebKit that result in numpad key
+   // presses resulting in keyCode=0 in the DOM's keydown events.
+   // This is due to some missing switch cases in the case
+   // where the keypad modifier bit is on, so we turn it off.
+   QKeyEvent newEv(pEv->type(),    
+                   pEv->key(),
+                   pEv->modifiers() & ~Qt::KeypadModifier,
+                   pEv->text(),
+                   pEv->isAutoRepeat(),
+                   pEv->count());
+  
+   // delegate to base
+   this->QWebView::keyPressEvent(&newEv);
+}
+
+void WebView::downloadRequested(const QNetworkRequest& request)
+{
+   QString fileName = promptForFilename(request);
+   if (fileName.isEmpty())
+      return;
+
+   // Ask the network manager to download
+   // the file and connect to the progress
+   // and finished signals.
+   QNetworkRequest newRequest = request;
+
+   QNetworkAccessManager* pNetworkManager = page()->networkAccessManager();
+   QNetworkReply* pReply = pNetworkManager->get(newRequest);
+   // DownloadHelper frees itself when downloading is done
+   new DownloadHelper(pReply, fileName);
+}
+
+void WebView::unsupportedContent(QNetworkReply* pReply)
+{
+   bool closeAfterDownload = false;
+   if (this->page()->history()->count() == 0)
+   {
+      /* This is for the case where a new browser window was launched just
+         to show a PDF or save a file. Otherwise we would have an empty
+         browser window with no history hanging around. */
+      window()->hide();
+      closeAfterDownload = true;
+   }
+
+   DownloadHelper* pDownloadHelper = NULL;
+
+   QString contentType =
+         pReply->header(QNetworkRequest::ContentTypeHeader).toString();
+   if (contentType.contains(QRegExp(QString::fromUtf8("^\\s*application/pdf($|;)"),
+                                    Qt::CaseInsensitive)))
+   {
+      core::FilePath dir(options().scratchTempDir());
+
+      QTemporaryFile pdfFile(QString::fromUtf8(
+            dir.childPath("rstudio-XXXXXX.pdf").absolutePath().c_str()));
+      pdfFile.setAutoRemove(false);
+      pdfFile.open();
+      pdfFile.close();
+
+      if (pReply->isFinished())
+      {
+         DownloadHelper::handleDownload(pReply, pdfFile.fileName());
+         openFile(pdfFile.fileName());
+      }
+      else
+      {
+         // DownloadHelper frees itself when downloading is done
+         pDownloadHelper = new DownloadHelper(pReply, pdfFile.fileName());
+         connect(pDownloadHelper, SIGNAL(downloadFinished(QString)),
+                 this, SLOT(openFile(QString)));
+      }
+   }
+   else
+   {
+      QString fileName = promptForFilename(pReply->request(), pReply);
+      if (fileName.isEmpty())
+      {
+         pReply->abort();
+         if (closeAfterDownload)
+            window()->close();
+      }
+      else
+      {
+         // DownloadHelper frees itself when downloading is done
+         if (pReply->isFinished())
+         {
+            DownloadHelper::handleDownload(pReply, fileName);
+         }
+         else
+         {
+            pDownloadHelper = new DownloadHelper(pReply, fileName);
+         }
+      }
+   }
+
+   if (closeAfterDownload && pDownloadHelper)
+   {
+      connect(pDownloadHelper, SIGNAL(downloadFinished(QString)),
+              window(), SLOT(close()));
+   }
 }
 
 void WebView::openFile(QString fileName)
@@ -188,185 +257,31 @@ void WebView::openFile(QString fileName)
    QDesktopServices::openUrl(QUrl::fromLocalFile(fileName));
 }
 
-bool WebView::event(QEvent* event)
+// QWebView doesn't respect the system DPI and always renders as though
+// it were at 96dpi. To work around this, we take the user-specified zoom level
+// and scale it by a DPI-determined constant before applying it to the view.
+// See: https://bugreports.qt-project.org/browse/QTBUG-29571
+void WebView::setDpiAwareZoomFactor(qreal factor)
 {
-   if (event->type() == QEvent::ShortcutOverride)
-   {
-      // take a first crack at shortcuts
-      keyPressEvent(static_cast<QKeyEvent*>(event));
-      return true;
-   }
-   return this->QWebEngineView::event(event);
+   setZoomFactor(factor * dpiZoomScaling_);
+}
+
+qreal WebView::dpiAwareZoomFactor()
+{
+   return zoomFactor() / dpiZoomScaling_;
 }
 
 void WebView::closeEvent(QCloseEvent*)
 {
-   onClose();
-}
-
-namespace {
-
-QString label(QString label)
-{
-#ifdef Q_OS_MAC
-   
-   static const QChar ampersand = QChar::fromLatin1('&');
-   static const QString space = QStringLiteral(" ");
-   
-   QStringList words = label.split(space);
-   for (QString& word : words)
+   // When the webview closes, preemptively destroy the associated web
+   // inspector, if we have one.
+   if (pWebInspector_ != NULL)
    {
-      int index = 0;
-      if (word[index] == ampersand)
-         index = 1;
-      
-      word[index] = word[index].toUpper();
+      pWebInspector_->setVisible(false);
+      pWebInspector_->disconnect();
+      pWebInspector_->deleteLater();
+      pWebInspector_ = NULL;
    }
-   
-   return words.join(space);
-   
-#else
-   
-   return label;
-   
-#endif
-}
-
-} // end anonymous namespace
-
-void WebView::contextMenuEvent(QContextMenuEvent* event)
-{
-   QMenu* menu = new QMenu(this);
-   
-   const auto& data = webPage()->contextMenuData();
-   
-   bool canNavigateHistory =
-         webPage()->history()->canGoBack() ||
-         webPage()->history()->canGoForward();
-   
-   if (data.selectedText().isEmpty() && canNavigateHistory)
-   {
-      auto* back    = menu->addAction(label(tr("&Back")),    [&]() { webPage()->history()->back(); });
-      auto* forward = menu->addAction(label(tr("&Forward")), [&]() { webPage()->history()->forward(); });
-      
-      back->setEnabled(webPage()->history()->canGoBack());
-      forward->setEnabled(webPage()->history()->canGoForward());
-      
-      menu->addSeparator();
-   }
-   
-   if (data.mediaUrl().isValid())
-   {
-      switch (data.mediaType())
-      {
-      case QWebEngineContextMenuData::MediaTypeImage:
-         
-         menu->addAction(label(tr("Sa&ve image as...")),   [&]() { triggerPageAction(QWebEnginePage::DownloadImageToDisk); });
-         menu->addAction(label(tr("Cop&y image")),         [&]() { triggerPageAction(QWebEnginePage::CopyImageToClipboard); });
-         menu->addAction(label(tr("C&opy image address")), [&]() { triggerPageAction(QWebEnginePage::CopyImageUrlToClipboard); });
-         break;
-         
-      case QWebEngineContextMenuData::MediaTypeAudio:
-         
-         if (data.mediaFlags().testFlag(QWebEngineContextMenuData::MediaPaused))
-            menu->addAction(label(tr("&Play")), [&]() { triggerPageAction(QWebEnginePage::ToggleMediaPlayPause); });
-         else
-            menu->addAction(label(tr("&Pause")), [&]() { triggerPageAction(QWebEnginePage::ToggleMediaPlayPause); });
-
-         menu->addAction(label(tr("&Loop")),            [&]() { triggerPageAction(QWebEnginePage::ToggleMediaLoop); });
-         menu->addAction(label(tr("Toggle &controls")), [&]() { triggerPageAction(QWebEnginePage::ToggleMediaControls); });
-         menu->addSeparator();
-         
-         menu->addAction(label(tr("Sa&ve audio as...")),   [&]() { triggerPageAction(QWebEnginePage::DownloadMediaToDisk); });
-         menu->addAction(label(tr("C&opy audio address")), [&]() { triggerPageAction(QWebEnginePage::CopyMediaUrlToClipboard); });
-         break;
-         
-      case QWebEngineContextMenuData::MediaTypeVideo:
-         
-         if (data.mediaFlags().testFlag(QWebEngineContextMenuData::MediaPaused))
-            menu->addAction(label(tr("&Play")), [&]() { triggerPageAction(QWebEnginePage::ToggleMediaPlayPause); });
-         else
-            menu->addAction(label(tr("&Pause")), [&]() { triggerPageAction(QWebEnginePage::ToggleMediaPlayPause); });
-
-         menu->addAction(label(tr("&Loop")),            [&]() { triggerPageAction(QWebEnginePage::ToggleMediaLoop); });
-         menu->addAction(label(tr("Toggle &controls")), [&]() { triggerPageAction(QWebEnginePage::ToggleMediaControls); });
-         menu->addSeparator();
-         
-         menu->addAction(label(tr("Sa&ve video as...")),   [&]() { triggerPageAction(QWebEnginePage::DownloadMediaToDisk); });
-         menu->addAction(label(tr("C&opy video address")), [&]() { triggerPageAction(QWebEnginePage::CopyMediaUrlToClipboard); });
-         break;
-         
-      case QWebEngineContextMenuData::MediaTypeFile:
-         menu->addAction(label(tr("Sa&ve file as...")),   [&]() { triggerPageAction(QWebEnginePage::DownloadLinkToDisk); });
-         menu->addAction(label(tr("C&opy link address")), [&]() { triggerPageAction(QWebEnginePage::CopyMediaUrlToClipboard); });
-         break;
-         
-      default:
-         break;
-      }
-   }
-   else if (data.linkUrl().isValid())
-   {
-      menu->addAction(label(tr("Open link in &browser")), [&]() { desktop::openUrl(data.linkUrl()); });
-      menu->addAction(label(tr("Save lin&k as...")),      [&]() { triggerPageAction(QWebEnginePage::DownloadLinkToDisk); });
-      menu->addAction(label(tr("Copy link addr&ess")),    [&]() { triggerPageAction(QWebEnginePage::CopyLinkToClipboard); });
-   }
-   else
-   {
-      // always show cut / copy / paste, but only enable cut / copy if there
-      // is some selected text, and only enable paste if there is something
-      // on the clipboard. note that this isn't perfect -- the highlighted
-      // text may not correspond to the context menu click target -- but
-      // in general users who want to copy text will right-click on the
-      // selection, rather than elsewhere on the screen.
-      auto* cut       = webPage()->action(QWebEnginePage::Cut);
-      auto* copy      = webPage()->action(QWebEnginePage::Copy);
-      auto* paste     = webPage()->action(QWebEnginePage::Paste);
-      auto* selectAll = webPage()->action(QWebEnginePage::SelectAll);
-      
-      cut->setText(label(tr("Cu&t")));
-      copy->setText(label(tr("&Copy")));
-      paste->setText(label(tr("&Paste")));
-      selectAll->setText(label(tr("Select &all")));
-      
-      cut->setEnabled(data.isContentEditable() && !data.selectedText().isEmpty());
-      copy->setEnabled(!data.selectedText().isEmpty());
-      paste->setEnabled(QApplication::clipboard()->mimeData()->hasText());
-      
-      menu->addAction(cut);
-      menu->addAction(copy);
-      menu->addAction(paste);
-      menu->addAction(selectAll);
-   }
-   
-   menu->addSeparator();
-   menu->addAction(label(tr("&Reload")), [&]() { triggerPageAction(QWebEnginePage::Reload); });
-   menu->addAction(label(tr("I&nspect element")), [&]() {
-      
-      QWebEnginePage* devToolsPage = webPage()->devToolsPage();
-      if (devToolsPage == nullptr)
-      {
-         DevToolsWindow* devToolsWindow = new DevToolsWindow();
-         devToolsPage = devToolsWindow->webPage();
-         webPage()->setDevToolsPage(devToolsPage);
-         
-         s_devToolsWindows[webPage()] = devToolsWindow;
-      }
-      
-      // make sure the devtools window is showing and focused
-      DevToolsWindow* devToolsWindow = s_devToolsWindows[webPage()];
-      
-      devToolsWindow->show();
-      devToolsWindow->raise();
-      devToolsWindow->setFocus();
-      
-      // we have a window; invoke Inspect Element now
-      webPage()->triggerAction(QWebEnginePage::InspectElement);
-   });
-
-   menu->setAttribute(Qt::WA_DeleteOnClose, true);
-   
-   menu->exec(event->globalPos());
 }
 
 } // namespace desktop

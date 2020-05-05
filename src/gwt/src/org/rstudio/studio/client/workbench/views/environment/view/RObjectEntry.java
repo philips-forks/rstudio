@@ -1,7 +1,7 @@
 /*
  * RObjectEntry.java
  *
- * Copyright (C) 2009-12 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -60,13 +60,13 @@ public class RObjectEntry
       return rObject.getLength() > 0 &&
              (rObject.getContentsDeferred() || 
                  (rObject.getContents().length() > 0 &&
-                  rObject.getContents().get(0) != NO_VALUE)) &&
+                  !rObject.getContents().get(0).equals(NO_VALUE))) &&
              !hasTraceInfo();
    }
    
    public boolean hasTraceInfo()
    {
-      return rObject.getType() == "functionWithTrace";
+      return rObject.getType().equals("functionWithTrace");
    }
    
    public int getCategory()
@@ -77,7 +77,8 @@ public class RObjectEntry
       {
          return Categories.Data;
       }
-      else if (type == "function" || hasTraceInfo())
+      else if (type.equals("function") ||
+               hasTraceInfo())
       {
          return Categories.Function;
       }

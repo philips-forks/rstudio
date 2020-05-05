@@ -1,7 +1,7 @@
 /*
  * Process.hpp
  *
- * Copyright (C) 2009-17 by RStudio, PBC
+ * Copyright (C) 2009-17 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -28,7 +28,7 @@
 
 #include <core/system/System.hpp>
 #include <core/system/Types.hpp>
-#include <shared_core/FilePath.hpp>
+#include <core/FilePath.hpp>
 
 namespace rstudio {
 namespace core {
@@ -111,8 +111,7 @@ struct ProcessOptions
         rows(kDefaultRows),
         redirectStdErrToStdOut(false),
         reportHasSubprocs(false),
-        trackCwd(false),
-        threadSafe(false)
+        trackCwd(false)
 #endif
    {
    }
@@ -128,11 +127,8 @@ struct ProcessOptions
    // results in a call to ::setpgid(0,0) to create a new process group
    // and the specification of -pid to kill so as to kill the child and
    // all of its subprocesses
-   //
    // NOTE: to support the same behavior on Win32 we'll need to use
-   // CreateJobObject/CREATE_BREAKAWAY_FROM_JOB to get the same effect;
-   // currently this implies CREATE_NEW_PROCESS_GROUP on Windows to get
-   // the same semantics around interruptions
+   // CreateJobObject/CREATE_BREAKAWAY_FROM_JOB to get the same effect
    bool terminateChildren;
 
    // Use kSmartTerm as terminal type and disable canonical line-by-line
@@ -179,12 +175,6 @@ struct ProcessOptions
    // Periodically track process' current working directory
    bool trackCwd;
 
-   // Indicates whether or not to use special safety logic when forking the child
-   // which should be used in a mulithreaded process to ensure the child does not hang
-   // consequently, many of the options are ignored in this mode as it is very strict
-   // and cannot accomplish many things that the thread unsafe mode can
-   bool threadSafe;
-
    // If not empty, these two provide paths that stdout and stderr
    // (respectively) should be redirected to. Note that this ONLY works
    // if you use runCommand, not runProgram, as we use the shell to do
@@ -197,10 +187,6 @@ struct ProcessOptions
    boost::function<void()> onAfterFork;
 
    core::FilePath workingDir;
-
-   // user to run the process as - optional
-   // if non is specified, the launching user is used
-   std::string runAsUser;
 };
 
 // Struct for returning output and exit status from a process

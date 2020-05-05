@@ -1,7 +1,7 @@
 /*
  * RmdFileOption.java
  *
- * Copyright (C) 2009-20 by RStudio, PBC
+ * Copyright (C) 2009-14 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -14,7 +14,6 @@
  */
 package org.rstudio.studio.client.rmarkdown.ui;
 
-import org.rstudio.core.client.ElementIds;
 import org.rstudio.core.client.widget.FileChooserTextBox;
 import org.rstudio.studio.client.rmarkdown.model.RmdTemplateFormatOption;
 
@@ -30,14 +29,13 @@ public class RmdFileOption extends RmdNullableOption
       defaultValue_ = option.getDefaultValue();
 
       HTMLPanel panel = new HTMLPanel("");
-
-      fileChooser_ = new FileChooserTextBox(
-         "", "", ElementIds.TextBoxButtonId.RMD_OPTION, false, null, null);
-      if (initialValue != "null")
+      panel.add(getOptionLabelWidget());
+      
+      fileChooser_ = new FileChooserTextBox("", null);
+      if (!initialValue.equals("null"))
          fileChooser_.setText(initialValue);
       fileChooser_.getElement().getStyle().setMarginLeft(20, Unit.PX);
       fileChooser_.getElement().getStyle().setMarginTop(3, Unit.PX);
-      panel.add(getOptionLabelWidget(fileChooser_.getTextBox().getElement()));
       panel.add(fileChooser_);
 
       updateNull();
@@ -48,7 +46,7 @@ public class RmdFileOption extends RmdNullableOption
    @Override
    public boolean valueIsDefault()
    {
-      if (valueIsNull() && defaultValue_ == "null")
+      if (valueIsNull() && defaultValue_.equals("null"))
          return true;
       return getValue() == defaultValue_;
    }

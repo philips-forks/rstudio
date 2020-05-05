@@ -1,7 +1,7 @@
 /*
  * Log.cpp
  *
- * Copyright (C) 2009-12 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -19,69 +19,152 @@
 #include <sstream>
 #include <algorithm>
 
+#include <core/Error.hpp>
 #include <core/system/System.hpp>
-
-#include <shared_core/Error.hpp>
-#include <shared_core/SafeConvert.hpp>
 
 namespace rstudio {
 namespace core {
 namespace log {
 
-namespace {
+namespace {   
 
-void logAction(LogLevel logLevel,
-               const boost::function<std::string()>& action,
-               const ErrorLocation& loggedFromLocation = ErrorLocation(),
-               const std::string& logSection = std::string())
+const char * const OCCURRED_AT = "OCCURRED AT";
+const char * const LOGGED_FROM = "LOGGED FROM";
+const char * const CAUSED_BY = "CAUSED BY";
+
+void writeError(const Error& error, std::ostream& os)
 {
-   switch (logLevel)
+   // build intermediate string so we can remove any embedded instances of
+   // DELIM in the output (since this is used as a delimiter for parsing)
+   std::ostringstream errorStream ;
+   
+   // basics
+   const boost::system::error_code& ec = error.code();
+   errorStream << "ERROR " << ec.category().name() << " error "
+               << ec.value() << " (" << ec.message() << ")"  ;
+   
+   // properties
+   if ( !error.properties().empty() ) 
    {
-      case LogLevel::ERR:
-         return logErrorMessage(action(), logSection, loggedFromLocation);
-      case LogLevel::WARN:
-         return logWarningMessage(action(), logSection, loggedFromLocation);
-      case LogLevel::DEBUG:
-         return logDebugMessage(action(), logSection, loggedFromLocation);
-      case LogLevel::INFO:
-         return logInfoMessage(action(), logSection, loggedFromLocation);
-      case LogLevel::OFF:
-         return;
-      default:
-      {
-         assert(false);
-         logErrorMessage(
-            "Failed to log action. Invalid log level specified: " +
-            safe_convert::numberToString(static_cast<int>(logLevel)));
-         return;
-      }
+      errorStream << " [" ;
+      std::vector<std::pair<std::string,std::string> >::const_iterator 
+      it = error.properties().begin() ;
+      errorStream << it->first << "=" << it->second ;
+      ++it ;
+      for ( ; it != error.properties().end(); ++it)
+         errorStream << ", " << it->first << "=" << it->second ;
+      errorStream << "]" ;
+   }
+   
+   // clean delims and output
+   os << cleanDelims(errorStream.str());
+   
+   // location
+   os << DELIM << " " << OCCURRED_AT << ": " 
+      << cleanDelims(error.location().asString());
+   
+   // cause (recurse)
+   if (error.cause() ) 
+   {
+      os << DELIM << " " << CAUSED_BY << ": " ;
+      writeError(error.cause(), os);
+   }
+}
+   
+void logMessageWithLocation(const std::string& prefix,
+                            system::LogLevel logLevel,
+                            const std::string& message,
+                            const ErrorLocation& loggedFromLocation)
+{
+   try
+   {
+      std::ostringstream os ;
+      
+      // error
+      os << prefix << " " << message ;
+      
+      // log location
+      os << DELIM << " " << LOGGED_FROM << ": " 
+         << cleanDelims(loggedFromLocation.asString());
+      
+      system::log(logLevel, os.str()) ;
+   }
+   catch(...)
+   {
+      system::log(system::kLogLevelError, 
+                  "ERROR unexpected error while logging");
    }
 }
 
-} // anonymous namespace
-
-void logDebugAction(const boost::function<std::string()>& action,
-                    const ErrorLocation& loggedFromLocation)
-{
-   logAction(LogLevel::DEBUG,
-             action,
-             loggedFromLocation);
 }
 
-void logDebugAction(const std::string& logSection,
-                    const boost::function<std::string ()>& action,
-                    const ErrorLocation& loggedFromLocation)
+const char DELIM = ';';
+
+std::string cleanDelims(const std::string& source)
 {
-   logAction(LogLevel::DEBUG,
-             action,
-             loggedFromLocation,
-             logSection);
+   std::string cleanTarget(source);
+   std::replace(cleanTarget.begin(), cleanTarget.end(), DELIM, ' ');
+   return cleanTarget;
+}
+
+   
+void logError(const Error& error, const ErrorLocation& loggedFromLocation) 
+{
+   try
+   {
+      std::ostringstream os ;
+
+      // error
+      writeError(error, os) ;
+      
+      // log location 
+      os << DELIM << " " << LOGGED_FROM << ": "  
+         << cleanDelims(loggedFromLocation.asString());
+            
+      system::log( system::kLogLevelError, os.str()) ;
+   }
+   catch(...)
+   {
+      system::log(system::kLogLevelError, 
+                  "ERROR unexpected error while logging");
+   }
+}
+
+void logErrorMessage(const std::string& message, 
+                     const ErrorLocation& loggedFromLocation) 
+{
+   logMessageWithLocation("ERROR", 
+                          system::kLogLevelError,
+                          message,
+                          loggedFromLocation);
+}
+   
+void logWarningMessage(const std::string& message,
+                       const ErrorLocation& loggedFromLocation)
+{
+   logMessageWithLocation("WARNING", 
+                          system::kLogLevelWarning,
+                          message,
+                          loggedFromLocation);   
+}
+
+void logInfoMessage(const std::string& message)
+{
+   system::log(system::kLogLevelInfo, message.c_str());
+}
+
+void logDebugMessage(const std::string& message)
+{
+   system::log(system::kLogLevelDebug, message.c_str());
 }
    
 std::string errorAsLogEntry(const Error& error)
 {
-   return writeError(error);
+   std::ostringstream ostr;
+   writeError(error, ostr);
+   return ostr.str();
 }
+   
 
 } // namespace log
 } // namespace core 

@@ -1,7 +1,7 @@
 /*
  * ShellUtils.cpp
  *
- * Copyright (C) 2009-12 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -15,8 +15,8 @@
 
 #include <core/system/ShellUtils.hpp>
 
-#include <shared_core/FilePath.hpp>
-#include <shared_core/SafeConvert.hpp>
+#include <core/FilePath.hpp>
+#include <core/SafeConvert.hpp>
 
 namespace rstudio {
 namespace core {
@@ -59,7 +59,7 @@ ShellCommand& ShellCommand::operator<<(const FilePath& path)
 {
    output_.push_back(' ');
    // TODO: check encoding
-   output_.append(escape(path.getAbsolutePath()));
+   output_.append(escape(path.absolutePath()));
    return *this;
 }
 
@@ -85,12 +85,6 @@ ShellCommand& ShellCommand::operator<<(const std::vector<FilePath> args)
    return *this;
 }
 
-ShellArgs& ShellArgs::operator <<(EncodingMode mode)
-{
-   encodingMode_ = mode;
-   return *this;
-}
-
 ShellArgs& ShellArgs::operator<<(const std::string& arg)
 {
    args_.push_back(arg);
@@ -105,11 +99,7 @@ ShellArgs& ShellArgs::operator<<(int arg)
 
 ShellArgs& ShellArgs::operator<<(const FilePath& path)
 {
-   if (encodingMode_ == SystemEncoding)
-      *this << string_utils::utf8ToSystem(path.getAbsolutePath());
-   else
-      *this << path.getAbsolutePath();
-   return *this;
+   return *this << string_utils::utf8ToSystem(path.absolutePath());
 }
 
 ShellArgs& ShellArgs::operator<<(const std::vector<std::string> args)

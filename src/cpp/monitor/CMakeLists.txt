@@ -1,7 +1,7 @@
 #
 # CMakeLists.txt
 #
-# Copyright (C) 2009-19 by RStudio, PBC
+# Copyright (C) 2009-12 by RStudio, Inc.
 #
 # Unless you have received this program directly from RStudio pursuant
 # to the terms of a commercial license agreement with RStudio, then
@@ -27,21 +27,16 @@ set (MONITOR_SOURCE_FILES
    MonitorClientOverlay.cpp
 )
 
-
 # include directories
 include_directories(
    include
    ${CMAKE_CURRENT_BINARY_DIR}
-   ${EXT_SOURCE_DIR}
    ${CORE_SOURCE_DIR}/include
-   ${SERVER_CORE_SOURCE_DIR}/include
-   ${SHARED_CORE_SOURCE_DIR}/include
 )
 
 # define library
 add_library(rstudio-monitor STATIC ${MONITOR_SOURCE_FILES}
                                    ${MONITOR_HEADER_FILES})
-define_source_file_names(rstudio-monitor)
 
 # link dependencies
 target_link_libraries(rstudio-monitor

@@ -1,7 +1,7 @@
 /*
  * SessionConsoleProcessTable.hpp
  *
- * Copyright (C) 2009-17 by RStudio, PBC
+ * Copyright (C) 2009-17 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -41,15 +41,15 @@ ConsoleProcessPtr getVisibleProc();
 void clearVisibleProc();
 void setVisibleProc(const std::string& handle);
 
-// Build a list of all process handles (handles are used as unique IDs by
+// Build a list of all process captions (captions are used as unique IDs by
 // the Terminal R API)
-std::vector<std::string> getAllHandles();
+std::vector<std::string> getAllCaptions();
 
 // Determine next terminal sequence number and default name
 std::pair<int, std::string> nextTerminalName();
 
 // Get list of all process metadata
-core::json::Array allProcessesAsJson(SerializationMode serialMode);
+core::json::Array allProcessesAsJson();
 
 // Persist the list of ConsoleProcesses.
 void saveConsoleProcesses();

@@ -1,7 +1,7 @@
 /*
  * RmdPreviewParams.java
  *
- * Copyright (C) 2009-18 by RStudio, PBC
+ * Copyright (C) 2009-14 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -56,7 +56,7 @@ public class RmdPreviewParams extends JavaScriptObject
    }-*/;
    
    public native final String getWebsiteDir() /*-{
-      return this.result.website_dir;
+      return this.website_dir;
    }-*/;
    
    public native final int getScrollPosition() /*-{
@@ -79,14 +79,14 @@ public class RmdPreviewParams extends JavaScriptObject
    {
       int chromeHeight = 100;
       String format = getResult().getFormatName();
-      if (format == RmdOutputFormat.OUTPUT_IOSLIDES_PRESENTATION ||
-          format == RmdOutputFormat.OUTPUT_SLIDY_PRESENTATION)
+      if (format.equals(RmdOutputFormat.OUTPUT_IOSLIDES_PRESENTATION) ||
+          format.equals(RmdOutputFormat.OUTPUT_SLIDY_PRESENTATION))
          return new Size(1100, 900 + chromeHeight);
-      if (format == RmdOutputFormat.OUTPUT_REVEALJS_PRESENTATION)
+      if (format.endsWith(RmdOutputFormat.OUTPUT_REVEALJS_PRESENTATION))
          return new Size(1100, 900 + chromeHeight);
       
       // default size (html_document and others)
-      return new Size(1180, 1000 + chromeHeight);
+      return new Size(1100, 1000 + chromeHeight);
    }
    
    public final boolean isWebsiteRmd() 

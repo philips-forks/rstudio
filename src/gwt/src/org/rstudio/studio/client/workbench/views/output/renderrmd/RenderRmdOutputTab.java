@@ -2,7 +2,7 @@
 /*
  * RenderRmdOutputTab.java
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-14 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -42,6 +42,7 @@ public class RenderRmdOutputTab
                  RestartStatusEvent.Handler,
                  ProvidesBusy
    {
+      abstract void initialize();
       abstract void confirmClose(Command onConfirmed);
    }
 

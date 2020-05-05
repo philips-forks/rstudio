@@ -1,7 +1,7 @@
 /*
  * ImageResource2x.java
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-17 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -18,7 +18,6 @@ import com.google.gwt.resources.client.ImageResource;
 import com.google.gwt.safehtml.shared.SafeHtml;
 import com.google.gwt.safehtml.shared.SafeHtmlBuilder;
 import com.google.gwt.safehtml.shared.SafeUri;
-import org.rstudio.core.client.StringUtil;
 
 public class ImageResource2x implements ImageResource
 {
@@ -73,7 +72,7 @@ public class ImageResource2x implements ImageResource
       return getResource().getTop();
    }
 
-   @Deprecated
+   @SuppressWarnings("deprecation")
    @Override
    public String getURL()
    {
@@ -92,7 +91,7 @@ public class ImageResource2x implements ImageResource
       return getResource().isAnimated();
    }
 
-   public SafeHtml getSafeHtml(String altText)
+   public SafeHtml getSafeHtml()
    {
       if (html_ == null)
       {
@@ -104,29 +103,14 @@ public class ImageResource2x implements ImageResource
          sb.appendHtmlConstant(new Integer(getWidth()).toString());
          sb.appendHtmlConstant("\" height=\"");
          sb.appendHtmlConstant(new Integer(getHeight()).toString());
-         if (StringUtil.isNullOrEmpty(altText))
-         {
-            sb.appendHtmlConstant("\" alt");
-         }
-         else
-         {
-            sb.appendHtmlConstant("\" alt=\"");
-            sb.appendEscaped(altText);
-            sb.appendHtmlConstant("\"");
-         }
-         sb.appendHtmlConstant(">");
-
+         sb.appendHtmlConstant("\">");
+         
          html_ = sb.toSafeHtml();
       }
 
       return html_;
    }
-
-   public SafeHtml getSafeHtml()
-   {
-      return getSafeHtml(null);
-   }
-
+   
    private ImageResource ref_;
    private ImageResource ref2x_;
    private SafeHtml html_;

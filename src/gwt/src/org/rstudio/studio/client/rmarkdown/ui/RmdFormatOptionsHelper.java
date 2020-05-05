@@ -1,7 +1,7 @@
 /*
  * RmdFormatOptionsHelper.java
  *
- * Copyright (C) 2009-14 by RStudio, PBC
+ * Copyright (C) 2009-14 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -46,27 +46,27 @@ public class RmdFormatOptionsHelper
                // all nulls are written identically
                addOption(optionList, option.getOption(), null);
             }
-            else if (type == RmdTemplateFormatOption.TYPE_BOOLEAN)
+            else if (type.equals(RmdTemplateFormatOption.TYPE_BOOLEAN))
             {
                addOption(optionList, option.getOption(), 
                          Boolean.parseBoolean(option.getValue()));
             }
-            else if (type == RmdTemplateFormatOption.TYPE_FLOAT)
+            else if (type.equals(RmdTemplateFormatOption.TYPE_FLOAT))
             {
                addOption(optionList, option.getOption(), 
                          Float.parseFloat(option.getValue()));
             }
-            else if (type == RmdTemplateFormatOption.TYPE_INTEGER)
+            else if (type.equals(RmdTemplateFormatOption.TYPE_INTEGER))
             {
                addOption(optionList, option.getOption(), 
                          Integer.parseInt(option.getValue()));
             }
-            else if (type == RmdTemplateFormatOption.TYPE_CHOICE ||
-                     type == RmdTemplateFormatOption.TYPE_STRING)
+            else if (type.equals(RmdTemplateFormatOption.TYPE_CHOICE) ||
+                     type.equals(RmdTemplateFormatOption.TYPE_STRING))
             {
                addOption(optionList, option.getOption(), option.getValue());
             }
-            else if (type == RmdTemplateFormatOption.TYPE_FILE)
+            else if (type.equals(RmdTemplateFormatOption.TYPE_FILE))
             {
                // For file options, compute the path relative to the document
                // if we're starting with an absolute path

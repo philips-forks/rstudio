@@ -1,7 +1,7 @@
 /*
  * CRANMirror.java
  *
- * Copyright (C) 2009-12 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -14,12 +14,10 @@
  */
 package org.rstudio.studio.client.common.mirrors.model;
 
-import java.util.ArrayList;
+import com.google.gwt.core.client.JavaScriptObject;
 
-import org.rstudio.core.client.StringUtil;
-import org.rstudio.studio.client.workbench.prefs.model.UserPrefs;
 
-public class CRANMirror extends UserPrefs.CranMirror
+public class CRANMirror extends JavaScriptObject
 {
    protected CRANMirror()
    {
@@ -30,10 +28,7 @@ public class CRANMirror extends UserPrefs.CranMirror
       cranMirror.name = "";
       cranMirror.host = "";
       cranMirror.url = "";
-      cranMirror.secondary = "";
       cranMirror.country = "";
-      cranMirror.changed = false;
-
       return cranMirror;
    }-*/;
    
@@ -42,70 +37,24 @@ public class CRANMirror extends UserPrefs.CranMirror
       return getName() == null || getName().length() == 0;
    }
    
-   public final native void setName(String name) /*-{
-      this.name = name;
+   public final native String getName() /*-{
+      return this.name;
    }-*/;
 
-   public final native void setHost(String host) /*-{
-      this.host = host;
+   public final native String getHost() /*-{
+      return this.host;
    }-*/;
 
    public final native String getURL() /*-{
       return this.url;
    }-*/;
-
-   public final native void setURL(String url) /*-{
-      this.url = url;
+   
+   public final native String getCountry() /*-{
+      return this.country;
    }-*/;
-
-   private final native void setSecondary(String secondary) /*-{
-      this.secondary = secondary;
-   }-*/;
-
-   private final native String getError() /*-{
-      return this.error;
-   }-*/;
-
-   private final void setSecondaryRepos(String cran, ArrayList<CRANMirror> repos)
-   {
-      setURL(cran);
-
-      ArrayList<String> entries = new ArrayList<String>();
-      for (CRANMirror repo : repos)
-      {
-         if (!repo.getName().toLowerCase().equals("cran"))
-         {
-            entries.add(repo.getName() + "|" + repo.getURL());
-         }
-      }
-      
-      setSecondary(StringUtil.join(entries, "|"));
-   }
-
-   public final void setSecondaryRepos(ArrayList<CRANMirror> repos)
-   {
-      setSecondaryRepos(getURL(), repos);
-   }
-
-   public final ArrayList<CRANMirror> getSecondaryRepos()
-   {
-      ArrayList<CRANMirror> repos = new ArrayList<CRANMirror>();
-
-      String[] entries = getSecondary().split("\\|");
-      for (int i = 0; i < entries.length / 2; i++)
-      {
-         CRANMirror repo = CRANMirror.empty();
-         repo.setName(entries[2 * i]);
-         repo.setURL(entries[2 * i + 1]);
-
-         repos.add(repo);
-      }
-      
-      return repos;
-   }
 
    public final String getDisplay()
    {
-      return getName() + " - " + getHost();
+      return getName()  +" - " + getHost();
    }
 }

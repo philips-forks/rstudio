@@ -1,7 +1,7 @@
 /*
  * RSConnectDeploy.java
  *
- * Copyright (C) 2009-20 by RStudio, PBC
+ * Copyright (C) 2009-17 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -16,17 +16,12 @@ package org.rstudio.studio.client.rsconnect.ui;
 
 import java.util.ArrayList;
 
-import com.google.gwt.aria.client.Id;
-import com.google.gwt.aria.client.Roles;
 import org.rstudio.core.client.CommandWithArg;
 import org.rstudio.core.client.Debug;
-import org.rstudio.core.client.ElementIds;
 import org.rstudio.core.client.JsArrayUtil;
 import org.rstudio.core.client.StringUtil;
 import org.rstudio.core.client.files.FileSystemItem;
 import org.rstudio.core.client.resources.ImageResource2x;
-import org.rstudio.core.client.widget.FormLabel;
-import org.rstudio.core.client.widget.HyperlinkLabel;
 import org.rstudio.core.client.widget.Operation;
 import org.rstudio.core.client.widget.OperationWithInput;
 import org.rstudio.core.client.widget.ProgressIndicator;
@@ -50,8 +45,7 @@ import org.rstudio.studio.client.rsconnect.model.RSConnectPublishSource;
 import org.rstudio.studio.client.rsconnect.model.RSConnectServerOperations;
 import org.rstudio.studio.client.server.ServerError;
 import org.rstudio.studio.client.server.ServerRequestCallback;
-import org.rstudio.studio.client.workbench.prefs.model.UserPrefs;
-import org.rstudio.studio.client.workbench.prefs.model.UserState;
+import org.rstudio.studio.client.workbench.prefs.model.UIPrefs;
 
 import com.google.gwt.core.client.GWT;
 import com.google.gwt.core.client.JsArray;
@@ -70,9 +64,9 @@ import com.google.gwt.resources.client.ImageResource;
 import com.google.gwt.uibinder.client.UiBinder;
 import com.google.gwt.uibinder.client.UiField;
 import com.google.gwt.user.client.Command;
-import com.google.gwt.user.client.Timer;
 import com.google.gwt.user.client.ui.Anchor;
 import com.google.gwt.user.client.ui.Composite;
+import com.google.gwt.user.client.ui.Grid;
 import com.google.gwt.user.client.ui.HTMLPanel;
 import com.google.gwt.user.client.ui.HorizontalPanel;
 import com.google.gwt.user.client.ui.Image;
@@ -103,7 +97,6 @@ public class RSConnectDeploy extends Composite
       String appErrorPanel();
       String appWarningIcon();
       String controlLabel();
-      String deployIllustration();
       String deployLabel();
       String descriptionPanel();
       String fileList();
@@ -177,13 +170,7 @@ public class RSConnectDeploy extends Composite
       // create UI
       initWidget(uiBinder.createAndBindUi(this));
       style_ = RESOURCES.style();
-      nameLabel_.setFor(appName_.getTextBox());
-      accountList_.setLabelledBy(accountListLabel_.getElement());
-      ElementIds.assignElementId(fileListLabel_, ElementIds.RSC_FILES_LIST_LABEL);
-      Roles.getListboxRole().set(fileListPanel_.getElement());
-      Roles.getListboxRole().setAriaLabelledbyProperty(fileListPanel_.getElement(),
-         Id.of(fileListLabel_.getElement()));
-
+      
       if (asWizard)
       {
          deployIllustration_.setVisible(false);
@@ -191,24 +178,35 @@ public class RSConnectDeploy extends Composite
          hideCheckUncheckAllButton();
       }
 
-      final boolean rsConnectEnabled = 
-            userState_.enableRsconnectPublishUi().getGlobalValue();
+      final boolean rsConnectEnabled = RStudioGinjector.INSTANCE.getUIPrefs()
+            .enableRStudioConnect().getGlobalValue();
       
       // Invoke the "add account" wizard
       if (contentType == RSConnect.CONTENT_TYPE_APP || rsConnectEnabled)
       {
-         addAccountAnchor_.setClickHandler(() ->
+         addAccountAnchor_.addClickHandler(new ClickHandler()
          {
-            connector_.showAccountWizard(false,
-                  contentType == RSConnect.CONTENT_TYPE_APP ||
-                  contentType == RSConnect.CONTENT_TYPE_APP_SINGLE,
-                  successful ->
+            @Override
+            public void onClick(ClickEvent event)
+            {
+               connector_.showAccountWizard(false, 
+                     contentType == RSConnect.CONTENT_TYPE_APP ||
+                     contentType == RSConnect.CONTENT_TYPE_APP_SINGLE, 
+                     new OperationWithInput<Boolean>() 
+               {
+                  @Override
+                  public void execute(Boolean successful)
                   {
                      if (successful)
                      {
                         accountList_.refreshAccountList();
                      }
-                  });
+                  }
+               });
+               
+               event.preventDefault();
+               event.stopPropagation();
+            }
          });
       }
       else
@@ -218,12 +216,18 @@ public class RSConnectDeploy extends Composite
          addAccountAnchor_.setVisible(false);
       }
       
-      createNewAnchor_.setClickHandler(() ->
+      createNewAnchor_.addClickHandler(new ClickHandler()
       {
-         display_.showMessage(GlobalDisplay.MSG_INFO, 
-               "Create New Content", 
-               "To publish this content to a new location, click the Publish drop-down menu " +
-               "and choose Other Destination.");
+         @Override
+         public void onClick(ClickEvent event)
+         {
+            event.preventDefault();
+            event.stopPropagation();
+            display_.showMessage(GlobalDisplay.MSG_INFO, 
+                  "Create New Content", 
+                  "To publish this content to a new location, click the Publish drop-down menu " +
+                  "and choose Other Destination.");
+         }
       });
 
       checkUncheckAllButton_.getElement().getStyle().setMarginLeft(0, Unit.PX);
@@ -277,16 +281,14 @@ public class RSConnectDeploy extends Composite
    public void initialize(RSConnectServerOperations server, 
                           RSAccountConnector connector,    
                           GlobalDisplay display,
-                          UserPrefs prefs,
-                          UserState state)
+                          UIPrefs prefs)
    {
       server_ = server;
       connector_ = connector;
       display_ = display;
-      userPrefs_ = prefs;
-      userState_ = state;
+      prefs_ = prefs;
       accountList_ = new RSConnectAccountList(server_, display_, false, 
-            !asStatic_, "Publish from Account");
+            !asStatic_);
       appName_ = new AppNameTextbox(this);
       
       // when the account list finishes populating, select the account from the
@@ -306,7 +308,7 @@ public class RSConnectDeploy extends Composite
                // when doing a first-time publish, select the account the user
                // prefers (currently this just tracks the last account used)
                RSConnectAccount preferred = 
-                     userState_.publishAccount().getGlobalValue().cast();
+                     prefs_.preferredPublishAccount().getGlobalValue();
                if (preferred != null)
                {
                   accountList_.selectAccount(preferred);
@@ -446,7 +448,7 @@ public class RSConnectDeploy extends Composite
       // include all the ones the user added but didn't later uncheck, so
       // cross-reference the list we kept with the one returned by the dialog
       ArrayList<String> deployFiles = getFileList();
-      ArrayList<String> additionalFiles = new ArrayList<>();
+      ArrayList<String> additionalFiles = new ArrayList<String>();
       for (String filePath: filesAddedManually_)
       {
          if (deployFiles.contains(filePath))
@@ -466,10 +468,10 @@ public class RSConnectDeploy extends Composite
       // new content
       if (fromPrevious_ == null && 
           !getSelectedAccount().equals(
-                userState_.publishAccount().getGlobalValue()))
+                prefs_.preferredPublishAccount().getGlobalValue()))
       {
-         userState_.publishAccount().setGlobalValue(getSelectedAccount());
-         userState_.writeState();
+         prefs_.preferredPublishAccount().setGlobalValue(getSelectedAccount());
+         prefs_.writeUIPrefs();
       }
       
       return new RSConnectPublishResult(
@@ -488,6 +490,15 @@ public class RSConnectDeploy extends Composite
    
    public void validateResult(final OperationWithInput<Boolean> onComplete)
    {
+      // if the name isn't valid to begin with, we know the result immediately
+      if (!appName_.isValid())
+      {
+         appName_.validateAppName();
+         onComplete.execute(false);
+         focus();
+         return;
+      }
+      
       if (isUpdate())
       {
          // no need to validate names for updates
@@ -495,15 +506,6 @@ public class RSConnectDeploy extends Composite
       }
       else
       {
-         // if the name isn't valid to begin with, we know the result immediately
-         if (!appName_.isValid())
-         {
-            appName_.validateAppName();
-            onComplete.execute(false);
-            focus();
-            return;
-         }
-      
          // see if there's an app with this name before running the deploy
          checkForExistingApp(getSelectedAccount(), appName_.getName(), 
                new OperationWithInput<Boolean>()
@@ -568,7 +570,7 @@ public class RSConnectDeploy extends Composite
    private void setFileList(ArrayList<String> files,
          ArrayList<String> additionalFiles, ArrayList<String> ignoredFiles)
    {
-      fileChecks_ = new ArrayList<>();
+      fileChecks_ = new ArrayList<DirEntryCheckBox>();
       
       // clear existing file list
       fileListPanel_.clear(); 
@@ -582,7 +584,7 @@ public class RSConnectDeploy extends Composite
          {
             for (int j = 0; j < ignoredFiles.size(); j++)
             {
-               if (ignoredFiles.get(j) == files.get(i))
+               if (ignoredFiles.get(j).equals(files.get(i)))
                {
                   checked = false; 
                   break;
@@ -596,7 +598,7 @@ public class RSConnectDeploy extends Composite
          {
             for (int j = 0; j < additionalFiles.size(); j++)
             {
-               if (additionalFiles.get(j) == files.get(i))
+               if (additionalFiles.get(j).equals(files.get(i)))
                {
                   add = false; 
                   break;
@@ -630,7 +632,7 @@ public class RSConnectDeploy extends Composite
    {
       if (accountList_.isVisible())
          return accountList_.getSelectedAccount();
-      else if (accountEntryPanel_.isVisible())
+      else if (accountEntry_.isVisible())
          return accountEntry_.getAccount();
       else
          return null;
@@ -718,7 +720,7 @@ public class RSConnectDeploy extends Composite
    private void setSingleAccount(RSConnectAccount account)
    {
       accountEntry_.setAccount(account);
-      accountEntryPanel_.setVisible(true);
+      accountEntry_.setVisible(true);
    }
    
    private void populateAccountList(final ProgressIndicator indicator,
@@ -768,7 +770,7 @@ public class RSConnectDeploy extends Composite
 
       // populate the accounts in the UI (the account display widget filters
       // based on account criteria)
-      accountEntryPanel_.setVisible(false);
+      accountEntry_.setVisible(false);
       publishToLabel_.setVisible(false);
       int numAccounts = setAccountList(accounts);
 
@@ -825,38 +827,7 @@ public class RSConnectDeploy extends Composite
       if (source_.isSelfContained() && source_.isStatic() && 
           !source_.isWebsiteRmd())
       {
-         if (StringUtil.isNullOrEmpty(source_.getDeployFile()))
-         {
-            // Make sure the dialog (e.g. publish wizard) dismisses before the message
-            // is shown. In some scenarios, varying both by dialog and by platform (desktop vs.
-            // server), the message is showing while the dialog is still visible but not fully
-            // initialized. In another scenario, the dialog does not dismiss when
-            // indicator.onCompleted() is invoked unless we delay the invocation a bit.
-            Scheduler.get().scheduleDeferred(() -> {
-               indicator.onCompleted();
-      
-               // On Desktop (macOS, at least), trying to show message here leaves the
-               // publish wizard visible in an incomplete state and it doesn't dismiss
-               // until the message is dismissed. A scheduleDeferred did not help, but
-               // a timer works.
-               Timer showMessageTimer = new Timer()
-               {
-                  @Override
-                  public void run()
-                  {
-                     RStudioGinjector.INSTANCE.getGlobalDisplay().showMessage(
-                           GlobalDisplay.MSG_INFO,
-                           "Finished Document Not Found",
-                           "To publish finished document to RStudio Connect, you must first render " +
-                                 "it. Dismiss this message, click Knit to render the document, " +
-                                 "then try publishing again.");
-                  }
-               };
-               showMessageTimer.schedule(100);
-            });
-            return;
-         }
-         ArrayList<String> files = new ArrayList<>();
+         ArrayList<String> files = new ArrayList<String>();
          FileSystemItem selfContained = FileSystemItem.createFile(
                      source_.getDeployFile());
          files.add(selfContained.getName());
@@ -865,7 +836,7 @@ public class RSConnectDeploy extends Composite
          return;
       }
 
-      // ternary operator maps to appropriate files to list for deployment:
+      // ternery operator maps to appropriate files to list for deployment:
       // website code    - website code directory 
       // static website  - website build directory
       // document        - R Markdown document
@@ -877,17 +848,6 @@ public class RSConnectDeploy extends Composite
                      source_.getWebsiteDir() :
                   source_.getDeployFile() : 
             source_.getDeployDir();
-                  
-      // getDeploymentFiles fails if we don't give it a source -- this should
-      // never happen, but if it does this error message will be more useful
-      if (StringUtil.isNullOrEmpty(fileSource))
-      {
-         indicator.onError("Could not determine the list of files to deploy. " +
-                  "Try re-rendering and ensuring that you're publishing to a " +
-                  "server which supports this kind of content.");
-         indicator.onCompleted();
-         return;
-      }
 
       indicator.onProgress("Collecting files...");
       server_.getDeploymentFiles(
@@ -960,7 +920,7 @@ public class RSConnectDeploy extends Composite
    
    private ArrayList<String> getCheckedFileList(boolean checked)
    {
-      ArrayList<String> files = new ArrayList<>();
+      ArrayList<String> files = new ArrayList<String>();
       if (fileChecks_ == null)
          return files;
       for (int i = 0; i < fileChecks_.size(); i++)
@@ -1006,7 +966,7 @@ public class RSConnectDeploy extends Composite
                         ArrayList<String> files = getFileList();
                         for (String file: files)
                         {
-                           if (file == path)
+                           if (file.equals(path))
                            {
                               indicator.onCompleted();
                               return;
@@ -1029,7 +989,7 @@ public class RSConnectDeploy extends Composite
       for (int i = 0; i < fileChecks_.size(); i++)
       {
          DirEntryCheckBox fileCheck = fileChecks_.get(i);
-         if (fileCheck.getPath() == path)
+         if (fileCheck.getPath().equals(path))
          {
             // don't allow the user to unselect the primary file
             fileCheck.setEnabled(false);
@@ -1070,13 +1030,12 @@ public class RSConnectDeploy extends Composite
       }
       
       // if the app name textbox isn't populated, derive from the filename
-      // (for apps, APIs, and documents--other content types use temporary filenames)
+      // (for apps and documents--other content types use temporary filenames)
       if (appName_.getTitle().isEmpty())
       {
          if (contentType_ == RSConnect.CONTENT_TYPE_APP || 
              contentType_ == RSConnect.CONTENT_TYPE_APP_SINGLE || 
-             contentType_ == RSConnect.CONTENT_TYPE_DOCUMENT ||
-             contentType_ == RSConnect.CONTENT_TYPE_PLUMBER_API)
+             contentType_ == RSConnect.CONTENT_TYPE_DOCUMENT)
          {
             // set the app name to the filename
             String appTitle = 
@@ -1101,13 +1060,13 @@ public class RSConnectDeploy extends Composite
       }
       
       ImageResource illustration = null;
-      if (contentType_ == RSConnect.CONTENT_TYPE_APP || contentType_ == RSConnect.CONTENT_TYPE_PLUMBER_API)
+      if (contentType_ == RSConnect.CONTENT_TYPE_APP)
          illustration = new ImageResource2x(RESOURCES.publishShinyIllustration2x());
       else if (contentType_ == RSConnect.CONTENT_TYPE_PLOT)
          illustration = new ImageResource2x(RESOURCES.publishPlotIllustration2x());
       else if (contentType_ == RSConnect.CONTENT_TYPE_DOCUMENT)
          illustration = new ImageResource2x(RESOURCES.publishRmdIllustration2x());
-      else if (contentType_ == RSConnect.CONTENT_TYPE_HTML || contentType_ == RSConnect.CONTENT_TYPE_WEBSITE)
+      else if (contentType_ == RSConnect.CONTENT_TYPE_HTML)
          illustration = new ImageResource2x(RESOURCES.publishHTMLIllustration2x());
       else if (contentType_ == RSConnect.CONTENT_TYPE_PRES)
          illustration = new ImageResource2x(RESOURCES.publishPresentationIllustration2x());
@@ -1275,7 +1234,7 @@ public class RSConnectDeploy extends Composite
       {
          onError(error.getMessage());
       }
-   }
+   };
    
    private void showAppError(String error)
    {
@@ -1288,24 +1247,23 @@ public class RSConnectDeploy extends Composite
       appErrorMessage_.setTitle(error);
    }
 
-   @UiField HyperlinkLabel addAccountAnchor_;
-   @UiField HyperlinkLabel createNewAnchor_;
+   @UiField Anchor addAccountAnchor_;
+   @UiField Anchor createNewAnchor_;
    @UiField Anchor urlAnchor_;
+   @UiField Grid mainGrid_;
    @UiField HTMLPanel appDetailsPanel_;
    @UiField HTMLPanel appInfoPanel_;
    @UiField HTMLPanel appProgressPanel_;
    @UiField HTMLPanel newAppPanel_;
    @UiField HTMLPanel rootPanel_;
    @UiField HTMLPanel appErrorPanel_;
-   @UiField HTMLPanel accountEntryPanel_;
    @UiField Image deployIllustration_;
    @UiField Image descriptionImage_;
-   @UiField InlineLabel fileListLabel_;
    @UiField InlineLabel deployLabel_;
    @UiField Label appErrorMessage_;
    @UiField Label appExistingName_;
    @UiField Label appProgressName_;
-   @UiField FormLabel nameLabel_;
+   @UiField Label nameLabel_;
    @UiField Label publishToLabel_;
    @UiField ThemedButton addFileButton_;
    @UiField ThemedButton checkUncheckAllButton_;
@@ -1315,21 +1273,19 @@ public class RSConnectDeploy extends Composite
    @UiField VerticalPanel descriptionPanel_;
    @UiField HorizontalPanel publishFromPanel_;
    @UiField RSConnectAccountEntry accountEntry_;
-   @UiField FormLabel accountListLabel_;
    
    // provided fields
    @UiField(provided=true) RSConnectAccountList accountList_;
    @UiField(provided=true) AppNameTextbox appName_;
    
    private ArrayList<DirEntryCheckBox> fileChecks_;
-   private ArrayList<String> filesAddedManually_ = new ArrayList<>();
+   private ArrayList<String> filesAddedManually_ = 
+         new ArrayList<String>();
    
    private RSConnectServerOperations server_;
    private GlobalDisplay display_;
    private RSAccountConnector connector_;
-   @SuppressWarnings("unused")
-   private UserPrefs userPrefs_;
-   private UserState userState_;
+   private UIPrefs prefs_;
    
    private RSConnectPublishSource source_;
    private boolean asMultipleRmd_;

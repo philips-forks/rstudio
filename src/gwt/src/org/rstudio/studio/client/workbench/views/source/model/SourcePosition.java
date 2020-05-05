@@ -1,7 +1,7 @@
 /*
  * SourcePosition.java
  *
- * Copyright (C) 2009-12 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -68,7 +68,7 @@ public class SourcePosition extends JavaScriptObject
       else if (other.getContext() == null && getContext() != null)
          return false;
       else
-         return other.getContext() == getContext() &&
+         return other.getContext().equals(getContext()) &&
                 (other.getRow() == getRow());
    }
    

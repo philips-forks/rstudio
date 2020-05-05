@@ -1,7 +1,7 @@
 /*
  * HTMLPreviewApplicationWindow.java
  *
- * Copyright (C) 2009-18 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -25,7 +25,6 @@ import com.google.inject.Singleton;
 
 import org.rstudio.studio.client.application.DesktopHooks;
 import org.rstudio.studio.client.application.events.EventBus;
-import org.rstudio.studio.client.application.model.ProductEditionInfo;
 import org.rstudio.studio.client.common.satellite.SatelliteWindow;
 import org.rstudio.studio.client.htmlpreview.HTMLPreviewPresenter;
 import org.rstudio.studio.client.htmlpreview.model.HTMLPreviewParams;
@@ -40,20 +39,19 @@ public class HTMLPreviewApplicationWindow extends SatelliteWindow
    public HTMLPreviewApplicationWindow(Provider<HTMLPreviewPresenter> pPresenter,
                                        Provider<EventBus> pEventBus,
                                        Provider<FontSizeManager> pFSManager,
-                                       Provider<DesktopHooks> pDesktopHooks,
-                                       ProductEditionInfo editionInfo)
+                                       Provider<DesktopHooks> pDesktopHooks)
    {
       super(pEventBus, pFSManager);
       
       pPresenter_ = pPresenter; 
       pDesktopHooks_ = pDesktopHooks;
-      editionInfo_ = editionInfo;
+     
    }
 
    @Override
    protected void onInitialize(LayoutPanel mainPanel, JavaScriptObject params)
    {
-      Window.setTitle(editionInfo_.editionName());
+      Window.setTitle("RStudio");
       
       // create the presenter and activate it with the passed params
       HTMLPreviewParams htmlPreviewParams = params.<HTMLPreviewParams>cast();
@@ -89,6 +87,5 @@ public class HTMLPreviewApplicationWindow extends SatelliteWindow
    private final Provider<HTMLPreviewPresenter> pPresenter_;
    private final Provider<DesktopHooks> pDesktopHooks_;
    private HTMLPreviewPresenter presenter_;
-   private final ProductEditionInfo editionInfo_;
 
 }

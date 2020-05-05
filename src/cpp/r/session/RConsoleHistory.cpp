@@ -1,7 +1,7 @@
 /*
  * RConsoleHistory.cpp
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -19,13 +19,12 @@
 #include <boost/function.hpp>
 #include <boost/tokenizer.hpp>
 
-#include <shared_core/Error.hpp>
-#include <shared_core/FilePath.hpp>
+#include <core/Error.hpp>
+#include <core/FilePath.hpp>
 #include <core/FileSerializer.hpp>
 #include <core/system/System.hpp>
 #include <core/system/Environment.hpp>
-#include <shared_core/SafeConvert.hpp>
-#include <gsl/gsl>
+#include <core/SafeConvert.hpp>
 
 using namespace rstudio::core;
 
@@ -55,7 +54,8 @@ void ConsoleHistory::setCapacityFromRHistsize()
    std::string histSize = core::system::getenv("R_HISTSIZE");
    if (!histSize.empty())
    {
-      setCapacity(safe_convert::stringTo<int>(histSize, capacity()));
+      setCapacity(
+         safe_convert::stringTo<std::size_t>(histSize, capacity()));
    }
 }
 

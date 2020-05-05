@@ -1,7 +1,7 @@
 /*
  * RGraphics.hpp
  *
- * Copyright (C) 2009-20 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -18,10 +18,6 @@
 
 #include <boost/system/error_code.hpp>
 #include <boost/date_time/posix_time/ptime.hpp>
-
-#include <core/BoostSignals.hpp>
-
-#include "RGraphicsConstants.h"
 
 namespace rstudio {
 namespace r {
@@ -60,10 +56,10 @@ struct is_error_code_enum<rstudio::r::session::graphics::errc::errc_t>
 #include <vector>
 
 #include <boost/function.hpp>
+#include <boost/signal.hpp>
 
-#include <core/BoostSignals.hpp>
-#include <shared_core/Error.hpp>
-#include <shared_core/json/Json.hpp>
+#include <core/Error.hpp>
+#include <core/json/Json.hpp>
 
 namespace rstudio {
 namespace core {
@@ -75,9 +71,6 @@ namespace rstudio {
 namespace r {
 namespace session {
 namespace graphics {
-
-std::string getDefaultBackend();
-std::string getDefaultAntialiasing();
 
 namespace device {
 
@@ -169,7 +162,7 @@ public:
    virtual void clear() = 0;
 
    // subscribe to showManipulator event
-   virtual RSTUDIO_BOOST_SIGNAL<void ()>& onShowManipulator() = 0;
+   virtual boost::signal<void ()>& onShowManipulator() = 0;
 
    // set manipulator values
    virtual void setPlotManipulatorValues(const core::json::Object& values) = 0;

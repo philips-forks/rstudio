@@ -1,7 +1,7 @@
 /*
  * DesktopChooseRHome.cpp
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -32,18 +32,6 @@ using namespace rstudio::desktop;
 
 namespace {
 
-static std::map<std::string, std::string> s_engineValueTolabel = {
-   {"auto", "Auto-detect (recommended)"},
-   {"desktop", "Desktop OpenGL"},
-   {"software", "Software"}
-};
-
-static std::map<std::string, std::string> s_engineLabelToValue = {
-   {"Auto-detect (recommended)", "auto"},
-   {"Desktop OpenGL", "desktop"},
-   {"Software", "software"}
-};
-
 QListWidgetItem* toItem(const RVersion& version)
 {
    QListWidgetItem* pItem = new QListWidgetItem();
@@ -64,23 +52,18 @@ RVersion toVersion(QListWidgetItem* pItem)
 ChooseRHome::ChooseRHome(QList<RVersion> list, QWidget *parent) :
     QDialog(parent),
     ui(new Ui::ChooseRHome()),
-    pOK_(nullptr)
+    pOK_(NULL)
 {
     ui->setupUi(this);
-    
+    if (!rstudio::core::system::isWin64())
+       ui->radioDefault64->setVisible(false);
+
     setWindowIcon(QIcon(QString::fromUtf8(":/icons/RStudio.ico")));
 
     setWindowFlags(
           (windowFlags() | Qt::Dialog)
           & ~Qt::WindowContextHelpButtonHint
           );
-    
-    QStringList engines = {
-       QStringLiteral("Auto-detect (recommended)"),
-       QStringLiteral("Desktop OpenGL"),
-       QStringLiteral("Software")
-    };
-    ui->comboRenderingEngines->addItems(engines);
 
     pOK_ = new QPushButton(QString::fromUtf8("OK"));
     ui->buttonBox->addButton(pOK_, QDialogButtonBox::AcceptRole);
@@ -99,9 +82,9 @@ ChooseRHome::ChooseRHome(QList<RVersion> list, QWidget *parent) :
             this, SLOT(validateSelection()));
     validateSelection();
 
+    ui->radioDefault->setChecked(true);
     connect(ui->radioDefault, SIGNAL(toggled(bool)),
             this, SLOT(onModeChanged()));
-    ui->radioDefault64->setChecked(true);
     connect(ui->radioDefault64, SIGNAL(toggled(bool)),
             this, SLOT(onModeChanged()));
     onModeChanged();
@@ -140,7 +123,7 @@ void ChooseRHome::chooseOther()
             this,
             QString::fromUtf8("Invalid R Directory"),
             QString::fromUtf8("This directory does not appear to contain a "
-            "valid R installation.\n\nPlease try again."), QString());
+            "valid R installation.\n\nPlease try again."));
       return;
    }
    else if (versions.size() > 1)
@@ -180,8 +163,7 @@ void ChooseRHome::chooseOther()
             this,
             QString::fromUtf8("Invalid R Directory"),
             QString::fromUtf8("This directory does not appear to contain a "
-                              "valid R installation.\n\nPlease try again."),
-            QString());
+                              "valid R installation.\n\nPlease try again."));
       return;
    case rstudio::desktop::ValidateBadArchitecture:
       showWarning(
@@ -189,8 +171,7 @@ void ChooseRHome::chooseOther()
             QString::fromUtf8("Incompatible R Build"),
             QString::fromUtf8("The version of R you've selected was built "
                               "for a different CPU architecture and cannot "
-                              "be used with this version of RStudio."),
-            QString());
+                              "be used with this version of RStudio."));
       return;
    case rstudio::desktop::ValidateVersionTooOld:
    default:
@@ -199,8 +180,7 @@ void ChooseRHome::chooseOther()
             QString::fromUtf8("Incompatible R Build"),
             QString::fromUtf8("The version of R you've selected is not "
                               "compatible with RStudio. Please install a "
-                              "newer version of R."),
-            QString());
+                              "newer version of R."));
       return;
    }
 
@@ -237,8 +217,8 @@ void ChooseRHome::done(int r)
                      QString::fromUtf8("No compatible %1 version was found. If you "
                                        "have a compatible version of %1 installed, "
                                        "please choose it manually."
-                                       ).arg(name),
-                     QString());
+                                       ).arg(name)
+                     );
                ui->radioCustom->setChecked(true);
                return;
             }
@@ -251,17 +231,13 @@ void ChooseRHome::done(int r)
                      QString::fromUtf8("R does not appear to be installed. Please "
                                        "install R before using RStudio.\n\n"
                                        "You can download R from the official R Project "
-                                       "website. Would you like to go there now?"),
-                     QString(),
-                     true /*yesDefault*/))
+                                       "website. Would you like to go there now?")))
                {
                   rstudio::desktop::openUrl(QUrl(QString::fromUtf8("https://www.rstudio.org/links/r-project")));
                }
             }
          }
       }
-      
-      
    }
 
    this->QDialog::done(r);
@@ -277,7 +253,7 @@ void ChooseRHome::validateSelection()
 
    if (ui->radioCustom->isChecked())
    {
-      pOK_->setEnabled(this->version().isValid());
+      pOK_->setEnabled(this->value().isValid());
    }
    else
    {
@@ -290,7 +266,7 @@ void ChooseRHome::onModeChanged()
    validateSelection();
 }
 
-RVersion ChooseRHome::version()
+RVersion ChooseRHome::value()
 {
    if (!ui->radioCustom->isChecked())
       return QString();
@@ -302,7 +278,7 @@ RVersion ChooseRHome::version()
              : toVersion(selectedItems.at(0));
 }
 
-void ChooseRHome::setVersion(const RVersion& value, bool preferR64)
+void ChooseRHome::setValue(const RVersion& value, bool preferR64)
 {
    if (value.isEmpty())
    {
@@ -320,24 +296,6 @@ void ChooseRHome::setVersion(const RVersion& value, bool preferR64)
          matches.first()->setSelected(true);
       ui->listHomeDir->setFocus();
    }
-}
-
-QString ChooseRHome::renderingEngine()
-{
-   std::string entry = ui->comboRenderingEngines->currentText().toStdString();
-   if (s_engineLabelToValue.count(entry))
-      return QString::fromStdString(s_engineLabelToValue[entry]);
-   else
-      return QStringLiteral("auto");
-}
-
-void ChooseRHome::setRenderingEngine(const QString& renderingEngine)
-{
-   std::string engine = renderingEngine.toStdString();
-   if (s_engineValueTolabel.count(engine))
-      ui->comboRenderingEngines->setCurrentText(QString::fromStdString(s_engineValueTolabel[engine]));
-   else
-      ui->comboRenderingEngines->setCurrentText(QStringLiteral("Auto-detect (recommended)"));
 }
 
 bool ChooseRHome::preferR64()

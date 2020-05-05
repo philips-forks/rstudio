@@ -1,7 +1,7 @@
 /*
  * SessionSourceDatabase.hpp
  *
- * Copyright (C) 2009-18 by RStudio, PBC
+ * Copyright (C) 2009-16 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -21,23 +21,12 @@
 
 #include <boost/utility.hpp>
 #include <boost/shared_ptr.hpp>
+#include <boost/signals.hpp>
 
-#include <core/BoostSignals.hpp>
-#include <shared_core/FilePath.hpp>
-#include <shared_core/json/Json.hpp>
+#include <core/FilePath.hpp>
+#include <core/json/Json.hpp>
 
 #include <r/RSexp.hpp>
-
-#define kSourceDocumentTypeCpp       "cpp"
-#define kSourceDocumentTypeJS        "js"
-#define kSourceDocumentTypePython    "python"
-#define kSourceDocumentTypeRHTML     "r_html"
-#define kSourceDocumentTypeRMarkdown "r_markdown"
-#define kSourceDocumentTypeRSource   "r_source"
-#define kSourceDocumentTypeSQL       "sql"
-#define kSourceDocumentTypeShell     "sh"
-#define kSourceDocumentTypeSweave    "sweave"
-
 
 namespace rstudio {
 namespace core {
@@ -138,24 +127,18 @@ public:
       type_ = type;
    }
    
-   bool isRMarkdownDocument() const { return type_ == kSourceDocumentTypeRMarkdown; }
+   bool isRMarkdownDocument() const { return type_ == SourceDocumentTypeRMarkdown; }
    
    // is this an R, or potentially R-containing, source file?
    // TODO: Export these types as an 'enum' and provide converters.
    bool canContainRCode()
    {
       return type_.size() > 0 && (
-               type_ == kSourceDocumentTypeSweave ||
-               type_ == kSourceDocumentTypeRSource ||
-               type_ == kSourceDocumentTypeRMarkdown ||
-               type_ == kSourceDocumentTypeRHTML ||
-               type_ == kSourceDocumentTypeCpp);
-   }
-   
-   // is this a straight R source file?
-   bool isRFile()
-   {
-      return type_.size() > 0 && type_ == kSourceDocumentTypeRSource;
+               type_ == SourceDocumentTypeSweave ||
+               type_ == SourceDocumentTypeRSource ||
+               type_ == SourceDocumentTypeRMarkdown ||
+               type_ == SourceDocumentTypeRHTML ||
+               type_ == SourceDocumentTypeCpp);
    }
 
    core::Error readFromJson(core::json::Object* pDocJson);
@@ -166,7 +149,7 @@ public:
    SEXP toRObject(r::sexp::Protect* pProtect, bool includeContents = true) const;
 
 private:
-   void editProperty(const core::json::Object::Member& property);
+   void editProperty(const core::json::Object::value_type& property);
 
 private:
    std::string id_;
@@ -185,7 +168,15 @@ private:
    std::string collabServer_;
    std::string sourceWindow_;
    core::json::Object properties_;
-
+   
+public:
+   
+   static const char * const SourceDocumentTypeSweave;
+   static const char * const SourceDocumentTypeRSource;
+   static const char * const SourceDocumentTypeRMarkdown;
+   static const char * const SourceDocumentTypeRHTML;
+   static const char * const SourceDocumentTypeCpp;
+   
 };
 
 bool sortByCreated(const boost::shared_ptr<SourceDocument>& pDoc1,
@@ -213,14 +204,14 @@ core::Error rename(const core::FilePath& from, const core::FilePath& to);
 // source database events
 struct Events : boost::noncopyable
 {
-   RSTUDIO_BOOST_SIGNAL<void(boost::shared_ptr<SourceDocument>)>      onDocUpdated;
-   RSTUDIO_BOOST_SIGNAL<void(const std::string&,
+   boost::signal<void(boost::shared_ptr<SourceDocument>)>      onDocUpdated;
+   boost::signal<void(const std::string&,
                       boost::shared_ptr<SourceDocument>)>      onDocRenamed;
-   RSTUDIO_BOOST_SIGNAL<void(const std::string&)>                     onDocAdded;
-   RSTUDIO_BOOST_SIGNAL<void(
+   boost::signal<void(const std::string&)>                     onDocAdded;
+   boost::signal<void(
       boost::shared_ptr<source_database::SourceDocument>)>     onDocPendingRemove;
-   RSTUDIO_BOOST_SIGNAL<void(const std::string&, const std::string&)> onDocRemoved;
-   RSTUDIO_BOOST_SIGNAL<void()>                                       onRemoveAll;
+   boost::signal<void(const std::string&, const std::string&)> onDocRemoved;
+   boost::signal<void()>                                       onRemoveAll;
 };
 
 Events& events();

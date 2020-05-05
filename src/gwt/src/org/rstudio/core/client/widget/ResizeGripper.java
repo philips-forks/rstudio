@@ -1,7 +1,7 @@
 /*
  * ResizeGripper.java
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -24,6 +24,7 @@ import com.google.gwt.resources.client.ImageResource;
 import com.google.gwt.user.client.DOM;
 import com.google.gwt.user.client.Event;
 import com.google.gwt.user.client.ui.Composite;
+import com.google.gwt.user.client.ui.Image;
 
 public class ResizeGripper extends Composite
 {
@@ -38,7 +39,7 @@ public class ResizeGripper extends Composite
    {   
       observer_ = observer;
       gripperImageResource_ = new ImageResource2x(RESOURCES.resizeGripper2x());
-      DecorativeImage image = new DecorativeImage(gripperImageResource_);
+      Image image = new Image(gripperImageResource_);
       initWidget(image);
       setStylePrimaryName(RESOURCES.styles().resizeGripper());
       

@@ -1,7 +1,7 @@
 /*
  * DesktopRVersion.cpp
  *
- * Copyright (C) 2009-20 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -16,14 +16,12 @@
 
 #include <windows.h>
 
-#include <algorithm>
-#include <QMessageBox>
+#include <QtAlgorithms>
 
 #include <core/system/System.hpp>
 #include <core/system/Environment.hpp>
 #include <core/system/RegistryKey.hpp>
 
-#include "DesktopInfo.hpp"
 #include "DesktopChooseRHome.hpp"
 
 #ifndef KEY_WOW64_32KEY
@@ -53,7 +51,7 @@ DWORD getVersion(QString path)
    if (!QFile::exists(path))
       return 0;
 
-   DWORD bytesNeeded = ::GetFileVersionInfoSize(path.toLocal8Bit(), nullptr);
+   DWORD bytesNeeded = ::GetFileVersionInfoSize(path.toLocal8Bit(), NULL);
    if (bytesNeeded == 0)
       return 0;
 
@@ -63,7 +61,7 @@ DWORD getVersion(QString path)
    if (!::GetFileVersionInfo(
          path.toLocal8Bit(),
          0,
-         static_cast<DWORD>(buffer.size()),
+         buffer.size(),
          pBlock))
    {
       return 0;
@@ -237,13 +235,13 @@ void enumRegistry(Architecture architecture, HKEY key, QList<RVersion>* pResults
                              KEY_READ | flags);
    if (error)
    {
-      if (error != systemError(boost::system::errc::no_such_file_or_directory, ErrorLocation()))
+      if (error.code() != boost::system::errc::no_such_file_or_directory)
          LOG_ERROR(error);
       return;
    }
 
    std::vector<std::string> keys = regKey.keyNames();
-   for (size_t i = 0; i < keys.size(); i++)
+   for (int i = 0; i < keys.size(); i++)
    {
       RegistryKey verKey;
       error = verKey.open(regKey.handle(),
@@ -265,8 +263,11 @@ void enumRegistry(QList<RVersion>* pResults)
 {
    enumRegistry(ArchX86, HKEY_CURRENT_USER, pResults);
    enumRegistry(ArchX86, HKEY_LOCAL_MACHINE, pResults);
-   enumRegistry(ArchX64, HKEY_CURRENT_USER, pResults);
-   enumRegistry(ArchX64, HKEY_LOCAL_MACHINE, pResults);
+   if (core::system::isWin64())
+   {
+       enumRegistry(ArchX64, HKEY_CURRENT_USER, pResults);
+       enumRegistry(ArchX64, HKEY_LOCAL_MACHINE, pResults);
+   }
 }
 
 // Return all valid versions of R we can find, nicely sorted and de-duped.
@@ -287,12 +288,13 @@ QList<RVersion> allRVersions(QList<RVersion> versions)
    }
 
    // Sort and de-duplicate
-   std::sort(versions.begin(), versions.end());
+   qSort(versions);
    for (int i = 1; i < versions.size(); i++)
    {
       if (versions.at(i) == versions.at(i-1))
          versions.removeAt(i--);
    }
+
    return versions;
 }
 
@@ -319,7 +321,7 @@ RVersion detectPreferredFromRegistry(HKEY key, Architecture architecture)
                              KEY_READ | flags);
    if (error)
    {
-      if (error != systemError(boost::system::errc::no_such_file_or_directory, ErrorLocation()))
+      if (error.code() != boost::system::errc::no_such_file_or_directory)
          LOG_ERROR(error);
       return RVersion();
    }
@@ -362,7 +364,7 @@ RVersion autoDetect()
 {
    Options& options = desktop::options();
 
-   if (options.rBinDir().isNull())
+   if (options.rBinDir().isNull() && system::isWin64())
    {
       // Special case where user has never specified a preference
       // for R64 vs. R.
@@ -448,39 +450,19 @@ RVersion detectRVersion(bool forceUi, QWidget* parent)
    // Either forceUi was true, xor the manually specified R version is
    // no longer valid, xor we tried to autodetect and failed.
    // Now we show the dialog and make the user choose.
-   QString renderingEngine = desktop::options().desktopRenderingEngine();
+
    ChooseRHome dialog(allRVersions(QList<RVersion>() << rVersion), parent);
-   dialog.setVersion(rVersion, options.preferR64());
-   dialog.setRenderingEngine(renderingEngine);
+   dialog.setValue(rVersion, options.preferR64());
    if (dialog.exec() == QDialog::Accepted)
    {
       // Keep in mind this value might be "", if the user indicated
       // they want to use the system default. The dialog won't let
       // itself be accepted unless a valid installation is detected.
-      rVersion = dialog.version();
+      rVersion = dialog.value();
       options.setRBinDir(rVersion.binDir());
       if (rVersion.isEmpty())
          options.setPreferR64(dialog.preferR64());
-      options.setDesktopRenderingEngine(dialog.renderingEngine());
 
-      // If we changed the rendering engine, we'll have to restart
-      // RStudio. Show the user a message and request that they
-      // restart the application.
-      if (renderingEngine != dialog.renderingEngine())
-      {
-         QMessageBox* messageBox = new QMessageBox(nullptr);
-         messageBox->setAttribute(Qt::WA_DeleteOnClose, true);
-         messageBox->setIcon(QMessageBox::Information);
-         messageBox->setWindowIcon(QIcon(QStringLiteral(":/icons/RStudio.ico")));
-         messageBox->setWindowTitle(QStringLiteral("Rendering Engine Changed"));
-         messageBox->setText(QStringLiteral(
-                  "The desktop rendering engine has been changed. "
-                  "Please restart RStudio for these changes to take effect."));
-         messageBox->exec();
-         
-         return QString();
-      }
-      
       // Recurse. The ChooseRHome dialog should've validated that
       // the values are acceptable, so this recursion will never
       // go more than one level deep (i.e. this call should never
@@ -521,10 +503,13 @@ QString RVersion::description() const
 {
    QString result;
 
-   if (architecture() == ArchX64)
-      result.append(QString::fromUtf8("[64-bit] "));
-   else if (architecture() == ArchX86)
-      result.append(QString::fromUtf8("[32-bit] "));
+   if (core::system::isWin64())
+   {
+      if (architecture() == ArchX64)
+         result.append(QString::fromUtf8("[64-bit] "));
+      else if (architecture() == ArchX86)
+         result.append(QString::fromUtf8("[32-bit] "));
+   }
 
    result.append(QDir::toNativeSeparators(homeDir_));
 

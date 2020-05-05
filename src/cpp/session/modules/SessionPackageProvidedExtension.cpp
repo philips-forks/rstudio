@@ -1,7 +1,7 @@
 /*
  * SessionPackageProvidedExtension.cpp
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-16 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -16,6 +16,7 @@
 #include <session/SessionPackageProvidedExtension.hpp>
 
 #include <boost/regex.hpp>
+#include <boost/foreach.hpp>
 #include <boost/date_time/posix_time/posix_time.hpp>
 
 #include <core/Algorithm.hpp>
@@ -110,10 +111,10 @@ bool Indexer::work()
 
    // invoke workers with package name + path
    FilePath pkgPath = pkgDirs_[index];
-   std::string pkgName = pkgPath.getFilename();
-   for (boost::shared_ptr<Worker> pWorker : workers_)
+   std::string pkgName = pkgPath.filename();
+   BOOST_FOREACH(boost::shared_ptr<Worker> pWorker, workers_)
    {
-      FilePath resourcePath = pkgPath.completeChildPath(pWorker->resourcePath());
+      FilePath resourcePath = pkgPath.childPath(pWorker->resourcePath());
       if (!resourcePath.exists())
          continue;
       
@@ -134,13 +135,13 @@ void Indexer::beginIndexing()
 
    // discover packages available on the current library paths
    std::vector<core::FilePath> libPaths = module_context::getLibPaths();
-   for (const core::FilePath& libPath : libPaths)
+   BOOST_FOREACH(const core::FilePath& libPath, libPaths)
    {
       if (!libPath.exists())
          continue;
 
       std::vector<core::FilePath> pkgPaths;
-      core::Error error = libPath.getChildren(pkgPaths);
+      core::Error error = libPath.children(&pkgPaths);
       if (error)
          LOG_ERROR(error);
 
@@ -151,7 +152,7 @@ void Indexer::beginIndexing()
    }
    n_ = pkgDirs_.size();
    
-   for (boost::shared_ptr<Worker> pWorker : workers_)
+   BOOST_FOREACH(boost::shared_ptr<Worker> pWorker, workers_)
    {
       try
       {
@@ -166,7 +167,7 @@ void Indexer::endIndexing()
    running_ = false;
    payload_.clear();
    
-   for (boost::shared_ptr<Worker> pWorker : workers_)
+   BOOST_FOREACH(boost::shared_ptr<Worker> pWorker, workers_)
    {
       try
       {
@@ -217,27 +218,18 @@ void onConsoleInput(const std::string& input)
       return;
    
    static const char* const commands[] = {
-      "devtools::install_",
-      "devtools::load_all",
       "install.packages",
-      "install_github",
-      "load_all",
-      "pak::pkg_install",
-      "pak::pkg_remove",
-      "pkg_install",
-      "pkg_remove",
-      "remotes::install_",
-      "remove.packages",
-      "renv::install",
-      "renv::rebuild",
-      "renv::remove",
-      "renv::restore",
       "utils::install.packages",
+      "remove.packages",
       "utils::remove.packages",
+      "install_github",
+      "devtools::install_github",
+      "load_all",
+      "devtools::load_all",
    };
    
    std::string inputTrimmed = boost::algorithm::trim_copy(input);
-   for (const char* command : commands)
+   BOOST_FOREACH(const char* command, commands)
    {
       if (boost::algorithm::starts_with(inputTrimmed, command))
       {

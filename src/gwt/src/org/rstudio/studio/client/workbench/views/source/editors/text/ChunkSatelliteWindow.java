@@ -1,7 +1,7 @@
 /*
  * ChunkSatelliteWindow.java
  *
- * Copyright (C) 2009-15 by RStudio, PBC
+ * Copyright (C) 2009-15 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -72,12 +72,6 @@ public class ChunkSatelliteWindow extends SatelliteWindow
       
       pEventBus_ = pEventBus;
       server_ = server;
-   }
-
-   @Override
-   public boolean supportsThemes()
-   {
-      return true;
    }
 
    @Override

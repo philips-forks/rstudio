@@ -1,7 +1,7 @@
 /*
  * NewConnectionShinyHost.java
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-16 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -18,15 +18,12 @@ package org.rstudio.studio.client.workbench.views.connections.ui;
 
 import org.rstudio.core.client.Debug;
 import org.rstudio.core.client.StringUtil;
-import org.rstudio.core.client.dom.DomUtils;
-import org.rstudio.core.client.widget.LayoutGrid;
 import org.rstudio.core.client.widget.Operation;
 import org.rstudio.core.client.widget.ProgressIndicator;
 import org.rstudio.core.client.widget.RStudioFrame;
 import org.rstudio.studio.client.RStudioGinjector;
 import org.rstudio.studio.client.application.Desktop;
 import org.rstudio.studio.client.application.events.EventBus;
-import org.rstudio.studio.client.common.dependencies.DependencyManager;
 import org.rstudio.studio.client.common.GlobalDisplay;
 import org.rstudio.studio.client.common.shiny.model.ShinyServerOperations;
 import org.rstudio.studio.client.server.ServerError;
@@ -34,21 +31,17 @@ import org.rstudio.studio.client.server.ServerRequestCallback;
 import org.rstudio.studio.client.server.Void;
 import org.rstudio.studio.client.server.remote.RResult;
 import org.rstudio.studio.client.shiny.events.ShinyFrameNavigatedEvent;
-import org.rstudio.studio.client.shiny.model.ShinyApplicationParams;
 import org.rstudio.studio.client.workbench.views.connections.events.NewConnectionDialogUpdatedEvent;
 import org.rstudio.studio.client.workbench.views.connections.model.ConnectionOptions;
 import org.rstudio.studio.client.workbench.views.connections.model.ConnectionsServerOperations;
-import org.rstudio.studio.client.workbench.views.connections.model.NewConnectionInfo;
+import org.rstudio.studio.client.workbench.views.connections.model.NewConnectionContext.NewConnectionInfo;
 
 import com.google.gwt.core.client.GWT;
-import com.google.gwt.dom.client.Document;
-import com.google.gwt.dom.client.StyleElement;
-import com.google.gwt.event.dom.client.LoadEvent;
-import com.google.gwt.event.dom.client.LoadHandler;
 import com.google.gwt.resources.client.ClientBundle;
 import com.google.gwt.resources.client.CssResource;
 import com.google.gwt.user.client.Command;
 import com.google.gwt.user.client.ui.Composite;
+import com.google.gwt.user.client.ui.Grid;
 import com.google.gwt.user.client.ui.VerticalPanel;
 import com.google.gwt.user.client.ui.Widget;
 import com.google.inject.Inject;
@@ -61,14 +54,12 @@ public class NewConnectionShinyHost extends Composite
    private void initialize(EventBus events,
                            GlobalDisplay globalDisplay,
                            ConnectionsServerOperations server,
-                           ShinyServerOperations shinyServer,
-                           DependencyManager dependencyManager)
+                           ShinyServerOperations shinyServer)
    {
       events_ = events;
       globalDisplay_ = globalDisplay;
       server_ = server;
       shinyServer_ = shinyServer;
-      dependencyManager_ = dependencyManager;
    }
 
    public void onBeforeActivate(Operation operation, NewConnectionInfo info)
@@ -85,8 +76,7 @@ public class NewConnectionShinyHost extends Composite
 
    private void terminateShinyApp(final Operation operation)
    {
-      shinyServer_.stopShinyApp(ShinyApplicationParams.ID_FOREGROUND,
-            new ServerRequestCallback<Void>()
+      shinyServer_.stopShinyApp(new ServerRequestCallback<Void>()
       {
          public void onResponseReceived(Void v)
          {
@@ -119,46 +109,39 @@ public class NewConnectionShinyHost extends Composite
    
    private void initialize(final Operation operation, final NewConnectionInfo info)
    {
-      dependencyManager_.withShiny("Connecting to " + info.getName(), new Command()
+      // initialize miniUI
+      server_.launchEmbeddedShinyConnectionUI(info.getPackage(), info.getName(), new ServerRequestCallback<RResult<Void>>()
       {
          @Override
-         public void execute()
+         public void onResponseReceived(RResult<Void> response)
          {
-            // initialize miniUI
-            server_.launchEmbeddedShinyConnectionUI(info.getPackage(), info.getName(), new ServerRequestCallback<RResult<Void>>()
-            {
-               @Override
-               public void onResponseReceived(RResult<Void> response)
-               {
-                  if (response.failed()) {
-                     showError(response.errorMessage());
-                  }
-                  else {
-                     operation.execute();
-                  }
-               }
+            if (response.failed()) {
+               showError(response.errorMessage());
+            }
+            else {
+               operation.execute();
+            }
+         }
 
-               @Override
-               public void onError(ServerError error)
-               {
-                  Debug.logError(error);
-               }
-            });
+         @Override
+         public void onError(ServerError error)
+         {
+            Debug.logError(error);
          }
       });
    }
    
    private Widget createWidget()
    {
-      VerticalPanel container = new VerticalPanel();
+      VerticalPanel container = new VerticalPanel();    
       
       // create iframe for miniUI
-      frame_ = new RStudioFrame("Shiny Mini UI");
+      frame_ = new RStudioFrame();
       frame_.setSize("100%", "140px");
 
-      container.add(frame_);
+      container.add(frame_);      
       
-      // add the code panel
+      // add the code panel     
       codePanel_ = new ConnectionCodePanel();
       codePanel_.addStyleName(RES.styles().dialogCodePanel());
       
@@ -171,7 +154,7 @@ public class NewConnectionShinyHost extends Composite
       };
       updateCodeCommand.execute();
 
-      LayoutGrid codeGrid = new LayoutGrid(1, 1);
+      Grid codeGrid = new Grid(1, 1);
       codeGrid.addStyleName(RES.styles().codeGrid());
       codeGrid.setCellPadding(0);
       codeGrid.setCellSpacing(0);
@@ -179,42 +162,6 @@ public class NewConnectionShinyHost extends Composite
       container.add(codeGrid);
      
       return container;
-   }
-
-   private void appendStyleOnLoad(final RStudioFrame frame)
-   {
-      appendStyle(frame);
-      
-      frame.addLoadHandler(new LoadHandler()
-      {      
-         @Override
-         public void onLoad(LoadEvent arg0)
-         {
-            appendStyle(frame);
-         }
-      });
-   }
-
-   private void appendStyle(RStudioFrame frame)
-   {
-      Document document = frame.getWindow().getDocument();
-      
-      String customStyle = "\n" +
-      "body {\n" +
-      "  background: none;\n" +
-      "  font-family : \"Lucida Sans\", \"DejaVu Sans\", \"Lucida Grande\", \"Segoe UI\", Verdana, Helvetica, sans-serif;\n" +
-      "  font-size : 12px;\n" +
-      "  -ms-user-select : none;\n" +
-      "  -moz-user-select : none;\n" +
-      "  -webkit-user-select : none;\n" +
-      "  user-select : none;\n" +
-      "  margin: 0;\n" +
-      "  margin-top: 7px;\n" +
-      "}\n";
-      
-      StyleElement style = document.createStyleElement();
-      style.setInnerHTML(customStyle);
-      document.getHead().appendChild(style);
    }
 
    public ConnectionOptions collectInput()
@@ -233,11 +180,10 @@ public class NewConnectionShinyHost extends Composite
    {
       String url = event.getURL();
       
-      if (Desktop.hasDesktopFrame())
-         Desktop.getFrame().setShinyDialogUrl(StringUtil.notNull(url));
+      if (Desktop.isDesktop())
+         Desktop.getFrame().setShinyDialogUrl(url);
 
-      frame_.setUrl(DomUtils.makeAbsoluteUrl(url));
-      appendStyleOnLoad(frame_);
+      frame_.setUrl(StringUtil.makeAbsoluteUrl(url));
    }
    
    @Override
@@ -276,5 +222,4 @@ public class NewConnectionShinyHost extends Composite
    private GlobalDisplay globalDisplay_;
    private ConnectionsServerOperations server_;
    private ShinyServerOperations shinyServer_;
-   private DependencyManager dependencyManager_;
 }

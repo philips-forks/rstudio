@@ -15,7 +15,7 @@
 }
 
 .newSection {
-   margin-top: 25px;
+   margin-top: 25px;	
 }
 
 .alwaysCompletePanel {
@@ -54,6 +54,10 @@
    border: solid 1px #ccc;
    border-bottom: none;
    display: none;
+}
+
+.themeInfobar > div {
+   border: none;
 }
 
 .themeInfobarShowing {

@@ -1,7 +1,7 @@
 /*
  * FileExport.java
  *
- * Copyright (C) 2009-12 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -55,11 +55,7 @@ public class FileExport
    {
       // validation: some files provided
       if  (files.size() == 0)
-      {
-         globalDisplay_.showMessage(GlobalDisplay.MSG_INFO, "No Files Selected",
-               "Please select one or more files to export.");
-         return;
-      }
+         return ;
          
       // case: single file which is not a folder 
       if ((files.size()) == 1 && !files.get(0).isDirectory())

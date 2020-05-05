@@ -1,7 +1,7 @@
 #
 # SessionConnections.R
 #
-# Copyright (C) 2009-18 by RStudio, PBC
+# Copyright (C) 2009-17 by RStudio, Inc.
 #
 # Unless you have received this program directly from RStudio pursuant
 # to the terms of a commercial license agreement with RStudio, then
@@ -215,69 +215,26 @@ options(connectionObserver = list(
    NULL
 })
 
-.rs.addFunction("connectionFilesPath", function() {
+.rs.addFunction("connectionReadSnippets", function() {
    snippetsPath <- getOption("connections-path", "/etc/rstudio/connections/")
+   snippetsFiles <- list()
 
    if (!is.null(getOption("connections-path")) && !dir.exists(snippetsPath)) {
       warning(
          "Path '", snippetsPath, "' does not exist. ",
          "Configure the connections-path option appropriately.")
    }
-
-   snippetsPath
-})
-
-.rs.addFunction("connectionOdbcInstallerPath", function() {
-   normalizePath(
-      file.path(
-         .Call("rs_connectionOdbcInstallPath"),
-         "odbc",
-         "installers"),
-      mustWork = FALSE
-   )
-})
-
-.rs.addFunction("connectionFiles", function(include, defaultPath) {
-   connectionFiles <- list()
    
-   if (!is.null(defaultPath)) {
-      connectionFiles <- list.files(defaultPath)
+   if (!is.null(snippetsPath)) {
+      snippetsFiles <- list.files(snippetsPath)
    }
 
-   files <- lapply(connectionFiles, function(file) {
-      fullPath <- file.path(defaultPath, file)
-   })
-
-   names(files) <- gsub(include, "", connectionFiles)
-
-   files <- files[grepl(include, files)]
-   sapply(files, normalizePath)
-})
-
-.rs.addFunction("connectionHasInstaller", function(name) {
-   installerName <- paste(name, "dcf", sep = ".")
-   connectionFiles <- as.character(.rs.connectionFiles("\\.dcf$", .rs.connectionOdbcInstallerPath()))
-   
-   any(basename(connectionFiles) == installerName)
-})
-
-.rs.addFunction("connectionInstallerInfo", function(name) {
-   installerName <- paste(name, "dcf", sep = ".")
-   installerFile <- as.character(.rs.connectionFiles(installerName, .rs.connectionOdbcInstallerPath()))
-
-   fileContents <- read.dcf(installerFile)
-   list(
-      name = if ("Name" %in% colnames(fileContents)) fileContents[,"Name"][[1]] else NULL,
-      version = if ("Version" %in% colnames(fileContents)) fileContents[,"Version"][[1]] else NULL
-   )
-})
-
-.rs.addFunction("connectionReadSnippets", function() {
-   snippetsPaths <- .rs.connectionFiles("\\.R$", .rs.connectionFilesPath())
-
-   snippets <- lapply(snippetsPaths, function(fullPath) {
+   snippets <- lapply(snippetsFiles, function(file) {
+      fullPath <- file.path(snippetsPath, file)
       paste(readLines(fullPath), collapse = "\n")
    })
+
+   names(snippets) <- tools::file_path_sans_ext(snippetsFiles)
 
    lapply(names(snippets), function(snippetName) {
       tryCatch({
@@ -292,82 +249,7 @@ options(connectionObserver = list(
             help = .rs.scalar(NULL),
             iconData = .rs.scalar(.Call("rs_connectionIcon", snippetName)),
             licensed = .rs.scalar(FALSE),
-            source = .rs.scalar("Snippet"),
-            hasInstaller = .rs.scalar(FALSE)
-         )
-      }, error = function(e) {
-         warning(e$message)
-         NULL
-      })
-   })
-})
-
-.rs.addFunction("connectionOdbcInstallPath", function()
-{
-   normalizePath(
-      file.path(
-         .Call("rs_connectionOdbcInstallPath"),
-         "odbc",
-         "drivers"),
-      mustWork = FALSE
-   )
-})
-
-.rs.addFunction("connectionReadInstallers", function() {
-   if (!.rs.isDesktop()) return(list())
-   
-   installerPaths <- .rs.connectionFiles("\\.dcf$", .rs.connectionOdbcInstallerPath())
-
-   installers <- lapply(installerPaths, function(fullPath) {
-      read.dcf(fullPath)
-   })
-
-   valueOrDefault <- function(name, data, default) {
-      cols <- colnames(data)
-      ifelse(name %in% cols, data[,name], default)
-   }
-
-   valueOrEmpty <- function(name, data) {
-      cols <- colnames(data)
-      ifelse(name %in% cols, data[,name], "")
-   }
-
-   lapply(names(installers), function(installerName) {
-      tryCatch({
-         installer <- installers[[installerName]]
-         cols <- colnames(installer)
-
-         warning <- gsub(
-            "\n",
-            " ",
-            valueOrDefault(
-               paste("Warning", .Platform$OS.type, sep = "."),
-               installer,
-               valueOrEmpty("Warning", installer)
-            )
-         )
-
-         list(
-            package = .rs.scalar(NULL),
-            version = .rs.scalar(NULL),
-            name = .rs.scalar(installerName),
-            type = .rs.scalar("Install"),
-            subtype = .rs.scalar("Odbc"),
-            help = .rs.scalar(NULL),
-            iconData = .rs.scalar(.Call("rs_connectionIcon", installerName)),
-            licensed = .rs.scalar("Licensed" %in% colnames(installer)),
-            source = .rs.scalar("Snippet"),
-            snippet = .rs.scalar(""),
-            # odbc installer dcf fields
-            odbcVersion = .rs.scalar(valueOrEmpty("Version", installer)),
-            odbcLicense = .rs.scalar(gsub("\n", " ", valueOrEmpty("License", installer))),
-            odbcDownload = .rs.scalar(installer[,"Download"]),
-            odbcFile = .rs.scalar(valueOrEmpty("File", installer)),
-            odbcLibrary = .rs.scalar(valueOrEmpty("Library", installer)),
-            odbcWarning = .rs.scalar(warning),
-            odbcInstallPath = .rs.scalar(.rs.connectionOdbcInstallPath()),
-            odbcMD5 = .rs.scalar(gsub("\n", " ", valueOrEmpty("MD5", installer))),
-            hasInstaller = .rs.scalar(TRUE)
+            source = .rs.scalar("Snippet")
          )
       }, error = function(e) {
          warning(e$message)
@@ -404,71 +286,6 @@ options(connectionObserver = list(
    do.call(rbind, lapply(registryEntriesValue, function(e) data.frame(e, stringsAsFactors = FALSE)))
 })
 
-.rs.addFunction("connectionReadOdbcEntry", function(drivers, uniqueDriverNames, driver) {
-   tryCatch({
-      currentDriver <- drivers[drivers$attribute == "Driver" & drivers$name == driver, ]
-      driverInstaller <- drivers[drivers$attribute == "Installer" & drivers$name == driver, ]
-      driverId <- gsub(.rs.connectionOdbcRStudioDriver(), "", driver)
-
-      basePath <- sub(paste(tolower(driver), ".*$", sep = ""), "", currentDriver$value)
-      snippetsFile <- file.path(
-         basePath,
-         tolower(driver),
-         "snippets",
-         paste(tolower(driverId), ".R", sep = "")
-      )
-      
-      if (identical(file.exists(snippetsFile), TRUE)) {
-         snippet <- paste(readLines(snippetsFile), collapse = "\n")
-      }
-      else {
-         snippet <- paste(
-            "library(DBI)\n",
-            "con <- dbConnect(odbc::odbc(), .connection_string = \"", 
-            "Driver={", driver, "};${1:Parameters}\", timeout = 10)",
-            sep = "")
-      }
-
-      licenseFile <- file.path(dirname(currentDriver$value), "license.lock")
-
-      iconData <- .Call("rs_connectionIcon", driverId)
-      if (nchar(iconData) == 0)
-         iconData <- .Call("rs_connectionIcon", "ODBC")
-
-      hasInstaller <- identical(driverInstaller$value, "RStudio")
-      warningMessage <- NULL
-
-      if (hasInstaller) {
-         installerVersion <- .rs.connectionInstallerInfo(driverId)$version
-
-         currentVersion <- drivers[drivers$attribute == "Version" & drivers$name == driver, ]
-         if (nrow(currentVersion) == 1) {
-            if (compareVersion(installerVersion, currentVersion$value) > 0) {
-               warningMessage <- "A new driver version is available, to upgrade, uninstall and then reinstall."
-            }
-         }
-      }
-
-      list(
-         package = .rs.scalar(NULL),
-         version = .rs.scalar(NULL),
-         name = .rs.scalar(driver),
-         type = .rs.scalar("Snippet"),
-         snippet = .rs.scalar(snippet),
-         help = .rs.scalar(NULL),
-         iconData = .rs.scalar(iconData),
-         licensed = .rs.scalar(identical(file.exists(licenseFile), TRUE)),
-         source = .rs.scalar("ODBC"),
-         hasInstaller = .rs.scalar(hasInstaller),
-         warning = .rs.scalar(warningMessage),
-         installer = .rs.scalar(driverInstaller$value)
-      )
-   }, error = function(e) {
-      warning(e$message)
-      NULL
-   })
-})
-
 .rs.addFunction("connectionReadOdbc", function() {
    if (.rs.isPackageInstalled("odbc")) {
       drivers <- data.frame()
@@ -484,7 +301,49 @@ options(connectionObserver = list(
       uniqueDriverNames <- unique(drivers$name)
 
       lapply(uniqueDriverNames, function(driver) {
-         .rs.connectionReadOdbcEntry(drivers, uniqueDriverNames, driver)
+         tryCatch({
+            currentDriver <- drivers[drivers$attribute == "Driver" & drivers$name == driver, ]
+
+            basePath <- sub(paste(tolower(driver), ".*$", sep = ""), "", currentDriver$value)
+            snippetsFile <- file.path(
+               basePath,
+               tolower(driver),
+               "snippets",
+               paste(tolower(driver), ".R", sep = "")
+            )
+            
+            if (identical(file.exists(snippetsFile), TRUE)) {
+               snippet <- paste(readLines(snippetsFile), collapse = "\n")
+            }
+            else {
+               snippet <- paste(
+                  "library(DBI)\n",
+                  "con <- dbConnect(odbc::odbc(), .connection_string = \"", 
+                  "Driver={", driver, "};${1:Parameters}\")",
+                  sep = "")
+            }
+
+            licenseFile <- file.path(dirname(currentDriver$value), "license.lock")
+
+            iconData <- .Call("rs_connectionIcon", driver)
+            if (nchar(iconData) == 0)
+               iconData <- .Call("rs_connectionIcon", "ODBC")
+
+            list(
+               package = .rs.scalar(NULL),
+               version = .rs.scalar(NULL),
+               name = .rs.scalar(driver),
+               type = .rs.scalar("Snippet"),
+               snippet = .rs.scalar(snippet),
+               help = .rs.scalar(NULL),
+               iconData = .rs.scalar(iconData),
+               licensed = .rs.scalar(identical(file.exists(licenseFile), TRUE)),
+               source = .rs.scalar("ODBC")
+            )
+         }, error = function(e) {
+            warning(e$message)
+            NULL
+         })
       })
    }
 })
@@ -539,8 +398,7 @@ options(connectionObserver = list(
             help = .rs.scalar(con$help),
             iconData = .rs.scalar(iconData),
             licensed = .rs.scalar(FALSE),
-            source = .rs.scalar("Package"),
-            hasInstaller = .rs.scalar(FALSE)
+            source = .rs.scalar("Package")
          )
       }, error = function(e) {
          warning(e$message)
@@ -575,7 +433,7 @@ options(connectionObserver = list(
                "library(DBI)\n",
                "con <- dbConnect(odbc::odbc(), \"${1:Data Source Name=", 
                dataSource$name,
-               "}\", timeout = 10)",
+               "}\")",
                sep = "")
 
             iconData <- .Call("rs_connectionIcon", dataSource$name)
@@ -591,8 +449,7 @@ options(connectionObserver = list(
                help = .rs.scalar(NULL),
                iconData = .rs.scalar(iconData),
                licensed = .rs.scalar(FALSE),
-               source = .rs.scalar("DSN"),
-               hasInstaller = .rs.scalar(FALSE)
+               source = .rs.scalar("DSN")
             )
          }, error = function(e) {
             warning(e$message)
@@ -602,94 +459,41 @@ options(connectionObserver = list(
    }
 })
 
-.rs.addFunction("connectionReadPackageInstallers", function() {
+.rs.addJsonRpcHandler("get_new_connection_context", function() {
+   connectionList <- c(
+      list(),
+      .rs.connectionReadSnippets(),  # add snippets to connections list
+      .rs.connectionReadDSN(),       # add ODBC DSNs to connections list
+      .rs.connectionReadPackages(),  # add packages to connections list
+      .rs.connectionReadOdbc()       # add ODBC drivers to connections list
+   )
+   
+   connectionList <- Filter(function(e) !is.null(e), connectionList)
 
    supportedNotInstsalled <- Filter(function(e) {
       !.rs.isPackageVersionInstalled(e$package, e$version)
    }, .rs.connectionSupportedPackages())
 
-   lapply(supportedNotInstsalled, function(supportedPackage) {
+   connectionList <- c(connectionList, lapply(supportedNotInstsalled, function(supportedPackage) {
       iconData <- .Call("rs_connectionIcon", supportedPackage$name)
       list(
          package = .rs.scalar(supportedPackage$package),
          version = .rs.scalar(supportedPackage$version),
          name = .rs.scalar(supportedPackage$name),
          type = .rs.scalar("Install"),
-         subtype = .rs.scalar("Package"),
          newConnection = .rs.scalar(NULL),
          snippet = .rs.scalar(NULL),
          help = .rs.scalar(NULL),
          iconData = .rs.scalar(iconData),
-         licensed = .rs.scalar(FALSE),
-         hasInstaller = .rs.scalar(FALSE)
+         licensed = .rs.scalar(FALSE)
       )
-   })
-})
-
-.rs.addJsonRpcHandler("get_new_connection_context", function() {
-   connectionList <- c(
-      list(),
-      .rs.connectionReadSnippets(),         # add snippets to connections list
-      .rs.connectionReadDSN(),              # add ODBC DSNs to connections list
-      .rs.connectionReadPackages(),         # add packages to connections list
-      .rs.connectionReadOdbc(),             # add ODBC drivers to connections list
-      .rs.connectionReadInstallers(),       # add installers to connections list
-      .rs.connectionReadPackageInstallers() # add package installers to connection list
-   )
-   
-   connectionList <- Filter(function(e) !is.null(e), connectionList)
-
-   # remove duplicate names, in order
-   connectionNames <- list()
-   for (i in seq_along(connectionList)) {
-      entryName <- connectionList[[i]]$name
-      if (!is.null(connectionNames[[entryName]])) {
-         existingDriver <- connectionNames[[entryName]]
-         withRStudioName <- paste(entryName, .rs.connectionOdbcRStudioDriver(), sep = "")
-
-         if (identical(as.character(connectionList[[i]]$type), "Install") &&
-             !identical(as.character(existingDriver$installer), "RStudio") &&
-             is.null(connectionNames[[withRStudioName]])) {
-            connectionList[[i]]$name <- entryName <- .rs.scalar(withRStudioName)
-         }
-         else {
-            connectionList[[i]]$remove <- TRUE
-         }
-      }
-
-      if (is.null(connectionNames[[entryName]])) {
-         connectionNames[[entryName]] <- connectionList[[i]]
-      }
-   }
-   
-   connectionList <- Filter(function(e) !identical(e$remove, TRUE), connectionList)
+   }))
 
    context <- list(
       connectionsList = unname(connectionList)
    )
 
    context
-})
-
-.rs.addJsonRpcHandler("get_new_odbc_connection_context", function(name, retries = 1) {
-   singleEntryFilter <- function(e) {
-      identical(as.character(e$name), name)
-   }
-
-   connectionContext <- Filter(singleEntryFilter, .rs.connectionReadOdbc())
-
-   while (length(connectionContext) != 1 && (retries <- retries - 1) >= 0)
-      Sys.sleep(1)
-
-   if (length(connectionContext) != 1)
-      list(
-         error = .rs.scalar(
-            paste("The", name, "driver is not registered.")
-         )
-      )
-   else {
-      connectionContext[[1]]
-   }
 })
 
 .rs.addFunction("embeddedViewer", function(url)
@@ -699,7 +503,7 @@ options(connectionObserver = list(
 
 .rs.addJsonRpcHandler("launch_embedded_shiny_connection_ui", function(package, name)
 {
-   if (package == "sparklyr" && packageVersion("sparklyr") <= "0.5.4") {
+   if (package == "sparklyr" & packageVersion("sparklyr") <= "0.5.4") {
       return(.rs.error(
          "sparklyr ", packageVersion("sparklyr"), " does not support this functionality. ",
          "Please upgrade to sparklyr 0.5.5 or newer."
@@ -729,7 +533,12 @@ options(connectionObserver = list(
       sep = ""
    )
 
-   .rs.api.sendToConsole(consoleCommand, echo = FALSE, execute = TRUE, focus = FALSE)
+   .rs.enqueClientEvent("send_to_console", list(
+      "code" = .rs.scalar(consoleCommand),
+      "execute" = .rs.scalar(TRUE),
+      "focus" = .rs.scalar(FALSE),
+      "animate" = .rs.scalar(FALSE)
+   ))
 
    .rs.success()
 })
@@ -771,132 +580,4 @@ options(connectionObserver = list(
 .rs.addJsonRpcHandler("connection_add_package", function(package) {
    extensionPath <- system.file("rstudio/connections.dcf", package = package)
    invisible(.Call("rs_connectionAddPackage", package, extensionPath))
-})
-
-.rs.addFunction("connectionInstallerCommand", function(driverName, installationPath) {
-   connectionContext <- Filter(function(e) {
-      identical(
-         as.character(e$name),
-         gsub(.rs.connectionOdbcRStudioDriver(), "", driverName)
-      )
-   }, .rs.connectionReadInstallers())[[1]]
-
-   placeholder <-  connectionContext$odbcFile
-   driverUrl <- connectionContext$odbcDownload
-   libraryPattern <- connectionContext$odbcLibrary
-   targetMD5 <- connectionContext$odbcMD5
-   driverVersion <- connectionContext$odbcVersion
-
-   if (any(grepl("'", c(driverName, driverUrl, placeholder, installationPath, libraryPattern, targetMD5, driverVersion)))) {
-      stop("Single quote can't be used in installer definitions.")
-   }
-
-   paste(
-      ".rs.odbcBundleInstall(",
-      "name = '", driverName, "', ",
-      "url = '", driverUrl, "', ",
-      "placeholder = '", placeholder, "', ",
-      "installPath = '", normalizePath(installationPath, winslash = "/"), "', ",
-      "libraryPattern = '", libraryPattern, "', ",
-      "md5 = '", targetMD5, "', ",
-      "version = '", driverVersion, "'",
-      ")",
-      sep = ""
-   )
-})
-
-.rs.addFunction("connectionUnregisterOdbcinstDriver", function(driverName) {
-   odbcinstPath <- .rs.odbcBundleOdbcinstPath()
-   odbcinstData <- .rs.odbcBundleReadIni(odbcinstPath)
-
-   if (driverName %in% names(odbcinstData)) {
-      odbcinstData[[driverName]] <- NULL
-
-      .rs.odbcBundleWriteIni(odbcinstPath, odbcinstData)
-   }
-})
-
-.rs.addFunction("connectionUnregisterWindowsDriver", function(driverName) {
-   .rs.odbcBundleRegistryRemove(
-      list(
-         list(
-            path = file.path("SOFTWARE", "ODBC", "ODBCINST.INI", "ODBC Drivers", fsep = "\\"),
-            key = driverName
-         ),
-         list(
-            path = file.path("SOFTWARE", "ODBC", "ODBCINST.INI", driverName, fsep = "\\")
-         )
-      )
-   )
-})
-
-.rs.addJsonRpcHandler("uninstall_odbc_driver", function(driverName) {
-   tryCatch({
-      defaultInstallPath <- file.path(.rs.connectionOdbcInstallPath(), tolower(driverName))
-      defaultInstallExists <- dir.exists(defaultInstallPath)
-
-      # delete the driver
-      if (defaultInstallExists) {
-         unlink(defaultInstallPath, recursive = TRUE)
-      }
-
-      # unregister driver
-      if (identical(tolower(Sys.info()["sysname"][[1]]), "windows")) {
-         .rs.connectionUnregisterWindowsDriver(driverName)
-      }
-      else {
-         .rs.connectionUnregisterOdbcinstDriver(driverName)
-      }
-
-      # if driver was not installed in default location
-      if (!defaultInstallExists) {
-         list(
-            message = .rs.scalar(
-               paste(
-                  "The", driverName, "driver was not found in the default installation path;",
-                  "if appropriate, please manually remove this driver."
-               )
-            )
-         )
-      }
-      else {
-         list(
-         )
-      }
-   }, error = function(e) {
-      list(
-         error = .rs.scalar(e$message)
-      )
-   })
-})
-
-.rs.addJsonRpcHandler("update_odbc_installers", function() {
-   installerUrl <- getOption("connections-installer")
-   connectionsWarning <- NULL
-
-   if (!.rs.isDesktop()) return(list())
-
-   # once per session, attempt to download driver updates
-   if (!is.null(installerUrl) && nchar(installerUrl) > 0) {
-      installerHostName <- gsub("https?://|/[^:].+$", "", installerUrl)
-
-      connectionsWarning <- tryCatch({
-         installersFile <- file.path(tempdir(), basename(installerUrl))
-         download.file(installerUrl, installersFile, quiet = TRUE)
-
-         untar(installersFile, exdir = .rs.connectionOdbcInstallerPath())
-
-         NULL
-      }, error = function(e) {
-         paste(
-            "Could not retrieve driver updates from ",
-            installerHostName,
-            sep = ""
-         )
-      })
-   }
-
-   list(
-      warning = connectionsWarning
-   )
 })

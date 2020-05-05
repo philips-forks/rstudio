@@ -1,7 +1,7 @@
 /*
  * SessionBuildErrors.hpp
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -20,9 +20,10 @@
 #include <vector>
 
 #include <boost/function.hpp>
+#include <boost/foreach.hpp>
 
-#include <shared_core/FilePath.hpp>
-#include <shared_core/json/Json.hpp>
+#include <core/FilePath.hpp>
+#include <core/json/Json.hpp>
 
 #include <session/SessionModuleContext.hpp>
 
@@ -51,7 +52,7 @@ public:
    {
       using namespace module_context;
       std::vector<SourceMarker> allErrors;
-      for (const CompileErrorParser& parser : parsers_)
+      BOOST_FOREACH(const CompileErrorParser& parser, parsers_)
       {
          std::vector<SourceMarker> errors = parser(output);
          std::copy(errors.begin(), errors.end(), std::back_inserter(allErrors));
@@ -68,9 +69,6 @@ CompileErrorParser gccErrorParser(const core::FilePath& basePath);
 
 CompileErrorParser rErrorParser(const core::FilePath& basePath);
 
-CompileErrorParser testthatErrorParser(const core::FilePath& basePath);
-
-CompileErrorParser shinytestErrorParser(const core::FilePath& basePath, const core::FilePath& rdsPath);
 
 } // namespace build
 } // namespace modules

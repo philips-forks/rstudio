@@ -1,7 +1,7 @@
 /*
  * Macros.hpp
  *
- * Copyright (C) 2009-12 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -19,25 +19,11 @@
 #include <iostream>
 #include <iomanip>
 
-#define RS_CALL_ONCE()                                                         \
-   do                                                                          \
-   {                                                                           \
-      static bool s_once = false;                                              \
-      if (s_once) return;                                                      \
-      s_once = true;                                                           \
-   } while (0)
-
-/* Work around Xcode indentation rules */
-#define RS_BEGIN_NAMESPACE(__X__) namespace __X__ {
-#define RS_END_NAMESPACE(__X__) }
-
 /* Compatibility Macros */
-#if defined(_MSVC_LANG) && _MSVC_LANG >= 201103L
-# define MOVE_THREAD(t) (std::move(t))
-#elif __cplusplus < 201103L
-# define MOVE_THREAD(t) (t.move())
+#if __cplusplus < 201103L
+# define MOVE_THREAD(t) t.move()
 #else
-# define MOVE_THREAD(t) (std::move(t))
+# define MOVE_THREAD(t) std::move(t)
 #endif
 
 /* Utility Macros */
@@ -46,8 +32,8 @@
 # define LIKELY(x)   __builtin_expect(!!(x), 1)
 # define UNLIKELY(x) __builtin_expect(!!(x), 0)
 #else
-# define LIKELY(x)   (x)
-# define UNLIKELY(x) (x)
+# define LIKELY(x)   __builtin_expect(!!(x), 1)
+# define UNLIKELY(x) __builtin_expect(!!(x), 0)
 #endif
 
 /* Logging Macros */

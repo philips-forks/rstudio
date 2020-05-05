@@ -1,7 +1,7 @@
 /*
  * System.hpp
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-17 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -18,16 +18,11 @@
 
 
 #if defined(_WIN32)
-#include <windows.h>
+#include <windef.h>
 typedef DWORD PidType;
 #else  // UNIX
 #include <sys/types.h>
-#include <sys/resource.h>
-
-#include <shared_core/system/PosixSystem.hpp>
-
 typedef pid_t PidType;
-typedef uid_t UidType;
 #endif
 
 #include <string>
@@ -38,11 +33,10 @@ typedef uid_t UidType;
 #include <boost/utility.hpp>
 #include <boost/shared_ptr.hpp>
 #include <boost/function.hpp>
-#include <boost/date_time.hpp>
 
 #include <core/Log.hpp>
-#include <shared_core/Error.hpp>
-#include <shared_core/FilePath.hpp>
+#include <core/Error.hpp>
+#include <core/FilePath.hpp>
 
 #include <core/system/Types.hpp>
 
@@ -52,6 +46,14 @@ namespace core {
 class FileInfo;
 
 namespace system {
+
+enum LogLevel 
+{
+   kLogLevelError = 0,
+   kLogLevelWarning = 1,
+   kLogLevelInfo = 2,
+   kLogLevelDebug = 3
+};
 
 // portable realPath
 Error realPath(const FilePath& filePath, FilePath* pRealPath);
@@ -63,35 +65,54 @@ void addToSystemPath(const FilePath& path, bool prepend = false);
 #ifndef _WIN32
 Error closeAllFileDescriptors();
 Error closeNonStdFileDescriptors();
-
-// retrieves a list of file descriptors opened by the specified child process
-// and sends each fd to the child via pipe so that the child can signal-safely
-// close the fds
-Error closeChildFileDescriptorsFrom(pid_t childPid, int pipeFd, uint32_t fdStart);
-
-// gets the list of open fds for the current process
-Error getOpenFds(std::vector<uint32_t>* pFds);
-
-// gets the list of open fds for the specified process
-Error getOpenFds(pid_t pid, std::vector<uint32_t>* pFds);
-
-namespace signal_safe {
-
-// thread and signal-safe version of closeNonStdFileDescriptors()
-void closeNonStdFileDescriptors(rlim_t fdLimit);
-
-// close file descriptors given to us by our parent process
-// must be paired with a call to closeChildFileDescriptorsFrom in the parent
-void closeFileDescriptorsFromParent(int pipeFd, uint32_t fdStart, rlim_t fdLimit);
-
-int clearSignalMask();
-
-} // namespace signal_safe
-
 void closeStdFileDescriptors();
 void attachStdFileDescriptorsToDevNull();
 void setStandardStreamsToDevNull();
 
+// Handles EINTR retrying. Only for use with functions that return -1 on
+// error and set errno.
+template <typename T>
+T posixCall(const boost::function<T()>& func)
+{
+   const T ERR = -1;
+
+   T result;
+   while (true)
+   {
+      result = func();
+
+      if (result == ERR && errno == EINTR)
+         continue;
+      else
+         break;
+   }
+
+   return result;
+}
+
+// Handles EINTR retrying and error construction (also optionally returns
+// the result as an out parameter). Only for use with functions that return
+// -1 on error and set errno.
+template <typename T>
+Error posixCall(const boost::function<T()>& func,
+                       const ErrorLocation& location,
+                       T *pResult = NULL)
+{
+   const T ERR = -1;
+
+   // make the call
+   T result = posixCall<T>(func);
+
+   // set out param (if requested)
+   if (pResult)
+      *pResult = result;
+
+   // return status
+   if (result == ERR)
+      return systemError(errno, location);
+   else
+      return Success();
+}
 
 // Handles EINTR retrying and error logging. Only for use with functions
 // that return -1 on error and set errno.
@@ -99,7 +120,7 @@ template <typename T>
 void safePosixCall(const boost::function<T()>& func,
                           const ErrorLocation& location)
 {
-   Error error = posix::posixCall<T>(func, location, nullptr);
+   Error error = posixCall<T>(func, location, NULL);
    if (error)
       LOG_ERROR(error);
 }
@@ -114,6 +135,7 @@ bool isWin64();
 // Is calling process 64-bit?
 bool isCurrentProcessWin64();
 
+bool isVistaOrLater();
 bool isWin7OrLater();
 Error makeFileHidden(const FilePath& path);
 Error copyMetafileToClipboard(const FilePath& path);
@@ -134,7 +156,7 @@ public:
    }
 
    virtual ~CloseHandleOnExitScope();
-   void detach() { pHandle_ = nullptr; }
+   void detach() { pHandle_ = NULL; }
 private:
    HANDLE* pHandle_;
    ErrorLocation location_;
@@ -143,33 +165,18 @@ private:
 // set $HOME to $USERPROFILE
 void setHomeToUserProfile(core::system::Options* pChildEnv);
 
-// Folder for per-machine configuration data
-FilePath systemSettingsPath(const std::string& appName, bool create);
-
-#endif // WIN32
+#endif
 
 void initHook();
+// initialization (not thread safe, call from main thread at app startup)  
+void initializeSystemLog(const std::string& programIdentity, int logLevel);
+void initializeStderrLog(const std::string& programIdentity, int logLevel);
+void initializeLog(const std::string& programIdentity,
+                   int logLevel,
+                   const FilePath& logDir);
 
-// initialization
-Error initializeSystemLog(const std::string& programIdentity,
-                          log::LogLevel logLevel,
-                          bool enableConfigReload = true);
-
-Error initializeStderrLog(const std::string& programIdentity,
-                          log::LogLevel logLevel,
-                          bool enableConfigReload = true);
-
-Error initializeLog(const std::string& programIdentity,
-                    log::LogLevel logLevel,
-                    const FilePath& logDir,
-                    bool enableConfigReload = true);
-
-void initializeLogConfigReload();
-
-// common initialization functions - do not invoke directly
-Error initLog();
-Error reinitLog();
-
+Error setExitFunction(void (*exitFunction) (void));
+   
 // exit
 int exitFailure(const Error& error, const ErrorLocation& loggedFromLocation);
 int exitFailure(const std::string& errMsg,
@@ -228,33 +235,14 @@ void sendSignalToSelf(SignalType signal);
 
 // user info
 std::string username();
-
 FilePath userHomePath(std::string envOverride = std::string());
 FilePath userSettingsPath(const FilePath& userHomeDirectory,
-                          const std::string& appName,
-                          bool ensureDirectory = true /* create directory */);
+                          const std::string& appName);
 unsigned int effectiveUserId();
-bool effectiveUserIsRoot();
 bool currentUserIsPrivilleged(unsigned int minimumUserId);
 
 // log
-void log(log::LogLevel level,
-         const char* message,
-         const std::string&logSection = std::string());
-
-void log(log::LogLevel level,
-         const std::string& message,
-         const std::string& logSection = std::string());
-
-void log(log::LogLevel level,
-         const boost::function<std::string()>& action,
-         const std::string& logSection = std::string());
-
-const char* logLevelToStr(log::LogLevel level);
-
-log::LoggerType loggerType(const std::string& logSection = "");
-
-log::LogLevel lowestLogLevel();
+void log(LogLevel level, const std::string& message) ;
 
 // filesystem
 bool isHiddenFile(const FilePath& filePath) ;
@@ -272,7 +260,6 @@ std::string generateShortenedUuid();
 // process info
 
 PidType currentProcessId();
-std::string currentProcessPidStr();
 
 Error executablePath(int argc, const char * argv[],
                      FilePath* pExecutablePath);
@@ -304,40 +291,7 @@ std::vector<SubprocInfo> getSubprocesses(PidType pid);
 // if unable to determine cwd
 FilePath currentWorkingDir(PidType pid);
 
-struct ProcessInfo
-{
-   ProcessInfo() : pid(0), ppid(0), pgrp(0) {}
-   PidType pid;
-   PidType ppid;
-   PidType pgrp;
-   std::string username;
-   std::string exe;
-   std::string state;
-   std::vector<std::string> arguments;
-
-#if !defined _WIN32 && !defined __APPLE__
-   core::Error creationTime(boost::posix_time::ptime* pCreationTime) const;
-#endif
-};
-
-// simple encapsulation of parent-child relationship of processes
-struct ProcessTreeNode
-{
-   boost::shared_ptr<ProcessInfo> data;
-   std::vector<boost::shared_ptr<ProcessTreeNode> > children;
-};
-
-// process tree, indexed by pid
-typedef std::map<PidType, boost::shared_ptr<ProcessTreeNode> > ProcessTreeT;
-
 Error terminateChildProcesses();
-
-void createProcessTree(const std::vector<ProcessInfo>& processes,
-                       ProcessTreeT *pOutTree);
-
-void getChildren(const boost::shared_ptr<ProcessTreeNode>& node,
-                 std::vector<ProcessInfo>* pOutChildren,
-                 int depth = 0);
    
 } // namespace system
 } // namespace core 

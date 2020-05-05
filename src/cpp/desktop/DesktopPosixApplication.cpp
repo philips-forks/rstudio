@@ -1,7 +1,7 @@
 /*
  * DesktopPosixApplication.cpp
  *
- * Copyright (C) 2009-18 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -15,8 +15,11 @@
 
 #include "DesktopPosixApplication.hpp"
 
-#include <shared_core/FilePath.hpp>
+#include <vector>
 
+#include <core/FilePath.hpp>
+
+#include <QProcess>
 #include <QFileOpenEvent>
 
 #include "DesktopOptions.hpp"
@@ -36,7 +39,7 @@ bool PosixApplication::event(QEvent* pEvent)
       // get filename
       QString filename = static_cast<QFileOpenEvent*>(pEvent)->file();
 
-      if (activationWindow() == nullptr)
+      if (activationWindow() == NULL)
       {
          // if we don't yet have an activation window then this is a startup
          // request -- save it so DesktopMain can pull it out later
@@ -56,11 +59,11 @@ bool PosixApplication::event(QEvent* pEvent)
          // FileOpen back to existing instances (e.g. via DDE)
 
          FilePath filePath(filename.toUtf8().constData());
-         if (filePath.exists() && filePath.getExtensionLowerCase() == ".rproj")
+         if (filePath.exists() && filePath.extensionLowerCase() == ".rproj")
          {
             std::vector<std::string> args;
-            args.push_back(filePath.getAbsolutePath());
-            pAppLauncher_->launchRStudio(args);
+            args.push_back(filePath.absolutePath());
+            launchRStudio(args);
          }
          else
          {

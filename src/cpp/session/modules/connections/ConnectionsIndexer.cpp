@@ -1,7 +1,7 @@
 /*
  * SessionConnectionsWorker.cpp
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-16 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -16,13 +16,14 @@
 #include <core/Macros.hpp>
 #include <core/Algorithm.hpp>
 #include <core/Debug.hpp>
-#include <shared_core/Error.hpp>
+#include <core/Error.hpp>
 #include <core/Exec.hpp>
-#include <shared_core/FilePath.hpp>
+#include <core/FilePath.hpp>
 #include <core/FileSerializer.hpp>
 #include <core/text/DcfParser.hpp>
 
 #include <boost/regex.hpp>
+#include <boost/foreach.hpp>
 #include <boost/bind.hpp>
 #include <boost/range/adaptor/map.hpp>
 #include <boost/system/error_code.hpp>
@@ -159,7 +160,7 @@ public:
    {
       json::Object object;
       
-      for (const std::string& key : connections_ | boost::adaptors::map_keys)
+      BOOST_FOREACH(const std::string& key, connections_ | boost::adaptors::map_keys)
       {
          object[key] = connections_.at(key).toJson();
       }
@@ -223,7 +224,7 @@ class ConnectionsWorker : public ppe::Worker
       if (isDevtoolsLoadAllActive())
       {
          FilePath pkgPath = projects::projectContext().buildTargetPath();
-         FilePath extensionPath = pkgPath.completeChildPath("inst/rstudio/connections.dcf");
+         FilePath extensionPath = pkgPath.childPath("inst/rstudio/connections.dcf");
          if (extensionPath.exists())
          {
             std::string pkgName = projects::projectContext().packageInfo().name();
@@ -236,7 +237,7 @@ class ConnectionsWorker : public ppe::Worker
 
       // handle pending continuations
       json::Object registryJson = connectionsRegistry().toJson();
-      for (json::JsonRpcFunctionContinuation continuation : continuations_)
+      BOOST_FOREACH(json::JsonRpcFunctionContinuation continuation, continuations_)
       {
          json::JsonRpcResponse response;
          response.setResult(registryJson);

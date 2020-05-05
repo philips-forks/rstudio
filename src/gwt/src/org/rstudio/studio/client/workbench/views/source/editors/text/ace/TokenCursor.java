@@ -1,7 +1,7 @@
 /*
  * TokenCursor.java
  *
- * Copyright (C) 2014 by RStudio, PBC
+ * Copyright (C) 2014 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -219,7 +219,7 @@ public class TokenCursor extends JavaScriptObject
    public final boolean moveToActiveFunction()
    {
       TokenCursor clone = cloneCursor();
-      if (clone.moveToNextToken() && clone.currentValue() == "(")
+      if (clone.moveToNextToken() && clone.currentValue().equals("("))
          return true;
       
       clone = cloneCursor();

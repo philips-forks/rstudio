@@ -1,7 +1,7 @@
 /*
  * RUtil.cpp
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -16,15 +16,13 @@
 
 #include <r/RUtil.hpp>
 
-#include <gsl/gsl>
-
 #include <boost/algorithm/string/replace.hpp>
 #include <boost/regex.hpp>
 
 #include <core/Algorithm.hpp>
-#include <shared_core/FilePath.hpp>
+#include <core/FilePath.hpp>
 #include <core/StringUtils.hpp>
-#include <shared_core/Error.hpp>
+#include <core/Error.hpp>
 #include <core/RegexUtils.hpp>
 
 #include <r/RExec.hpp>
@@ -33,18 +31,6 @@
 
 #ifndef CP_ACP
 # define CP_ACP 0
-#endif
-
-#ifdef _WIN32
-
-#include <Windows.h>
-
-extern "C" {
-__declspec(dllimport) unsigned int localeCP;
-}
-
-unsigned int s_codepage = 0;
-
 #endif
 
 using namespace rstudio::core;
@@ -93,26 +79,17 @@ bool hasCapability(const std::string& capability)
 
 std::string rconsole2utf8(const std::string& encoded)
 {
-#ifndef _WIN32
-   return encoded;
-#else
-   unsigned int codepage = localeCP;
+   int codepage = CP_ACP;
+#ifdef _WIN32
+   Error error = r::exec::evaluateString("base::l10n_info()$codepage", &codepage);
+   if (error)
+      LOG_ERROR(error);
+#endif
+   boost::regex utf8("\x02\xFF\xFE(.*?)(\x03\xFF\xFE|\\')");
 
-   // NOTE: On Windows with GUIs, when R attempts to write text to
-   // the console, it will surround UTF-8 text with 3-byte escapes:
-   //
-   //    \002\377\376 <text> \003\377\376
-   //
-   // strangely, we see these escapes around text that is not UTF-8
-   // encoded but rather is encoded according to the active locale.
-   // extract those pieces of text (discarding the escapes) and
-   // convert to UTF-8. (still not exactly sure what the cause of this
-   // behavior is; perhaps there is an extra UTF-8 <-> system conversion
-   // happening somewhere in the pipeline?)
    std::string output;
    std::string::const_iterator pos = encoded.begin();
    boost::smatch m;
-   boost::regex utf8("\x02\xFF\xFE(.*?)(\x03\xFF\xFE)");
    while (pos != encoded.end() && regex_utils::search(pos, encoded.end(), m, utf8))
    {
       if (pos < m[0].first)
@@ -124,7 +101,6 @@ std::string rconsole2utf8(const std::string& encoded)
       output.append(string_utils::systemToUtf8(std::string(pos, encoded.end()), codepage));
 
    return output;
-#endif
 }
 
 core::Error iconvstr(const std::string& value,
@@ -151,7 +127,7 @@ core::Error iconvstr(const std::string& value,
 
    void* handle = ::Riconv_open(to.c_str(), from.c_str());
    if (handle == (void*)(-1))
-      return systemError(R_ERRNO, ERROR_LOCATION);
+      return systemError(errno, ERROR_LOCATION);
 
    const char* pIn = value.data();
    size_t inBytes = value.size();
@@ -169,24 +145,22 @@ core::Error iconvstr(const std::string& value,
 
       if (result == (size_t)(-1))
       {
-         if ((R_ERRNO == EILSEQ || R_ERRNO == EINVAL) && allowSubstitution)
+         if ((errno == EILSEQ || errno == EINVAL) && allowSubstitution)
          {
             output.push_back('?');
             pIn++;
             inBytes--;
          }
-         else if (R_ERRNO == E2BIG && pInOrig != pIn)
+         else if (errno == E2BIG && pInOrig != pIn)
          {
             continue;
          }
          else
          {
             ::Riconv_close(handle);
-            Error error = systemError(R_ERRNO, ERROR_LOCATION);
+            Error error = systemError(errno, ERROR_LOCATION);
             error.addProperty("str", value);
-            error.addProperty("len", gsl::narrow_cast<int>(value.length()));
-            error.addProperty("from", from);
-            error.addProperty("to", to);
+            error.addProperty("len", value.length());
             return error;
          }
       }
@@ -250,61 +224,6 @@ bool isWindowsOnlyFunction(const std::string& name)
 {
    static const std::set<std::string> s_rWindowsOnly = makeWindowsOnlyFunctions();
    return core::algorithm::contains(s_rWindowsOnly, name);
-}
-
-bool isPackageAttached(const std::string& packageName)
-{
-   SEXP namespaces = R_NilValue;
-   r::sexp::Protect protect;
-   Error error = r::exec::RFunction("search").call(&namespaces, &protect);
-   if (error)
-   {
-      // not fatal; we'll just presume package is not on the path
-      LOG_ERROR(error);
-      return false;
-   }
-   
-   std::string fullPackageName = "package:";
-   fullPackageName += packageName;
-   int len = r::sexp::length(namespaces);
-   for (int i = 0; i < len; i++)
-   {
-      std::string ns = r::sexp::safeAsString(STRING_ELT(namespaces, i), "");
-      if (ns == fullPackageName) 
-      {
-         return true;
-      }
-   }
-   return false;
-}
-
-void synchronizeLocale()
-{
-#ifdef _WIN32
-
-   // bail if the codepages are still in sync
-   if (s_codepage == localeCP)
-      return;
-
-   // ask R what the current locale is and then update
-   std::string rLocale;
-   Error error = r::exec::RFunction("base:::Sys.getlocale")
-         .addParam("LC_ALL")
-         .call(&rLocale);
-   if (error)
-      LOG_ERROR(error);
-
-   if (!rLocale.empty())
-   {
-      std::string locale = ::setlocale(LC_ALL, nullptr);
-      if (locale != rLocale)
-         ::setlocale(LC_ALL, rLocale.c_str());
-   }
-
-   // save the updated codepage
-   s_codepage = localeCP;
-
-#endif
 }
 
 } // namespace util

@@ -1,7 +1,7 @@
 /*
  * SourceMarkerList.java
  *
- * Copyright (C) 2009-12 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -129,7 +129,7 @@ public class SourceMarkerList extends Composite
          if (firstErrorIndex == -1 && error.getType() == SourceMarker.ERROR)
             firstErrorIndex = i;
          
-         if (error.getPath() != targetFile)
+         if (!error.getPath().equals(targetFile))
             showFileHeaders = true;
          
          errorList.add(error);

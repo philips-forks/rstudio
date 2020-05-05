@@ -1,7 +1,7 @@
 /*
  * PackageLibraryUtils.java
  *
- * Copyright (C) 2009-14 by RStudio, PBC
+ * Copyright (C) 2009-14 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -36,10 +36,7 @@ public class PackageLibraryUtils
       SessionInfo sessionInfo = session.getSessionInfo();
       if (sessionInfo != null)
          projectDir = sessionInfo.getActiveProjectDir();
-      
-      String rLibsUser = sessionInfo.getRLibsUser();
-      boolean hasRLibsUser = !StringUtil.isNullOrEmpty(rLibsUser);
-      
+
       // if there's an active project and this package is in its library or
       // the package has no recorded library (i.e. it's not installed), it
       // belongs in the project library
@@ -48,8 +45,7 @@ public class PackageLibraryUtils
       {
          return PackageLibraryType.Project;
       }
-      else if (library.startsWith(FileSystemItem.HOME_PATH) ||
-               (hasRLibsUser && library.startsWith(rLibsUser)))
+      else if (library.startsWith(FileSystemItem.HOME_PATH))
       {
          return PackageLibraryType.User;
       } 
@@ -62,7 +58,7 @@ public class PackageLibraryUtils
    public static String nameOfLibraryType(PackageLibraryType type)
    {
       if (type == PackageLibraryType.Project)
-         return "Project Library";
+         return "Packrat Library";
       else if (type == PackageLibraryType.User)
          return "User Library";
       else if (type == PackageLibraryType.System)

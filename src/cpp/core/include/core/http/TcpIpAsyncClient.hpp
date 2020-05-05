@@ -1,7 +1,7 @@
 /*
  * TcpIpAsyncClient.hpp
  *
- * Copyright (C) 2009-12 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -37,14 +37,11 @@ class TcpIpAsyncClient :
 public:
    TcpIpAsyncClient(boost::asio::io_service& ioService,
                     const std::string& address,
-                    const std::string& port,
-                    const boost::posix_time::time_duration& connectionTimeout =
-                       boost::posix_time::time_duration(boost::posix_time::pos_infin))
+                    const std::string& port)
      : AsyncClient<boost::asio::ip::tcp::socket>(ioService),
        socket_(ioService),
        address_(address),
-       port_(port),
-       connectionTimeout_(connectionTimeout)
+       port_(port)
    {
    }
 
@@ -69,8 +66,7 @@ private:
                         TcpIpAsyncClient::sharedFromThis()),
             boost::bind(&TcpIpAsyncClient::handleConnectionError,
                         TcpIpAsyncClient::sharedFromThis(),
-                        _1),
-            connectionTimeout_);
+                        _1));
 
    }
 
@@ -86,7 +82,6 @@ private:
    boost::asio::ip::tcp::socket socket_;
    std::string address_;
    std::string port_;
-   boost::posix_time::time_duration connectionTimeout_;
 };
 
 } // namespace http

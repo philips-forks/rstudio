@@ -1,5 +1,4 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE module PUBLIC "-//Google Inc.//DTD Google Web Toolkit 2.8.2//EN" "http://www.gwtproject.org/doctype/2.8.2/gwt-module.dtd">
+<!DOCTYPE module PUBLIC "-//Google Inc.//DTD Google Web Toolkit 1.7.0//EN" "http://google-web-toolkit.googlecode.com/svn/tags/1.7.0/distro-source/core/src/gwt-module.dtd">
 <module rename-to='rstudio'>
 
    <!-- GWT module dependencies                                    -->
@@ -11,42 +10,24 @@
 
    <!-- Gin module dependencies                                    -->
    <inherits name="com.google.gwt.inject.Inject"/>
-
-   <!-- Elemental module dependencies                              -->
-   <inherits name="elemental.Elemental"/>
-   <inherits name="elemental2.core.Core" />
-   <inherits name="elemental2.promise.Promise" />
-
+    
    <!-- Use default GWT style sheet                                -->
    <!--<inherits name='com.google.gwt.user.theme.standard.Standard'/>-->
 
    <define-property name="rstudio.desktop" values="true,false"/>
    <property-provider name="rstudio.desktop"><![CDATA[
-      // true if desktop hooks are injected
-      if (window.desktop)
-         return "true";
-
-      // also true when run under QtWebEngine, which defers hook injection
-      return window.navigator.userAgent.indexOf("QtWebEngine") > 0 ? "true" : "false";
+      return window.desktop ? "true" : "false";
    ]]></property-provider>
-
-   <define-property name="rstudio.remoteDesktop" values="true,false"/>
-   <property-provider name="rstudio.remoteDesktop"><![CDATA[
-      // true if remote desktop hooks are injected
-      if (window.remoteDesktop)
-         return "true";
-
-      // also true when run under QtWebEngine, which defers hook injection
-      return window.navigator.userAgent.indexOf("RStudio Remote Desktop") > 0 ? "true" : "false";
-   ]]></property-provider>
-
    <set-property name="user.agent" value="safari">
       <when-property-is name="rstudio.desktop" value="true"/>
    </set-property>
    <collapse-property name="rstudio.desktop" values="*"/>
     
-   <define-property name="rstudio.unittests" values="true,false"/>
-   <set-property name="rstudio.unittests" value="false"/>
+   <define-property name="rstudio.cocoa" values="true,false"/>
+   <property-provider name="rstudio.cocoa"><![CDATA[
+      return window.desktop && window.desktop.isCocoa() ? "true" : "false";
+   ]]></property-provider>
+   <collapse-property name="rstudio.cocoa" values="*"/>
 
    <!-- RStudio module dependencies                                -->
    <inherits name='org.rstudio.core.Core' />
@@ -70,10 +51,7 @@
    </replace-with>
    <replace-with class="org.rstudio.studio.client.common.impl.DesktopFileDialogs">
       <when-type-is class="org.rstudio.studio.client.common.FileDialogs" />
-      <all>
-         <when-property-is name="rstudio.desktop" value="true"/>
-         <when-property-is name="rstudio.remoteDesktop" value="false"/>
-      </all>
+      <when-property-is name="rstudio.desktop" value="true"/>
    </replace-with>
  
    <replace-with class="org.rstudio.studio.client.application.ui.impl.WebApplicationHeader">
@@ -89,10 +67,11 @@
    </replace-with>
    <replace-with class="org.rstudio.studio.client.workbench.views.packages.impl.DesktopCRANChooser">
       <when-type-is class="org.rstudio.studio.client.workbench.views.packages.CRANChooser"/>
-      <all>
-         <when-property-is name="rstudio.desktop" value="true"/>
-         <when-property-is name="rstudio.remoteDesktop" value="false"/>
-      </all>
+      <when-property-is name="rstudio.desktop" value="true"/>
+   </replace-with>
+   <replace-with class="org.rstudio.studio.client.workbench.views.packages.impl.WebCRANChooser">
+      <when-type-is class="org.rstudio.studio.client.workbench.views.packages.CRANChooser"/>
+      <when-property-is name="rstudio.cocoa" value="true"/>
    </replace-with>
 
    <replace-with class="org.rstudio.studio.client.workbench.views.plots.ui.impl.WebActionsWidget">
@@ -126,6 +105,10 @@
       <when-type-is class="org.rstudio.studio.client.common.TextInput"/>
       <when-property-is name="rstudio.desktop" value="true"/>
    </replace-with>
+   <replace-with class="org.rstudio.studio.client.common.impl.WebTextInput">
+      <when-type-is class="org.rstudio.studio.client.common.TextInput"/>
+      <when-property-is name="rstudio.cocoa" value="true"/>
+   </replace-with>
 
    <!-- define permutations for emulated and native stack modes -->
    <set-property name="compiler.stackMode" value="emulated,native"/>
@@ -133,7 +116,4 @@
 
    <!--<set-configuration-property name="CssResource.style" value="pretty" />-->
    <set-configuration-property name="UiBinder.useSafeHtmlTemplates" value="true" />
-
-   <!-- work around incompatibility between GWT 2.8 and Gin 2.1.2 -->
-   <set-configuration-property name="gin.classloading.exceptedPackages" value="com.google.gwt.core.client"/>
 </module>

@@ -1,7 +1,7 @@
 /*
  * RPubsUploader.java
  *
- * Copyright (C) 2009-15 by RStudio, PBC
+ * Copyright (C) 2009-15 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -50,7 +50,7 @@ public class RPubsUploader
       uploadInProgress_ = true;
     
       // do upload
-      if (Desktop.hasDesktopFrame())
+      if (Desktop.isDesktop())
       {
          performUpload(title, rmdFile, htmlFile, uploadId, null, modify);
       }
@@ -115,7 +115,7 @@ public class RPubsUploader
          {
             // make sure it applies to our context
             RPubsUploadStatusEvent.Status status = event.getStatus();
-            if (status.getContextId() != contextId_)
+            if (!status.getContextId().equals(contextId_))
                return;
             
             uploadInProgress_ = false;

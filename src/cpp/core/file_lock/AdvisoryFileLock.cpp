@@ -1,7 +1,7 @@
 /*
  * AdvisoryFileLock.cpp
  *
- * Copyright (C) 2009-12 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -19,9 +19,9 @@
 
 #include <boost/scope_exit.hpp>
 
-#include <shared_core/Error.hpp>
+#include <core/Error.hpp>
 #include <core/Log.hpp>
-#include <shared_core/FilePath.hpp>
+#include <core/FilePath.hpp>
 #include <core/FileSerializer.hpp>
 #include <core/StringUtils.hpp>
 
@@ -30,9 +30,12 @@
 #define LOG(__X__)                                                             \
    do                                                                          \
    {                                                                           \
-      std::stringstream ss;                                                    \
-      ss << "(PID " << ::getpid() << "): " << __X__ << std::endl;              \
-      ::rstudio::core::FileLock::log(ss.str());                                \
+      if (::rstudio::core::FileLock::isLoggingEnabled())                       \
+      {                                                                        \
+         std::stringstream ss;                                                 \
+         ss << "(PID " << ::getpid() << "): " << __X__ << std::endl;           \
+         ::rstudio::core::FileLock::log(ss.str());                             \
+      }                                                                        \
    } while (0)
 
 // we define BOOST_USE_WINDOWS_H on mingw64 to work around some
@@ -65,7 +68,7 @@ bool AdvisoryFileLock::isLocked(const FilePath& lockFilePath) const
    // check if it is locked
    try
    {
-      BoostFileLock lock(string_utils::utf8ToSystem(lockFilePath.getAbsolutePath()).c_str());
+      BoostFileLock lock(string_utils::utf8ToSystem(lockFilePath.absolutePath()).c_str());
 
       if (lock.try_lock())
       {
@@ -98,7 +101,6 @@ AdvisoryFileLock::~AdvisoryFileLock()
 
 Error AdvisoryFileLock::acquire(const FilePath& lockFilePath)
 {
-   using namespace boost::system;
    using namespace boost::interprocess;
 
    // make sure the lock file exists
@@ -112,11 +114,11 @@ Error AdvisoryFileLock::acquire(const FilePath& lockFilePath)
    // try to acquire the lock
    try
    {
-      BoostFileLock lock(string_utils::utf8ToSystem(lockFilePath.getAbsolutePath()).c_str());
+      BoostFileLock lock(string_utils::utf8ToSystem(lockFilePath.absolutePath()).c_str());
 
       if (lock.try_lock())
       {
-         LOG("Acquired lock: " << lockFilePath.getAbsolutePath());
+         LOG("Acquired lock: " << lockFilePath.absolutePath());
          // set members
          pImpl_->lockFilePath = lockFilePath;
          pImpl_->lock.swap(lock);
@@ -125,10 +127,9 @@ Error AdvisoryFileLock::acquire(const FilePath& lockFilePath)
       }
       else
       {
-         LOG("Failed to acquire lock: " << lockFilePath.getAbsolutePath());
-         Error error = systemError(errc::no_lock_available, ERROR_LOCATION);
-         error.addProperty("lock-file", lockFilePath);
-         return error;
+         LOG("Failed to acquire lock: " << lockFilePath.absolutePath());
+         return systemError(boost::system::errc::no_lock_available,
+                            ERROR_LOCATION);
       }
    }
    catch(interprocess_exception& e)
@@ -144,14 +145,12 @@ Error AdvisoryFileLock::acquire(const FilePath& lockFilePath)
 Error AdvisoryFileLock::release()
 {
    using namespace boost::interprocess;
-   using namespace boost::system;
 
    // make sure the lock file exists
    if (!pImpl_->lockFilePath.exists())
    {
-      Error error = systemError(errc::no_lock_available, ERROR_LOCATION);
-      error.addProperty("lock-file", pImpl_->lockFilePath);
-      return error;
+      return systemError(boost::system::errc::no_lock_available,
+                         ERROR_LOCATION);
    }
 
    // always cleanup the lock file on exit
@@ -169,7 +168,7 @@ Error AdvisoryFileLock::release()
    {
       pImpl_->lock.unlock();
       pImpl_->lock = BoostFileLock();
-      LOG("Released lock: " << pImpl_->lockFilePath.getAbsolutePath());
+      LOG("Released lock: " << pImpl_->lockFilePath.absolutePath());
       pImpl_->lockFilePath = FilePath();
       return Success();
    }

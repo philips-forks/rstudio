@@ -1,7 +1,7 @@
 /*
  * CompletionPopupPanel.java
  *
- * Copyright (C) 2009-17 by RStudio, PBC
+ * Copyright (C) 2009-17 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -37,10 +37,9 @@ import com.google.gwt.user.client.ui.VerticalPanel;
 import org.rstudio.core.client.ElementIds;
 import org.rstudio.core.client.Rectangle;
 import org.rstudio.core.client.StringUtil;
-import org.rstudio.core.client.command.KeyCombination;
 import org.rstudio.core.client.command.KeyboardShortcut;
+import org.rstudio.core.client.command.KeyboardShortcut.KeyCombination;
 import org.rstudio.core.client.command.ShortcutManager;
-import org.rstudio.core.client.dom.WindowEx;
 import org.rstudio.core.client.events.SelectionCommitEvent;
 import org.rstudio.core.client.events.SelectionCommitHandler;
 import org.rstudio.core.client.widget.ThemedPopupPanel;
@@ -55,7 +54,6 @@ public class CompletionPopupPanel extends ThemedPopupPanel
    public CompletionPopupPanel()
    {
       super();
-      autoConstrain_ = false;
       styles_ = ConsoleResources.INSTANCE.consoleStyles();
       
       help_ = new HelpInfoPopupPanel();
@@ -64,21 +62,12 @@ public class CompletionPopupPanel extends ThemedPopupPanel
       truncated_ = new Label("... Not all items shown");
       truncated_.setStylePrimaryName(styles_.truncatedLabel());
       
-      setStylePrimaryName(styles_.completionPopup());
+      setStylePrimaryName(styles_.completionPopup()) ;
       
       addCloseHandler(new CloseHandler<PopupPanel>() {
          
          @Override
          public void onClose(CloseEvent<PopupPanel> event)
-         {
-            hideAll();
-         }
-      });
-      
-      WindowEx.addBlurHandler(new BlurHandler()
-      {
-         @Override
-         public void onBlur(BlurEvent event)
          {
             hideAll();
          }
@@ -123,14 +112,14 @@ public class CompletionPopupPanel extends ThemedPopupPanel
 
    public void showProgress(String progress, PositionCallback callback)
    {
-      setText(progress);
-      show(callback);
+      setText(progress) ;
+      show(callback) ;
    }
    
    public void showErrorMessage(String error, PositionCallback callback)
    {
-      setText(error);
-      show(callback);
+      setText(error) ;
+      show(callback) ;
    }
    
    @Override
@@ -149,14 +138,14 @@ public class CompletionPopupPanel extends ThemedPopupPanel
                                        values,
                                        6,
                                        true,
-                                       true);
+                                       true) ;
 
       list.addSelectionCommitHandler(new SelectionCommitHandler<QualifiedName>() {
          public void onSelectionCommit(SelectionCommitEvent<QualifiedName> event)
          {
             lastSelectedValue_ = event.getSelectedItem();
             SelectionCommitEvent.fire(CompletionPopupPanel.this, 
-                                      event.getSelectedItem());
+                                      event.getSelectedItem()) ;
          }
       });
       
@@ -165,7 +154,7 @@ public class CompletionPopupPanel extends ThemedPopupPanel
          {
             lastSelectedValue_ = event.getSelectedItem();
             SelectionEvent.fire(CompletionPopupPanel.this, 
-                                event.getSelectedItem());
+                                event.getSelectedItem()) ;
          }
       });
       
@@ -181,7 +170,7 @@ public class CompletionPopupPanel extends ThemedPopupPanel
       ElementIds.assignElementId(list_.getElement(), 
             ElementIds.POPUP_COMPLETIONS);
       
-      show(callback);
+      show(callback) ;
    }
    
    public boolean hasCompletions()
@@ -201,9 +190,9 @@ public class CompletionPopupPanel extends ThemedPopupPanel
       registerNativeHandler(handler_);
       
       if (callback != null)
-         setPopupPositionAndShow(callback);
+         setPopupPositionAndShow(callback) ;
       else
-         show();
+         show() ;
       
       
       // Fudge the completion width when the scrollbar is visible. This has
@@ -234,9 +223,9 @@ public class CompletionPopupPanel extends ThemedPopupPanel
    public QualifiedName getSelectedValue()
    {
       if (list_ == null || !list_.isAttached())
-         return null;
+         return null ;
       
-      return list_.getSelectedItem();
+      return list_.getSelectedItem() ;
    }
    
    public QualifiedName getLastSelectedValue()
@@ -246,37 +235,37 @@ public class CompletionPopupPanel extends ThemedPopupPanel
    
    public Rectangle getSelectionRect()
    {
-      return list_.getSelectionRect();
+      return list_.getSelectionRect() ;
    }
    
    public boolean selectNext()
    {
-      return list_.selectNext();
+      return list_.selectNext() ;
    }
    
    public boolean selectPrev()
    {
-      return list_.selectPrev();
+      return list_.selectPrev() ;
    }
    
    public boolean selectPrevPage()
    {
-      return list_.selectPrevPage();
+      return list_.selectPrevPage() ;
    }
 
    public boolean selectNextPage()
    {
-      return list_.selectNextPage();
+      return list_.selectNextPage() ;
    }
    
    public boolean selectFirst()
    {
-      return list_.selectFirst();
+      return list_.selectFirst() ;
    }
    
    public boolean selectLast()
    {
-      return list_.selectLast();
+      return list_.selectLast() ;
    }
    
    public void setHelpVisible(boolean visible)
@@ -296,7 +285,7 @@ public class CompletionPopupPanel extends ThemedPopupPanel
       if (!completionListIsOnScreen())
          return;
       
-      help_.displayHelp(help);
+      help_.displayHelp(help) ;
       resolveHelpPosition(help.hasInfo());
    }
    
@@ -306,7 +295,7 @@ public class CompletionPopupPanel extends ThemedPopupPanel
       if (!completionListIsOnScreen())
          return;
       
-      help_.displayParameterHelp(map, parameterName);
+      help_.displayParameterHelp(map, parameterName) ;
       resolveHelpPosition(map.get(parameterName) != null);
    }
    
@@ -385,24 +374,24 @@ public class CompletionPopupPanel extends ThemedPopupPanel
 
    public void clearHelp(boolean downloadOperationPending)
    {
-      help_.clearHelp(downloadOperationPending);
+      help_.clearHelp(downloadOperationPending) ;
    }
 
    public HandlerRegistration addSelectionHandler(
          SelectionHandler<QualifiedName> handler)
    {
-      return addHandler(handler, SelectionEvent.getType());
+      return addHandler(handler, SelectionEvent.getType()) ;
    }
 
    public HandlerRegistration addSelectionCommitHandler(
          SelectionCommitHandler<QualifiedName> handler)
    {
-      return addHandler(handler, SelectionCommitEvent.getType());
+      return addHandler(handler, SelectionCommitEvent.getType()) ;
    }
 
    public HandlerRegistration addMouseDownHandler(MouseDownHandler handler)
    {
-      return addDomHandler(handler, MouseDownEvent.getType());
+      return addDomHandler(handler, MouseDownEvent.getType()) ;
    }
    
    public boolean isHelpVisible()
@@ -413,10 +402,10 @@ public class CompletionPopupPanel extends ThemedPopupPanel
    
    private HTML setText(String text)
    {
-      HTML contents = new HTML();
-      contents.setText(text);
-      setWidget(contents);
-      return contents;
+      HTML contents = new HTML() ;
+      contents.setText(text) ;
+      setWidget(contents) ;
+      return contents ;
    }
    
    public QualifiedName[] getItems()
@@ -450,8 +439,8 @@ public class CompletionPopupPanel extends ThemedPopupPanel
    {
       resetIgnoredKeysHandle();
       Set<KeyCombination> keySet = new HashSet<KeyCombination>();
-      keySet.add(new KeyCombination("n", KeyCodes.KEY_N, KeyboardShortcut.CTRL));
-      keySet.add(new KeyCombination("p", KeyCodes.KEY_P, KeyboardShortcut.CTRL));
+      keySet.add(new KeyCombination(KeyCodes.KEY_N, KeyboardShortcut.CTRL));
+      keySet.add(new KeyCombination(KeyCodes.KEY_P, KeyboardShortcut.CTRL));
       handle_ = ShortcutManager.INSTANCE.addIgnoredKeys(keySet);
    }
    
@@ -460,8 +449,8 @@ public class CompletionPopupPanel extends ThemedPopupPanel
       resetIgnoredKeysHandle();
    }
    
-   private CompletionList<QualifiedName> list_;
-   private HelpInfoPopupPanel help_;
+   private CompletionList<QualifiedName> list_ ;
+   private HelpInfoPopupPanel help_ ;
    private final ConsoleResources.ConsoleStyles styles_;
    private static QualifiedName lastSelectedValue_;
    private VerticalPanel container_;

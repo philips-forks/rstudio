@@ -1,7 +1,7 @@
 /*
  * AnchorableFrame.java
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -20,14 +20,13 @@ import com.google.gwt.core.client.Scheduler.RepeatingCommand;
 
 public class AnchorableFrame extends RStudioFrame
 {
-   public AnchorableFrame(String title)
+   public AnchorableFrame()
    {
-      this(title, true);
+      this(true);
    }
    
-   public AnchorableFrame(String title, boolean autoFocus)
+   public AnchorableFrame(boolean autoFocus)
    {
-      super(title);
       autoFocus_ = autoFocus;
       setStylePrimaryName("rstudio-HelpFrame");
       getElement().getStyle().setBackgroundColor("white");
@@ -82,7 +81,7 @@ public class AnchorableFrame extends RStudioFrame
       if (existingUrl == null)
          return false;      
      
-      return newUrl == stripAnchor(existingUrl);
+      return newUrl.equals(stripAnchor(existingUrl));
    }
    
    private boolean isSamePage(String newUrl)
@@ -92,7 +91,7 @@ public class AnchorableFrame extends RStudioFrame
       if (existingUrl == null)
          return false;      
       
-      return stripAnchor(newUrl) == stripAnchor(existingUrl);
+      return stripAnchor(newUrl).equals(stripAnchor(existingUrl));
    }
    
    private String stripAnchor(String url)

@@ -1,7 +1,7 @@
 #
 # NotebookHtmlWidgets.R
 #
-# Copyright (C) 2009-18 by RStudio, PBC
+# Copyright (C) 2009-16 by RStudio, Inc.
 #
 # Unless you have received this program directly from RStudio pursuant
 # to the terms of a commercial license agreement with RStudio, then
@@ -229,11 +229,8 @@
    # force knitr styling on 'standalone' widget (will be overridden by sizing policy
    # in dynamic environments; this ensures that the 'preview' will be displayed as
    # though the widget were generated through 'rmarkdown::render()')
-   #
-   # note that this make assumptions about the widget structure that might not be
-   # true in all cases so we wrap this in tryCatch
    embedded <- htmlwidgets:::toHTML(x, standalone = FALSE, knitrOptions = knitrOptions)
-   .rs.tryCatch(html[[1]]$children[[1]][[2]]$attribs$style <- embedded[[1]][[2]]$attribs$style)
+   html[[1]]$children[[1]][[2]]$attribs$style <- embedded[[1]][[2]]$attribs$style
    
    # split up into parts
    div <- html[[1]]$children[[1]]
@@ -292,9 +289,10 @@
    )
    
    # get and load hooks
+   envir <- .rs.toolsEnv()
    hooks <- .rs.rnb.htmlCaptureHooks()
    .rs.enumerate(hooks, function(key, value) {
-      .rs.addS3Override(key, value)
+      assign(key, value, envir = envir)
    })
 })
 
@@ -302,9 +300,10 @@
 {
    # remove hooks
    hooks <- .rs.rnb.htmlCaptureHooks()
-   for (name in names(hooks)) {
-      .rs.removeS3Override(name)
-   }
+   
+   # construct call to 'rm'
+   args <- c(as.list(names(hooks)), envir = .rs.toolsEnv())
+   do.call(rm, args)
 })
 
 .rs.addFunction("firstOf", function(...)

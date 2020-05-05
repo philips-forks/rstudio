@@ -1,7 +1,7 @@
 /*
  * ToolbarPopupMenuButton.java
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-16 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -26,13 +26,17 @@ import com.google.gwt.user.client.Command;
 import com.google.gwt.user.client.ui.MenuBar;
 import com.google.gwt.user.client.ui.MenuItem;
 
-public class ToolbarPopupMenuButton extends ToolbarMenuButton
+public class ToolbarPopupMenuButton extends ToolbarButton
                                     implements HasValueChangeHandlers<String>
 {
-   public ToolbarPopupMenuButton(String title, boolean showText, boolean rightAlignMenu)
+   public ToolbarPopupMenuButton()
    {
-      super(ToolbarButton.NoText,
-            title,
+      this(true, true);
+   }
+
+   public ToolbarPopupMenuButton(boolean showText, boolean rightAlignMenu)
+   {
+      super("",
             StandardIcons.INSTANCE.empty_command(),
             new ToolbarPopupMenu(),
             rightAlignMenu);
@@ -99,7 +103,7 @@ public class ToolbarPopupMenuButton extends ToolbarMenuButton
    
    public void setText(String text, boolean fireEvent)
    {
-      boolean changed = text_ == null || !text_.equals(text);
+      boolean changed = !text_.equals(text);
       
       text_ = text;
       if (showText_)

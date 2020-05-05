@@ -1,7 +1,7 @@
 /*
  * DataItem.java
  *
- * Copyright (C) 2009-12 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -28,21 +28,19 @@ public class DataItem extends JavaScriptObject
    }
 
    public static final native DataItem create(String caption,
-                                              String expression,
                                               int totalObservations,
                                               int displayedObservations,
                                               int variables,
                                               String contentUrl,
                                               int preview) /*-{
       var dataItem = new Object();
-      dataItem.caption = caption;
-      dataItem.expression = expression;
-      dataItem.totalObservations = totalObservations;
+      dataItem.caption = caption ;
+      dataItem.totalObservations = totalObservations ;
       dataItem.displayedObservations = displayedObservations;
       dataItem.variables = variables;
       dataItem.contentUrl = contentUrl;
       dataItem.preview = preview;
-      return dataItem;
+      return dataItem ;
    }-*/;
 
    public final String getURI()
@@ -52,10 +50,6 @@ public class DataItem extends JavaScriptObject
    
    public native final String getCaption() /*-{
       return this.caption;
-   }-*/;
-   
-   public native final String getExpression() /*-{
-      return this.expression;
    }-*/;
    
    public native final int getTotalObservations() /*-{
@@ -104,7 +98,6 @@ public class DataItem extends JavaScriptObject
       // SourceServerOperations#modifyDocumentProperties to take a less typesafe
       // container type.
       properties.put("caption", getCaption());
-      properties.put("expression", getExpression());
       properties.put("totalObservations", getTotalObservations() + "");
       properties.put("displayedObservations", getDisplayedObservations() + "");
       properties.put("variables", getVariables() + "");
@@ -118,7 +111,6 @@ public class DataItem extends JavaScriptObject
    public final void fillProperties(JsObject properties)
    {
       properties.setString("caption", getCaption());
-      properties.setString("expression", getExpression());
       properties.setInteger("totalObservations", getTotalObservations());
       properties.setInteger("displayedObservations", getDisplayedObservations());
       properties.setInteger("variables", getVariables());

@@ -1,7 +1,7 @@
 /*
  * RFunctionInformation.hpp
  *
- * Copyright (C) 2009-12 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -75,9 +75,9 @@ public:
    const std::string& name() const { return name_; }
    const boost::optional<std::string>& defaultValue() const { return defaultValue_; }
    boost::tribool hasDefault() const { return hasDefault_; }
-   bool isUsed() const { return bool(isUsed_); }
+   bool isUsed() const { return isUsed_; }
    void setIsUsed(bool value) { isUsed_ = value; }
-   bool isMissingnessHandled() const { return bool(isMissingnessHandled_); }
+   bool isMissingnessHandled() const { return isMissingnessHandled_; }
    void setMissingnessHandled(bool value) { isMissingnessHandled_ = value; }
    
 private:
@@ -130,7 +130,7 @@ public:
    
    bool isPrimitive()
    {
-      return bool(isPrimitive_);
+      return isPrimitive_ == true;
    }
    
    void setIsPrimitive(bool isPrimitive)
@@ -198,7 +198,6 @@ struct PackageInformation
    std::string package;
    std::vector<std::string> exports;
    std::vector<int> types;
-   std::vector<std::string> datasets;
    FunctionInformationMap functionInfo;
 };
 

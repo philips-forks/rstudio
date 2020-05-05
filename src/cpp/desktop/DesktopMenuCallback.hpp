@@ -1,7 +1,7 @@
 /*
  * DesktopMenuCallback.hpp
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -21,7 +21,6 @@
 #include <QList>
 #include <QMenu>
 #include <QMenuBar>
-#include <QPointer>
 #include <QStack>
 #include <QKeyEvent>
 #include <DesktopSubMenu.hpp>
@@ -33,10 +32,9 @@ class MenuCallback : public QObject
 {
     Q_OBJECT
 public:
-    explicit MenuCallback(QObject *parent = nullptr);
+    explicit MenuCallback(QObject *parent = 0);
 
-public Q_SLOTS:
-    // menu-building commands
+public slots:
     void beginMainMenu();
     void beginMenu(QString label);
     void addCommand(QString commandId,
@@ -49,43 +47,23 @@ public Q_SLOTS:
     void endMainMenu();
     void actionInvoked();
 
-    // runtime command state drivers
-    void setCommandEnabled(QString commandId, bool enabled);
-    void setCommandVisible(QString commandId, bool visible);
-    void setCommandLabel(QString commandId, QString label);
-    void setCommandChecked(QString commandId, bool checked);
-    void setMainMenuEnabled(bool enabled);
-
-    // other slots
-    void cleanUpActions();
-
-Q_SIGNALS:
+signals:
     void menuBarCompleted(QMenuBar* menuBar);
     void manageCommand(QString commandId, QAction* action);
     void manageCommandVisibility(QString commandId, QAction* action);
     void commandInvoked(QString commandId);
 
-    void zoomActualSize();
     void zoomIn();
     void zoomOut();
 
 private:
     QAction* addCustomAction(QString commandId,
                              QString label,
-                             QString tooltip,
-                             QKeySequence keySequence,
-                             bool checkable);
+                             QString tooltip);
 
-    QAction* duplicateAppMenuAction(QString commandToDuplicate,
-                                    QString commandId,
-                                    QString label,
-                                    QString tooltip,
-                                    QKeySequence keySequence,
-                                    bool checkable);
 private:
-    QMenuBar* pMainMenu_ = nullptr;
+    QMenuBar* pMainMenu_;
     QStack<SubMenu*> menuStack_;
-    QMap<QString, QVector<QPointer<QAction>>> actions_;
 };
 
 /* Previously, in desktop mode, many keyboard shortcuts were handled by Qt,
@@ -105,11 +83,11 @@ class MenuActionBinder : public QObject
 public:
    MenuActionBinder(QMenu* pMenu, QAction* action);
 
-public Q_SLOTS:
+public slots:
    void onShowMenu();
    void onHideMenu();
 
-Q_SIGNALS:
+signals:
    void manageCommand(QString commandId, QAction* action);
 
 private:
@@ -121,9 +99,9 @@ class WindowMenu : public QMenu
 {
    Q_OBJECT
 public:
-   explicit WindowMenu(QWidget *parent = nullptr);
+   explicit WindowMenu(QWidget *parent = 0);
 
-protected Q_SLOTS:
+protected slots:
    void onMinimize();
    void onZoom();
    void onBringAllToFront();

@@ -1,7 +1,7 @@
 /*
  * SessionVCS.cpp
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -15,6 +15,8 @@
 
 #include "SessionVCS.hpp"
 
+#include <boost/foreach.hpp>
+
 #include <core/Exec.hpp>
 #include <core/StringUtils.hpp>
 #include <core/system/Environment.hpp>
@@ -24,7 +26,6 @@
 #include <session/SessionModuleContext.hpp>
 #include <session/projects/SessionProjects.hpp>
 #include <session/SessionConsoleProcess.hpp>
-#include <session/prefs/UserPrefs.hpp>
 
 #include "vcs/SessionVCSUtils.hpp"
 
@@ -119,7 +120,7 @@ Error vcsClone(const json::JsonRpcRequest& request,
       return systemError(json::errc::ParamInvalid, ERROR_LOCATION);
    }
 
-   pResponse->setResult(pCP->toJson(console_process::ClientSerialization));
+   pResponse->setResult(pCP->toJson());
 
    return Success();
 }
@@ -134,28 +135,22 @@ class NullFileDecorationContext : public FileDecorationContext
 } // anonymous namespace
 
 boost::shared_ptr<FileDecorationContext> fileDecorationContext(
-      const core::FilePath& rootDir,
-      bool implicit)
+                                            const core::FilePath& rootDir)
 {
-   if (implicit && !prefs::userPrefs().vcsAutorefresh())
+   if (git::isWithinGitRoot(rootDir))
    {
       return boost::shared_ptr<FileDecorationContext>(
-               new NullFileDecorationContext());
-   }
-   else if (git::isWithinGitRoot(rootDir))
-   {
-      return boost::shared_ptr<FileDecorationContext>(
-               new git::GitFileDecorationContext(rootDir));
+                           new git::GitFileDecorationContext(rootDir));
    }
    else if (svn::isSvnEnabled())
    {
       return boost::shared_ptr<FileDecorationContext>(
-               new svn::SvnFileDecorationContext(rootDir));
+                           new svn::SvnFileDecorationContext(rootDir));
    }
    else
    {
       return boost::shared_ptr<FileDecorationContext>(
-               new NullFileDecorationContext());
+                           new NullFileDecorationContext());
    }
 }
 
@@ -197,7 +192,7 @@ FilePath getTrueHomeDir()
 
 FilePath defaultSshKeyDir()
 {
-   return getTrueHomeDir().completeChildPath(".ssh");
+   return getTrueHomeDir().childPath(".ssh");
 }
 
 void enqueueRefreshEvent()
@@ -226,7 +221,7 @@ core::Error initialize()
    const projects::ProjectContext& projContext = projects::projectContext();
    FilePath workingDir = projContext.directory();
 
-   if (!session::options().allowVcs() || !prefs::userPrefs().vcsEnabled() || workingDir.isEmpty())
+   if (!session::options().allowVcs() || !userSettings().vcsEnabled() || workingDir.empty())
       return Success();
 
 

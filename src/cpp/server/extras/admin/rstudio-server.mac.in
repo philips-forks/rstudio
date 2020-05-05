@@ -1,15 +1,11 @@
-#!/bin/bash
+#!/bin/sh
 
 testConfig() {
  `${CMAKE_INSTALL_PREFIX}/bin/rserver --test-config`
 }
 
 verifyInstallation() {
- ${CMAKE_INSTALL_PREFIX}/bin/rserver --verify-installation=1 --server-daemonize=0 $1 $2 $3 $4 $5 $6 $7 $8
-}
-
-isServerRunning() {
- pgrep -x rserver &> /dev/null
+ `${CMAKE_INSTALL_PREFIX}/bin/rserver --verify-installation=1 --server-daemonize=0`
 }
 
 
@@ -20,7 +16,7 @@ case "$1" in
         ;;
 
     start)
-        testConfig || exit $?
+        testConfig || return $?
         launchctl start com.rstudio.launchd.rserver
         ;;
 
@@ -31,7 +27,7 @@ case "$1" in
         ;;
 
     restart)
-        testConfig || exit $?
+        testConfig || return $?
         launchctl stop com.rstudio.launchd.rserver
         launchctl start com.rstudio.launchd.rserver
         killall -USR2 $2 $3 $4 $5 $6 $7 $8 $9  rsession 2>/dev/null
@@ -43,20 +39,14 @@ case "$1" in
         ;;
 
     verify-installation)
-        if isServerRunnng ; then
-           echo "Server is running and must be stopped before running verify-installation"
-           exit 1
-        fi
-
-        # we call stop here even though the service should already be stopped		
-        # just in case (we don't want the service running when invoking verify-installation)
         launchctl stop com.rstudio.launchd.rserver 2>/dev/null
-
-        verifyInstallation $2 $3 $4 $5 $6 $7 $8
+        verifyInstallation
+        launchctl start com.rstudio.launchd.rserver
         ;;
 
     suspend-session)
-        if [ -n "$2" ]; then
+        if test -n $2
+        then
            kill -USR1 $3 $4 $5 $6 $7 $8 $9 $2
         else
            echo "Must specify PID of session to suspend"
@@ -70,7 +60,8 @@ case "$1" in
         ;;
 
     force-suspend-session)
-        if [ -n "$2" ]; then
+        if test -n $2
+        then
            kill -USR2 $3 $4 $5 $6 $7 $8 $9 $2
         else
            echo "Must specify PID of session to force suspend"
@@ -84,7 +75,8 @@ case "$1" in
         ;;
 
     kill-session)
-        if [ -n "$2" ]; then
+        if test -n $2
+        then
            kill -KILL $3 $4 $5 $6 $7 $8 $9 $2
         else
            echo "Must specify PID of session to kill"
@@ -118,7 +110,7 @@ case "$1" in
         ;;
 
     version)
-        echo "${CPACK_PACKAGE_VERSION} (${RSTUDIO_RELEASE_NAME})"
+        echo "${CPACK_PACKAGE_VERSION}"
         ;;
 
     *)

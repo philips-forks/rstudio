@@ -1,7 +1,7 @@
 /*
  * ChunkOutputWidget.java
  *
- * Copyright (C) 2009-20 by RStudio, PBC
+ * Copyright (C) 2009-16 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -21,7 +21,6 @@ import java.util.List;
 import org.rstudio.core.client.ColorUtil;
 import org.rstudio.core.client.CommandWithArg;
 import org.rstudio.core.client.Size;
-import org.rstudio.core.client.StringUtil;
 import org.rstudio.core.client.dom.DomUtils;
 import org.rstudio.core.client.widget.ProgressSpinner;
 import org.rstudio.studio.client.RStudioGinjector;
@@ -41,7 +40,6 @@ import org.rstudio.studio.client.workbench.views.console.events.ConsoleWriteErro
 import org.rstudio.studio.client.workbench.views.console.events.ConsoleWriteErrorHandler;
 import org.rstudio.studio.client.workbench.views.console.events.ConsoleWriteOutputEvent;
 import org.rstudio.studio.client.workbench.views.console.events.ConsoleWriteOutputHandler;
-import org.rstudio.studio.client.workbench.views.source.editors.text.rmd.ChunkContextToolbar;
 import org.rstudio.studio.client.workbench.views.source.editors.text.rmd.ChunkOutputHost;
 import org.rstudio.studio.client.workbench.views.source.editors.text.rmd.ChunkOutputUi;
 
@@ -167,7 +165,7 @@ public class ChunkOutputWidget extends Composite
             case Event.ONCLICK:
                host_.onOutputRemoved(ChunkOutputWidget.this);
                break;
-            }
+            };
          }
       });
       
@@ -181,7 +179,7 @@ public class ChunkOutputWidget extends Composite
             case Event.ONCLICK:
                toggleExpansionState(true);
                break;
-            }
+            };
          }
       };
 
@@ -195,7 +193,7 @@ public class ChunkOutputWidget extends Composite
             case Event.ONCLICK:
                popoutChunk();
                break;
-            }
+            };
          }
       };
 
@@ -242,26 +240,6 @@ public class ChunkOutputWidget extends Composite
    public int getState()
    {
       return state_;
-   }
-
-   public void setLabelClass(String value)
-   {
-      // ensure value has the correct prefix
-      if (!value.startsWith(ChunkContextToolbar.CHUNK_CLASS_PREFIX + CHUNK_OUTPUT_PREFIX))
-         value = new String(ChunkContextToolbar.CHUNK_CLASS_PREFIX +
-                            CHUNK_OUTPUT_PREFIX +
-                            value);
-      value = StringUtil.getCssIdentifier(value);
-
-      if (!StringUtil.equals(value, label_))
-      {
-         // if we've already added a label style, remove it
-         if (!StringUtil.isNullOrEmpty(label_))
-            this.removeStyleName(label_);
-
-         label_ = value;
-         this.addStyleName(label_);
-      }
    }
 
    public void setOptions(RmdChunkOptions options)
@@ -349,13 +327,6 @@ public class ChunkOutputWidget extends Composite
       {
          int contentHeight = root_.getElement().getOffsetHeight() + 19;
          height = Math.max(ChunkOutputUi.MIN_CHUNK_HEIGHT, contentHeight);
-         
-         // clamp height of widgets if there's an htmlwidget present; if HTML
-         // widgets fill the editor surface, the resulting UX is unpleasant.
-         if (presenter_.hasHtmlWidgets())
-         {
-            height = Math.min(height, ChunkOutputUi.MAX_CHUNK_HEIGHT);
-         }
 
          // if we have renders pending, don't shrink until they're loaded 
          if (pendingRenders_ > 0 && height < renderedHeight_)
@@ -684,7 +655,7 @@ public class ChunkOutputWidget extends Composite
       {
          pendingRenders_--;
       }
-   }
+   };
    
    private void registerConsoleEvents()
    {
@@ -705,6 +676,7 @@ public class ChunkOutputWidget extends Composite
       if (spinner_ != null)
       {
          spinner_.removeFromParent();
+         spinner_.detach();
          spinner_ = null;
       }
       // create a black or white spinner as appropriate
@@ -719,7 +691,6 @@ public class ChunkOutputWidget extends Composite
       spinner_.getElement().getStyle().setOpacity(1);
       root_.getElement().getStyle().setOpacity(0.2);
 
-      spinner_.setVisible(true);
       clear_.setVisible(false);
       expand_.setVisible(false);
       popout_.setVisible(false);
@@ -734,8 +705,8 @@ public class ChunkOutputWidget extends Composite
 
       if (spinner_ != null)
       {
-         spinner_.setVisible(false);
          spinner_.removeFromParent();
+         spinner_.detach();
          spinner_ = null;
       }
 
@@ -954,7 +925,6 @@ public class ChunkOutputWidget extends Composite
    private int lastOutputType_ = RmdChunkOutputUnit.TYPE_NONE;
    private boolean hasErrors_ = false;
    private boolean hideSatellitePopup_ = false;
-   private String label_;
    
    private Timer collapseTimer_ = null;
    private final String documentId_;
@@ -972,7 +942,4 @@ public class ChunkOutputWidget extends Composite
    public final static int CHUNK_READY       = 2;
    public final static int CHUNK_PRE_OUTPUT  = 3;
    public final static int CHUNK_POST_OUTPUT = 4;
-
-   // this may be relied on by API code and should not change
-   public final static String CHUNK_OUTPUT_PREFIX = "output-";
 }

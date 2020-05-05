@@ -1,7 +1,7 @@
 /*
  * RConsoleActions.cpp
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -16,13 +16,12 @@
 #include <r/session/RConsoleActions.hpp>
 
 #include <algorithm>
-#include <gsl/gsl>
 
 #include <boost/algorithm/string/split.hpp>
 
 #include <core/Log.hpp>
-#include <shared_core/Error.hpp>
-#include <shared_core/FilePath.hpp>
+#include <core/Error.hpp>
+#include <core/FilePath.hpp>
 #include <core/FileSerializer.hpp>
 #include <core/Thread.hpp>
 
@@ -54,7 +53,7 @@ int ConsoleActions::capacity() const
 {
    LOCK_MUTEX(mutex_)
    {
-      return gsl::narrow_cast<int>(actionsType_.capacity());
+      return actionsType_.capacity();
    }
    END_LOCK_MUTEX
 
@@ -99,15 +98,15 @@ void ConsoleActions::add(int type, const std::string& data)
       // grow to arbitrary size)
       if (type == kConsoleActionOutput &&
           actionsType_.size() > 0      &&
-          actionsType_.back().getInt() == kConsoleActionOutput &&
-          actionsData_.back().getString().size() < 512)
+          actionsType_.back().get_value<int>() == kConsoleActionOutput &&
+          actionsData_.back().get_str().size() < 512)
       {
-         actionsData_.back() = actionsData_.back().getString() + data;
+         actionsData_.back() = actionsData_.back().get_str() + data;
       }
       else
       {
-         actionsType_.push_back(json::Value(type));
-         actionsData_.push_back(json::Value(data));
+         actionsType_.push_back(type);
+         actionsData_.push_back(data);
       }
    }
    END_LOCK_MUTEX
@@ -174,15 +173,15 @@ Error ConsoleActions::loadFromFile(const FilePath& filePath)
 
          // parse json and confirm it contains an object
          json::Value value;
-         if (
-            !value.parse(actionsJson) && value.isObject() )
+         if ( json::parse(actionsJson, &value) &&
+              (value.type() == json::ObjectType) )
          {
-            json::Object actions = value.getObject();
+            json::Object& actions = value.get_obj();
 
-            json::Value typeValue = actions[kActionType] ;
-            if (typeValue.getType() == json::Type::ARRAY)
+            const json::Value& typeValue = actions[kActionType] ;
+            if (typeValue.type() == json::ArrayType)
             {
-               const json::Array& actionsType = typeValue.getArray();
+               const json::Array& actionsType = typeValue.get_array();
                std::copy(actionsType.begin(),
                          actionsType.end(),
                          std::back_inserter(actionsType_));
@@ -192,10 +191,10 @@ Error ConsoleActions::loadFromFile(const FilePath& filePath)
                LOG_WARNING_MESSAGE("unexpected json type in: " + actionsJson);
             }
 
-            json::Value dataValue = actions[kActionData] ;
-            if ( dataValue.getType() == json::Type::ARRAY )
+            json::Value& dataValue = actions[kActionData] ;
+            if ( dataValue.type() == json::ArrayType )
             {
-               const json::Array& actionsData = dataValue.getArray();
+               const json::Array& actionsData = dataValue.get_array();
                std::copy(actionsData.begin(),
                          actionsData.end(),
                          std::back_inserter(actionsData_));
@@ -222,7 +221,7 @@ Error ConsoleActions::saveToFile(const core::FilePath& filePath) const
    json::Object actionsObject;
    asJson(&actionsObject);
    std::ostringstream ostr ;
-   actionsObject.writeFormatted(ostr);
+   json::writeFormatted(actionsObject, ostr);
    
    // write to file
    return writeStringToFile(filePath, ostr.str());

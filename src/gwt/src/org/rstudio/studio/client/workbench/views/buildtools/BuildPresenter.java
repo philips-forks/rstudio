@@ -1,7 +1,7 @@
 /*
  * BuildPresenter.java
  *
- * Copyright (C) 2009-17 by RStudio, PBC
+ * Copyright (C) 2009-17 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -22,10 +22,8 @@ import com.google.gwt.event.dom.client.HasClickHandlers;
 import com.google.gwt.user.client.Command;
 import com.google.inject.Inject;
 
-import com.google.inject.Provider;
 import org.rstudio.core.client.CodeNavigationTarget;
 import org.rstudio.core.client.CommandWithArg;
-import org.rstudio.core.client.Debug;
 import org.rstudio.core.client.FilePosition;
 import org.rstudio.core.client.events.HasSelectionCommitHandlers;
 import org.rstudio.core.client.events.SelectionCommitEvent;
@@ -42,16 +40,14 @@ import org.rstudio.studio.client.common.filetypes.FileTypeRegistry;
 import org.rstudio.studio.client.common.sourcemarkers.SourceMarker;
 import org.rstudio.studio.client.common.sourcemarkers.SourceMarkerList;
 import org.rstudio.studio.client.server.ServerError;
-import org.rstudio.studio.client.server.ServerRequestCallback;
 import org.rstudio.studio.client.workbench.WorkbenchContext;
 import org.rstudio.studio.client.workbench.WorkbenchView;
 import org.rstudio.studio.client.workbench.commands.Commands;
 import org.rstudio.studio.client.workbench.model.Session;
 import org.rstudio.studio.client.workbench.model.SessionInfo;
-import org.rstudio.studio.client.workbench.prefs.events.UserPrefsChangedEvent;
-import org.rstudio.studio.client.workbench.prefs.events.UserPrefsChangedHandler;
-import org.rstudio.studio.client.workbench.prefs.model.PrefLayer;
-import org.rstudio.studio.client.workbench.prefs.model.UserPrefs;
+import org.rstudio.studio.client.workbench.prefs.events.UiPrefsChangedEvent;
+import org.rstudio.studio.client.workbench.prefs.events.UiPrefsChangedHandler;
+import org.rstudio.studio.client.workbench.prefs.model.UIPrefs;
 import org.rstudio.studio.client.workbench.views.BasePresenter;
 import org.rstudio.studio.client.workbench.views.buildtools.events.BuildCompletedEvent;
 import org.rstudio.studio.client.workbench.views.buildtools.events.BuildErrorsEvent;
@@ -62,8 +58,6 @@ import org.rstudio.studio.client.workbench.views.buildtools.model.BuildState;
 import org.rstudio.studio.client.workbench.views.console.events.SendToConsoleEvent;
 import org.rstudio.studio.client.workbench.views.console.events.WorkingDirChangedEvent;
 import org.rstudio.studio.client.workbench.views.console.events.WorkingDirChangedHandler;
-import org.rstudio.studio.client.workbench.views.files.model.FilesServerOperations;
-import org.rstudio.studio.client.workbench.views.jobs.model.JobManager;
 import org.rstudio.studio.client.workbench.views.source.SourceBuildHelper;
 import org.rstudio.studio.client.workbench.views.terminal.TerminalHelper;
 
@@ -79,9 +73,7 @@ public class BuildPresenter extends BasePresenter
       void showErrors(String basePath,
                       JsArray<SourceMarker> errors, 
                       boolean ensureVisible,
-                      int autoSelect,
-                      boolean openErrors,
-                      String buildType);
+                      int autoSelect);
       void buildCompleted();
       
       HasSelectionCommitHandlers<CodeNavigationTarget> errorList();
@@ -89,14 +81,12 @@ public class BuildPresenter extends BasePresenter
       HasSelectionCommitHandlers<String> buildSubType();
           
       HasClickHandlers stopButton();
-      
-      String errorsBuildType();
    }
    
    @Inject
    public BuildPresenter(Display display, 
                          GlobalDisplay globalDisplay,
-                         UserPrefs uiPrefs,
+                         UIPrefs uiPrefs,
                          WorkbenchContext workbenchContext,
                          BuildServerOperations server,
                          final Commands commands,
@@ -105,25 +95,21 @@ public class BuildPresenter extends BasePresenter
                          Session session,
                          DependencyManager dependencyManager,
                          SourceBuildHelper sourceBuildHelper,
-                         TerminalHelper terminalHelper,
-                         Provider<JobManager> pJobManager,
-                         FilesServerOperations fileServer)
+                         TerminalHelper terminalHelper)
    {
       super(display);
       view_ = display;
       server_ = server;
       globalDisplay_ = globalDisplay;
-      userPrefs_ = uiPrefs;
+      uiPrefs_ = uiPrefs;
       workbenchContext_ = workbenchContext;
       eventBus_ = eventBus;
       commands_ = commands;
       fileTypeRegistry_ = fileTypeRegistry;
       sourceBuildHelper_ = sourceBuildHelper;
       terminalHelper_ = terminalHelper;
-      pJobManager_ = pJobManager;
       session_ = session;
       dependencyManager_ = dependencyManager;
-      fileServer_ = fileServer;
         
       eventBus.addHandler(BuildStartedEvent.TYPE, 
                           new BuildStartedEvent.Handler()
@@ -158,13 +144,11 @@ public class BuildPresenter extends BasePresenter
             view_.showErrors(event.getBaseDirectory(),
                              event.getErrors(), 
                              true,
-                             userPrefs_.navigateToBuildError().getValue() ?
+                             uiPrefs_.navigateToBuildError().getValue() ?
                                  SourceMarkerList.AUTO_SELECT_FIRST_ERROR :
-                                 SourceMarkerList.AUTO_SELECT_NONE,
-                             event.openErrorList(),
-                             event.type());
+                                 SourceMarkerList.AUTO_SELECT_NONE);
             
-            if (userPrefs_.navigateToBuildError().getValue() && event.openErrorList())
+            if (uiPrefs_.navigateToBuildError().getValue())
             {
                SourceMarker error = SourceMarker.getFirstError(event.getErrors());
                if (error != null)
@@ -200,12 +184,12 @@ public class BuildPresenter extends BasePresenter
       
       // invalidate devtools load all path whenever the project ui prefs
       // or working directory changes
-      eventBus.addHandler(UserPrefsChangedEvent.TYPE, new UserPrefsChangedHandler() 
+      eventBus.addHandler(UiPrefsChangedEvent.TYPE, new UiPrefsChangedHandler() 
       {
          @Override
-         public void onUserPrefsChanged(UserPrefsChangedEvent e)
+         public void onUiPrefsChanged(UiPrefsChangedEvent e)
          {
-            if (e.getName() == PrefLayer.LAYER_USER)
+            if (e.getType().equals(UiPrefsChangedEvent.PROJECT_TYPE))
                devtoolsLoadAllPath_ = null;
          }
       });
@@ -226,31 +210,7 @@ public class BuildPresenter extends BasePresenter
          {
             CodeNavigationTarget target = event.getSelectedItem();
             FileSystemItem fsi = FileSystemItem.createFile(target.getFile());
-            
-            if (view_.errorsBuildType() == "test-file" ||
-                view_.errorsBuildType() == "test-shiny-file")
-            {
-               // for test files, we want to avoid throwing errors when the file is missing
-               fileServer_.stat(target.getFile(), new ServerRequestCallback<FileSystemItem>()
-               {
-                  @Override
-                  public void onResponseReceived(final FileSystemItem fsi)
-                  {
-                     if (fsi.exists())
-                        fileTypeRegistry_.editFile(fsi, target.getPosition());
-                  }
-                  
-                  @Override
-                  public void onError(ServerError error)
-                  {
-                     Debug.logError(error);
-                  }
-               });
-            }
-            else
-            {
-               fileTypeRegistry_.editFile(fsi, target.getPosition());
-            }
+            fileTypeRegistry_.editFile(fsi, target.getPosition());
          }
       });
       
@@ -284,9 +244,7 @@ public class BuildPresenter extends BasePresenter
          view_.showErrors(buildState.getErrorsBaseDir(),
                           buildState.getErrors(), 
                           false,
-                          SourceMarkerList.AUTO_SELECT_NONE,
-                          true,
-                          buildState.type());
+                          SourceMarkerList.AUTO_SELECT_NONE);
       
       if (!buildState.isRunning())
          view_.buildCompleted();
@@ -337,10 +295,7 @@ public class BuildPresenter extends BasePresenter
    
    void onRoxygenizePackage()
    {
-      dependencyManager_.withRoxygen(
-            "Building package documentation",
-            "Building package documentation",
-            () -> startBuild("roxygenize-package"));
+      startBuild("roxygenize-package");
    }
    
    void onCheckPackage()
@@ -351,14 +306,6 @@ public class BuildPresenter extends BasePresenter
    void onTestPackage()
    {
       startBuild("test-package");
-   }
-
-   void onTestTestthatFile()
-   {
-   }
-
-   void onTestShinytestFile()
-   {
    }
    
    void onRebuildAll()
@@ -378,7 +325,8 @@ public class BuildPresenter extends BasePresenter
    
    private void startBuild(final String type, final String subType)
    {
-      if (session_.getSessionInfo().getBuildToolsType() == SessionInfo.BUILD_TOOLS_WEBSITE)
+      if (session_.getSessionInfo().getBuildToolsType().equals(
+                                       SessionInfo.BUILD_TOOLS_WEBSITE))
       {
           dependencyManager_.withRMarkdown("Building sites", new Command() {
             @Override
@@ -402,18 +350,14 @@ public class BuildPresenter extends BasePresenter
          return;
       }
       
-      // check for running jobs
-      pJobManager_.get().promptForTermination((confirmed) ->
-      {
-         if (confirmed)
+      terminalHelper_.warnBusyTerminalBeforeCommand(new Command() {
+         @Override
+         public void execute()
          {
-            terminalHelper_.warnBusyTerminalBeforeCommand(() ->
-                  executeBuildNoBusyCheck(type, subType),
-                  "Build", "Terminal jobs will be terminated. Are you sure?",
-                  userPrefs_.busyDetection().getValue());
+            executeBuildNoBusyCheck(type, subType);
          }
-      });
-
+      }, "Build", "Terminal jobs will be terminated. Are you sure?", 
+            uiPrefs_.terminalBusyMode().getValue());
    }
 
    private void executeBuildNoBusyCheck(final String type, final String subType)
@@ -500,10 +444,9 @@ public class BuildPresenter extends BasePresenter
    private String devtoolsLoadAllPath_ = null;
    
    private final GlobalDisplay globalDisplay_;
-   private final UserPrefs userPrefs_;
+   private final UIPrefs uiPrefs_;
    private final BuildServerOperations server_;
-   private FilesServerOperations fileServer_;
-   private final Display view_;
+   private final Display view_ ; 
    private final EventBus eventBus_;
    private final Session session_;
    private final DependencyManager dependencyManager_;
@@ -512,5 +455,4 @@ public class BuildPresenter extends BasePresenter
    private final SourceBuildHelper sourceBuildHelper_;
    private final WorkbenchContext workbenchContext_;
    private final TerminalHelper terminalHelper_;
-   private final Provider<JobManager> pJobManager_;
 }

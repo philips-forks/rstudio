@@ -1,7 +1,7 @@
 /*
  * GraphViz.java
  *
- * Copyright (C) 2009-12 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -23,7 +23,6 @@ public class GraphvizFileType extends PreviewableFromRFileType
    public GraphvizFileType()
    {
       super("graphviz", "GraphViz", EditorLanguage.LANG_GRAPHVIZ, ".gv",
-            new ImageResource2x(FileIconResources.INSTANCE.iconGraphviz2x()), "DiagrammeR::grViz",
-            false);
+            new ImageResource2x(FileIconResources.INSTANCE.iconGraphviz2x()), "DiagrammeR::grViz");
    }
 }

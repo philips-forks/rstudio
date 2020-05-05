@@ -1,7 +1,7 @@
 /*
  * GitReviewPresenter.java
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -60,7 +60,7 @@ import org.rstudio.studio.client.workbench.commands.Commands;
 import org.rstudio.studio.client.workbench.model.ClientState;
 import org.rstudio.studio.client.workbench.model.Session;
 import org.rstudio.studio.client.workbench.model.helper.IntStateValue;
-import org.rstudio.studio.client.workbench.prefs.model.UserPrefs;
+import org.rstudio.studio.client.workbench.prefs.model.UIPrefs;
 import org.rstudio.studio.client.workbench.views.files.events.FileChangeEvent;
 import org.rstudio.studio.client.workbench.views.files.events.FileChangeHandler;
 import org.rstudio.studio.client.workbench.views.vcs.common.ChangelistTable;
@@ -221,7 +221,7 @@ public class GitReviewPresenter implements ReviewPresenter
                              final GitState gitState,
                              final Session session,
                              final GlobalDisplay globalDisplay,
-                             final UserPrefs uiPrefs,
+                             final UIPrefs uiPrefs,
                              VCSFileOpener vcsFileOpener)
    {
       gitPresenterCore_ = gitPresenterCore;
@@ -283,7 +283,7 @@ public class GitReviewPresenter implements ReviewPresenter
 
                   StatusAndPath vcsStatus = StatusAndPath.fromInfo(
                         event.getFileChange().getFile().getGitStatus());
-                  if (paths.get(0).getRawPath() == vcsStatus.getRawPath())
+                  if (paths.get(0).getRawPath().equals(vcsStatus.getRawPath()))
                   {
                      gitState.refresh(false);
                   }
@@ -444,7 +444,7 @@ public class GitReviewPresenter implements ReviewPresenter
                      }
                      else
                      {
-                        if (view_.getCommitMessage().getText() == description)
+                        if (view_.getCommitMessage().getText().equals(description))
                            view_.getCommitMessage().setText("");
                      }
                   }
@@ -508,7 +508,7 @@ public class GitReviewPresenter implements ReviewPresenter
                {
                   boolean value = event.getValue();
                   uiPrefs_.gitDiffIgnoreWhitespace().setGlobalValue(value);
-                  uiPrefs_.writeUserPrefs();
+                  uiPrefs_.writeUIPrefs();
                   updateDiff(false);
                }
             });
@@ -576,7 +576,7 @@ public class GitReviewPresenter implements ReviewPresenter
                         continue;
                      
                      String status = info.getStatus();
-                     if (!StringUtil.isCharAt(status, 'A', 0))
+                     if (status.charAt(0) != 'A')
                         continue;
                      
                      // warn if we're trying to commit a file >10MB in size
@@ -749,8 +749,8 @@ public class GitReviewPresenter implements ReviewPresenter
       {
          if (!softModeSwitch_)
          {
-            boolean staged = !StringUtil.isCharAt(item.getStatus(), ' ', 0) &&
-                              StringUtil.isCharAt(item.getStatus(), ' ', 1);
+            boolean staged = item.getStatus().charAt(0) != ' ' &&
+                             item.getStatus().charAt(1) == ' ';
             HasValue<Boolean> checkbox = staged ?
                                          view_.getStagedCheckBox() :
                                          view_.getUnstagedCheckBox();
@@ -763,14 +763,13 @@ public class GitReviewPresenter implements ReviewPresenter
          else
          {
             if (view_.getStagedCheckBox().getValue()
-                && (StringUtil.isCharAt(item.getStatus(), ' ', 0) || 
-                    StringUtil.isCharAt(item.getStatus(), '?', 0)))
+                && (item.getStatus().charAt(0) == ' ' || item.getStatus().charAt(0) == '?'))
             {
                clearDiff();
                view_.getUnstagedCheckBox().setValue(true, true);
             }
             else if (view_.getUnstagedCheckBox().getValue()
-                     && StringUtil.isCharAt(item.getStatus(), ' ', 1))
+                     && item.getStatus().charAt(1) == ' ')
             {
                clearDiff();
                view_.getStagedCheckBox().setValue(true, true);
@@ -779,7 +778,7 @@ public class GitReviewPresenter implements ReviewPresenter
       }
       softModeSwitch_ = false;
 
-      if (item.getPath() != currentFilename_)
+      if (!item.getPath().equals(currentFilename_))
       {
          clearDiff();
          currentFilename_ = item.getPath();
@@ -900,12 +899,6 @@ public class GitReviewPresenter implements ReviewPresenter
    {
       gitPresenterCore_.onVcsPull();
    }
-   
-   @Handler
-   public void onVcsPullRebase()
-   {
-      gitPresenterCore_.onVcsPullRebase();
-   }
 
    @Handler
    public void onVcsPush()
@@ -939,7 +932,7 @@ public class GitReviewPresenter implements ReviewPresenter
    // from staged view
    private boolean softModeSwitch_;
    private final GitState gitState_;
-   private final UserPrefs uiPrefs_;
+   private final UIPrefs uiPrefs_;
    private final VCSFileOpener vcsFileOpener_;
    private boolean initialized_;
    private static final String MODULE_GIT = "vcs_git";

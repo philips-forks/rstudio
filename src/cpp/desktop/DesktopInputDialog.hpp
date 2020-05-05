@@ -1,7 +1,7 @@
 /*
  * DesktopInputDialog.hpp
  *
- * Copyright (C) 2009-17 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -28,8 +28,8 @@ class InputDialog : public QDialog
     Q_OBJECT
 
 public:
-    explicit InputDialog(QWidget *parent = nullptr);
-    ~InputDialog() override;
+    explicit InputDialog(QWidget *parent = 0);
+    ~InputDialog();
 
     QString caption();
     void setCaption(const QString& caption);
@@ -40,17 +40,15 @@ public:
     void setEchoMode(QLineEdit::EchoMode mode);
     void setNumbersOnly(bool numbersOnly);
     void setExtraOptionPrompt(const QString& prompt);
-    void setRequired(bool required);
 
     void setExtraOption(bool extraOption);
     bool extraOption();
 
-    void done(int r) override;
+    void done(int r);
 
 private:
     Ui::InputDialog *ui;
     QPushButton* pOK_;
-    bool required_;
 };
 
 #endif // DESKTOPINPUTDIALOG_HPP

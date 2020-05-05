@@ -1,7 +1,7 @@
 /*
  * ToolbarPane.java
  *
- * Copyright (C) 2009-12 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -41,9 +41,7 @@ public abstract class ToolbarPane extends LazyPanel implements RequiresResize,
       ensureWidget();
 
       if (progress)
-      {
          progressPanel_.showProgress(progressDelayMs_);
-      }
       else
       {
          progressPanel_.setWidget(mainWidget_);
@@ -65,7 +63,7 @@ public abstract class ToolbarPane extends LazyPanel implements RequiresResize,
       if (secondaryToolbar_ !=null)
          addToolbar(secondaryToolbar_);
 
-      mainWidget_ = createMainWidget();
+      mainWidget_ = createMainWidget() ;
       mainWidget_.setSize("100%", "100%");
 
       progressPanel_ = new SimplePanelWithProgress();
@@ -101,12 +99,12 @@ public abstract class ToolbarPane extends LazyPanel implements RequiresResize,
 
    protected Toolbar createMainToolbar()
    {
-      return null;
+      return null ;
    }
 
    protected SecondaryToolbar createSecondaryToolbar()
    {
-      return null;
+      return null ;
    }
 
    public int getToolbarsHeight()
@@ -194,9 +192,9 @@ public abstract class ToolbarPane extends LazyPanel implements RequiresResize,
    }
 
    private DockLayoutPanel dockPanel_;
-   protected Toolbar mainToolbar_;
-   protected Toolbar secondaryToolbar_;
-   private Widget mainWidget_;
-   private SimplePanelWithProgress progressPanel_;
-   private int progressDelayMs_ = 200;
+   protected Toolbar mainToolbar_ ;
+   protected Toolbar secondaryToolbar_ ;
+   private Widget mainWidget_ ;
+   private SimplePanelWithProgress progressPanel_ ;
+   private int progressDelayMs_ = 200 ;
 }

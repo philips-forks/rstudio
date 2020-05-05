@@ -1,7 +1,7 @@
 /*
  * DelayedProgressRequestCallback.java
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -25,15 +25,10 @@ public abstract class DelayedProgressRequestCallback<T>
 {
    public DelayedProgressRequestCallback(String progressMessage)
    {
-      this(new GlobalProgressDelayer(
+      indicator_ = new GlobalProgressDelayer(
          RStudioGinjector.INSTANCE.getGlobalDisplay(),  
          500, 
-         progressMessage).getIndicator());
-   }
-   
-   public DelayedProgressRequestCallback(ProgressIndicator indicator)
-   {
-      indicator_  = indicator;
+         progressMessage).getIndicator();
    }
    
    @Override
@@ -51,5 +46,5 @@ public abstract class DelayedProgressRequestCallback<T>
       indicator_.onError(error.getUserMessage());
    }
    
-   private ProgressIndicator indicator_;
-}
+   private ProgressIndicator indicator_;   
+};

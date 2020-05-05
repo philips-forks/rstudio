@@ -1,7 +1,7 @@
 /*
  * Markdown.cpp
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -17,14 +17,15 @@
 
 #include <iostream>
 
+#include <boost/foreach.hpp>
 #include <boost/scoped_ptr.hpp>
 #include <boost/regex.hpp>
 #include <boost/algorithm/string/join.hpp>
 #include <boost/algorithm/string/split.hpp>
 #include <boost/algorithm/string/predicate.hpp>
 
-#include <shared_core/Error.hpp>
-#include <shared_core/FilePath.hpp>
+#include <core/Error.hpp>
+#include <core/FilePath.hpp>
 #include <core/StringUtils.hpp>
 #include <core/FileSerializer.hpp>
 #include <core/HtmlUtils.hpp>
@@ -45,7 +46,7 @@ class SundownBuffer : boost::noncopyable
 {
 public:
    explicit SundownBuffer(std::size_t unit = 128)
-      : pBuff_(nullptr)
+      : pBuff_(NULL)
    {
       pBuff_ = ::bufnew(unit);
    }
@@ -53,7 +54,7 @@ public:
    explicit SundownBuffer(const std::string& str)
    {
       pBuff_ = ::bufnew(str.length());
-      if (pBuff_ != nullptr)
+      if (pBuff_ != NULL)
       {
          if (grow(str.length()) == BUF_OK)
          {
@@ -62,7 +63,7 @@ public:
          else
          {
             ::bufrelease(pBuff_);
-            pBuff_ = nullptr;
+            pBuff_ = NULL;
          }
       }
    }
@@ -75,7 +76,7 @@ public:
 
    // COPYING: prohibited (boost::noncopyable)
 
-   bool allocated() const { return pBuff_ != nullptr; }
+   bool allocated() const { return pBuff_ != NULL; }
 
    int grow(std::size_t size)
    {
@@ -119,7 +120,7 @@ public:
                    size_t maxNesting,
                    const struct sd_callbacks* pCallbacks,
                    void *pOpaque)
-      : pMD_(nullptr)
+      : pMD_(NULL)
    {
       pMD_ = ::sd_markdown_new(extensions, maxNesting,  pCallbacks, pOpaque);
    }
@@ -132,7 +133,7 @@ public:
 
    // COPYING: prohibited (boost::noncopyable)
 
-   bool allocated() const { return pMD_ != nullptr; }
+   bool allocated() const { return pMD_ != NULL; }
 
    void render(const SundownBuffer& input, SundownBuffer* pOutput)
    {
@@ -217,7 +218,7 @@ void stripMetadata(std::string* pInput)
 
    // check the first non-empy line for metadata
    bool hasFrontMatter = false, hasPandocTitleBlock = false;
-   for (const std::string& line : lines)
+   BOOST_FOREACH(const std::string& line, lines)
    {
       if (boost::algorithm::trim_copy(line).empty())
       {

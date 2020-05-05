@@ -1,7 +1,7 @@
 /*
  * RMarkdownPresentation.cpp
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-14 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -14,8 +14,6 @@
  */
 
 #include "RMarkdownPresentation.hpp"
-
-#include <gsl/gsl>
 
 #include <boost/regex.hpp>
 #include <boost/algorithm/string/predicate.hpp>
@@ -56,7 +54,7 @@ json::Value itemAsJson(const SlideNavigationItem& item)
    slideJson["indent"] = item.indent;
    slideJson["index"] = item.index;
    slideJson["line"] = item.line;
-   return std::move(slideJson);
+   return slideJson;
 }
 
 } // anonymous namespace
@@ -181,7 +179,7 @@ void ammendResults(const std::string& formatName,
    {
       // determine which slide the cursor is on
       int previewSlide = 1;
-      for (int i = gsl::narrow_cast<int>(slideNavigationItems.size()) - 1; i >= 0; i--)
+      for (int i = (slideNavigationItems.size()-1); i>=0; i--)
       {
          const SlideNavigationItem& item = slideNavigationItems.at(i);
          if (sourceLine >= item.line)
@@ -208,7 +206,7 @@ void ammendResults(const std::string& formatName,
 
 
 } // namespace presentation
-} // namespace rmarkdown
+} // namepsace rmarkdown
 } // namespace modules
 } // namespace session
 } // namespace rstudio

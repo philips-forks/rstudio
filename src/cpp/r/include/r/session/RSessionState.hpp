@@ -1,7 +1,7 @@
 /*
  * RSessionState.hpp
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -20,7 +20,7 @@
 
 #include <boost/function.hpp>
 
-#include <shared_core/Error.hpp>
+#include <core/Error.hpp>
 #include <core/Version.hpp>
 
 namespace rstudio {
@@ -43,8 +43,7 @@ struct SessionStateInfo
 bool save(const core::FilePath& statePath,
           bool serverMode,
           bool excludePackages,
-          bool disableSaveCompression,
-          const std::string& envVarSaveBlacklist);
+          bool disableSaveCompression);
 
 bool saveMinimal(const core::FilePath& statePath,
                  bool saveGlobalEnvironment);

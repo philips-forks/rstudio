@@ -1,7 +1,7 @@
 /*
  * ImportFileSettingsDialog.java
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -14,7 +14,6 @@
  */
 package org.rstudio.studio.client.workbench.views.environment.dataimport;
 
-import com.google.gwt.aria.client.Roles;
 import com.google.gwt.core.client.GWT;
 import com.google.gwt.core.client.JsArray;
 import com.google.gwt.core.client.JsArrayString;
@@ -33,7 +32,6 @@ import org.rstudio.core.client.Invalidation;
 import org.rstudio.core.client.Invalidation.Token;
 import org.rstudio.core.client.files.FileSystemItem;
 import org.rstudio.core.client.js.JsObject;
-import org.rstudio.core.client.widget.LabeledTextBox;
 import org.rstudio.core.client.widget.ModalDialog;
 import org.rstudio.core.client.widget.OperationWithInput;
 import org.rstudio.core.client.widget.ProgressIndicator;
@@ -78,7 +76,7 @@ public class ImportFileSettingsDialog extends ModalDialog<ImportFileSettingsDial
          OperationWithInput<ImportFileSettingsDialogResult> operation,
          GlobalDisplay globalDisplay)
    {
-      super(caption, Roles.getDialogRole(), operation);
+      super(caption, operation);
       server_ = server;
       sourceServer_ = sourceServer;
       dataFile_ = dataFile;
@@ -353,7 +351,7 @@ public class ImportFileSettingsDialog extends ModalDialog<ImportFileSettingsDial
             varname_.getText().trim(),
             encoding_.getValue(encoding_.getSelectedIndex()),
             headingYes_.getValue(),
-            rowNames == autoValue ? null : rowNames,
+            rowNames.equals(autoValue) ? null : rowNames,
             separator_.getValue(separator_.getSelectedIndex()),
             decimal_.getValue(decimal_.getSelectedIndex()),
             quote_.getValue(quote_.getSelectedIndex()),
@@ -406,7 +404,7 @@ public class ImportFileSettingsDialog extends ModalDialog<ImportFileSettingsDial
    @UiField
    RadioButton headingNo_;
    @UiField
-   LabeledTextBox varname_;
+   TextBox varname_;
    @UiField
    TextBox naStrings_;
    @UiField

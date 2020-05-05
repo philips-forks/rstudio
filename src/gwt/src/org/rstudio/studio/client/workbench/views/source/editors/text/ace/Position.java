@@ -1,7 +1,7 @@
 /*
  * Position.java
  *
- * Copyright (C) 2009-12 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -89,16 +89,6 @@ public class Position extends JavaScriptObject
       this.row = position.row;
       this.column = position.column;
    }-*/;
-   
-   public final Position movedLeft(int columns)
-   {
-      return Position.create(getRow(), Math.max(0, getColumn() - columns));
-   }
-   
-   public final Position movedRight(int columns)
-   {
-      return Position.create(getRow(), getColumn() + columns);
-   }
    
    public final String asString()
    {

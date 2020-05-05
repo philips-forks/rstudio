@@ -1,7 +1,7 @@
 /*
  * TimeBufferedCommand.java
  *
- * Copyright (C) 2009-18 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -16,6 +16,8 @@ package org.rstudio.core.client;
 
 import com.google.gwt.user.client.Timer;
 
+import java.util.Date;
+
 /**
  * Manages the execution of logic that should not be run too frequently.
  * Multiple calls over a (caller-defined) period of time will be coalesced
@@ -23,18 +25,13 @@ import com.google.gwt.user.client.Timer;
  *
  * The command can optionally be run on a scheduled ("passive") basis; use
  * the two- or three-arg constructor. IMPORTANT NOTE: The implementation of
- * performAction must check if shouldReschedule is true, and if it is,
- * then it should call reschedule() whenever it is done with the
+ * performAction must check if shouldSchedulePassive is true, and if it is,
+ * then it should call schedulePassive() whenever it is done with the
  * operation. Failure to do so correctly (e.g. in error cases) will cause
  * the passive runs to immediately stop occurring. 
  */
 public abstract class TimeBufferedCommand
 {
-   /**
-    * See class javadoc for details about shouldReschedule flag.
-    */
-   protected abstract void performAction(boolean shouldReschedule);
-   
    /**
     * Creates a TimeBufferedCommand that will only run when nudged.
     */
@@ -48,7 +45,7 @@ public abstract class TimeBufferedCommand
     * passiveIntervalMillis milliseconds, whichever comes first.
     */
    public TimeBufferedCommand(int passiveIntervalMillis,
-                              int activeIntervalMillis)
+                                 int activeIntervalMillis)
    {
       this(passiveIntervalMillis, passiveIntervalMillis, activeIntervalMillis);
    }
@@ -59,83 +56,97 @@ public abstract class TimeBufferedCommand
     * custom period before the first "passive" run.
     */
    public TimeBufferedCommand(int initialIntervalMillis,
-                              int passiveIntervalMillis,
-                              int activeIntervalMillis)
+                                 int passiveIntervalMillis,
+                                 int activeIntervalMillis)
    {
       this.initialIntervalMillis_ = initialIntervalMillis;
       this.passiveIntervalMillis_ = passiveIntervalMillis;
       this.activeIntervalMillis_ = activeIntervalMillis;
-      this.timer_ = new Timer()
-      {
-         @Override
-         public void run()
-         {
-            isNudged_ = false;
-            boolean shouldReschedule = passiveIntervalMillis_ > 0;
-            performAction(shouldReschedule);
-         }
-      };
-      
+
       if (initialIntervalMillis_ >= 0 && passiveIntervalMillis_ > 0)
-         timer_.schedule(initialIntervalMillis_);
-   }
-   
-   /**
-    * Re-schedule the timer. If the timer is already running, it will be
-    * canceled and re-scheduled. Useful when receiving a flood of events
-    * when the timer should only fire after all events have been processed.
-    * Ignored if the timer was recently nudged.
-    */
-   public final void reschedule()
-   {
-      if (isSuspended_ || isNudged_)
-         return;
-      
-      timer_.schedule(passiveIntervalMillis_);
+         scheduleExecution(true, Math.max(1, initialIntervalMillis_));
    }
 
    /**
-    * Nudge the timer. If the timer was originally scheduled passively, then
-    * the timer will be re-scheduled using the active internal.
+    * See class javadoc for details about shouldSchedulePassive flag.
+    */
+   protected abstract void performAction(boolean shouldSchedulePassive);
+
+   /**
+    * Request that this command execute soon. (How soon depends
+    * on the activeIntervalMillis constructor param.) 
     */
    public final void nudge()
    {
-      if (isSuspended_ || isNudged_)
-         return;
-
-      isNudged_ = true;
-      timer_.schedule(activeIntervalMillis_);
+      scheduleExecution(false, activeIntervalMillis_);
    }
 
-   /**
-    * Suspend execution of the timer.
-    */
    public final void suspend()
    {
-      isSuspended_ = true;
-      isNudged_ = false;
-      
-      timer_.cancel();
+      stopped_ = true;
    }
 
-   /**
-    * Resume execution of the timer.
-    */
    public final void resume()
    {
-      isSuspended_ = false;
-      isNudged_ = false;
-      
+      assert passiveIntervalMillis_ <= 0 : "Cannot call start() on a " +
+                                           "TimeBufferedCommand that fires on " +
+                                           "passive intervals. Once stopped, " +
+                                           "they stay stopped.";
       if (passiveIntervalMillis_ > 0)
-         timer_.schedule(passiveIntervalMillis_);
+         throw new IllegalStateException("Cannot call start() on a " +
+                                         "TimeBufferedCommand that fires on " +
+                                         "passive intervals. Once stopped, " +
+                                         "they stay stopped.");
+      stopped_ = false;
    }
-   
+
+   private final void scheduleExecution(final boolean passive, final int millis)
+   {
+      new Timer() {
+         @Override
+         public void run()
+         {
+            execute(passive, millis);
+         }
+      }.schedule(millis);
+   }
+
+   private final void execute(final boolean passive, int millisAgo)
+   {
+      if (stopped_)
+         return;
+
+      Date now = new Date();
+      // see if we were preempted by someone else executing
+      if (lastExecuted_ != null)
+      {
+         long millisSinceLast = now.getTime() - lastExecuted_.getTime();
+         if (millisSinceLast < millisAgo - 50) // some fudge factor
+         {
+            // Someone executed in front of us. Abort this execute, but
+            // if we're in the passive chain of execution, then reschedule.
+            if (passive)
+            {
+               int gap = passiveIntervalMillis_ - (int)millisSinceLast;
+               gap = Math.max(1, gap); // a non-positive value will cause error
+               scheduleExecution(true, gap);
+            }
+            return;
+         }
+      }
+      lastExecuted_ = now;
+
+      performAction(passive);
+   }
+
+   protected final void schedulePassive()
+   {
+      scheduleExecution(true, passiveIntervalMillis_);
+   }
+
    private final int initialIntervalMillis_;
    private final int passiveIntervalMillis_;
    private final int activeIntervalMillis_;
-   private final Timer timer_;
-   
-   private boolean isSuspended_ = false;
-   private boolean isNudged_ = false;
-   
+   protected Date lastExecuted_;
+   private boolean stopped_;
 }

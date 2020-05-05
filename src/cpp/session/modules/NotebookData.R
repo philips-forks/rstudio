@@ -1,7 +1,7 @@
 #
 # NotebookData.R
 #
-# Copyright (C) 2009-18 by RStudio, PBC
+# Copyright (C) 2009-16 by RStudio, Inc.
 #
 # Unless you have received this program directly from RStudio pursuant
 # to the terms of a commercial license agreement with RStudio, then
@@ -92,29 +92,25 @@
       options,
       file = output)
 
-    # standard metadata
-    metadata <- list(classes = className, nrow = nRow, ncol = nCol, summary = list())
-
-    # if tibble is loaded, use it to create a summary of the object
-    if ("tibble" %in% loadedNamespaces())
-    {
-       metadata$summary <- as.list(tibble::tbl_sum(original))
-    }
-
-    .Call("rs_recordData", output, metadata, PACKAGE = "(embedding)")
+    .Call("rs_recordData", output, list(classes = className,
+                                        nrow = nRow, 
+                                        ncol = nCol))
     invisible(original)
   }
 
   overrides <- .rs.dataCaptureOverrides()
   lapply(names(overrides), function(overrideName) {
     overrideMap <- overrides[[overrideName]]
-    overrideFun <- function(x, ...) {
+    assign(
+      overrideName,
+      function(x, ...) {
         o <- overrideMap(x, options)
         if (!is.null(o)) {
           overridePrint(o$x, o$options, o$className, o$nRow, o$nCol)
         }
-      }
-     .rs.addS3Override(overrideName, overrideFun)
+      },
+      envir = as.environment("tools:rstudio")
+    )
   })
 
   assign(
@@ -130,12 +126,17 @@
     print(as.data.frame(head(x, n)))
   })
 
-  .rs.addS3Override("print.knitr_kable", function(x, ...) {
-    print(
-      knitr::asis_output(x)
-    )
-    invisible(x)
-  })
+  assign(
+    "print.knitr_kable",
+    function(x, ...) {
+      print(
+        knitr::asis_output(x)
+      )
+
+      invisible(x)
+    },
+    envir = as.environment("tools:rstudio")
+  )
 })
 
 .rs.addFunction("releaseDataCapture", function()
@@ -151,9 +152,14 @@
 
   overrides <- .rs.dataCaptureOverrides()
   lapply(names(overrides), function(override) {
-    .rs.removeS3Override(override)
+    if (exists(override, envir = as.environment("tools:rstudio"), inherits = FALSE)) {
+      rm(
+        list = override,
+        envir = as.environment("tools:rstudio"),
+        inherits = FALSE
+      )
+    }
   })
-  .rs.removeS3Override("print.knitr_kable")
 })
 
 .rs.addFunction("readDataCapture", function(path)
@@ -244,10 +250,6 @@
 
   e <- new.env(parent = emptyenv())
   load(file = path, envir = e)
-  
-  # this works around a strange bug in R 3.5.1 on Windows
-  # where output can be mis-encoded after a save / load
-  cat(NULL, sep = "")
 
   data <- head(e$x, getOption("max.print", 1000))
   data <- if (is.null(data)) as.data.frame(list()) else data
@@ -299,31 +301,16 @@
         paste0("<", summary, ">")
       })
 
-  # R 3.6.0 on Windows has an issue where RGui escapes can 'leak'
-  # into encoded strings; detect and remove those post-hoc.
-  # (should be fixed in R 3.6.1)
-  #
-  # https://bugs.r-project.org/bugzilla/show_bug.cgi?id=17567
-  needsEncodeFix <-
-    .Platform$OS.type == "windows" &&
-    getRversion() == "3.6.0"
-  
   data <- as.data.frame(
     lapply(
       data,
       function (y) {
-        
         # escape NAs from character columns
         if (typeof(y) == "character") {
           y[y == "NA"] <- "__NA__"
         }
 
-        # encode string (ensure control characters are escaped)
         y <- encodeString(format(y))
-        if (needsEncodeFix) {
-          y <- gsub("^\002\377\376", "", y)
-          y <- gsub("\003\377\376$", "", y)
-        }
 
         # trim spaces
         gsub("^\\s+|\\s+$", "", y)
@@ -331,7 +318,7 @@
     ),
     stringsAsFactors = FALSE,
     optional = TRUE)
-  
+
   pagedTableOptions <- list(
     columns = list(
       min = options[["cols.min.print"]],
@@ -364,7 +351,7 @@
       query <- gsub(".*\\*\\/", "", query)
     }
 
-    grepl("^\\s*(INSERT|UPDATE|DELETE|CREATE|DROP).*", query, ignore.case = TRUE)
+    grepl("^\\s*(INSERT|UPDATE|DELETE|CREATE).*", query, ignore.case = TRUE)
   }
 
   # precreate directories if needed
@@ -426,10 +413,7 @@
   # execute query -- when we are printing with an enforced max.print we
   # use dbFetch so as to only pull down the required number of records
   query <- interpolate_from_env(conn, sql)
-  if (is_sql_update_query(query)) {
-    DBI::dbExecute(conn, query)
-    data <- NULL
-  } else if (is.null(varname) && max.print > 0) {
+  if (is.null(varname) && max.print > 0 && !is_sql_update_query(query)) {
     res <- DBI::dbSendQuery(conn, query)
     data <- DBI::dbFetch(res, n = max.print)
     DBI::dbClearResult(res)
@@ -441,7 +425,7 @@
   if (!is.null(varname)) {
     assign(varname, data, envir = globalenv())
   }
-  else if(!is.null(data)) {
+  else {
     x <- data
     save(
       x, 

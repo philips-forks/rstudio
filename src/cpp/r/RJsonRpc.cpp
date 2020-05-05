@@ -1,7 +1,7 @@
 /*
  * RJsonRpc.cpp
  *
- * Copyright (C) 2009-12 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -49,8 +49,8 @@
 
 #include <boost/bind.hpp>
 
-#include <shared_core/Error.hpp>
-#include <shared_core/FilePath.hpp>
+#include <core/Error.hpp>
+#include <core/FilePath.hpp>
 
 #include <r/RExec.hpp>
 #include <r/RSourceManager.hpp>
@@ -88,14 +88,17 @@ Error callRHandler(const std::string& functionName,
    
    // add params
    const core::json::Array& params = request.params;
-   for (size_t i=0; i < params.getSize(); i++)
+   for (core::json::Array::size_type i=0; i<params.size(); i++)
       rFunction.addParam(params[i]);
    
    // add kwparams
    const core::json::Object& kwparams = request.kwparams;
-   for (const core::json::Object::Member& member : kwparams)
+   for (core::json::Object::const_iterator 
+        it = kwparams.begin();
+        it != kwparams.end();
+        ++it)
    {
-      rFunction.addParam(member.getName(), member.getValue());
+      rFunction.addParam(it->first, it->second);
    }
    
    // call the function

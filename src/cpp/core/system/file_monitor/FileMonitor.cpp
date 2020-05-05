@@ -1,7 +1,7 @@
 /*
  * FileMonitor.cpp
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -19,10 +19,11 @@
 #include <list>
 
 #include <boost/bind.hpp>
+#include <boost/foreach.hpp>
 #include <boost/algorithm/string.hpp>
 
 #include <core/Log.hpp>
-#include <shared_core/Error.hpp>
+#include <core/Error.hpp>
 #include <core/Thread.hpp>
 #include <core/PeriodicCommand.hpp>
 
@@ -328,7 +329,7 @@ Error discoverAndProcessFileChanges(
 
       // build up actual file changes and mutate the tree as appropriate
       std::vector<FileChangeEvent> fileChanges;
-      for (const FileChangeEvent& fileChange : childrenFileChanges)
+      BOOST_FOREACH(const FileChangeEvent& fileChange, childrenFileChanges)
       {
          switch(fileChange.type())
          {
@@ -544,7 +545,7 @@ void fileMonitorThreadMain()
       running = true;
       file_monitor::detail::run(boost::bind(checkForInput));   
    }
-   catch(const boost::thread_interrupted&)
+   catch(const boost::thread_interrupted& e)
    {
    }
    CATCH_UNEXPECTED_EXCEPTION

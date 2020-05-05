@@ -33,7 +33,7 @@
          margin-top: 80px;
          font-size: 130%;
          font-weight: bold;
-         color: #6f6f6f;
+         color: #AAA;
          text-align: center;
       }
       .progressPanel {

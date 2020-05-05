@@ -1,7 +1,7 @@
 #
 # CMakeLists.txt
 #
-# Copyright (C) 2009-11 by RStudio, PBC
+# Copyright (C) 2009-11 by RStudio, Inc.
 #
 # Unless you have received this program directly from RStudio pursuant
 # to the terms of a commercial license agreement with RStudio, then
@@ -27,21 +27,28 @@ set(CONSOLEIO_SOURCE_FILES
   ConsoleIOMain.cpp
 )
 
-if(WIN32)
 
-   list(
-      APPEND CONSOLEIO_SOURCE_FILES
-      "${CMAKE_CURRENT_BINARY_DIR}/consoleio.rc")
+# configure consoleio.rc
+configure_file (${CMAKE_CURRENT_SOURCE_DIR}/consoleio.rc.in
+                ${CMAKE_CURRENT_BINARY_DIR}/consoleio.rc)
 
-   configure_file(
-      ${CMAKE_CURRENT_SOURCE_DIR}/consoleio.rc.in
-      ${CMAKE_CURRENT_BINARY_DIR}/consoleio.rc)
 
-   configure_file(
-      ${CMAKE_CURRENT_SOURCE_DIR}/consoleio.exe.manifest
-      ${CMAKE_CURRENT_BINARY_DIR}/consoleio.exe.manifest COPYONLY)
+configure_file (${CMAKE_CURRENT_SOURCE_DIR}/consoleio.exe.manifest
+                ${CMAKE_CURRENT_BINARY_DIR}/consoleio.exe.manifest COPYONLY)
 
-endif()
+add_custom_command(
+   OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/res.o"
+   COMMAND "${WINDRES}"
+      -I "."
+      -i "consoleio.rc"
+      -o "${CMAKE_CURRENT_BINARY_DIR}/res.o"
+      -Ocoff
+   DEPENDS
+      "${CMAKE_CURRENT_BINARY_DIR}/consoleio.rc"
+      "${CMAKE_CURRENT_SOURCE_DIR}/consoleio.exe.manifest")
+set(CONSOLEIO_SOURCE_FILES
+   ${CONSOLEIO_SOURCE_FILES}
+   "${CMAKE_CURRENT_BINARY_DIR}/res.o")
 
 add_executable(consoleio
   ${CONSOLEIO_SOURCE_FILES}

@@ -1,7 +1,7 @@
 /*
  * EvinceSynctex.hpp
  *
- * Copyright (C) 2009-12 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -50,7 +50,7 @@ public:
 
    virtual void syncView(const QString& pdfFile, int pdfPage);
 
-private Q_SLOTS:
+private slots:
    void onFindWindowFinished(QDBusPendingCallWatcher *pCall);
    void onSyncViewFinished(QDBusPendingCallWatcher *pCall);
    void onClosed();

@@ -1,7 +1,7 @@
 /*
  * ShortcutViewer.java
  *
- * Copyright (C) 2009-20 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -16,13 +16,9 @@
 package org.rstudio.core.client.command;
 
 
-import com.google.inject.Provider;
 import org.rstudio.core.client.widget.ShortcutInfoPanel;
 import org.rstudio.core.client.widget.VimKeyInfoPanel;
-import org.rstudio.studio.client.application.AriaLiveService;
 import org.rstudio.studio.client.application.Desktop;
-import org.rstudio.studio.client.application.events.AriaLiveStatusEvent.Severity;
-import org.rstudio.studio.client.application.events.AriaLiveStatusEvent.Timing;
 import org.rstudio.studio.client.common.GlobalDisplay;
 import org.rstudio.studio.client.workbench.commands.Commands;
 
@@ -38,7 +34,6 @@ import com.google.gwt.user.client.Event.NativePreviewHandler;
 import com.google.gwt.user.client.ui.RootLayoutPanel;
 import com.google.inject.Inject;
 import com.google.inject.Singleton;
-import org.rstudio.studio.client.workbench.prefs.model.UserPrefs;
 
 @Singleton
 public class ShortcutViewer implements NativePreviewHandler
@@ -49,13 +44,10 @@ public class ShortcutViewer implements NativePreviewHandler
    public ShortcutViewer(
          Binder binder,
          Commands commands,
-         Provider<UserPrefs> pPrefs,
-         Provider<AriaLiveService> pAriaLive,
          GlobalDisplay globalDisplay)
    {
       binder.bind(commands, this);
-      pPrefs_ = pPrefs;
-      pAriaLive_ = pAriaLive;
+      
       globalDisplay_ = globalDisplay;
    }
    
@@ -67,19 +59,17 @@ public class ShortcutViewer implements NativePreviewHandler
       {
          return;
       }
-
-      Command showAllShortcutsPage = ()->
+      showShortcutInfoPanel(new ShortcutInfoPanel(new Command()
       {
-         if (Desktop.hasDesktopFrame())
-            Desktop.getFrame().showKeyboardShortcutHelp();
-         else
-            openApplicationURL("docs/keyboard.htm");
-      };
-
-      if (pPrefs_.get().getScreenReaderEnabled())
-         showAllShortcutsPage.execute();
-      else
-         showShortcutInfoPanel(new ShortcutInfoPanel(showAllShortcutsPage));
+         @Override
+         public void execute()
+         {
+            if (Desktop.isDesktop())
+               Desktop.getFrame().showKeyboardShortcutHelp();
+            else 
+               openApplicationURL("docs/keyboard.htm");
+         }
+      }));
    }
    
    public void showVimKeyboardShortcuts()
@@ -88,13 +78,6 @@ public class ShortcutViewer implements NativePreviewHandler
       if (shortcutInfo_ != null)
       {
          return;
-      }
-      if (pPrefs_.get().getScreenReaderEnabled())
-      {
-         pAriaLive_.get().announce(AriaLiveService.INACCESSIBLE_FEATURE,
-               "Vim keyboard shortcut help not screen reader accessible. Press any key to close.",
-               Timing.IMMEDIATE,
-               Severity.ALERT);
       }
       showShortcutInfoPanel(new VimKeyInfoPanel());
    }
@@ -152,9 +135,5 @@ public class ShortcutViewer implements NativePreviewHandler
    
    private ShortcutInfoPanel shortcutInfo_ = null;
    private HandlerRegistration preview_;
-
-   // injected
-   private final Provider<UserPrefs> pPrefs_;
-   private final Provider<AriaLiveService> pAriaLive_;
-   private final GlobalDisplay globalDisplay_;
+   private GlobalDisplay globalDisplay_;
 }

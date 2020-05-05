@@ -15,7 +15,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#define BUFFER_MAX_ALLOC_SIZE (1024 * 1024 * 16) /* 16mb */
+#define BUFFER_MAX_ALLOC_SIZE (1024 * 1024 * 16) //16mb
 
 #include "buffer.h"
 
@@ -25,7 +25,7 @@
 #include <assert.h>
 
 /* MSVC compat */
-#if defined(__MINGW32__)
+#if defined(_MSC_VER)
 #	define _buf_vsnprintf _vsnprintf
 #else
 #	define _buf_vsnprintf vsnprintf
@@ -126,7 +126,7 @@ bufprintf(struct buf *buf, const char *fmt, ...)
 	va_end(ap);
 
 	if (n < 0) {
-#ifdef __MINGW32__ 
+#ifdef _MSC_VER
 		va_start(ap, fmt);
 		n = _vscprintf(fmt, ap);
 		va_end(ap);

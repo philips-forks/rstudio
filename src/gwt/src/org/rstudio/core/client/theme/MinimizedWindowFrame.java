@@ -1,7 +1,7 @@
 /*
  * MinimizedWindowFrame.java
  *
- * Copyright (C) 2009-20 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -14,13 +14,11 @@
  */
 package org.rstudio.core.client.theme;
 
-import com.google.gwt.aria.client.Roles;
 import com.google.gwt.dom.client.Style;
 import com.google.gwt.event.dom.client.ClickEvent;
 import com.google.gwt.event.dom.client.ClickHandler;
 import com.google.gwt.event.shared.HandlerRegistration;
 import com.google.gwt.user.client.ui.*;
-import org.rstudio.core.client.ElementIds;
 import org.rstudio.core.client.events.HasWindowStateChangeHandlers;
 import org.rstudio.core.client.events.WindowStateChangeEvent;
 import org.rstudio.core.client.events.WindowStateChangeHandler;
@@ -45,21 +43,18 @@ public class MinimizedWindowFrame
       }
    }
 
-   public MinimizedWindowFrame(String title, String accessibleName)
+   public MinimizedWindowFrame(String title)
    {
-      this(title, accessibleName, null);
+      this(title, null);
    }
 
-   public MinimizedWindowFrame(String title, String accessibleName, Widget extraWidget)
+   public MinimizedWindowFrame(String title, Widget extraWidget)
    {
       ThemeStyles themeStyles = ThemeResources.INSTANCE.themeStyles();
 
       layout_ = new ClickDockLayoutPanel(Style.Unit.PX);
       layout_.setStylePrimaryName(themeStyles.minimizedWindow());
-      layout_.addStyleName(themeStyles.rstheme_minimizedWindowObject());
-
-      Roles.getRegionRole().set(layout_.getElement());
-      Roles.getRegionRole().setAriaLabelProperty(layout_.getElement(), accessibleName + " minimized");
+      layout_.addStyleName(themeStyles.minimizedWindowObject());
 
       int leftPadding = title != null ? 8 : 4;
       layout_.addWest(createDiv(themeStyles.left()), leftPadding);
@@ -67,7 +62,7 @@ public class MinimizedWindowFrame
 
       HorizontalPanel inner = new HorizontalPanel();
       inner.setWidth("100%");
-      inner.setStylePrimaryName(themeStyles.rstheme_center());
+      inner.setStylePrimaryName(themeStyles.center());
 
       if (title != null)
       {
@@ -92,21 +87,29 @@ public class MinimizedWindowFrame
          inner.setCellWidth(extraWidget, "100%");
       }
 
-      WindowFrameButton minimize = new WindowFrameButton(accessibleName, WindowState.NORMAL);
-      minimize.setElementId(ElementIds.MIN_FRAME_MIN_BTN + "_" + ElementIds.idSafeString(accessibleName));
-      minimize.setStylePrimaryName(themeStyles.minimize());
-      minimize.setClickHandler(() ->
+      HTML minimize = createDiv(themeStyles.minimize() + " " +
+                                ThemeStyles.INSTANCE.handCursor());
+      minimize.addClickHandler(new ClickHandler()
       {
-         fireEvent(new WindowStateChangeEvent(WindowState.MINIMIZE));
+         public void onClick(ClickEvent event)
+         {
+            event.preventDefault();
+            event.stopPropagation();
+            fireEvent(new WindowStateChangeEvent(WindowState.MINIMIZE));
+         }
       });
       inner.add(minimize);
 
-      WindowFrameButton maximize = new WindowFrameButton(accessibleName, WindowState.MAXIMIZE);
-      maximize.setElementId(ElementIds.MIN_FRAME_MAX_BTN + "_" + ElementIds.idSafeString(accessibleName));
-      maximize.setStylePrimaryName(themeStyles.maximize());
-      maximize.setClickHandler(() ->
+      HTML maximize = createDiv(themeStyles.maximize() + " " + 
+                                themeStyles.handCursor());
+      maximize.addClickHandler(new ClickHandler()
       {
-         fireEvent(new WindowStateChangeEvent(WindowState.MAXIMIZE));
+         public void onClick(ClickEvent event)
+         {
+            event.preventDefault();
+            event.stopPropagation();
+            fireEvent(new WindowStateChangeEvent(WindowState.MAXIMIZE));
+         }
       });
       inner.add(maximize);
 

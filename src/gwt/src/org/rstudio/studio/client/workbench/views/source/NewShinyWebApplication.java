@@ -1,7 +1,7 @@
 /*
  * NewShinyWebApplication.java
  *
- * Copyright (C) 2009-20 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -14,18 +14,11 @@
  */
 package org.rstudio.studio.client.workbench.views.source;
 
-import com.google.gwt.aria.client.Roles;
-import org.rstudio.core.client.ElementIds;
 import org.rstudio.core.client.RegexUtil;
 import org.rstudio.core.client.StringUtil;
-import org.rstudio.core.client.dom.DomUtils;
 import org.rstudio.core.client.js.JsObject;
 import org.rstudio.core.client.regex.Pattern;
-import org.rstudio.core.client.widget.DecorativeImage;
 import org.rstudio.core.client.widget.DirectoryChooserTextBox;
-import org.rstudio.core.client.widget.FieldSetWrapperPanel;
-import org.rstudio.core.client.widget.FormLabel;
-import org.rstudio.core.client.widget.LayoutGrid;
 import org.rstudio.core.client.widget.ModalDialog;
 import org.rstudio.core.client.widget.OperationWithInput;
 import org.rstudio.core.client.widget.VerticalSpacer;
@@ -48,8 +41,10 @@ import com.google.gwt.event.dom.client.KeyDownEvent;
 import com.google.gwt.event.dom.client.KeyDownHandler;
 import com.google.gwt.resources.client.ClientBundle;
 import com.google.gwt.resources.client.CssResource;
+import com.google.gwt.user.client.ui.Grid;
 import com.google.gwt.user.client.ui.HasVerticalAlignment;
 import com.google.gwt.user.client.ui.HorizontalPanel;
+import com.google.gwt.user.client.ui.Image;
 import com.google.gwt.user.client.ui.Label;
 import com.google.gwt.user.client.ui.RadioButton;
 import com.google.gwt.user.client.ui.TextBox;
@@ -63,12 +58,12 @@ public class NewShinyWebApplication extends ModalDialog<NewShinyWebApplication.R
    public static class Result extends JavaScriptObject
    {
       protected Result() {}
-
+      
       public static final Result create()
       {
          return create("", "", "");
       }
-
+      
       public static final native Result create(String appName,
                                                String appType,
                                                String appDir)
@@ -79,12 +74,12 @@ public class NewShinyWebApplication extends ModalDialog<NewShinyWebApplication.R
             "dir": appDir
          };
       }-*/;
-
+      
       public final native String getAppName() /*-{ return this["name"]; }-*/;
       public final native String getAppType() /*-{ return this["type"]; }-*/;
       public final native String getAppDir() /*-{ return this["dir"]; }-*/;
    }
-
+   
    private void addTextFieldValidator(HasKeyDownHandlers widget)
    {
       widget.addKeyDownHandler(new KeyDownHandler()
@@ -103,12 +98,12 @@ public class NewShinyWebApplication extends ModalDialog<NewShinyWebApplication.R
          }
       });
    }
-
+   
    private boolean isValidAppName(String appName)
    {
       return RE_VALID_APP_NAME.test(appName);
    }
-
+   
    private void validateAppName()
    {
       String appName = appNameTextBox_.getText().trim();
@@ -117,7 +112,7 @@ public class NewShinyWebApplication extends ModalDialog<NewShinyWebApplication.R
       else
          appNameTextBox_.addStyleName(RES.styles().invalidAppName());
    }
-
+   
    private class ShinyWebApplicationClientState extends JSObjectStateValue
    {
       public ShinyWebApplicationClientState()
@@ -146,17 +141,17 @@ public class NewShinyWebApplication extends ModalDialog<NewShinyWebApplication.R
          return result_.cast();
       }
    }
-
+   
    private final void loadAndPersistClientState()
    {
       if (clientStateValue_ == null)
          clientStateValue_ = new ShinyWebApplicationClientState();
    }
-
+   
    private String defaultParentDirectory()
    {
       String dir;
-
+      
       // if we're in a project, use the project directory
       if (context_.isProjectActive())
       {
@@ -170,11 +165,11 @@ public class NewShinyWebApplication extends ModalDialog<NewShinyWebApplication.R
                ? "~"
                : cachedDir;
       }
-
+      
       return dir;
-
+      
    }
-
+   
    @Inject
    private void initialize(Session session,
                            GlobalDisplay globalDisplay,
@@ -184,44 +179,40 @@ public class NewShinyWebApplication extends ModalDialog<NewShinyWebApplication.R
       globalDisplay_ = globalDisplay;
       context_ = context;
    }
-
+   
    public NewShinyWebApplication(String caption, 
                                  OperationWithInput<Result> operation)
    {
-      super(caption, Roles.getDialogRole(), operation);
+      super(caption, operation);
       RStudioGinjector.INSTANCE.injectMembers(this);
-
+      
       setOkButtonCaption("Create");
-
+      
       loadAndPersistClientState();
-
+        
       controls_ = new VerticalPanel();
-
+      
       // Create individual widgets
+      appNameLabel_ = new Label("Application name:");
+      appNameLabel_.addStyleName(RES.styles().label());
+      
       appNameTextBox_ = new TextBox();
-      DomUtils.disableSpellcheck(appNameTextBox_);
+      appNameTextBox_.getElement().setAttribute("spellcheck", "false");
       appNameTextBox_.addStyleName(RES.styles().textBox());
       appNameTextBox_.addStyleName(RES.styles().appNameTextBox());
-      DomUtils.setPlaceholder(appNameTextBox_, "Name");
+      appNameTextBox_.getElement().setAttribute("placeholder", "Name");
       addTextFieldValidator(appNameTextBox_);
-      ElementIds.assignElementId(appNameTextBox_, ElementIds.NEW_SHINY_APP_NAME);
-
-      appNameLabel_ = new FormLabel("Application name:", appNameTextBox_);
-      appNameLabel_.addStyleName(RES.styles().label());
-
+      
       appTypeLabel_ = new Label("Application type:");
       appTypeLabel_.addStyleName(RES.styles().label());
       appTypeLabel_.getElement().getStyle().setMarginTop(2, Unit.PX);
-
-      FieldSetWrapperPanel<VerticalPanel> radioPanel = new FieldSetWrapperPanel<>(new VerticalPanel(), appTypeLabel_);
-      radioPanel.setStylePrimaryName(RES.styles().shinyTypeGroup());
+      
+      VerticalPanel radioPanel = new VerticalPanel();
       appTypeSingleFileButton_ = new RadioButton("shiny", "Single File (app.R)");
-      ElementIds.assignElementId(appTypeSingleFileButton_, ElementIds.NEW_SHINY_APP_SINGLE_FILE);
       appTypeMultipleFileButton_ = new RadioButton("shiny", "Multiple File (ui.R/server.R)");
-      ElementIds.assignElementId(appTypeMultipleFileButton_, ElementIds.NEW_SHINY_APP_MULTI_FILE);
       radioPanel.add(appTypeSingleFileButton_);
       radioPanel.add(appTypeMultipleFileButton_);
-
+      
       String cachedAppType = result_.getAppType();
       if (TYPE_SINGLE_FILE.equals(cachedAppType))
          appTypeSingleFileButton_.setValue(true);
@@ -230,15 +221,12 @@ public class NewShinyWebApplication extends ModalDialog<NewShinyWebApplication.R
       else
          appTypeSingleFileButton_.setValue(true);
       
-      directoryChooserTextBox_ = new DirectoryChooserTextBox(
-         "Create within directory:",
-         ElementIds.TextBoxButtonId.SHINY_DIR,
-         null);
+      directoryChooserTextBox_ = new DirectoryChooserTextBox("Create within directory:", null);
       directoryChooserTextBox_.setText(defaultParentDirectory());
       directoryChooserTextBox_.addStyleName(RES.styles().textBox());
       
       // Add them to parent
-      LayoutGrid appNameTypeGrid = new LayoutGrid(3, 2);
+      Grid appNameTypeGrid = new Grid(3, 2);
       appNameTypeGrid.addStyleName(RES.styles().grid());
       appNameTypeGrid.setWidget(0, 0, appNameLabel_);
       appNameTypeGrid.setWidget(0, 1, appNameTextBox_);
@@ -257,7 +245,7 @@ public class NewShinyWebApplication extends ModalDialog<NewShinyWebApplication.R
       controls_.add(new VerticalSpacer("20px"));
       
       container_ = new HorizontalPanel();
-      DecorativeImage image = new DecorativeImage(NewProjectResources.INSTANCE.shinyAppIcon2x());
+      Image image = new Image(NewProjectResources.INSTANCE.shinyAppIcon2x());
       image.addStyleName(RES.styles().image());
       container_.add(image);
       container_.add(controls_);
@@ -272,8 +260,9 @@ public class NewShinyWebApplication extends ModalDialog<NewShinyWebApplication.R
    }
    
    @Override
-   protected void focusInitialControl()
+   protected void onDialogShown()
    {
+      super.onDialogShown();
       appNameTextBox_.setFocus(true);
    }
    
@@ -337,10 +326,10 @@ public class NewShinyWebApplication extends ModalDialog<NewShinyWebApplication.R
    private HorizontalPanel container_;
    private VerticalPanel controls_;
    
-   private FormLabel appNameLabel_;
-   private TextBox   appNameTextBox_;
+   private Label   appNameLabel_;
+   private TextBox appNameTextBox_;
    
-   private Label appTypeLabel_;
+   private Label   appTypeLabel_;
    private RadioButton appTypeSingleFileButton_;
    private RadioButton appTypeMultipleFileButton_;
    
@@ -373,7 +362,6 @@ public class NewShinyWebApplication extends ModalDialog<NewShinyWebApplication.R
       String invalidAppName();
       String appNameTextBox();
       String textBox();
-      String shinyTypeGroup();
    }
 
    public interface Resources extends ClientBundle
@@ -386,5 +374,5 @@ public class NewShinyWebApplication extends ModalDialog<NewShinyWebApplication.R
    static {
       RES.styles().ensureInjected();
    }
-
+   
 }

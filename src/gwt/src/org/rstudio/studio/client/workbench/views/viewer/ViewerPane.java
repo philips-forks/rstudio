@@ -1,7 +1,7 @@
 /*
  * ViewerPane.java
  *
- * Copyright (C) 2009-20 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * This program is licensed to you under the terms of version 3 of the
  * GNU Affero General Public License. This program is distributed WITHOUT
@@ -12,29 +12,22 @@
  */
 package org.rstudio.studio.client.workbench.views.viewer;
 
-import com.google.gwt.event.dom.client.LoadHandler;
-import com.google.gwt.event.shared.HandlerRegistration;
 import com.google.gwt.user.client.ui.Widget;
 import com.google.inject.Inject;
 
-import org.rstudio.core.client.HtmlMessageListener;
 import org.rstudio.core.client.CommandWithArg;
 import org.rstudio.core.client.Size;
 import org.rstudio.core.client.StringUtil;
-import org.rstudio.core.client.URIConstants;
 import org.rstudio.core.client.URIUtils;
 import org.rstudio.core.client.resources.ImageResource2x;
 import org.rstudio.core.client.widget.RStudioFrame;
 import org.rstudio.core.client.widget.Toolbar;
 import org.rstudio.core.client.widget.ToolbarButton;
-import org.rstudio.core.client.widget.ToolbarMenuButton;
 import org.rstudio.core.client.widget.ToolbarPopupMenu;
-import org.rstudio.studio.client.application.Desktop;
 import org.rstudio.studio.client.application.events.EventBus;
 import org.rstudio.studio.client.common.AutoGlassPanel;
 import org.rstudio.studio.client.common.GlobalDisplay;
 import org.rstudio.studio.client.common.icons.StandardIcons;
-import org.rstudio.studio.client.plumber.model.PlumberAPIParams;
 import org.rstudio.studio.client.rmarkdown.model.RmdPreviewParams;
 import org.rstudio.studio.client.rsconnect.RSConnect;
 import org.rstudio.studio.client.rsconnect.model.PublishHtmlSource;
@@ -50,24 +43,21 @@ import org.rstudio.studio.client.workbench.views.viewer.model.ViewerServerOperat
 public class ViewerPane extends WorkbenchPane implements ViewerPresenter.Display
 {
    @Inject
-   public ViewerPane(Commands commands,
-                     GlobalDisplay globalDisplay,
-                     EventBus events,
-                     ViewerServerOperations server,
-                     HtmlMessageListener htmlMessageListener)
+   public ViewerPane(Commands commands, GlobalDisplay globalDisplay, EventBus events,
+         ViewerServerOperations server)
    {
-      super("Viewer", events);
+      super("Viewer");
       commands_ = commands;
       globalDisplay_ = globalDisplay;
+      events_ = events;
       server_ = server;
-      htmlMessageListener_ = htmlMessageListener;
       ensureWidget();
    }
    
    @Override
    protected Toolbar createMainToolbar()
    {
-      toolbar_ = new Toolbar("Viewer Tab");
+      toolbar_ = new Toolbar();
       
       // add html widget buttons
       toolbar_.addLeftWidget(commands_.viewerBack().createToolbarButton());
@@ -83,10 +73,10 @@ public class ViewerPane extends WorkbenchPane implements ViewerPresenter.Display
       exportMenu.addSeparator();
       exportMenu.addItem(commands_.viewerSaveAsWebPage().createMenuItem(false));
       
-      exportButton_ = new ToolbarMenuButton(
-            "Export", ToolbarButton.NoTitle, new ImageResource2x(StandardIcons.INSTANCE.export_menu2x()),
+      exportButton_ = new ToolbarButton(
+            "Export", new ImageResource2x(StandardIcons.INSTANCE.export_menu2x()),
             exportMenu);
-      toolbar_.addLeftWidget(exportButton_);
+      toolbar_.addLeftWidget(exportButton_);  
       exportButton_.setVisible(false);
       exportButtonSeparator_.setVisible(false);
       
@@ -151,21 +141,19 @@ public class ViewerPane extends WorkbenchPane implements ViewerPresenter.Display
    @Override 
    protected Widget createMainWidget()
    {
-      frame_ = new RStudioFrame("Viewer Pane");
+      frame_ = new RStudioFrame();
       frame_.setSize("100%", "100%");
       frame_.addStyleName("ace_editor_theme");
-      navigate(URIConstants.ABOUT_BLANK, false);
+      navigate(ABOUT_BLANK, false);
       return new AutoGlassPanel(frame_);
    }
-
+   
    @Override
    public void navigate(String url)
    {
-      htmlMessageListener_.setUrl(url);
       navigate(url, false);
-
       rmdPreviewParams_ = null;
-      if (url == URIConstants.ABOUT_BLANK)
+      if (url.equals(ABOUT_BLANK))
       {
          publishButton_.setContentType(RSConnect.CONTENT_TYPE_NONE);
       }
@@ -192,17 +180,8 @@ public class ViewerPane extends WorkbenchPane implements ViewerPresenter.Display
       publishButton_.setManuallyHidden(false);
       publishButton_.setShinyPreview(params);
       toolbar_.invalidateSeparators();
-   }
+   };
    
-   @Override
-   public void previewPlumber(PlumberAPIParams params) 
-   {
-      navigate(params.getUrl(), true);
-      publishButton_.setManuallyHidden(false);
-      publishButton_.setPlumberPreview(params);
-      toolbar_.invalidateSeparators();
-   }
-    
    @Override
    public void setExportEnabled(boolean exportEnabled)
    {
@@ -246,13 +225,6 @@ public class ViewerPane extends WorkbenchPane implements ViewerPresenter.Display
          frame_.setUrl(url);
    }
    
-
-   @Override
-   public HandlerRegistration addLoadHandler(LoadHandler handler)
-   {
-      return frame_.addLoadHandler(handler);
-   }
-
    @Override
    public Size getViewerFrameSize()
    {
@@ -270,49 +242,20 @@ public class ViewerPane extends WorkbenchPane implements ViewerPresenter.Display
       
       publishButton_.setShowCaption(width > 500);
    }
-   
-   private native static String getOrigin() /*-{
-     return $wnd.location.origin;
-   }-*/;
 
    private void navigate(String url, boolean useRawURL)
    {
       // save the unmodified URL for pop-out
       unmodifiedUrl_ = url;
-
-      // in desktop mode we need to be careful about loading URLs which are
-      // non-local; before changing the URL, set the iframe to be sandboxed
-      // based on whether we're working with a local URL (note that prior to
-      // RStudio 1.2 local URLs were forbidden entirely)
-      if (Desktop.hasDesktopFrame())
-      {
-         if (URIUtils.isLocalUrl(url))
-         {
-            frame_.getElement().removeAttribute("sandbox");
-         }
-         else
-         {
-            frame_.getElement().setAttribute("sandbox", "allow-scripts");
-         }
-      }
-
+      
       // append the viewer_pane query parameter
       if ((unmodifiedUrl_ != null) && 
-          !unmodifiedUrl_.equals(URIConstants.ABOUT_BLANK) &&
+          !unmodifiedUrl_.equals(ABOUT_BLANK) &&
           !useRawURL)
       {
          String viewerUrl = URIUtils.addQueryParam(unmodifiedUrl_, 
                                                    "viewer_pane", 
                                                    "1");
-         
-         viewerUrl = URIUtils.addQueryParam(viewerUrl,
-                                            "capabilities",
-                                            String.valueOf(1 << Capabilities.OpenFile.ordinal()));
-         
-         viewerUrl = URIUtils.addQueryParam(viewerUrl,
-                                            "host",
-                                            htmlMessageListener_.getOriginDomain());
-         
          frame_.setUrl(viewerUrl);
       }
       else
@@ -320,7 +263,7 @@ public class ViewerPane extends WorkbenchPane implements ViewerPresenter.Display
          frame_.setUrl(unmodifiedUrl_);
       }
       
-      if (unmodifiedUrl_ != null && !unmodifiedUrl_.equals(URIConstants.ABOUT_BLANK)) {
+      if (unmodifiedUrl_ != null && !unmodifiedUrl_.equals(ABOUT_BLANK)) {
          frame_.getElement().getStyle().setBackgroundColor("#FFF");
       }
       else {
@@ -329,25 +272,21 @@ public class ViewerPane extends WorkbenchPane implements ViewerPresenter.Display
       
       events_.fireEvent(new ViewerNavigatedEvent(url, frame_));
    }
-   
-   private enum Capabilities
-   {
-      OpenFile
-   }
 
    private RStudioFrame frame_;
    private String unmodifiedUrl_;
    private RmdPreviewParams rmdPreviewParams_;
    private final Commands commands_;
    private final GlobalDisplay globalDisplay_;
+   private final EventBus events_;
    private final ViewerServerOperations server_;
    
    private Toolbar toolbar_;
    
    private RSConnectPublishButton publishButton_;
    
-   private ToolbarMenuButton exportButton_;
+   private ToolbarButton exportButton_;
    private Widget exportButtonSeparator_;
 
-   private HtmlMessageListener htmlMessageListener_;
+   public static final String ABOUT_BLANK = "about:blank";
 }

@@ -1,7 +1,7 @@
 /*
  * FilesTab.java
  *
- * Copyright (C) 2009-20 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -20,7 +20,6 @@ import org.rstudio.core.client.command.Handler;
 import org.rstudio.studio.client.application.events.EventBus;
 import org.rstudio.studio.client.common.filetypes.events.OpenFileInBrowserEvent;
 import org.rstudio.studio.client.common.filetypes.events.OpenFileInBrowserHandler;
-import org.rstudio.studio.client.common.filetypes.events.RenameSourceFileEvent;
 import org.rstudio.studio.client.workbench.commands.Commands;
 import org.rstudio.studio.client.workbench.ui.DelayLoadTabShim;
 import org.rstudio.studio.client.workbench.ui.DelayLoadWorkbenchTab;
@@ -33,7 +32,7 @@ public class FilesTab extends DelayLoadWorkbenchTab<Files>
    
    public abstract static class Shim
          extends DelayLoadTabShim<Files, FilesTab>
-         implements OpenFileInBrowserHandler, DirectoryNavigateHandler, RenameSourceFileEvent.Handler
+         implements OpenFileInBrowserHandler, DirectoryNavigateHandler
    {
       @Handler
       public abstract void onUploadFile();
@@ -41,8 +40,6 @@ public class FilesTab extends DelayLoadWorkbenchTab<Files>
       public abstract void onSetWorkingDirToFilesPane();
       @Handler
       public abstract void onGoToWorkingDir();
-      @Handler
-      public abstract void onCopyFilesPaneCurrentDirectory();
    }
 
    @Inject
@@ -55,6 +52,5 @@ public class FilesTab extends DelayLoadWorkbenchTab<Files>
       binder.bind(commands, shim);
       events.addHandler(OpenFileInBrowserEvent.TYPE, shim);
       events.addHandler(DirectoryNavigateEvent.TYPE, shim);
-      events.addHandler(RenameSourceFileEvent.TYPE, shim);
    }
 }

@@ -1,7 +1,7 @@
 /*
  * MainSplitPanel.java
  *
- * Copyright (C) 2009-20 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -17,7 +17,6 @@ package org.rstudio.studio.client.workbench.ui;
 import com.google.gwt.core.client.JavaScriptObject;
 import com.google.gwt.core.client.Scheduler;
 import com.google.gwt.core.client.Scheduler.ScheduledCommand;
-import com.google.gwt.dom.client.Element;
 import com.google.gwt.user.client.Command;
 import com.google.gwt.user.client.Window;
 import com.google.gwt.user.client.ui.SplitterResizedEvent;
@@ -31,7 +30,7 @@ import org.rstudio.studio.client.common.NotifyingSplitLayoutPanel;
 import org.rstudio.studio.client.workbench.model.ClientState;
 import org.rstudio.studio.client.workbench.model.Session;
 import org.rstudio.studio.client.workbench.model.helper.JSObjectStateValue;
-import org.rstudio.studio.client.workbench.prefs.model.UserPrefs;
+import org.rstudio.studio.client.workbench.prefs.model.UIPrefs;
 
 public class MainSplitPanel extends NotifyingSplitLayoutPanel
       implements SplitterResizedHandler
@@ -105,7 +104,7 @@ public class MainSplitPanel extends NotifyingSplitLayoutPanel
    @Inject
    public MainSplitPanel(EventBus events,
                          Session session,
-                         UserPrefs uiPrefs)
+                         UIPrefs uiPrefs)
    {
       super(
          RStudioThemes.isFlat(uiPrefs) ? 7 : 3,
@@ -200,13 +199,6 @@ public class MainSplitPanel extends NotifyingSplitLayoutPanel
    {
       enforceBoundaries();
       deferredSaveWidthPercent();
-   }
-
-   public void focusSplitter()
-   {
-      Element splitter = getAssociatedSplitterElement(right_);
-      if (splitter != null)
-         splitter.focus();
    }
 
    private void enforceBoundaries()

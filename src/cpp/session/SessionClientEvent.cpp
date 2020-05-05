@@ -1,7 +1,7 @@
 /*
  * SessionClientEvent.cpp
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -17,10 +17,10 @@
 
 #include <boost/lexical_cast.hpp>
 
-#include <shared_core/Error.hpp>
+#include <core/Error.hpp>
 #include <core/Log.hpp>
-#include <shared_core/FilePath.hpp>
-#include <shared_core/SafeConvert.hpp>
+#include <core/FilePath.hpp>
+#include <core/SafeConvert.hpp>
 #include <core/FileSerializer.hpp>
 #include <core/system/System.hpp>
 
@@ -46,6 +46,7 @@ const int kSuicide = 16;
 const int kFileChanged = 17;
 const int kWorkingDirChanged = 18;
 const int kPlotsStateChanged = 19;
+const int kViewData = 20;
 const int kPackageStatusChanged = 21;
 const int kPackageStateChanged = 22;
 const int kLocator = 23;
@@ -68,7 +69,7 @@ const int kConsoleProcessOutput = 43;
 const int kConsoleProcessExit = 44;
 const int kListChanged = 45;
 const int kConsoleProcessCreated = 46;
-const int kUserPrefsChanged = 47;
+const int kUiPrefsChanged = 47;
 const int kHandleUnsavedChanges = 48;
 const int kConsoleProcessPrompt = 49;
 const int kHTMLPreviewStartedEvent = 51;
@@ -180,27 +181,6 @@ const int kRequestOpenProject = 162;
 const int kOpenFileDialog = 163;
 const int kRemoveTerminal = 164;
 const int kShowPageViewerEvent = 165;
-const int kAskSecret = 166;
-const int kTestsStarted = 167;
-const int kTestsOutput = 168;
-const int kTestsCompleted = 169;
-const int kJobUpdated = 170;
-const int kJobRefresh = 171;
-const int kJobOutput = 172;
-const int kDataOutputCompleted = 173;
-const int kNewDocumentWithCode = 174;
-const int kPlumberViewer = 175;
-const int kAvailablePackagesReady = 176;
-const int kComputeThemeColors = 177;
-const int kRequestDocumentClose = 178;
-const int kRequestDocumentCloseCompleted = 179;
-const int kExecuteAppCommand = 180;
-const int kUserStateChanged = 181;
-const int kHighlightUi = 182;
-const int kReplaceResult = 183;
-const int kReplaceUpdated = 184;
-const int kTutorialCommand = 185;
-const int kTutorialLaunch = 186;
 }
 
 void ClientEvent::init(int type, const json::Value& data)
@@ -252,6 +232,8 @@ std::string ClientEvent::typeName() const
          return "working_dir_changed";
       case client_events::kPlotsStateChanged: 
          return "plots_state_changed";
+      case client_events::kViewData: 
+         return "view_data";
       case client_events::kPackageStatusChanged: 
          return "package_status_changed";
       case client_events::kPackageStateChanged: 
@@ -294,8 +276,8 @@ std::string ClientEvent::typeName() const
          return "console_process_exit";
       case client_events::kListChanged:
          return "list_changed";
-      case client_events::kUserPrefsChanged:
-         return "user_prefs_changed";
+      case client_events::kUiPrefsChanged:
+         return "ui_prefs_changed";
       case client_events::kHandleUnsavedChanges:
          return "handle_unsaved_changes";
       case client_events::kConsoleProcessPrompt:
@@ -516,48 +498,6 @@ std::string ClientEvent::typeName() const
          return "remove_terminal";
       case client_events::kShowPageViewerEvent:
          return "show_page_viewer";
-      case client_events::kAskSecret:
-         return "ask_secret";
-      case client_events::kTestsStarted:
-         return "tests_started";
-      case client_events::kTestsOutput:
-         return "tests_output";
-      case client_events::kTestsCompleted:
-         return "tests_completed";
-      case client_events::kJobUpdated:
-         return "job_updated";
-      case client_events::kJobRefresh:
-         return "job_refresh";
-      case client_events::kJobOutput:
-         return "job_output";
-      case client_events::kDataOutputCompleted:
-         return "data_output_completed";
-      case client_events::kNewDocumentWithCode:
-         return "new_document_with_code";
-      case client_events::kAvailablePackagesReady:
-         return "available_packages_ready";
-      case client_events::kPlumberViewer:
-         return "plumber_viewer";
-      case client_events::kComputeThemeColors:
-         return "compute_theme_colors";
-      case client_events::kRequestDocumentClose:
-         return "request_document_close";
-      case client_events::kRequestDocumentCloseCompleted:
-         return "request_document_close_completed";
-      case client_events::kExecuteAppCommand:
-         return "execute_app_command";
-      case client_events::kUserStateChanged:
-         return "user_state_changed";
-      case client_events::kHighlightUi:
-         return "highlight_ui";
-      case client_events::kReplaceResult:
-         return "replace_result";
-      case client_events::kReplaceUpdated:
-         return "replace_updated";
-      case client_events::kTutorialCommand:
-         return "tutorial_command";
-      case client_events::kTutorialLaunch:
-         return "tutorial_launch";
       default:
          LOG_WARNING_MESSAGE("unexpected event type: " + 
                              safe_convert::numberToString(type_));

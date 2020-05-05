@@ -1,7 +1,7 @@
 /*
  * ShinyApplicationPresenter.java
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-14 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -14,8 +14,6 @@
  */
 package org.rstudio.studio.client.shiny;
 
-import org.rstudio.core.client.BrowseCap;
-import org.rstudio.core.client.StringUtil;
 import org.rstudio.core.client.command.CommandBinder;
 import org.rstudio.core.client.command.Handler;
 import org.rstudio.studio.client.application.events.EventBus;
@@ -25,10 +23,9 @@ import org.rstudio.studio.client.shiny.model.ShinyApplicationParams;
 import org.rstudio.studio.client.shiny.events.ShinyApplicationStatusEvent;
 import org.rstudio.studio.client.workbench.commands.Commands;
 import org.rstudio.studio.client.workbench.model.Session;
-import org.rstudio.studio.client.workbench.prefs.model.UserPrefs;
+import org.rstudio.studio.client.workbench.prefs.model.UIPrefs;
 
 import com.google.gwt.core.client.JavaScriptObject;
-import com.google.gwt.event.dom.client.LoadHandler;
 import com.google.gwt.user.client.ui.IsWidget;
 import com.google.gwt.user.client.ui.Widget;
 import com.google.inject.Inject;
@@ -47,7 +44,7 @@ public class ShinyApplicationPresenter implements
       String getDocumentTitle();
       String getUrl();
       String getAbsoluteUrl();
-      void showApp(ShinyApplicationParams params, LoadHandler handler);
+      void showApp(ShinyApplicationParams params);
       void reloadApp();
    }
    
@@ -59,7 +56,7 @@ public class ShinyApplicationPresenter implements
                                EventBus eventBus,
                                Satellite satellite,
                                Session session,
-                               UserPrefs prefs)
+                               UIPrefs prefs)
    {
       view_ = view;
       satellite_ = satellite;
@@ -68,15 +65,7 @@ public class ShinyApplicationPresenter implements
       disconnect_ = new ShinyDisconnectNotifier(this);
       session_ = session;
       prefs_ = prefs;
-
-      loadHandler_ = (evt) ->
-      {
-         if (BrowseCap.isFirefox())
-         {
-            disconnect_.unsuppress();
-         }
-      };
-
+      
       binder.bind(commands, this);  
       
       initializeEvents();
@@ -93,7 +82,7 @@ public class ShinyApplicationPresenter implements
    {
       if (event.getParams().getState() == ShinyApplicationParams.STATE_RELOADING)
       {
-         reload();
+         view_.reloadApp();
       }
    }
    
@@ -114,7 +103,7 @@ public class ShinyApplicationPresenter implements
    @Handler
    public void onReloadShinyApp()
    {
-      reload();
+      view_.reloadApp();
    }
    
    @Handler
@@ -126,25 +115,13 @@ public class ShinyApplicationPresenter implements
    public void loadApp(ShinyApplicationParams params) 
    {
       params_ = params;
-      view_.showApp(params, loadHandler_);
+      view_.showApp(params);
    }
    
    private native void initializeEvents() /*-{  
-      var thiz = this;
-
-      // we observed that sometimes (with RStudio Server) the 'unload' event was
-      // not fired on window closing, and yet 'beforeunload' was not fired with
-      // RStudio Desktop. to be safe, attach to both events and just properly handle
-      // the close request there
+      var thiz = this;   
       $wnd.addEventListener(
             "unload",
-            $entry(function() {
-               thiz.@org.rstudio.studio.client.shiny.ShinyApplicationPresenter::onClose()();
-            }),
-            true);
-
-      $wnd.addEventListener(
-            "beforeunload",
             $entry(function() {
                thiz.@org.rstudio.studio.client.shiny.ShinyApplicationPresenter::onClose()();
             }),
@@ -159,33 +136,13 @@ public class ShinyApplicationPresenter implements
       if (satellite_.isReactivatePending())
          return;
       
-      if (closed_)
-         return;
-      
-      closed_ = true;
-      
       ShinyApplicationParams params = ShinyApplicationParams.create(
             params_.getPath(), 
-            ShinyApplicationSatellite.getIdFromName(
-                  satellite_.getSatelliteName()),
             params_.getUrl(), 
             appStopped_ ?
                ShinyApplicationParams.STATE_STOPPED :
                ShinyApplicationParams.STATE_STOPPING);
       notifyShinyAppClosed(params);
-   }
-   
-   private void reload()
-   {
-      if (BrowseCap.isFirefox() && !StringUtil.isNullOrEmpty(getShinyUrl()))
-      {
-         // Firefox allows Shiny's disconnection notification (a "disconnected"
-         // postmessage) through during the unload that occurs during refresh.
-         // To keep this transient disconnection from being treated as an app
-         // stop, we temporarily suppress it here.
-         disconnect_.suppress();
-      }
-      view_.reloadApp();
    }
    
    private final native void closeShinyApp() /*-{
@@ -207,11 +164,9 @@ public class ShinyApplicationPresenter implements
    private final GlobalDisplay globalDisplay_;
    private final ShinyDisconnectNotifier disconnect_;
    private final Session session_;
-   private final UserPrefs prefs_;
-   private final LoadHandler loadHandler_;
+   private final UIPrefs prefs_;
    
    private ShinyApplicationParams params_;
-   private boolean closed_ = false;
    private boolean appStopped_ = false;
    private boolean popoutToBrowser_ = false;
 }

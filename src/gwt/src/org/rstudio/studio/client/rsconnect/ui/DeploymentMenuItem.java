@@ -1,7 +1,7 @@
 /*
  * DeploymentMenuItem.java
  *
- * Copyright (C) 2009-17 by RStudio, PBC
+ * Copyright (C) 2009-17 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -80,7 +80,7 @@ public class DeploymentMenuItem extends CheckableMenuItem
       if (!StringUtil.isNullOrEmpty(subtitle))
          subtitle += "@";
       if (record.getHostUrl() != null)
-         subtitle += StringUtil.getAuthorityFromUrl(record.getHostUrl());
+         subtitle += StringUtil.getHostFromUrl(record.getHostUrl());
       else
          subtitle += record.getServer();
       

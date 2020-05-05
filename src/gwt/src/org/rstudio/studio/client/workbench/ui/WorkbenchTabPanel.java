@@ -1,7 +1,7 @@
 /*
  * WorkbenchTabPanel.java
  *
- * Copyright (C) 2009-20 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -15,26 +15,21 @@
 
 package org.rstudio.studio.client.workbench.ui;
 
-import com.google.gwt.dom.client.Style.Unit;
 import com.google.gwt.event.dom.client.ClickEvent;
 import com.google.gwt.event.dom.client.ClickHandler;
-import com.google.gwt.event.logical.shared.HasSelectionHandlers;
-import com.google.gwt.event.logical.shared.SelectionHandler;
+import com.google.gwt.event.logical.shared.*;
 import com.google.gwt.event.shared.HandlerRegistration;
+import com.google.gwt.user.client.Command;
 import com.google.gwt.user.client.ui.Composite;
-import com.google.gwt.user.client.ui.HTML;
-import com.google.gwt.user.client.ui.LayoutPanel;
 import com.google.gwt.user.client.ui.ProvidesResize;
 import com.google.gwt.user.client.ui.RequiresResize;
 import com.google.gwt.user.client.ui.Widget;
 
-import org.rstudio.core.client.Debug;
 import org.rstudio.core.client.HandlerRegistrations;
 import org.rstudio.core.client.events.*;
 import org.rstudio.core.client.layout.LogicalWindow;
 import org.rstudio.core.client.theme.ModuleTabLayoutPanel;
 import org.rstudio.core.client.theme.WindowFrame;
-import org.rstudio.core.client.theme.res.ThemeStyles;
 import org.rstudio.core.client.widget.model.ProvidesBusy;
 
 import java.util.ArrayList;
@@ -47,31 +42,13 @@ class WorkbenchTabPanel
                  HasEnsureVisibleHandlers,
                  HasEnsureHeightHandlers
 {
-   public WorkbenchTabPanel(WindowFrame owner, LogicalWindow parentWindow, String tabListName)
+   public WorkbenchTabPanel(WindowFrame owner, LogicalWindow parentWindow)
    {
-      final int UTILITY_AREA_SIZE = 52;
-      panel_ = new LayoutPanel();
-      
       parentWindow_ = parentWindow;
-
-      tabPanel_ = new ModuleTabLayoutPanel(owner, tabListName);
-      panel_.add(tabPanel_);
-      panel_.setWidgetTopBottom(tabPanel_, 0, Unit.PX, 0, Unit.PX);
-      panel_.setWidgetLeftRight(tabPanel_, 0, Unit.PX, 0, Unit.PX);
-      
+      tabPanel_ = new ModuleTabLayoutPanel(owner);
       tabPanel_.setSize("100%", "100%");
       tabPanel_.addStyleDependentName("Workbench");
-
-      utilPanel_ = new HTML();
-      utilPanel_.setStylePrimaryName(ThemeStyles.INSTANCE.multiPodUtilityArea());
-      utilPanel_.addStyleName(ThemeStyles.INSTANCE.rstheme_multiPodUtilityTabArea());
-      panel_.add(utilPanel_);
-      panel_.setWidgetRightWidth(utilPanel_,
-                                 0, Unit.PX,
-                                 UTILITY_AREA_SIZE, Unit.PX);
-      panel_.setWidgetTopHeight(utilPanel_, 0, Unit.PX, 22, Unit.PX);
-
-      initWidget(panel_);
+      initWidget(tabPanel_);
    }
 
    @Override
@@ -79,35 +56,41 @@ class WorkbenchTabPanel
    {
       super.onLoad();
 
-      releaseOnUnload_.add(tabPanel_.addBeforeSelectionHandler(beforeSelectionEvent ->
+      releaseOnUnload_.add(tabPanel_.addBeforeSelectionHandler(new BeforeSelectionHandler<Integer>()
       {
-         if (clearing_)
-            return;
-
-         if (getSelectedIndex() >= 0)
+         public void onBeforeSelection(BeforeSelectionEvent<Integer> event)
          {
-            int unselectedTab = getSelectedIndex();
-            if (unselectedTab < tabs_.size())
+            if (clearing_)
+               return;
+
+            if (getSelectedIndex() >= 0)
             {
-               WorkbenchTab lastTab = tabs_.get(unselectedTab);
-               lastTab.onBeforeUnselected();
+               int unselectedTab = getSelectedIndex();
+               if (unselectedTab < tabs_.size())
+               {
+                  WorkbenchTab lastTab = tabs_.get(unselectedTab);
+                  lastTab.onBeforeUnselected();
+               }
+            }
+
+            int selectedTab = event.getItem().intValue();
+            if (selectedTab < tabs_.size())
+            {  
+               WorkbenchTab tab = tabs_.get(selectedTab);
+               tab.onBeforeSelected();
             }
          }
-
-         int selectedTab = beforeSelectionEvent.getItem().intValue();
-         if (selectedTab < tabs_.size())
-         {
-            WorkbenchTab tab = tabs_.get(selectedTab);
-            tab.onBeforeSelected();
-         }
       }));
-      releaseOnUnload_.add(tabPanel_.addSelectionHandler(selectionEvent ->
+      releaseOnUnload_.add(tabPanel_.addSelectionHandler(new SelectionHandler<Integer>()
       {
-         if (clearing_)
-            return;
+         public void onSelection(SelectionEvent<Integer> event)
+         {
+            if (clearing_)
+               return;
 
-         WorkbenchTab pane = tabs_.get(selectionEvent.getSelectedItem().intValue());
-         pane.onSelected();
+            WorkbenchTab pane = tabs_.get(event.getSelectedItem().intValue());
+            pane.onSelected();
+         }
       }));
 
       int selectedIndex = tabPanel_.getSelectedIndex();
@@ -155,7 +138,6 @@ class WorkbenchTabPanel
       return true;
    }
 
-   @SuppressWarnings("unused")
    private void add(final WorkbenchTab tab)
    {
       if (tab.isSuppressed())
@@ -168,25 +150,36 @@ class WorkbenchTabPanel
          @Override
          public void onClick(ClickEvent event)
          {
-            tab.confirmClose(() -> tab.ensureHidden());
+            tab.confirmClose(new Command() {
+               @Override
+               public void execute()
+               {
+                  tab.ensureHidden();
+               }
+            });
          }
       }, 
       tab instanceof ProvidesBusy ? (ProvidesBusy) tab : null);
       
-      tab.addEnsureVisibleHandler(ensureVisibleEvent ->
+      tab.addEnsureVisibleHandler(new EnsureVisibleHandler()
       {
-         if (!neverVisible_)
+         public void onEnsureVisible(EnsureVisibleEvent event)
          {
             // First ensure that we ourselves are visible
-            int myInt = tabPanel_.getWidgetCount();
-            LogicalWindow window = getParentWindow();
-            fireEvent(new EnsureVisibleEvent(ensureVisibleEvent.getActivate()));
-            if (ensureVisibleEvent.getActivate())
+            fireEvent(new EnsureVisibleEvent(event.getActivate()));
+            if (event.getActivate())
                tabPanel_.selectTab(widget);
          }
       });
       
-      tab.addEnsureHeightHandler(ensureHeightEvent -> fireEvent(ensureHeightEvent));
+      tab.addEnsureHeightHandler(new EnsureHeightHandler() {
+
+         @Override
+         public void onEnsureHeight(EnsureHeightEvent event)
+         {
+            fireEvent(event);
+         }
+      });
    }
    
    public void selectNextTab()
@@ -225,10 +218,8 @@ class WorkbenchTabPanel
       
       // deal with migrating from n+1 to n tabs, and with -1 values
       int safeIndex = Math.min(Math.max(0, tabIndex), tabs_.size() - 1);
-      if (safeIndex >= 0)  
-         tabPanel_.selectTab(safeIndex);
-      else
-         Debug.logToConsole("Attempted to select tab in empty tab panel.");
+      
+      tabPanel_.selectTab(safeIndex);
    }
    
    public void selectTab(WorkbenchTab pane)
@@ -242,7 +233,7 @@ class WorkbenchTabPanel
          for (int i = 0; i < tabs_.size(); i++)
          {
             WorkbenchTab tab = tabs_.get(i);
-            if (tab.getTitle() == title)
+            if (tab.getTitle().equals(title))
             {
                selectTab(i);
                return;
@@ -271,12 +262,8 @@ class WorkbenchTabPanel
       return tabPanel_.getSelectedIndex();
    }
    
-   public int getWidgetCount()
-   {
-      return tabPanel_.getWidgetCount();
-   }
-
-   public HandlerRegistration addSelectionHandler(SelectionHandler<Integer> integerSelectionHandler)
+   public HandlerRegistration addSelectionHandler(
+         SelectionHandler<Integer> integerSelectionHandler)
    {
       return tabPanel_.addSelectionHandler(integerSelectionHandler);
    }
@@ -288,13 +275,15 @@ class WorkbenchTabPanel
          ((RequiresResize)w).onResize();
    }
 
-   public HandlerRegistration addEnsureVisibleHandler(EnsureVisibleHandler handler)
+   public HandlerRegistration addEnsureVisibleHandler(
+         EnsureVisibleHandler handler)
    {
       return addHandler(handler, EnsureVisibleEvent.TYPE);
    }
    
    @Override
-   public HandlerRegistration addEnsureHeightHandler(EnsureHeightHandler handler)
+   public HandlerRegistration addEnsureHeightHandler(
+         EnsureHeightHandler handler)
    {
       return addHandler(handler, EnsureHeightEvent.TYPE);
    }
@@ -312,17 +301,10 @@ class WorkbenchTabPanel
       return parentWindow_;
    }
 
-   public void setNeverVisible(boolean value)
-   {
-      neverVisible_ = value;
-   }
-
    private ModuleTabLayoutPanel tabPanel_;
-   private ArrayList<WorkbenchTab> tabs_ = new ArrayList<>();
+   private ArrayList<WorkbenchTab> tabs_ = new ArrayList<WorkbenchTab>();
    private final LogicalWindow parentWindow_;
    private final HandlerRegistrations releaseOnUnload_ = new HandlerRegistrations();
    private boolean clearing_ = false;
-   private boolean neverVisible_ = false;
-   private LayoutPanel panel_;
-   private HTML utilPanel_;
+   
 }

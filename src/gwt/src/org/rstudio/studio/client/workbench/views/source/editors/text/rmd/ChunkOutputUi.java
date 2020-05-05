@@ -1,7 +1,7 @@
 /*
  * ChunkOutputUi.java
  *
- * Copyright (C) 2009-20 by RStudio, PBC
+ * Copyright (C) 2009-16 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -15,7 +15,6 @@
 package org.rstudio.studio.client.workbench.views.source.editors.text.rmd;
 
 import org.rstudio.core.client.Rectangle;
-import org.rstudio.core.client.StringUtil;
 import org.rstudio.core.client.theme.res.ThemeStyles;
 import org.rstudio.studio.client.RStudioGinjector;
 import org.rstudio.studio.client.rmarkdown.model.RmdChunkOptions;
@@ -66,8 +65,6 @@ public class ChunkOutputUi
       }
 
       outputWidget_ = widget;
-      // label_ should only be set by this function
-      setChunkLabel(def.getChunkLabel());
       
       // sync the widget's expanded/collapsed state to the underlying chunk
       // definition (which is persisted)
@@ -110,21 +107,6 @@ public class ChunkOutputUi
       return def_.getChunkId();
    }
    
-   public String getChunkLabel()
-   {
-      return label_;
-   }
-
-   public void setChunkLabel(String label)
-   {
-      if (!StringUtil.equals(label_, label))
-      {
-         label_ = label;
-         if (outputWidget_ != null)
-            outputWidget_.setLabelClass(label);
-      }
-   }
-
    public Scope getScope()
    {
       return display_.getCurrentChunk(Position.create(getCurrentRow(), 1));
@@ -149,7 +131,6 @@ public class ChunkOutputUi
    {
       def_.setOptions(options);
       outputWidget_.setOptions(options);
-      setChunkLabel(def_.getChunkLabel());
    }
    
    public void remove()
@@ -274,8 +255,6 @@ public class ChunkOutputUi
    private final String chunkId_;
    private final String docId_;
    private final ChunkDefinition def_;
-
-   private String label_;
 
    private boolean attached_ = false;
    private HandlerRegistration renderHandlerReg_ = null;

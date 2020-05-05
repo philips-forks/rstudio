@@ -1,7 +1,7 @@
 /*
  * DesktopSecondaryWindow.cpp
  *
- * Copyright (C) 2009-20 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -18,6 +18,8 @@
 #include <QApplication>
 #include <QToolBar>
 #include <QDesktopWidget>
+
+#include "DesktopWebView.hpp"
 
 namespace rstudio {
 namespace desktop {
@@ -42,7 +44,7 @@ SecondaryWindow::SecondaryWindow(bool showToolbar, QString name, QUrl baseUrl,
     BrowserWindow(showToolbar, true, name, baseUrl, pParent, pOpener,
                   allowExternalNavigate)
 {
-   setAttribute(Qt::WA_QuitOnClose, true);
+   setAttribute(Qt::WA_QuitOnClose, false);
    setAttribute(Qt::WA_DeleteOnClose, true);
 
 #ifdef Q_OS_MAC
@@ -66,6 +68,13 @@ SecondaryWindow::SecondaryWindow(bool showToolbar, QString name, QUrl baseUrl,
    connect(reload_, SIGNAL(triggered()),
            webView(), SLOT(reload()));
 
+   print_ = pToolbar_->addAction(icon("print"), QString::fromUtf8("Print"));
+   print_->setToolTip(QString::fromUtf8("Print"));
+   connect(print_, SIGNAL(triggered()),
+           this, SLOT(print()));
+
+   history_ = webView()->history();
+
    connect(webView(), SIGNAL(loadStarted()),
            this, SLOT(manageCommandState()));
    connect(webView(), SIGNAL(urlChanged(QUrl)),
@@ -75,33 +84,23 @@ SecondaryWindow::SecondaryWindow(bool showToolbar, QString name, QUrl baseUrl,
 
    // Size it (use computed size if it seems sane; otherwise let Qt set it)
    QSize size = QSize(850, 1100).boundedTo(
-         QApplication::primaryScreen()->availableGeometry().size());
+         QApplication::desktop()->availableGeometry().size());
    if (size.width() > 500 && size.height() > 500)
    {
       size.setHeight(size.height()-75);
       resize(size);
    }
-
-   connect(webView(), SIGNAL(onCloseWindowShortcut()),
-           this, SLOT(onCloseWindowShortcut()));
 }
 
-void SecondaryWindow::finishLoading(bool ok)
+void SecondaryWindow::print()
 {
-   BrowserWindow::finishLoading(ok);
-
-   if (ok)
-      connect(webView(), SIGNAL(onCloseWindowShortcut()), this,
-              SLOT(onCloseWindowShortcut()));
-}
-
-void SecondaryWindow::onCloseWindowShortcut()
-{
-   close();
+   printRequested(webView()->page()->mainFrame());
 }
 
 void SecondaryWindow::manageCommandState()
 {
+   back_->setEnabled(history_->canGoBack());
+   forward_->setEnabled(history_->canGoForward());
 }
 
 } // namespace desktop

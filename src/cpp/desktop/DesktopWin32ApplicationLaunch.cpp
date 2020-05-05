@@ -1,7 +1,7 @@
 /*
  * DesktopWin32ApplicationLaunch.cpp
  *
- * Copyright (C) 2009-17 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -17,10 +17,6 @@
 #include <windows.h>
 
 #include <QWidget>
-
-#include <core/system/Process.hpp>
-#include <core/system/Environment.hpp>
-#include <core/r_util/RUserData.hpp>
 
 #include "DesktopOptions.hpp"
 
@@ -66,8 +62,8 @@ void activate(HWND hWnd)
 } // anonymous namespace
 
 ApplicationLaunch::ApplicationLaunch() :
-    QWidget(nullptr),
-    pMainWindow_(nullptr)
+    QWidget(NULL),
+    pMainWindow_(NULL)
 {
    setAttribute(Qt::WA_NativeWindow);
    setWindowTitle(QString::fromUtf8(WINDOW_TITLE));
@@ -91,10 +87,7 @@ void ApplicationLaunch::setActivationWindow(QWidget* pWindow)
 
 void ApplicationLaunch::activateWindow()
 {
-   if (pMainWindow_)
-      activate((HWND) pMainWindow_->winId());
-   else
-      activate((HWND) winId());
+   activate((HWND)winId());
 }
 
 QString ApplicationLaunch::startupOpenFileRequest() const
@@ -112,10 +105,10 @@ bool acquireLock()
    HANDLE hFile = ::CreateFileW(lockFilePath.toStdWString().c_str(),
                                 GENERIC_WRITE,
                                 0, // exclusive access
-                                nullptr,
+                                NULL,
                                 OPEN_ALWAYS,
                                 FILE_ATTRIBUTE_NORMAL | FILE_FLAG_DELETE_ON_CLOSE,
-                                nullptr);
+                                NULL);
 
    if (hFile == INVALID_HANDLE_VALUE)
    {
@@ -140,10 +133,10 @@ bool ApplicationLaunch::sendMessage(QString filename)
    if (acquireLock())
       return false;
 
-   HWND hwndAppLaunch = nullptr;
+   HWND hwndAppLaunch = NULL;
    do
    {
-      hwndAppLaunch = ::FindWindowEx(HWND_MESSAGE, hwndAppLaunch, nullptr, WINDOW_TITLE);
+      hwndAppLaunch = ::FindWindowEx(HWND_MESSAGE, hwndAppLaunch, NULL, WINDOW_TITLE);
    } while (hwndAppLaunch == (HWND)winId()); // Ignore ourselves
 
    if (::IsWindow(hwndAppLaunch))
@@ -154,7 +147,12 @@ bool ApplicationLaunch::sendMessage(QString filename)
                                                        0));
       if (::IsWindow(hwnd))
       {
-         activate(hwnd);
+         HWND hwndPopup = ::GetLastActivePopup(hwnd);
+         if (::IsWindow(hwndPopup))
+            hwnd = hwndPopup;
+         ::SetForegroundWindow(hwnd);
+         if (::IsIconic(hwnd))
+            ::ShowWindow(hwnd, SW_RESTORE);
 
          if (!filename.isEmpty())
          {
@@ -182,8 +180,7 @@ bool ApplicationLaunch::nativeEvent(const QByteArray & eventType,
                                     void * msg,
                                     long * result)
 {
-   MSG* message = reinterpret_cast<MSG*>(msg);
-
+   MSG* message = (MSG*)msg;
    if (message->message == WM_COPYDATA)
    {
       COPYDATASTRUCT* cds = reinterpret_cast<COPYDATASTRUCT*>(message->lParam);
@@ -206,32 +203,6 @@ bool ApplicationLaunch::nativeEvent(const QByteArray & eventType,
       return true;
    }
    return QWidget::nativeEvent(eventType, message, result);
-}
-
-void ApplicationLaunch::launchRStudio(const std::vector<std::string>& args,
-                                      const std::string& initialDir)
-{
-   core::system::ProcessOptions options;
-   options.breakawayFromJob = true;
-   options.detachProcess = true;
-
-   // supply initial dir to child process if specified
-   core::system::Options childEnv;
-   core::system::environment(&childEnv);
-   if (!initialDir.empty())
-   {
-      core::system::setenv(&childEnv, kRStudioInitialWorkingDir, initialDir);
-      options.environment = childEnv;
-   }
-
-   core::Error error = core::system::runProgram(
-      desktop::options().executablePath().getAbsolutePath(),
-      args,
-      "",
-      options,
-      nullptr);
-   if (error)
-      LOG_ERROR(error);
 }
 
 } // namespace desktop

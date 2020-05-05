@@ -3,7 +3,7 @@
 #
 # install-packages
 #
-# Copyright (C) 2009-20 by RStudio, PBC
+# Copyright (C) 2009-12 by RStudio, Inc.
 #
 # Unless you have received this program directly from RStudio pursuant
 # to the terms of a commercial license agreement with RStudio, then
@@ -25,19 +25,12 @@ install()
 PACKAGE=$1
 PACKAGE_DIR=$PACKAGE
 PACKAGE_VERSION=$2
-PACKAGE_GITHUB_ROOT=$3
-PACKAGE_BUILD_OPTIONS=$4
+PACKAGE_BUILD_OPTIONS=$3
 
 # git clone if necessary
 if [ ! -d "$PACKAGE_DIR" ]
 then
-  if [[ -z "$RSTUDIO_GITHUB_LOGIN" ]]; then
-      # no supplied credentials, clone directly
-      git clone "https://github.com/$PACKAGE_GITHUB_ROOT/$PACKAGE.git"
-  else
-      # credentials supplied, use them
-      git clone "https://$RSTUDIO_GITHUB_LOGIN@github.com/$PACKAGE_GITHUB_ROOT/$PACKAGE.git"
-  fi
+  git clone https://github.com/rstudio/$PACKAGE.git
 fi
 
 # clean and checkout target branch
@@ -61,9 +54,7 @@ EOF
 cd ..
 PACKAGE_ARCHIVE_PATTERN="$PACKAGE*.tar.gz"
 rm -f $PACKAGE_ARCHIVE_PATTERN
-
-# build package without vignettes, since vignettes may need e.g. knitr to build
-R CMD build --no-build-vignettes $PACKAGE_BUILD_OPTIONS "$PACKAGE"
+R CMD build $PACKAGE_BUILD_OPTIONS $PACKAGE
 
 # modify filename to include SHA1
 PACKAGE_ARCHIVE=`ls $PACKAGE_ARCHIVE_PATTERN`
@@ -73,33 +64,8 @@ mv $PACKAGE_ARCHIVE $PACKAGE_ARCHIVE_SHA1
 
 }
 
-# Packages embedded with the IDE. See also:
-#   src/cpp/session/CMakeLists.txt
-#   DependencyManager.java: "Dependency.embeddedPackage" vs. ".cranPackage"
-
-# we often embed these packages but are not currently
-# install rmarkdown master rstudio
-# install rsconnect master rstudio
-# install renv master rstudio
-
-# ascertain the site library. this is somewhat tricky since this script must
-# run on a variety of Linux distributions early in the Docker build process.
-# the lookup order is as follows:
-# 1. the first .Library.site, if defined; otherwise
-# 2. the last element of .libPaths()
-RPKGLIB=$(Rscript -e 'cat(if(length(.Library.site) > 0) { .Library.site[[1]] } else { tail(.libPaths(), n = 1) })')
-if [[ ! -w $RPKGLIB ]]; then
-  echo "$RPKGLIB is not writable. Creating user R library directory."
-  RPKGLIB=$(Rscript -e 'cat(path.expand(Sys.getenv("R_LIBS_USER")))')
-  mkdir -p "$RPKGLIB"
-fi
-
-# install packages needed to run tests
-for RPKG in testthat xml2 yaml; do
-    RINSTALLCMD="if("'!'"require($RPKG, quietly = TRUE)) { install.packages('$RPKG', lib='$RPKGLIB', repos='https://cran.rstudio.com/') }"
-    echo "> $RINSTALLCMD"
-    Rscript -e "$RINSTALLCMD"
-done
+install rsconnect master
+# install rmarkdown master
 
 # back to install-dir
 cd $INSTALL_DIR

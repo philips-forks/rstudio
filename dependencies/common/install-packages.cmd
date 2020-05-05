@@ -9,9 +9,8 @@ set "PATH=C:\Program Files (x86)\Git\bin;%PATH%"
 
 set PATH=%PATH%;%CD%\tools
 
-REM call:install rsconnect master rstudio --no-build-vignettes
-REM call:install rmarkdown master rstudio --no-build-vignettes
-REM call:install renv master rstudio --no-build-vignettes
+call:install rsconnect master --no-build-vignettes
+REM call:install rmarkdown master --no-build-vignettes
 
 GOTO:EOF
 
@@ -19,17 +18,12 @@ GOTO:EOF
 
 set PACKAGE=%1
 set PACKAGE_VERSION=%2
-set PACKAGE_GITHUB_ROOT=%3
-set PACKAGE_BUILD_OPTIONS=%4
+set PACKAGE_BUILD_OPTIONS=%3
 
 REM git clone if necessary
 set PACKAGE_DIR="%PACKAGE%"
 if not exist "%PACKAGE_DIR%" (
-   if "%RSTUDIO_GITHUB_LOGIN%" == "" (
-      git clone "https://github.com/%PACKAGE_GITHUB_ROOT%/%PACKAGE%.git"
-   ) else (
-      git clone "https://%RSTUDIO_GITHUB_LOGIN%@github.com/%PACKAGE_GITHUB_ROOT%/%PACKAGE%.git"
-   )
+   git clone "https://github.com/rstudio/%PACKAGE%.git"
 )
 
 REM clean and checkout target branch

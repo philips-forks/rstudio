@@ -1,7 +1,7 @@
 /*
  * Request.hpp
  *
- * Copyright (C) 2009-12 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -17,8 +17,10 @@
 #define CORE_HTTP_REQUEST_HPP
 
 #include "Message.hpp"
+
+#include <boost/date_time/posix_time/posix_time.hpp>
+
 #include "Util.hpp"
-#include "Cookie.hpp"
 
 namespace rstudio {
 namespace core {
@@ -53,9 +55,7 @@ public:
    const std::string& uri() const { return uri_; }
    void setUri(const std::string& uri) { uri_ = uri; }
 
-   bool isSecure() const;
    std::string absoluteUri() const;
-   std::string proxiedUri() const;
    
    bool acceptsContentType(const std::string& contentType) const;
 
@@ -93,9 +93,7 @@ public:
    }
    
 
-   std::string cookieValue(const std::string& name, bool iFrameLegacyCookies) const;
-   std::string cookieValueFromHeader(const std::string& headerName) const;
-   void addCookie(const std::string& name, const std::string& value);
+   std::string cookieValue(const std::string& name) const;
    
    const Fields& formFields() const;
    std::string formFieldValue(const std::string& name) const;

@@ -1,7 +1,7 @@
 /*
  * SessionWorkbench.hpp
  *
- * Copyright (C) 2009-18 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -53,11 +53,9 @@ void ammendShellPaths(T* pTarget)
    if (!svnBinDir.empty())
       core::system::addToPath(pTarget, svnBinDir);
 
-#ifdef _WIN32
    // msys_ssh path
    core::system::addToPath(pTarget,
-                           session::options().msysSshPath().getAbsolutePath());
-#endif
+                           session::options().msysSshPath().absolutePath());
 }
 
 } // namespace workbench

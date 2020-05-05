@@ -1,7 +1,7 @@
 /*
  * ConsoleProcess.java
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-17 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -45,6 +45,11 @@ public class ConsoleProcess implements ConsoleOutputEvent.HasHandlers,
                                        ConsolePromptEvent.HasHandlers,
                                        ProcessExitEvent.HasHandlers
 {
+   public enum TerminalType {
+      DUMB, // simple canonical (line-by-line) terminal
+      XTERM; // xterm-compatible non-canonical terminal
+   }
+   
    @Singleton
    public static class ConsoleProcessFactory
    {
@@ -297,7 +302,7 @@ public class ConsoleProcess implements ConsoleOutputEvent.HasHandlers,
                public void onServerConsoleOutput(
                                              ServerConsoleOutputEvent event)
                {
-                  if (event.getProcessHandle() == procInfo.getHandle())
+                  if (event.getProcessHandle().equals(procInfo.getHandle()))
                      fireEvent(new ConsoleOutputEvent(event.getOutput()));
                }
             }));
@@ -309,7 +314,7 @@ public class ConsoleProcess implements ConsoleOutputEvent.HasHandlers,
                public void onServerConsolePrompt(
                                              ServerConsolePromptEvent event)
                {
-                  if (event.getProcessHandle() == procInfo.getHandle())
+                  if (event.getProcessHandle().equals(procInfo.getHandle()))
                      fireEvent(new ConsolePromptEvent(event.getPrompt()));
                }
             }));
@@ -320,7 +325,7 @@ public class ConsoleProcess implements ConsoleOutputEvent.HasHandlers,
                @Override
                public void onServerProcessExit(ServerProcessExitEvent event)
                {   
-                  if (event.getProcessHandle() == procInfo.getHandle())
+                  if (event.getProcessHandle().equals(procInfo.getHandle()))
                   {
                      // no more events are coming
                      registrations_.removeHandler();

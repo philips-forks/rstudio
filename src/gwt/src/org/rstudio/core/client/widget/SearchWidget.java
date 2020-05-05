@@ -1,7 +1,7 @@
 /*
  * SearchWidget.java
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -18,18 +18,8 @@ import com.google.gwt.core.client.GWT;
 import com.google.gwt.core.client.Scheduler;
 import com.google.gwt.core.client.Scheduler.ScheduledCommand;
 import com.google.gwt.dom.client.Element;
-import com.google.gwt.dom.client.LabelElement;
 import com.google.gwt.dom.client.NodeList;
-import com.google.gwt.event.dom.client.BlurEvent;
-import com.google.gwt.event.dom.client.BlurHandler;
-import com.google.gwt.event.dom.client.FocusEvent;
-import com.google.gwt.event.dom.client.FocusHandler;
-import com.google.gwt.event.dom.client.HasAllFocusHandlers;
-import com.google.gwt.event.dom.client.KeyCodes;
-import com.google.gwt.event.dom.client.KeyDownEvent;
-import com.google.gwt.event.dom.client.KeyDownHandler;
-import com.google.gwt.event.dom.client.KeyUpEvent;
-import com.google.gwt.event.dom.client.KeyUpHandler;
+import com.google.gwt.event.dom.client.*;
 import com.google.gwt.event.logical.shared.CloseEvent;
 import com.google.gwt.event.logical.shared.CloseHandler;
 import com.google.gwt.event.logical.shared.SelectionHandler;
@@ -39,25 +29,16 @@ import com.google.gwt.event.shared.HandlerRegistration;
 import com.google.gwt.resources.client.ImageResource;
 import com.google.gwt.uibinder.client.UiBinder;
 import com.google.gwt.uibinder.client.UiField;
-import com.google.gwt.user.client.ui.Composite;
-import com.google.gwt.user.client.ui.SuggestBox;
+import com.google.gwt.user.client.ui.*;
 import com.google.gwt.user.client.ui.SuggestBox.DefaultSuggestionDisplay;
 import com.google.gwt.user.client.ui.SuggestBox.SuggestionDisplay;
 
-import com.google.gwt.user.client.ui.SuggestOracle;
-import com.google.gwt.user.client.ui.TextBox;
-import com.google.gwt.user.client.ui.TextBoxBase;
-import com.google.gwt.user.client.ui.ValueBoxBase;
-import com.google.gwt.user.client.ui.Widget;
-import org.rstudio.core.client.StringUtil;
-import org.rstudio.core.client.a11y.A11y;
-import org.rstudio.core.client.dom.DomUtils;
 import org.rstudio.core.client.events.SelectionCommitEvent;
 import org.rstudio.core.client.events.SelectionCommitHandler;
 import org.rstudio.core.client.theme.res.ThemeResources;
 import org.rstudio.core.client.theme.res.ThemeStyles;
 
-public class SearchWidget extends Composite implements SearchDisplay
+public class SearchWidget extends Composite implements SearchDisplay                                   
 {
    interface MyUiBinder extends UiBinder<Widget, SearchWidget> {}
    private static MyUiBinder uiBinder = GWT.create(MyUiBinder.class);
@@ -81,6 +62,8 @@ public class SearchWidget extends Composite implements SearchDisplay
          super(oracle, textBox, suggestDisplay);
       }
       
+    
+
       public HandlerRegistration addBlurHandler(BlurHandler handler)
       {
          return addDomHandler(handler, BlurEvent.getType());
@@ -92,9 +75,9 @@ public class SearchWidget extends Composite implements SearchDisplay
       }
    }
   
-   public SearchWidget(String label)
+   public SearchWidget()
    {
-      this(label, new SuggestOracle()
+      this(new SuggestOracle()
       {
          @Override
          public void requestSuggestions(Request request, Callback callback)
@@ -104,33 +87,30 @@ public class SearchWidget extends Composite implements SearchDisplay
       });
    }
 
-   public SearchWidget(String label, SuggestOracle oracle)
+   public SearchWidget(SuggestOracle oracle)
    {
-      this(label, oracle, null);
+      this(oracle, null);
    }
    
-   public SearchWidget(String label,
-                       SuggestOracle oracle,
+   public SearchWidget(SuggestOracle oracle, 
                        SuggestionDisplay suggestDisplay)
    {
-      this(label, oracle, new TextBox(), suggestDisplay);
+      this(oracle, new TextBox(), suggestDisplay);
    }
    
-   public SearchWidget(String label,
-                       SuggestOracle oracle, 
+   public SearchWidget(SuggestOracle oracle, 
                        TextBoxBase textBox, 
                        SuggestionDisplay suggestDisplay)
    {
-      this(label, oracle, textBox, suggestDisplay, true);
+      this(oracle, textBox, suggestDisplay, true);
    }
 
-   public SearchWidget(String label,
-                       SuggestOracle oracle,
+   public SearchWidget(SuggestOracle oracle,
                        TextBoxBase textBox,
                        SuggestionDisplay suggestDisplay,
                        boolean continuousSearch)
    {
-      DomUtils.disableSpellcheck(textBox);
+      textBox.getElement().setAttribute("spellcheck", "false");
       
       if (suggestDisplay != null)
          suggestBox_ = new FocusSuggestBox(oracle, textBox, suggestDisplay);
@@ -138,21 +118,12 @@ public class SearchWidget extends Composite implements SearchDisplay
          suggestBox_ = new FocusSuggestBox(oracle, textBox);
       
       initWidget(uiBinder.createAndBindUi(this));
-      clearFilter_.setVisible(false);
-      clearFilter_.setDescription("Clear text");
-      if (!StringUtil.isNullOrEmpty(label))
-      {
-         hiddenLabel_.setInnerText(label);
-         hiddenLabel_.setHtmlFor(DomUtils.ensureHasId(textBox.getElement()));
-      }
-      else
-      {
-         A11y.setARIAHidden(hiddenLabel_);
-      }
+      close_.setVisible(false);
+
       ThemeStyles styles = ThemeResources.INSTANCE.themeStyles();
       
       suggestBox_.setStylePrimaryName(styles.searchBox());
-      suggestBox_.setAutoSelectEnabled(false);
+      suggestBox_.setAutoSelectEnabled(false) ;
       addKeyDownHandler(new KeyDownHandler() {
          public void onKeyDown(KeyDownEvent event)
          {
@@ -163,10 +134,10 @@ public class SearchWidget extends Composite implements SearchDisplay
                   public void execute()
                   {
                      SelectionCommitEvent.fire(SearchWidget.this, 
-                                               suggestBox_.getText());
+                                               suggestBox_.getText()) ;
                   }
-               });
-               break;
+               }) ;
+               break ;
             case KeyCodes.KEY_ESCAPE:
                
                event.preventDefault();
@@ -192,10 +163,10 @@ public class SearchWidget extends Composite implements SearchDisplay
                   }   
                });
                    
-               break;
+               break ;
             }
          }
-      });
+      }) ;
 
       if (continuousSearch)
       {
@@ -205,7 +176,7 @@ public class SearchWidget extends Composite implements SearchDisplay
             public void onKeyUp(KeyUpEvent event)
             {
                String value = suggestBox_.getText();
-               if (value != lastValueSent_)
+               if (!value.equals(lastValueSent_))
                {
                   updateLastValue(value);
                   ValueChangeEvent.fire(SearchWidget.this, value);
@@ -217,7 +188,7 @@ public class SearchWidget extends Composite implements SearchDisplay
       {
          public void onValueChange(ValueChangeEvent<String> evt)
          {
-            if (evt.getValue() != lastValueSent_)
+            if (!evt.getValue().equals(lastValueSent_))
             {
                updateLastValue(evt.getValue());
                delegateEvent(SearchWidget.this, evt);
@@ -225,10 +196,15 @@ public class SearchWidget extends Composite implements SearchDisplay
          }
       });
 
-      clearFilter_.addClickHandler(event -> {
-         suggestBox_.setText("");
-         ValueChangeEvent.fire(suggestBox_, "");
-         focus();
+      close_.addMouseDownHandler(new MouseDownHandler()
+      {
+         public void onMouseDown(MouseDownEvent event)
+         {
+            event.preventDefault();
+            
+            suggestBox_.setText("");
+            ValueChangeEvent.fire(suggestBox_, "");
+         }
       });
       
       focusTracker_ = new FocusTracker(suggestBox_);
@@ -244,14 +220,16 @@ public class SearchWidget extends Composite implements SearchDisplay
       return suggestBox_.addBlurHandler(handler);
    }
 
-   public HandlerRegistration addValueChangeHandler(ValueChangeHandler<String> handler)
+   public HandlerRegistration addValueChangeHandler(
+                                           ValueChangeHandler<String> handler)
    {
       return addHandler(handler, ValueChangeEvent.getType());
    }
 
-   public HandlerRegistration addSelectionCommitHandler(SelectionCommitHandler<String> handler)
+   public HandlerRegistration addSelectionCommitHandler(
+                                       SelectionCommitHandler<String> handler)
    {
-      return addHandler(handler, SelectionCommitEvent.getType());
+      return addHandler(handler, SelectionCommitEvent.getType()) ;
    }
 
    public HandlerRegistration addKeyDownHandler(final KeyDownHandler handler)
@@ -265,12 +243,14 @@ public class SearchWidget extends Composite implements SearchDisplay
       });
    }
 
-   public HandlerRegistration addSelectionHandler(SelectionHandler<SuggestOracle.Suggestion> handler)
+   public HandlerRegistration addSelectionHandler(
+                           SelectionHandler<SuggestOracle.Suggestion> handler)
    {
       return suggestBox_.addSelectionHandler(handler);
    }
    
-   public HandlerRegistration addCloseHandler(CloseHandler<SearchDisplay> handler)
+   public HandlerRegistration addCloseHandler(
+                                          CloseHandler<SearchDisplay> handler)
    {
       return addHandler(handler, CloseEvent.getType());
    }
@@ -284,12 +264,12 @@ public class SearchWidget extends Composite implements SearchDisplay
    
    public String getText()
    {
-      return suggestBox_.getText();
+      return suggestBox_.getText() ;
    }
 
    public void setText(String text)
    {
-      suggestBox_.setText(text);
+      suggestBox_.setText(text) ;
    }
 
    public void setText(String text, boolean fireEvents)
@@ -322,13 +302,13 @@ public class SearchWidget extends Composite implements SearchDisplay
    
    public void focus()
    {
-      suggestBox_.setFocus(true);
+      suggestBox_.setFocus(true);      
    }
    
    public void clear()
    {
       setText("", true);
-      clearFilter_.setVisible(false);
+      close_.setVisible(false);
    }
    
    // NOTE: only works if you are using the default display!
@@ -345,7 +325,7 @@ public class SearchWidget extends Composite implements SearchDisplay
    private void updateLastValue(String value)
    {
       lastValueSent_ = value;
-      clearFilter_.setVisible(lastValueSent_.length() > 0);
+      close_.setVisible(lastValueSent_.length() > 0);
    }
    
    public String getLastValue()
@@ -355,7 +335,7 @@ public class SearchWidget extends Composite implements SearchDisplay
    
    public void setPlaceholderText(String value)
    {
-      DomUtils.setPlaceholder(suggestBox_.getElement(), value);
+      suggestBox_.getElement().setAttribute("placeholder", value);
    }
    
    public boolean isFocused()
@@ -370,16 +350,15 @@ public class SearchWidget extends Composite implements SearchDisplay
       Element inputEl = inputEls.getItem(0);
       return inputEl;
    }
-
+   
    @UiField(provided=true)
    FocusSuggestBox suggestBox_;
    @UiField
-   ImageButton clearFilter_;
+   Image close_;
    @UiField
-   DecorativeImage icon_;
-   @UiField
-   LabelElement hiddenLabel_;
+   Image icon_;
 
    private String lastValueSent_ = null;
    private final FocusTracker focusTracker_;
+  
 }

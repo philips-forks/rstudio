@@ -1,7 +1,7 @@
 #
 # CMakeLists.txt
 #
-# Copyright (C) 2009-19 by RStudio, PBC
+# Copyright (C) 2009-12 by RStudio, Inc.
 #
 # Unless you have received this program directly from RStudio pursuant
 # to the terms of a commercial license agreement with RStudio, then
@@ -13,16 +13,11 @@
 #
 #
 
-cmake_minimum_required(VERSION 3.4.3)
-
-# release name
-include(CMakeRelease.txt)
-
-# project name
-project("RStudio [${RSTUDIO_RELEASE_NAME}]")
-
 # set compiler
 include(CMakeCompiler.txt)
+
+cmake_minimum_required(VERSION 2.6)
+project (RStudio)
 
 # project globals
 include(CMakeGlobals.txt)
@@ -33,15 +28,14 @@ if(RSTUDIO_UNINSTALL_PREVIOUS)
 endif()
 
 # install root docs
-if (NOT RSTUDIO_SESSION_WIN32)
+if (NOT RSTUDIO_SESSION_WIN64)
    # dynamically configure SOURCE with the git revision hash
    INSTALL(CODE "
-      execute_process(COMMAND git rev-parse HEAD
-                      WORKING_DIRECTORY \"${CMAKE_CURRENT_SOURCE_DIR}\"
-                      OUTPUT_VARIABLE RSTUDIO_GIT_REVISION_HASH)
+      exec_program(git ARGS rev-parse HEAD
+                   OUTPUT_VARIABLE RSTUDIO_GIT_REVISION_HASH)
       configure_file (\"${CMAKE_CURRENT_SOURCE_DIR}/SOURCE.in\"
                       \"${CMAKE_CURRENT_BINARY_DIR}/SOURCE\")
-   ")
+    ")
 
    configure_file(${CMAKE_CURRENT_SOURCE_DIR}/VERSION.in
                   ${CMAKE_CURRENT_BINARY_DIR}/VERSION)
@@ -60,4 +54,11 @@ add_subdirectory(src)
 
 # packaging
 add_subdirectory(package)
+
+
+
+
+
+   
+
 

@@ -1,7 +1,7 @@
 /*
  * TerminalLocalEchoTests.java
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-17 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -15,18 +15,18 @@
 package org.rstudio.studio.client.workbench.views.terminal;
 
 import org.rstudio.core.client.AnsiCode;
+import org.rstudio.core.client.StringSink;
 
 import com.google.gwt.junit.client.GWTTestCase;
 import junit.framework.Assert;
 
-import java.util.function.Consumer;
-
 public class TerminalLocalEchoTests extends GWTTestCase
 {
-   static class OutputCatcher implements Consumer<String>
+   static class OutputCatcher implements StringSink
    {
+
       @Override
-      public void accept(String str)
+      public void write(String str)
       {
          output_ = output_ + str;
       }
@@ -70,7 +70,7 @@ public class TerminalLocalEchoTests extends GWTTestCase
       TerminalLocalEcho echo = new TerminalLocalEcho(output);
       
       Assert.assertTrue(output.isEmpty());
-      output.accept("abc");
+      output.write("abc");
       Assert.assertEquals("abc", output.getOutput());
       output.clear();
       Assert.assertTrue(output.isEmpty());

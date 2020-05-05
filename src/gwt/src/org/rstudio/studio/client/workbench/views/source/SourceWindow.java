@@ -1,7 +1,7 @@
 /*
  * SourceWindow.java
  *
- * Copyright (C) 2009-17 by RStudio, PBC
+ * Copyright (C) 2009-15 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -29,6 +29,7 @@ import org.rstudio.studio.client.RStudioGinjector;
 import org.rstudio.studio.client.application.ApplicationQuit;
 import org.rstudio.studio.client.application.Desktop;
 import org.rstudio.studio.client.application.DesktopHooks;
+import org.rstudio.studio.client.application.MacZoomHandler;
 import org.rstudio.studio.client.application.events.EventBus;
 import org.rstudio.studio.client.application.model.SaveAction;
 import org.rstudio.studio.client.common.FilePathUtils;
@@ -69,6 +70,7 @@ public class SourceWindow implements LastSourceDocClosedHandler,
          Provider<DesktopHooks> pDesktopHooks,
          Satellite satellite,
          EventBus events,
+         MacZoomHandler zoomHandler,
          SourceShim shim,
          SnippetServerOperations snippetServer,
          ApplicationCommandManager appCommandManager,
@@ -120,8 +122,8 @@ public class SourceWindow implements LastSourceDocClosedHandler,
       
       // in desktop mode, the frame checks to see if we want to be closed, but
       // in web mode the best we can do is prompt if the user attempts to close
-      // a source window with unsaved changes.
-      if (!Desktop.hasDesktopFrame())
+      // a source window with unsaved chaanges.
+      if (!Desktop.isDesktop())
       {
          Window.addWindowClosingHandler(new ClosingHandler() {
             @Override
@@ -346,7 +348,7 @@ public class SourceWindow implements LastSourceDocClosedHandler,
       ArrayList<UnsavedChangesTarget> fileBacked =
             sourceShim_.getUnsavedChanges(Source.TYPE_FILE_BACKED);
       
-     if (Desktop.hasDesktopFrame() && untitled.size() > 0)
+     if (Desktop.isDesktop() && untitled.size() > 0)
      {
         // single untitled, unsaved doc in desktop mode is the most common case
         // so handle that gracefully
@@ -395,8 +397,7 @@ public class SourceWindow implements LastSourceDocClosedHandler,
          quitContext.onReadyToQuit(false);
       else
          ApplicationQuit.handleUnsavedChanges(SaveAction.SAVEASK, 
-               "Close Source Window", true /*allowCancel*/, false /*forceSaveAll*/, 
-               sourceShim_, null, null, quitContext);
+               "Close Source Window", false, sourceShim_, null, null, quitContext);
    }
    
    private String unsavedTargetDesc(UnsavedChangesTarget item)

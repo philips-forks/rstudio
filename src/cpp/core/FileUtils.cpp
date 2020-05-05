@@ -1,7 +1,7 @@
 /*
  * FileUtils.cpp
  *
- * Copyright (C) 2009-18 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -19,15 +19,10 @@
 #include <boost/bind.hpp>
 
 #include <core/FileUtils.hpp>
-#include <core/FileSerializer.hpp>
-#include <shared_core/FilePath.hpp>
+#include <core/FilePath.hpp>
 #include <core/StringUtils.hpp>
 
 #include <core/system/System.hpp>
-
-#ifndef _WIN32
-#include <core/system/PosixUser.hpp>
-#endif
 
 namespace rstudio {
 namespace core {
@@ -40,8 +35,8 @@ bool copySourceFile(const FilePath& sourceDir,
                     const FilePath& sourceFilePath)
 {
    // compute the target path
-   std::string relativePath = sourceFilePath.getRelativePath(sourceDir);
-   FilePath targetPath = destDir.completePath(relativePath);
+   std::string relativePath = sourceFilePath.relativePath(sourceDir);
+   FilePath targetPath = destDir.complete(relativePath);
 
    // if the copy item is a directory just create it
    if (sourceFilePath.isDirectory())
@@ -72,7 +67,7 @@ FilePath uniqueFilePath(const FilePath& parent, const std::string& prefix)
       std::string shortentedUuid = core::system::generateShortenedUuid();
 
       // form full path
-      FilePath uniqueDir = parent.completeChildPath(prefix + shortentedUuid);
+      FilePath uniqueDir = parent.childPath(prefix + shortentedUuid);
 
       // return if it doesn't exist
       if (!uniqueDir.exists())
@@ -80,13 +75,13 @@ FilePath uniqueFilePath(const FilePath& parent, const std::string& prefix)
    }
 
    // if we didn't succeed then return prefix + uuid
-   return parent.completeChildPath(prefix + core::system::generateUuid(false));
+   return parent.childPath(prefix + core::system::generateUuid(false));
 }
 
 std::string readFile(const FilePath& filePath)
 {
    std::ifstream stream(
-      filePath.getAbsolutePath().c_str(),
+            filePath.absolutePath().c_str(),
             std::ios::in | std::ios::binary);
    
    std::string content;
@@ -94,7 +89,7 @@ std::string readFile(const FilePath& filePath)
    {
       stream.seekg(0, std::ios::end);
       std::streamsize size = stream.tellg();
-      content.resize(static_cast<size_t>(size));
+      content.resize(size);
       stream.seekg(0, std::ios::beg);
       stream.read(&content[0], size);
       stream.close();
@@ -103,7 +98,7 @@ std::string readFile(const FilePath& filePath)
    return content;
 }
 
-#ifdef _WIN32
+#ifdef WIN32
 // test a filename to see if it corresponds to a reserved device name on
 // Windows
 bool isWindowsReservedName(const std::string& name)
@@ -134,33 +129,10 @@ Error copyDirectory(const FilePath& sourceDirectory,
       return error ;
 
    // iterate over the source
-   return sourceDirectory.getChildrenRecursive(
+   return sourceDirectory.childrenRecursive(
      boost::bind(copySourceFile, sourceDirectory, targetDirectory, _2));
 }
 
-bool isDirectoryWriteable(const FilePath& directory)
-{
-   std::string prefix(
-#ifndef _WIN32
-   "."
-#endif
-   "write-test-");
-
-   FilePath testFile = directory.completePath(prefix + core::system::generateUuid());
-   Error error = core::writeStringToFile(testFile, "test");
-   if (error)
-   {
-      return false;
-   }
-   else
-   {
-      error = testFile.removeIfExists();
-      if (error)
-         LOG_ERROR(error);
-
-      return true;
-   }
-}
 
 } // namespace file_utils
 } // namespace core

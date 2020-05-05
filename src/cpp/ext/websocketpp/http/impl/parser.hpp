@@ -133,6 +133,10 @@ inline bool parser::prepare_body() {
         
         m_body_encoding = body_encoding::plain;
         return true;
+    } else if (get_header("Transfer-Encoding") == "chunked") {
+        // TODO
+        //m_body_encoding = body_encoding::chunked;
+        return false;
     } else {
         return false;
     }

@@ -1,7 +1,7 @@
 /*
  * token_iterator.js
  *
- * Copyright (C) 2009-18 by RStudio, PBC
+ * Copyright (C) 2014 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -455,7 +455,7 @@ var Range = require("ace/range").Range;
       return false;
    };
 
-   this.findTokenValueBwd = function(value, skipMatching)
+   this.findTokenBwd = function(value, skipMatching)
    {
       skipMatching = !!skipMatching;
 
@@ -473,7 +473,7 @@ var Range = require("ace/range").Range;
       return false;
    };
 
-   this.findTokenValueFwd = function(value, skipMatching)
+   this.findTokenFwd = function(value, skipMatching)
    {
       skipMatching = !!skipMatching;
 
@@ -490,43 +490,6 @@ var Range = require("ace/range").Range;
 
       return false;
    };
-
-   this.findTokenTypeBwd = function(type, skipMatching)
-   {
-      skipMatching = !!skipMatching;
-
-      do
-      {
-         if (skipMatching && this.bwdToMatchingToken())
-            continue;
-
-         var token = this.getCurrentToken();
-         if (token.type === type)
-            return true;
-
-      } while (this.moveToPreviousToken());
-
-      return false;
-   };
-
-   this.findTokenTypeFwd = function(type, skipMatching)
-   {
-      skipMatching = !!skipMatching;
-
-      do
-      {
-         if (skipMatching && this.fwdToMatchingToken())
-            continue;
-
-         var token = this.getCurrentToken();
-         if (token.type === type)
-            return true;
-
-      } while (this.moveToNextToken());
-
-      return false;
-   };
-
 
 }).call(TokenIterator.prototype);
 

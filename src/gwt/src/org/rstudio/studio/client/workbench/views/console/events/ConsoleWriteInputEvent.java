@@ -1,7 +1,7 @@
 /*
  * ConsoleWriteInputEvent.java
  *
- * Copyright (C) 2009-12 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -29,12 +29,12 @@ public class ConsoleWriteInputEvent extends GwtEvent<ConsoleWriteInputHandler>
 
    public String getInput()
    {
-      return text_.text;
+      return text_.getText();
    }
    
    public String getConsole()
    {
-      return text_.console;
+      return text_.getConsole();
    }
 
    private final ConsoleText text_;

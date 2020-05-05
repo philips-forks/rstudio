@@ -1,7 +1,7 @@
 /*
  * DesktopSlotBinders.hpp
  *
- * Copyright (C) 2009-17 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -29,12 +29,12 @@ class StringSlotBinder : public QObject
    Q_OBJECT
 public:
    explicit StringSlotBinder(QString arg,
-                             QObject *parent = nullptr);
+                             QObject *parent = 0);
 
-Q_SIGNALS:
+signals:
    void triggered(QString arg);
 
-public Q_SLOTS:
+public slots:
    void trigger();
 
 private:
@@ -47,13 +47,13 @@ class FunctionSlotBinder : public QObject
    Q_OBJECT
 public:
    explicit FunctionSlotBinder(boost::function<void()> func,
-                               QObject* parent = nullptr) :
+                               QObject* parent = 0) :
       QObject(parent),
       func_(func)
    {
    }
 
-public Q_SLOTS:
+public slots:
    void execute()
    {
       func_();

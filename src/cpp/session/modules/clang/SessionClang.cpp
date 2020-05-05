@@ -1,7 +1,7 @@
 /*
  * SessionClang.cpp
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -27,7 +27,7 @@
 #include <r/ROptions.hpp>
 
 #include <session/SessionModuleContext.hpp>
-#include <session/prefs/UserPrefs.hpp>
+#include <session/SessionUserSettings.hpp>
 
 #include <core/libclang/LibClang.hpp>
 
@@ -37,7 +37,6 @@
 #include "GoToDefinition.hpp"
 #include "CodeCompletion.hpp"
 #include "RSourceIndex.hpp"
-#include "RCompilationDatabase.hpp"
 
 using namespace rstudio::core ;
 using namespace rstudio::core::libclang;
@@ -61,7 +60,7 @@ std::string embeddedLibClangPath()
 #else
    std::string libclang = "libclang.so";
 #endif
-   return options().libclangPath().completeChildPath(libclang).getAbsolutePath();
+   return options().libclangPath().childPath(libclang).absolutePath();
 }
 
 std::vector<std::string> embeddedLibClangCompileArgs(const LibraryVersion& version,
@@ -73,12 +72,18 @@ std::vector<std::string> embeddedLibClangCompileArgs(const LibraryVersion& versi
    FilePath headersPath = options().libclangHeadersPath();
 
    // add compiler headers
-   std::string headersVersion = "5.0.2";
-   compileArgs.push_back("-I" + headersPath.completeChildPath(headersVersion).getAbsolutePath());
+   std::string headersVersion = "3.5";
+   if (version < LibraryVersion(3,5,0))
+      headersVersion = "3.4";
+   compileArgs.push_back("-I" + headersPath.childPath(headersVersion)
+                                                   .absolutePath());
 
    // add libc++ for embedded clang 3.5
-   if (isCppFile)
-      compileArgs.push_back("-I" + headersPath.completeChildPath("libc++/5.0.2").getAbsolutePath());
+   if (isCppFile && (headersVersion == "3.5"))
+   {
+      compileArgs.push_back("-I" + headersPath.childPath("libc++/3.5")
+                                                   .absolutePath());
+   }
 
    return compileArgs;
 }
@@ -99,7 +104,7 @@ void onSourceDocUpdated(boost::shared_ptr<source_database::SourceDocument> pDoc)
 
    // resolve to a full path
    FilePath docPath = module_context::resolveAliasedPath(pDoc->path());
-   std::string filename = docPath.getAbsolutePath();
+   std::string filename = docPath.absolutePath();
 
    // verify that it's a C/C++ file
    if (!SourceIndex::isSourceFile(filename))
@@ -138,8 +143,8 @@ void onSourceDocUpdated(boost::shared_ptr<source_database::SourceDocument> pDoc)
 void onSourceDocRemoved(const std::string& id, const std::string& path)
 {
    // resolve source database path
-   std::string resolvedPath =
-      module_context::resolveAliasedPath(path).getAbsolutePath();
+   std::string resolvedPath = 
+      module_context::resolveAliasedPath(path).absolutePath();
 
    // remove from unsaved files
    rSourceIndex().unsavedFiles().remove(resolvedPath);
@@ -152,11 +157,6 @@ void onAllSourceDocsRemoved()
 {
    rSourceIndex().unsavedFiles().removeAll();
    rSourceIndex().removeAllTranslationUnits();
-}
-
-void onPackageLibraryMutated()
-{
-   rCompilationDatabase().rebuildPackageCompilationDatabase();
 }
 
 bool cppIndexingDisabled()
@@ -198,7 +198,7 @@ SEXP rs_isLibClangAvailable()
 SEXP rs_setClangDiagnostics(SEXP levelSEXP)
 {
    int level = r::sexp::asInteger(levelSEXP);
-   prefs::userPrefs().setClangVerbose(level);
+   userSettings().setClangVerbose(level);
    return R_NilValue;
 }
 
@@ -212,8 +212,17 @@ bool isAvailable()
 Error initialize()
 {
    // register diagnostics functions
-   RS_REGISTER_CALL_METHOD(rs_isLibClangAvailable);
-   RS_REGISTER_CALL_METHOD(rs_setClangDiagnostics);
+   R_CallMethodDef methodDef1 ;
+   methodDef1.name = "rs_isLibClangAvailable" ;
+   methodDef1.fun = (DL_FUNC)rs_isLibClangAvailable;
+   methodDef1.numArgs = 0;
+   r::routines::addCallMethod(methodDef1);
+
+   R_CallMethodDef methodDef2 ;
+   methodDef2.name = "rs_setClangDiagnostics" ;
+   methodDef2.fun = (DL_FUNC)rs_setClangDiagnostics;
+   methodDef2.numArgs = 1;
+   r::routines::addCallMethod(methodDef2);
 
    ExecBlock initBlock ;
    using boost::bind;
@@ -249,10 +258,6 @@ Error initialize()
    source_database::events().onDocUpdated.connect(onSourceDocUpdated);
    source_database::events().onDocRemoved.connect(onSourceDocRemoved);
    source_database::events().onRemoveAll.connect(onAllSourceDocsRemoved);
-
-   // listen for package install / remove events (required in case we
-   // need to rebuild package compilation db)
-   module_context::events().onPackageLibraryMutated.connect(onPackageLibraryMutated);
 
    return Success();
 }

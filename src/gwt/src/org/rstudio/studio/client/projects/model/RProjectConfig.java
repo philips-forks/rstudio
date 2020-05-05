@@ -1,7 +1,7 @@
 /*
  * RProjectConfig.java
  *
- * Copyright (C) 2009-12 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -80,14 +80,6 @@ public class RProjectConfig extends JavaScriptObject
    public native final void setQuitChildProcessesOnExit(int quitChildProcessesOnExit) /*-{
       this.quit_child_processes_on_exit = quitChildProcessesOnExit;
    }-*/;  
-   
-   public native final boolean getDisableExecuteRprofile() /*-{
-      return this.disable_execute_rprofile;
-   }-*/;
-   
-   public native final void setDisableExecuteRprofile(boolean disableExecuteRprofile) /*-{
-      this.disable_execute_rprofile = disableExecuteRprofile;
-   }-*/;
    
    public native final boolean getEnableCodeIndexing() /*-{
       return this.enable_code_indexing;
@@ -287,7 +279,7 @@ public class RProjectConfig extends JavaScriptObject
    {
       String[] roclets = getPackageRoxygenizeNative().split(ROXYGENIZE_DELIM);
       for (int i=0; i<roclets.length; i++)
-         if (roclets[i] == roclet)
+         if (roclets[i].equals(roclet))
             return true;
       
       return false;

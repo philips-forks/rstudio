@@ -1,7 +1,7 @@
 /*
  * DesktopChooseRHome.hpp
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -35,14 +35,11 @@ public:
    ~ChooseRHome();
 
    // "" means auto-detect
-   rstudio::desktop::RVersion version();
+   rstudio::desktop::RVersion value();
    bool preferR64();
-   void setVersion(const rstudio::desktop::RVersion& version, bool preferR64);
-   
-   QString renderingEngine();
-   void setRenderingEngine(const QString& renderingEngine);
+   void setValue(const rstudio::desktop::RVersion& value, bool preferR64);
 
-protected Q_SLOTS:
+protected slots:
    void chooseOther();
    void validateSelection();
    void onModeChanged();

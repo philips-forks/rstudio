@@ -1,7 +1,7 @@
 /*
  * ServerSessionManager.hpp
  *
- * Copyright (C) 2009-16 by RStudio, PBC
+ * Copyright (C) 2009-16 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -20,11 +20,9 @@
 #include <vector>
 #include <map>
 
+#include <boost/signals.hpp>
 #include <boost/asio/io_service.hpp>
 
-#include <core/BoostSignals.hpp>
-#include <core/http/AsyncClient.hpp>
-#include <core/http/Request.hpp>
 #include <core/Thread.hpp>
 
 #include <core/system/PosixSystem.hpp>
@@ -61,19 +59,13 @@ private:
 public:
    // launching
    core::Error launchSession(boost::asio::io_service& ioService,
-                             const core::r_util::SessionContext& context,
-                             const core::http::Request& request,
-                             const core::http::ResponseHandler& onLaunch = core::http::ResponseHandler(),
-                             const core::http::ErrorHandler& onError = core::http::ErrorHandler());
+                             const core::r_util::SessionContext& context);
    void removePendingLaunch(const core::r_util::SessionContext& context);
 
    // set a custom session launcher
    typedef boost::function<core::Error(
                            boost::asio::io_service&,
-                           const core::r_util::SessionLaunchProfile&,
-                           const core::http::Request&,
-                           const core::http::ResponseHandler& onLaunch,
-                           const core::http::ErrorHandler& onError)>
+                           const core::r_util::SessionLaunchProfile&)>
                                                   SessionLaunchFunction;
    void setSessionLaunchFunction(const SessionLaunchFunction& launchFunction);
 
@@ -82,9 +74,6 @@ public:
                            core::r_util::SessionLaunchProfile*)>
                                                   SessionLaunchProfileFilter;
    void addSessionLaunchProfileFilter(const SessionLaunchProfileFilter& filter);
-
-   // get current session launch profile filters
-   const std::vector<SessionLaunchProfileFilter>& getSessionLaunchProfileFilters() { return sessionLaunchProfileFilters_; }
 
    // notification that a SIGCHLD was received
    void notifySIGCHLD();
@@ -121,9 +110,6 @@ void setProcessConfigFilter(const core::system::ProcessConfigFilter& filter);
 core::Error launchSession(const core::r_util::SessionContext& context,
                           const core::system::Options& extraArgs,
                           PidType* pPid);
-
-core::r_util::SessionLaunchProfile createSessionLaunchProfile(const core::r_util::SessionContext& context,
-                                                              const core::system::Options& extraArgs);
 
 
 } // namespace server

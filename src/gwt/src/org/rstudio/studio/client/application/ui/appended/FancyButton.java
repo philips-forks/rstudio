@@ -1,7 +1,7 @@
 /*
  * FancyButton.java
  *
- * Copyright (C) 2009-12 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -18,11 +18,15 @@ import org.rstudio.core.client.theme.res.ThemeResources;
 
 import com.google.gwt.core.client.GWT;
 import com.google.gwt.dom.client.ButtonElement;
+import com.google.gwt.dom.client.TableCellElement;
 import com.google.gwt.event.dom.client.ClickEvent;
 import com.google.gwt.event.dom.client.ClickHandler;
 import com.google.gwt.event.shared.HandlerRegistration;
 import com.google.gwt.resources.client.ClientBundle;
 import com.google.gwt.resources.client.CssResource;
+import com.google.gwt.resources.client.ImageResource;
+import com.google.gwt.resources.client.ImageResource.ImageOptions;
+import com.google.gwt.resources.client.ImageResource.RepeatStyle;
 import com.google.gwt.uibinder.client.UiBinder;
 import com.google.gwt.uibinder.client.UiField;
 import com.google.gwt.user.client.ui.FocusWidget;
@@ -39,11 +43,23 @@ public class FancyButton extends FocusWidget
    {
       @Source("FancyButton.css")
       Styles styles();
+      
+      @ImageOptions(repeatStyle = RepeatStyle.None)
+      ImageResource buttonLeft();
+
+      @ImageOptions(repeatStyle = RepeatStyle.Horizontal)
+      ImageResource buttonTile();
+      
+      @ImageOptions(repeatStyle = RepeatStyle.None)
+      ImageResource buttonRight();
    }
 
    interface Styles extends CssResource
    {
       String fancy();
+      String left();
+      String inner();
+      String right();
    }
 
    interface Binder extends UiBinder<ButtonElement, FancyButton> {}
@@ -66,5 +82,5 @@ public class FancyButton extends FocusWidget
    }
 
    @UiField
-   ButtonElement content_;
+   TableCellElement content_;
 }

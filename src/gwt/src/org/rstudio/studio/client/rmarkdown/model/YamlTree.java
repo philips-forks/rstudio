@@ -1,7 +1,7 @@
 /*
  * YamlTree.java
  *
- * Copyright (C) 2009-14 by RStudio, PBC
+ * Copyright (C) 2009-14 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -105,15 +105,8 @@ public class YamlTree
       public void setValue(String value)
       {
          int idx = yamlLine.indexOf(":");
-         
-         // can't set a value if we don't currently have one
          if (idx < 0)
             return;
-
-         // if the ":" is at the end, ensure there's a space preceding the value
-         if (idx == yamlLine.length() - 1)
-            value = " " + value;
-
          yamlLine = yamlLine.substring(0, idx + 2) + value;
       }
       

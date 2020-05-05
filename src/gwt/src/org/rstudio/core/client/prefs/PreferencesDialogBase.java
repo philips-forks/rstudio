@@ -1,7 +1,7 @@
 /*
  * PreferencesDialogBase.java
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -15,24 +15,25 @@
 package org.rstudio.core.client.prefs;
 
 
-import com.google.gwt.aria.client.Id;
-import com.google.gwt.aria.client.Roles;
 import com.google.gwt.dom.client.Style.Unit;
+import com.google.gwt.event.dom.client.ClickEvent;
+import com.google.gwt.event.dom.client.ClickHandler;
+import com.google.gwt.event.logical.shared.SelectionEvent;
+import com.google.gwt.event.logical.shared.SelectionHandler;
 import com.google.gwt.user.client.Command;
 import com.google.gwt.user.client.ui.DockLayoutPanel;
 import com.google.gwt.user.client.ui.FlowPanel;
 import com.google.gwt.user.client.ui.Widget;
 
 import org.rstudio.core.client.ElementIds;
+import org.rstudio.core.client.events.EnsureVisibleEvent;
+import org.rstudio.core.client.events.EnsureVisibleHandler;
 import org.rstudio.core.client.widget.ModalDialogBase;
 import org.rstudio.core.client.widget.Operation;
 import org.rstudio.core.client.widget.ProgressIndicator;
 import org.rstudio.core.client.widget.ThemedButton;
 import org.rstudio.studio.client.RStudioGinjector;
-import org.rstudio.studio.client.application.ApplicationQuit;
 import org.rstudio.studio.client.application.events.ReloadEvent;
-import org.rstudio.studio.client.common.GlobalDisplay;
-import org.rstudio.studio.client.workbench.model.Session;
 
 public abstract class PreferencesDialogBase<T> extends ModalDialogBase
 {
@@ -41,26 +42,40 @@ public abstract class PreferencesDialogBase<T> extends ModalDialogBase
                                    boolean showApplyButton,
                                    PreferencesDialogPaneBase<T>[] panes)
    {
-      super(Roles.getDialogRole());
+      super();
       setText(caption);
       panes_ = panes;
       
       PreferencesDialogBaseResources res = 
                                    PreferencesDialogBaseResources.INSTANCE;
       
-      sectionChooser_ = new SectionChooser(caption);
+      sectionChooser_ = new SectionChooser();
       
-      ThemedButton okButton = new ThemedButton(
-            "OK",
-            clickEvent -> attemptSaveChanges(() -> closeDialog()));
-      addOkButton(okButton, ElementIds.PREFERENCES_CONFIRM);
+      ThemedButton okButton = new ThemedButton("OK", new ClickHandler() {
+         public void onClick(ClickEvent event) 
+         {
+            attemptSaveChanges(new Operation() {
+               @Override
+               public void execute()
+               {
+                  closeDialog();
+               }
+            });        
+         }
+      });
+      ElementIds.assignElementId(okButton.getElement(), ElementIds.PREFERENCES_CONFIRM);
+      addOkButton(okButton);
       addCancelButton();
       
       if (showApplyButton)
       {
-         addButton(new ThemedButton("Apply",
-                                    clickEvent -> attemptSaveChanges()),
-                                    ElementIds.DIALOG_APPLY_BUTTON);
+         addButton(new ThemedButton("Apply", new ClickHandler()
+         {
+            public void onClick(ClickEvent event)
+            {
+               attemptSaveChanges();
+            }
+         }));
       }
       
       progressIndicator_ = addProgressIndicator(false);
@@ -71,41 +86,41 @@ public abstract class PreferencesDialogBase<T> extends ModalDialogBase
 
       addStyleName(res.styles().preferencesDialog());
 
+       
       for (final PreferencesDialogPaneBase<T> pane : panes_)
       {
-         Id sectionTabId = sectionChooser_.addSection(pane.getIcon(), pane.getName());
-         pane.getElement().setId(SectionChooser.getTabPanelId(sectionTabId).getAriaValue());
-         Roles.getTabpanelRole().setAriaLabelledbyProperty(pane.getElement(), sectionTabId);
+         sectionChooser_.addSection(pane.getIcon(), pane.getName());
          pane.setWidth("100%");
          pane.setDialog(this);
          pane.setProgressIndicator(progressIndicator_);
          container_.add(pane);
          setPaneVisibility(pane, false);
-         pane.addEnsureVisibleHandler(
-               ensureVisibleEvent -> sectionChooser_.select(container_.getWidgetIndex(pane)));
+         pane.addEnsureVisibleHandler(new EnsureVisibleHandler()
+         {
+            public void onEnsureVisible(EnsureVisibleEvent event)
+            {
+               sectionChooser_.select(container_.getWidgetIndex(pane));
+            }
+         });
       }
 
       panel_.addWest(sectionChooser_, sectionChooser_.getDesiredWidth());
       panel_.add(container_);
 
-      sectionChooser_.addSelectionHandler(selectionEvent ->
+      sectionChooser_.addSelectionHandler(new SelectionHandler<Integer>()
       {
-         Integer index = selectionEvent.getSelectedItem();
+         public void onSelection(SelectionEvent<Integer> e)
+         {
+            Integer index = e.getSelectedItem();
 
-         // SectionChooser is first focusable control in the modal dialog, and it
-         // uses a roving tabindex to determine the focused section tab, so notify dialog
-         // when selected tab changes (except the initial selection, which happens before
-         // the dialog is fully assembled and thus nothing is focusable, yet)
-         if (currentIndex_ != null)
-            refreshFocusableElements();
+            if (currentIndex_ != null)
+               setPaneVisibility(panes_[currentIndex_], false);
 
-         if (currentIndex_ != null)
-            setPaneVisibility(panes_[currentIndex_], false);
+            currentIndex_ = index;
 
-         currentIndex_ = index;
-
-         if (currentIndex_ != null)
-            setPaneVisibility(panes_[currentIndex_], true);
+            if (currentIndex_ != null)
+               setPaneVisibility(panes_[currentIndex_], true);
+         }
       });
 
       sectionChooser_.select(0);
@@ -128,7 +143,7 @@ public abstract class PreferencesDialogBase<T> extends ModalDialogBase
    {
       for (int i = 0; i < panes_.length; i++)
       {
-         if (panes_[i].getClass() == clazz)
+         if (panes_[i].getClass().equals(clazz))
          {
             activatePane(i);
             break;
@@ -146,7 +161,7 @@ public abstract class PreferencesDialogBase<T> extends ModalDialogBase
    {
       return panel_;
    }
-
+   
    protected void hidePane(int index)
    {
       sectionChooser_.hideSection(index);
@@ -156,7 +171,7 @@ public abstract class PreferencesDialogBase<T> extends ModalDialogBase
    {
       for (int i = 0; i < panes_.length; i++)
       {
-         if (panes_[i].getClass() == clazz)
+         if (panes_[i].getClass().equals(clazz))
          {
             hidePane(i);
             break;
@@ -175,15 +190,14 @@ public abstract class PreferencesDialogBase<T> extends ModalDialogBase
       {
          // apply changes
          T prefs = createEmptyPrefs();
-         RestartRequirement restartRequirement = new RestartRequirement();
+         boolean restartRequired = false;
          for (PreferencesDialogPaneBase<T> pane : panes_)
-         {
-            restartRequirement.mergeRequirements(pane.onApply(prefs));
-         }
+            if (pane.onApply(prefs))
+               restartRequired = true;
 
          // perform save
          progressIndicator_.onProgress("Saving...");
-         doSaveChanges(prefs, onCompleted, progressIndicator_, restartRequirement);
+         doSaveChanges(prefs, onCompleted, progressIndicator_, restartRequired);
       }
    }
    
@@ -192,31 +206,24 @@ public abstract class PreferencesDialogBase<T> extends ModalDialogBase
    protected abstract void doSaveChanges(T prefs,
                                          Operation onCompleted,
                                          ProgressIndicator progressIndicator,
-                                         RestartRequirement restartRequirement);
+                                         boolean reload);
 
    protected void reload()
    {
       RStudioGinjector.INSTANCE.getEventBus().fireEvent(new ReloadEvent());
    }
-
-   protected void restart(GlobalDisplay globalDisplay, ApplicationQuit quit, Session session)
-   {
-      globalDisplay.showYesNoMessage(
-            GlobalDisplay.MSG_QUESTION,
-            "Restart Required",
-            "You need to restart RStudio in order for these changes to take effect. " +
-                  "Do you want to do this now?",
-            () -> forceClosed(() -> quit.doRestart(session)),
-            true);
-   }
-
+   
+   
    void forceClosed(final Command onClosed)
    {
-      attemptSaveChanges(() ->
-      {
-         closeDialog();
-         onClosed.execute();
-      });
+      attemptSaveChanges(new Operation() {
+         @Override
+         public void execute()
+         {
+            closeDialog();
+            onClosed.execute();
+         }
+      });      
    }
    
    private boolean validate()

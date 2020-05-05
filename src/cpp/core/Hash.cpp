@@ -1,7 +1,7 @@
 /*
  * Hash.cpp
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -16,12 +16,11 @@
 #include <core/Hash.hpp>
 
 #include <sstream>
-#include <iomanip>
 
 #include <boost/crc.hpp>
 #include <boost/lexical_cast.hpp>
 
-#include <shared_core/SafeConvert.hpp>
+#include <core/SafeConvert.hpp>
 
 namespace rstudio {
 namespace core {
@@ -40,10 +39,9 @@ std::string crc32HexHash(const std::string& content)
    boost::crc_32_type result;
    result.process_bytes(content.data(), content.length());
 
-   // return hex representation; ensure padded to 8 characters
+   // return hex representation
    std::ostringstream output;
-   output << std::uppercase << std::setw(8) << std::setfill('0') 
-          << std::hex << result.checksum();
+   output << std::uppercase << std::hex << result.checksum();
    return output.str();
 }
    

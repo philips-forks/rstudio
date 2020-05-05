@@ -1,7 +1,7 @@
 /*
  * Server.java
  *
- * Copyright (C) 2009-18 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -16,22 +16,20 @@
 package org.rstudio.studio.client.server;
 
 import org.rstudio.studio.client.application.model.ApplicationServerOperations;
-import org.rstudio.studio.client.common.plumber.model.PlumberServerOperations;
 import org.rstudio.studio.client.common.rstudioapi.model.RStudioAPIServerOperations;
 import org.rstudio.studio.client.common.shiny.model.ShinyServerOperations;
 import org.rstudio.studio.client.htmlpreview.model.HTMLPreviewServerOperations;
 import org.rstudio.studio.client.rsconnect.model.RSConnectServerOperations;
-import org.rstudio.studio.client.sql.model.SqlServerOperations;
 import org.rstudio.studio.client.workbench.model.WorkbenchServerOperations;
 
 public interface Server extends ApplicationServerOperations,
                                 WorkbenchServerOperations,
                                 HTMLPreviewServerOperations,
-                                SqlServerOperations,
                                 ShinyServerOperations,
                                 RSConnectServerOperations,
-                                RStudioAPIServerOperations,
-                                PlumberServerOperations
+                                RStudioAPIServerOperations
+                                
+                               
 {     
    /**
     * Add an entry to the server's log. 

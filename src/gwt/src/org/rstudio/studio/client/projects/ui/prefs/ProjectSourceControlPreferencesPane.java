@@ -1,7 +1,7 @@
 /*
  * ProjectSourceControlPreferencesPane.java
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -16,7 +16,6 @@ package org.rstudio.studio.client.projects.ui.prefs;
 
 
 import org.rstudio.core.client.prefs.PreferencesDialogBaseResources;
-import org.rstudio.core.client.prefs.RestartRequirement;
 import org.rstudio.core.client.resources.ImageResource2x;
 import org.rstudio.core.client.theme.res.ThemeStyles;
 import org.rstudio.core.client.widget.MessageDialog;
@@ -66,7 +65,7 @@ public class ProjectSourceControlPreferencesPane extends ProjectPreferencesPane
          {  
             updateOriginLabel();
             
-            if (vcsSelect_.getValue() == VCSConstants.GIT_ID)
+            if (vcsSelect_.getValue().equals(VCSConstants.GIT_ID))
             {
                confirmGitRepo(new Command() {
                   @Override
@@ -134,17 +133,17 @@ public class ProjectSourceControlPreferencesPane extends ProjectPreferencesPane
    }
 
    @Override
-   public RestartRequirement onApply(RProjectOptions options)
+   public boolean onApply(RProjectOptions options)
    {
       RProjectVcsOptions vcsOptions = options.getVcsOptions();
       setVcsOptions(vcsOptions);
-      return new RestartRequirement();
+      return false;
    }
    
    private void setVcsOptions(RProjectVcsOptions vcsOptions)
    {
       String vcsSelection = getVcsSelection();
-      if (vcsSelection != vcsContext_.getDetectedVcs())
+      if (!vcsSelection.equals(vcsContext_.getDetectedVcs()))
          vcsOptions.setActiveVcsOverride(vcsSelection);
       else
          vcsOptions.setActiveVcsOverride("");
@@ -154,7 +153,7 @@ public class ProjectSourceControlPreferencesPane extends ProjectPreferencesPane
    private String getVcsSelection()
    {
       String value = vcsSelect_.getValue();
-      if (value == NONE)
+      if (value.equals(NONE))
          return VCSConstants.NO_ID;
       else
          return value;
@@ -163,7 +162,7 @@ public class ProjectSourceControlPreferencesPane extends ProjectPreferencesPane
    private void setVcsSelection(String vcs)
    {
       // set value
-      if (vcs == VCSConstants.NO_ID)
+      if (vcs.equals(VCSConstants.NO_ID))
          vcsSelect_.setValue(NONE);
       else if (!vcsSelect_.setValue(vcs))
       {
@@ -178,7 +177,7 @@ public class ProjectSourceControlPreferencesPane extends ProjectPreferencesPane
    private void updateOriginLabel()
    {
       String vcs = getVcsSelection();
-      if (vcs == VCSConstants.GIT_ID)
+      if (vcs.equals(VCSConstants.GIT_ID))
       {
          StringBuilder label = new StringBuilder();
          label.append("Origin: ");
@@ -190,7 +189,7 @@ public class ProjectSourceControlPreferencesPane extends ProjectPreferencesPane
          vcsSelect_.removeStyleName(RES.styles().vcsSelectExtraSpaced());
          
       }
-      else if (vcs == VCSConstants.SVN_ID)
+      else if (vcs.equals(VCSConstants.SVN_ID))
       {
          lblOrigin_.setOrigin("Repo:", 
                               vcsContext_.getSvnRepositoryRoot());
@@ -300,7 +299,7 @@ public class ProjectSourceControlPreferencesPane extends ProjectPreferencesPane
          lblCaption_.setText(caption);
          lblOrigin_.setText(origin);
          
-         if (origin == NO_REMOTE_ORIGIN)
+         if (origin.equals(NO_REMOTE_ORIGIN))
             lblOrigin_.addStyleName(RES.styles().vcsNoOriginUrl());
          else
             lblOrigin_.removeStyleName(RES.styles().vcsNoOriginUrl());

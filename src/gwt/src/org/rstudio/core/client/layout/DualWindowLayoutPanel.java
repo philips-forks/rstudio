@@ -1,7 +1,7 @@
 /*
  * DualWindowLayoutPanel.java
  *
- * Copyright (C) 2009-20 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -27,7 +27,6 @@ import org.rstudio.core.client.events.WindowStateChangeEvent;
 import org.rstudio.core.client.events.WindowStateChangeHandler;
 import org.rstudio.core.client.js.JsObject;
 import org.rstudio.core.client.widget.events.GlassVisibilityEvent;
-import org.rstudio.studio.client.RStudioGinjector;
 import org.rstudio.studio.client.application.events.EventBus;
 import org.rstudio.studio.client.workbench.model.ClientInitState;
 import org.rstudio.studio.client.workbench.model.ClientState;
@@ -87,7 +86,7 @@ public class DualWindowLayoutPanel extends SimplePanel
          }
 
          double pct = (double)containerHeight / containerHeight_.intValue();
-         return (int)(pct * height_);
+         return (int)(pct * height_);         
       }
 
       private int height_;
@@ -374,7 +373,7 @@ public class DualWindowLayoutPanel extends SimplePanel
       windowB_ = windowB;
       session_ = session;
       setSize("100%", "100%");
-      layout_ = new BinarySplitLayoutPanel(clientStateKeyName, new Widget[] {
+      layout_ = new BinarySplitLayoutPanel(new Widget[] {
             windowA.getNormal(), windowA.getMinimized(),
             windowB.getNormal(), windowB.getMinimized()}, splitterSize);
       layout_.setSize("100%", "100%");
@@ -455,12 +454,7 @@ public class DualWindowLayoutPanel extends SimplePanel
          });
       }
    }
-
-   public void focusSplitter()
-   {
-      layout_.focusSplitter();
-   }
-
+   
    // resize the panes based on the specified bottom height and return the
    // new window state for the top pane (this implements snap to minimize)
    private WindowState resizePanes(int bottom)
@@ -518,25 +512,22 @@ public class DualWindowLayoutPanel extends SimplePanel
    public void replaceWindows(LogicalWindow windowA,
                               LogicalWindow windowB)
    {
-      if (windowA_ != windowA && windowB_ != windowB)
+      unhookEvents();
+      windowA_ = windowA;
+      windowB_ = windowB;
+      hookEvents();
+
+      layout_.setWidgets(new Widget[] {
+            windowA_.getNormal(), windowA_.getMinimized(),
+            windowB_.getNormal(), windowB_.getMinimized() });
+
+      Scheduler.get().scheduleFinally(new ScheduledCommand()
       {
-         unhookEvents();
-         windowA_ = windowA;
-         windowB_ = windowB;
-         hookEvents();
-   
-         layout_.setWidgets(new Widget[] {
-               windowA_.getNormal(), windowA_.getMinimized(),
-               windowB_.getNormal(), windowB_.getMinimized() });
-   
-         Scheduler.get().scheduleFinally(new ScheduledCommand()
+         public void execute()
          {
-            public void execute()
-            {
-               windowA_.onWindowStateChange(new WindowStateChangeEvent(NORMAL));
-            }
-         });
-      }
+            windowA_.onWindowStateChange(new WindowStateChangeEvent(NORMAL));
+         }
+      });
    }
 
    public void onResize()
@@ -551,13 +542,12 @@ public class DualWindowLayoutPanel extends SimplePanel
                        final LogicalWindow bottom,
                        boolean keepFocus)
    {
-      boolean reducedMotion = RStudioGinjector.INSTANCE.getUserPrefs().reducedMotion().getValue();
       AnimationHelper.create(layout_,
                              top,
                              bottom,
                              normalHeight_.getHeightScaledTo(getOffsetHeight()),
                              layout_.getSplitterHeight(),
-                             isVisible() && isAttached() && !reducedMotion,
+                             isVisible() && isAttached(),
                              keepFocus).animate();
    }
 
@@ -601,7 +591,7 @@ public class DualWindowLayoutPanel extends SimplePanel
                            chromeHeight - 
                            targetHeight;
          
-         // see if we need to offset to achieve minimum other height
+         // see if we need to offset to acheive minimum other height
          int offset = 0;
          if (otherHeight < MINIMUM)
             offset = MINIMUM - otherHeight;

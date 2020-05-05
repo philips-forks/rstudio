@@ -1,7 +1,7 @@
 /*
  * RSConnectPublishWizard.java
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-15 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -15,7 +15,6 @@
 
 import java.util.ArrayList;
 
-import com.google.gwt.aria.client.Roles;
 import org.rstudio.core.client.widget.ProgressOperationWithInput;
 import org.rstudio.core.client.widget.Wizard;
 import org.rstudio.core.client.widget.WizardPage;
@@ -28,7 +27,7 @@ public class RSConnectPublishWizard
    public RSConnectPublishWizard(RSConnectPublishInput input, 
          ProgressOperationWithInput<RSConnectPublishResult> operation)
    {
-      super("Publish", "Publish", Roles.getDialogRole(), input, createFirstPage(input), operation);
+      super("Publish", "Publish", input, createFirstPage(input), operation);
    }
    
    private static WizardPage<RSConnectPublishInput, RSConnectPublishResult>

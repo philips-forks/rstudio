@@ -1,7 +1,7 @@
 /*
  * DesktopHooks.java
  *
- * Copyright (C) 2009-20 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -22,18 +22,14 @@ import com.google.inject.Provider;
 
 import org.rstudio.core.client.SerializedCommand;
 import org.rstudio.core.client.SerializedCommandQueue;
-import org.rstudio.core.client.StringUtil;
 import org.rstudio.core.client.command.AppCommand;
 import org.rstudio.core.client.files.FileSystemItem;
 import org.rstudio.core.client.js.BaseExpression;
 import org.rstudio.core.client.js.JsObjectInjector;
-import org.rstudio.core.client.widget.MessageDialog;
-import org.rstudio.core.client.widget.Operation;
 import org.rstudio.studio.client.application.events.EventBus;
-import org.rstudio.studio.client.application.events.LauncherServerEvent;
 import org.rstudio.studio.client.application.events.SaveActionChangedEvent;
+import org.rstudio.studio.client.application.events.SaveActionChangedHandler;
 import org.rstudio.studio.client.application.events.SuicideEvent;
-import org.rstudio.studio.client.application.model.ProductEditionInfo;
 import org.rstudio.studio.client.application.model.SaveAction;
 import org.rstudio.studio.client.application.ui.impl.DesktopApplicationHeader;
 import org.rstudio.studio.client.common.GlobalDisplay;
@@ -42,7 +38,7 @@ import org.rstudio.studio.client.server.Server;
 import org.rstudio.studio.client.workbench.WorkbenchContext;
 import org.rstudio.studio.client.workbench.commands.Commands;
 import org.rstudio.studio.client.workbench.model.Session;
-import org.rstudio.studio.client.workbench.prefs.model.UserPrefs;
+import org.rstudio.studio.client.workbench.prefs.model.UIPrefs;
 import org.rstudio.studio.client.workbench.views.console.events.SendToConsoleEvent;
 import org.rstudio.studio.client.workbench.views.source.SourceShim;
 
@@ -62,12 +58,11 @@ public class DesktopHooks
                        EventBus events,
                        Session session,
                        GlobalDisplay globalDisplay,
-                       Provider<UserPrefs> pUIPrefs,
+                       Provider<UIPrefs> pUIPrefs,
                        Server server,
                        FileTypeRegistry fileTypeRegistry,
                        WorkbenchContext workbenchContext,
-                       SourceShim sourceShim,
-                       ProductEditionInfo editionInfo)
+                       SourceShim sourceShim)
    {
       commands_ = commands;
       events_ = events;
@@ -78,11 +73,14 @@ public class DesktopHooks
       fileTypeRegistry_ = fileTypeRegistry;
       workbenchContext_ = workbenchContext;
       sourceShim_ = sourceShim;
-      editionInfo_ = editionInfo;
       
-      events_.addHandler(SaveActionChangedEvent.TYPE, saveActionChangedEvent ->
+      events_.addHandler(SaveActionChangedEvent.TYPE, 
+                         new SaveActionChangedHandler() 
       {
-         saveAction_ = saveActionChangedEvent.getAction();
+         public void onSaveActionChanged(SaveActionChangedEvent event)
+         {
+            saveAction_ = event.getAction();  
+         }
       });
       
       injector.injectObject(this);
@@ -104,12 +102,7 @@ public class DesktopHooks
    String getActiveProjectDir()
    {
       if (workbenchContext_.getActiveProjectDir() != null)
-      {
-         if (pUIPrefs_.get().fullProjectPathInWindowTitle().getValue())
-            return workbenchContext_.getActiveProjectDir().getPath();
-         else
-            return workbenchContext_.getActiveProjectDir().getName();
-      }
+         return workbenchContext_.getActiveProjectDir().getPath();
       else
          return "";
    }
@@ -167,7 +160,7 @@ public class DesktopHooks
       // inject a 100ms delay between execution of commands to prevent
       // issues with commands being delivered out of order by cocoa
       // networking to the server (it appears as if when you put e.g. 10
-      // requests in flight simultaneously it's not guaranteed that they
+      // requests in flight simultaneously it's not guarnateed that they
       // will be received in the order they were sent).
       commandQueue_.addCommand(new SerializedCommand() {
          @Override
@@ -184,7 +177,7 @@ public class DesktopHooks
                {
                   continuation.execute();  
                }
-            }.schedule(100);
+            }.schedule(100);;
          }
       });
       
@@ -195,17 +188,6 @@ public class DesktopHooks
    void quitR()
    {
       commands_.quitSession().execute();
-   }
-
-   void promptToQuitR()
-   {
-      globalDisplay_.showYesNoMessage(MessageDialog.QUESTION,
-            "Close Remote Session",
-            "Do you want to close the remote session?",
-            false,
-            (Operation) () -> commands_.quitSession().execute(),
-            (Operation) () -> Desktop.getFrame().onSessionQuit(),
-            true);
    }
   
    void notifyRCrashed()
@@ -223,49 +205,27 @@ public class DesktopHooks
       return workbenchContext_.getREnvironmentPath();
    }
    
+   String getSumatraPdfExePath()
+   {
+      return session_.getSessionInfo().getSumatraPdfExePath();
+   }
+   
    boolean isSelectionEmpty()
    {
       return DesktopApplicationHeader.isSelectionEmpty();
-   }
-   
-   void licenseLost(String licenseMessage)
-   {
-      String message = "Unable to obtain a license. Please restart RStudio to try again.";
-      if (!StringUtil.isNullOrEmpty(licenseMessage))
-      {
-         message = message + "\n\nDetails: ";
-         message = message + licenseMessage;
-      }
-      globalDisplay_.showMessage(MessageDialog.WARNING, editionInfo_.editionName(), message,
-            (Operation) () -> commands_.forceQuitSession().execute());
-   }
-   
-   void updateLicenseWarningBar(String licenseMessage)
-   {
-      if (StringUtil.isNullOrEmpty(licenseMessage))
-         globalDisplay_.hideWarningBar();
-      else
-         globalDisplay_.showLicenseWarningBar(false, licenseMessage);
-   }
-
-   void onLauncherServerEvent(String eventType, String details)
-   {
-      LauncherServerEvent.EventType type = LauncherServerEvent.EventType.valueOf(eventType);
-      events_.fireEvent(new LauncherServerEvent(type, details));
    }
 
    private final Commands commands_;
    private final EventBus events_;
    private final Session session_;
    private final GlobalDisplay globalDisplay_;
-   private final Provider<UserPrefs> pUIPrefs_;
+   private final Provider<UIPrefs> pUIPrefs_;
    private final Server server_;
    private final FileTypeRegistry fileTypeRegistry_;
    private final WorkbenchContext workbenchContext_;
    private final SourceShim sourceShim_;
    private final SerializedCommandQueue commandQueue_ = 
                                          new SerializedCommandQueue();
-   private final ProductEditionInfo editionInfo_;
    
    private SaveAction saveAction_ = SaveAction.saveAsk();
 }

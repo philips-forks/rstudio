@@ -1,7 +1,7 @@
 /*
  * SessionWin32HttpConnectionListener.cpp
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -22,7 +22,7 @@
 
 #include <core/system/System.hpp>
 
-#include "SessionTcpIpHttpConnectionListener.hpp"
+#include "SessionNamedPipeHttpConnectionListener.hpp"
 
 using namespace rstudio::core ;
 
@@ -32,19 +32,18 @@ namespace session {
 namespace {
 
 // pointer to global connection listener singleton
-HttpConnectionListener* s_pHttpConnectionListener = nullptr;
+HttpConnectionListener* s_pHttpConnectionListener = NULL ;
 
-}  // anonymous namespace
+}  // anonymouys namespace
 
 
 void initializeHttpConnectionListener()
 {
    session::Options& options = session::options();
-   s_pHttpConnectionListener = new TcpIpHttpConnectionListener(
-                                      options.wwwAddress(),
-                                      options.wwwPort(),
-                                      options.sharedSecret());
-
+   std::string pipeName = core::system::getenv("RS_LOCAL_PEER");
+   std::string secret = options.sharedSecret();
+   s_pHttpConnectionListener = new NamedPipeHttpConnectionListener(pipeName,
+                                                                   secret);
 }
 
 HttpConnectionListener& httpConnectionListener()

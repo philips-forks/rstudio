@@ -1,7 +1,7 @@
 /*
  * RemotesInfo.java
  *
- * Copyright (C) 2009-17 by RStudio, PBC
+ * Copyright (C) 2009-17 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -23,5 +23,4 @@ public class RemotesInfo extends JavaScriptObject
    public final native String getRemote() /*-{ return this["remote"]; }-*/;
    public final native String getUrl()    /*-{ return this["url"]; }-*/;
    public final native String getType()   /*-{ return this["type"]; }-*/;
-   public final native boolean isActive() /*-{ return this["active"]; }-*/;
 }

@@ -1,7 +1,7 @@
 /*
  * AceEditor.java
  *
- * Copyright (C) 2009-20 by RStudio, PBC
+ * Copyright (C) 2009-16 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -14,57 +14,47 @@
  */
 package org.rstudio.studio.client.workbench.views.source.editors.text;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import com.google.gwt.animation.client.AnimationScheduler;
 import com.google.gwt.core.client.JavaScriptObject;
 import com.google.gwt.core.client.JsArray;
 import com.google.gwt.core.client.JsArrayString;
 import com.google.gwt.core.client.Scheduler;
+import com.google.gwt.core.client.Scheduler.RepeatingCommand;
+import com.google.gwt.core.client.Scheduler.ScheduledCommand;
 import com.google.gwt.dom.client.Document;
 import com.google.gwt.dom.client.Element;
 import com.google.gwt.dom.client.NativeEvent;
 import com.google.gwt.dom.client.PreElement;
 import com.google.gwt.dom.client.Style.Unit;
-import com.google.gwt.event.dom.client.BlurHandler;
-import com.google.gwt.event.dom.client.ClickHandler;
-import com.google.gwt.event.dom.client.ContextMenuHandler;
-import com.google.gwt.event.dom.client.FocusEvent;
-import com.google.gwt.event.dom.client.FocusHandler;
-import com.google.gwt.event.dom.client.KeyCodes;
-import com.google.gwt.event.dom.client.KeyDownHandler;
-import com.google.gwt.event.dom.client.KeyPressHandler;
-import com.google.gwt.event.dom.client.KeyUpHandler;
-import com.google.gwt.event.dom.client.MouseDownHandler;
-import com.google.gwt.event.dom.client.MouseMoveHandler;
-import com.google.gwt.event.dom.client.MouseUpHandler;
+import com.google.gwt.event.dom.client.*;
 import com.google.gwt.event.logical.shared.AttachEvent;
 import com.google.gwt.event.logical.shared.ValueChangeEvent;
 import com.google.gwt.event.logical.shared.ValueChangeHandler;
 import com.google.gwt.event.shared.GwtEvent;
 import com.google.gwt.event.shared.HandlerManager;
 import com.google.gwt.event.shared.HandlerRegistration;
-
-import java.util.function.BiPredicate;
-import java.util.function.Consumer;
-
 import com.google.gwt.user.client.Command;
 import com.google.gwt.user.client.Timer;
 import com.google.gwt.user.client.ui.RootPanel;
+import com.google.gwt.user.client.ui.ScrollPanel;
 import com.google.gwt.user.client.ui.Widget;
 import com.google.inject.Inject;
-import org.rstudio.core.client.AceSupport;
+
 import org.rstudio.core.client.CommandWithArg;
 import org.rstudio.core.client.ElementIds;
 import org.rstudio.core.client.ExternalJavaScriptLoader;
-import org.rstudio.core.client.KeyboardTracker;
+import org.rstudio.core.client.ExternalJavaScriptLoader.Callback;
 import org.rstudio.core.client.Rectangle;
 import org.rstudio.core.client.StringUtil;
-import org.rstudio.core.client.command.KeySequence;
+import org.rstudio.core.client.command.KeyboardShortcut.KeySequence;
 import org.rstudio.core.client.dom.DomUtils;
 import org.rstudio.core.client.dom.WindowEx;
 import org.rstudio.core.client.js.JsMap;
 import org.rstudio.core.client.js.JsObject;
 import org.rstudio.core.client.js.JsUtil;
-import org.rstudio.core.client.patch.TextChange;
 import org.rstudio.core.client.regex.Match;
 import org.rstudio.core.client.regex.Pattern;
 import org.rstudio.core.client.resources.StaticDataResource;
@@ -76,83 +66,36 @@ import org.rstudio.studio.client.common.SuperDevMode;
 import org.rstudio.studio.client.common.codetools.CodeToolsServerOperations;
 import org.rstudio.studio.client.common.debugging.model.Breakpoint;
 import org.rstudio.studio.client.common.filetypes.DocumentMode;
-import org.rstudio.studio.client.common.filetypes.DocumentMode.Mode;
-import org.rstudio.studio.client.events.EditEvent;
 import org.rstudio.studio.client.common.filetypes.TextFileType;
 import org.rstudio.studio.client.server.Void;
 import org.rstudio.studio.client.workbench.MainWindowObject;
 import org.rstudio.studio.client.workbench.commands.Commands;
 import org.rstudio.studio.client.workbench.model.ChangeTracker;
 import org.rstudio.studio.client.workbench.model.EventBasedChangeTracker;
-import org.rstudio.studio.client.workbench.prefs.model.UserPrefs;
+import org.rstudio.studio.client.workbench.prefs.model.UIPrefs;
+import org.rstudio.studio.client.workbench.prefs.model.UIPrefsAccessor;
 import org.rstudio.studio.client.workbench.snippets.SnippetHelper;
 import org.rstudio.studio.client.workbench.views.console.shell.assist.CompletionManager;
 import org.rstudio.studio.client.workbench.views.console.shell.assist.CompletionManager.InitCompletionFilter;
 import org.rstudio.studio.client.workbench.views.console.shell.assist.CompletionPopupPanel;
-import org.rstudio.studio.client.workbench.views.console.shell.assist.DelegatingCompletionManager;
-import org.rstudio.studio.client.workbench.views.console.shell.assist.MarkdownCompletionManager;
 import org.rstudio.studio.client.workbench.views.console.shell.assist.NullCompletionManager;
-import org.rstudio.studio.client.workbench.views.console.shell.assist.PythonCompletionManager;
 import org.rstudio.studio.client.workbench.views.console.shell.assist.RCompletionManager;
-import org.rstudio.studio.client.workbench.views.console.shell.assist.SqlCompletionManager;
-import org.rstudio.studio.client.workbench.views.console.shell.assist.StanCompletionManager;
 import org.rstudio.studio.client.workbench.views.console.shell.editor.InputEditorDisplay;
 import org.rstudio.studio.client.workbench.views.console.shell.editor.InputEditorPosition;
 import org.rstudio.studio.client.workbench.views.console.shell.editor.InputEditorSelection;
 import org.rstudio.studio.client.workbench.views.output.lint.DiagnosticsBackgroundPopup;
 import org.rstudio.studio.client.workbench.views.output.lint.model.AceAnnotation;
 import org.rstudio.studio.client.workbench.views.output.lint.model.LintItem;
-import org.rstudio.studio.client.workbench.views.source.editors.text.AceEditorWidget.TabKeyMode;
-import org.rstudio.studio.client.workbench.views.source.editors.text.ace.AceAfterCommandExecutedEvent;
-import org.rstudio.studio.client.workbench.views.source.editors.text.ace.AceBackgroundHighlighter;
+import org.rstudio.studio.client.workbench.views.source.editors.text.ace.*;
 import org.rstudio.studio.client.workbench.views.source.editors.text.ace.AceClickEvent.Handler;
-import org.rstudio.studio.client.workbench.views.source.editors.text.ace.AceCommand;
-import org.rstudio.studio.client.workbench.views.source.editors.text.ace.AceCommandManager;
-import org.rstudio.studio.client.workbench.views.source.editors.text.ace.AceEditorBackgroundLinkHighlighter;
-import org.rstudio.studio.client.workbench.views.source.editors.text.ace.AceEditorCommandEvent;
-import org.rstudio.studio.client.workbench.views.source.editors.text.ace.AceEditorNative;
-import org.rstudio.studio.client.workbench.views.source.editors.text.ace.AceFold;
-import org.rstudio.studio.client.workbench.views.source.editors.text.ace.AceInputEditorPosition;
-import org.rstudio.studio.client.workbench.views.source.editors.text.ace.AceKeyboardActivityEvent;
-import org.rstudio.studio.client.workbench.views.source.editors.text.ace.AceResources;
-import org.rstudio.studio.client.workbench.views.source.editors.text.ace.Anchor;
-import org.rstudio.studio.client.workbench.views.source.editors.text.ace.AnchoredRange;
-import org.rstudio.studio.client.workbench.views.source.editors.text.ace.CodeModel;
-import org.rstudio.studio.client.workbench.views.source.editors.text.ace.EditSession;
-import org.rstudio.studio.client.workbench.views.source.editors.text.ace.FoldingRules;
-import org.rstudio.studio.client.workbench.views.source.editors.text.ace.KeyboardHandler;
-import org.rstudio.studio.client.workbench.views.source.editors.text.ace.LineWidget;
-import org.rstudio.studio.client.workbench.views.source.editors.text.ace.Marker;
 import org.rstudio.studio.client.workbench.views.source.editors.text.ace.Mode.InsertChunkInfo;
-import org.rstudio.studio.client.workbench.views.source.editors.text.ace.Position;
-import org.rstudio.studio.client.workbench.views.source.editors.text.ace.Range;
-import org.rstudio.studio.client.workbench.views.source.editors.text.ace.Renderer;
 import org.rstudio.studio.client.workbench.views.source.editors.text.ace.Renderer.ScreenCoordinates;
-import org.rstudio.studio.client.workbench.views.source.editors.text.ace.Search;
-import org.rstudio.studio.client.workbench.views.source.editors.text.ace.Selection;
-import org.rstudio.studio.client.workbench.views.source.editors.text.ace.Token;
-import org.rstudio.studio.client.workbench.views.source.editors.text.ace.TokenCursor;
-import org.rstudio.studio.client.workbench.views.source.editors.text.ace.TokenIterator;
 import org.rstudio.studio.client.workbench.views.source.editors.text.ace.spelling.CharClassifier;
 import org.rstudio.studio.client.workbench.views.source.editors.text.ace.spelling.TokenPredicate;
 import org.rstudio.studio.client.workbench.views.source.editors.text.ace.spelling.WordIterable;
 import org.rstudio.studio.client.workbench.views.source.editors.text.cpp.CppCompletionContext;
 import org.rstudio.studio.client.workbench.views.source.editors.text.cpp.CppCompletionManager;
-import org.rstudio.studio.client.workbench.views.source.editors.text.events.AceSelectionChangedEvent;
-import org.rstudio.studio.client.workbench.views.source.editors.text.events.ActiveScopeChangedEvent;
-import org.rstudio.studio.client.workbench.views.source.editors.text.events.BreakpointMoveEvent;
-import org.rstudio.studio.client.workbench.views.source.editors.text.events.BreakpointSetEvent;
-import org.rstudio.studio.client.workbench.views.source.editors.text.events.CommandClickEvent;
-import org.rstudio.studio.client.workbench.views.source.editors.text.events.CursorChangedHandler;
-import org.rstudio.studio.client.workbench.views.source.editors.text.events.DocumentChangedEvent;
-import org.rstudio.studio.client.workbench.views.source.editors.text.events.EditorModeChangedEvent;
-import org.rstudio.studio.client.workbench.views.source.editors.text.events.FindRequestedEvent;
-import org.rstudio.studio.client.workbench.views.source.editors.text.events.FoldChangeEvent;
-import org.rstudio.studio.client.workbench.views.source.editors.text.events.LineWidgetsChangedEvent;
-import org.rstudio.studio.client.workbench.views.source.editors.text.events.PasteEvent;
-import org.rstudio.studio.client.workbench.views.source.editors.text.events.RenderFinishedEvent;
-import org.rstudio.studio.client.workbench.views.source.editors.text.events.ScopeTreeReadyEvent;
-import org.rstudio.studio.client.workbench.views.source.editors.text.events.UndoRedoHandler;
+import org.rstudio.studio.client.workbench.views.source.editors.text.events.*;
 import org.rstudio.studio.client.workbench.views.source.editors.text.rmd.ChunkDefinition;
 import org.rstudio.studio.client.workbench.views.source.editors.text.rmd.TextEditingTargetNotebook;
 import org.rstudio.studio.client.workbench.views.source.events.CollabEditStartParams;
@@ -160,14 +103,9 @@ import org.rstudio.studio.client.workbench.views.source.events.RecordNavigationP
 import org.rstudio.studio.client.workbench.views.source.events.RecordNavigationPositionHandler;
 import org.rstudio.studio.client.workbench.views.source.events.SaveFileEvent;
 import org.rstudio.studio.client.workbench.views.source.events.SaveFileHandler;
-import org.rstudio.studio.client.workbench.views.source.events.ScrollYEvent;
 import org.rstudio.studio.client.workbench.views.source.model.DirtyState;
 import org.rstudio.studio.client.workbench.views.source.model.RnwCompletionContext;
 import org.rstudio.studio.client.workbench.views.source.model.SourcePosition;
-
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
 
 public class AceEditor implements DocDisplay,
                                   InputEditorDisplay,
@@ -196,29 +134,25 @@ public class AceEditor implements DocDisplay,
    {
       public boolean shouldComplete(NativeEvent event)
       {
-         // Never complete if there's an active selection.
+         // Never complete if there's an active selection
          Range range = getSession().getSelection().getRange();
          if (!range.isEmpty())
             return false;
 
-         // If the user explicitly requested an auto-complete by pressing 'ctrl-space' instead of 'tab', always attempt auto-complete.
+         // Don't consider Tab to be a completion if we're at the start of a
+         // line (e.g. only zero or more whitespace characters between the
+         // beginning of the line and the cursor)
          if (event != null && event.getKeyCode() != KeyCodes.KEY_TAB)
             return true;
 
-         // Tab was pressed. Don't attempt auto-complete if the user opted out of tab completions.
-         if (!userPrefs_.tabCompletion().getValue() || userPrefs_.tabKeyMoveFocus().getValue())
-            return false;
-
-         // If the user opted in to multi-line tab completion, there is no case where we don't attempt auto-complete.
-         if (userPrefs_.tabMultilineCompletion().getValue())
+         // Short-circuit if the user has explicitly opted in
+         if (uiPrefs_.allowTabMultilineCompletion().getValue())
             return true;
 
-         // Otherwise, don't complete if we're at the start of the line...
          int col = range.getStart().getColumn();
          if (col == 0)
             return false;
 
-         // ... or if there is nothing but whitespace between the start of the line and the cursor.
          String line = getSession().getLine(range.getStart().getRow());
          return line.substring(0, col).trim().length() != 0;
 
@@ -241,7 +175,7 @@ public class AceEditor implements DocDisplay,
       public void apply()
       {
          getSession().getSelection().setSelectionRange(
-            getRange());
+               getRange());
       }
 
       public Range getRange()
@@ -264,8 +198,21 @@ public class AceEditor implements DocDisplay,
       private AceEditorChangeTracker()
       {
          super(AceEditor.this);
-         AceEditor.this.addFoldChangeHandler(event -> changed_ = true);
-         AceEditor.this.addLineWidgetsChangedHandler(event -> changed_ = true);
+         AceEditor.this.addFoldChangeHandler(new org.rstudio.studio.client.workbench.views.source.editors.text.events.FoldChangeEvent.Handler()
+         {
+            @Override
+            public void onFoldChange(FoldChangeEvent event)
+            {
+               changed_ = true;
+            }
+         });
+         AceEditor.this.addLineWidgetsChangedHandler(new org.rstudio.studio.client.workbench.views.source.editors.text.events.LineWidgetsChangedEvent.Handler() {
+            @Override
+            public void onLineWidgetsChanged(LineWidgetsChangedEvent event)
+            {
+               changed_ = true;
+            }
+         });
       }
 
       @Override
@@ -284,23 +231,40 @@ public class AceEditor implements DocDisplay,
 
    public static void load(final Command command)
    {
-      aceLoader_.addCallback(() ->
-            aceSupportLoader_.addCallback(() ->
-                  extLanguageToolsLoader_.addCallback(() ->
-                        vimLoader_.addCallback(() ->
-                              emacsLoader_.addCallback(() ->
+      aceLoader_.addCallback(new Callback()
+      {
+         public void onLoaded()
+         {
+            aceSupportLoader_.addCallback(new Callback()
+            {
+               public void onLoaded()
+               {
+                  extLanguageToolsLoader_.addCallback(new Callback()
+                  {
+                     public void onLoaded()
+                     {
+                        vimLoader_.addCallback(new Callback()
+                        {
+                           public void onLoaded()
+                           {
+                              emacsLoader_.addCallback(new Callback()
                               {
-                                 AceSupport.initialize();
-
-                                 if (command != null)
-                                    command.execute();
-                              })
-                        )
-                  )
-            )
-      );
+                                 public void onLoaded()
+                                 {
+                                    if (command != null)
+                                       command.execute();
+                                 }
+                              });
+                           }
+                        });
+                     }
+                  });
+               }
+            });
+         }
+      });
    }
-
+   
    public static final native AceEditor getEditor(Element el)
    /*-{
       for (; el != null; el = el.parentElement)
@@ -323,10 +287,9 @@ public class AceEditor implements DocDisplay,
    {
       widget_ = new AceEditorWidget();
       snippets_ = new SnippetHelper(this);
-      monitor_ = new AceEditorMonitor(this);
-      editorEventListeners_ = new ArrayList<>();
+      editorEventListeners_ = new ArrayList<HandlerRegistration>();
       mixins_ = new AceEditorMixins(this);
-      editLines_ = new AceEditorEditLinesHelper(this);
+      ElementIds.assignElementId(widget_.getElement(), ElementIds.SOURCE_TEXT_EDITOR);
 
       completionManager_ = new NullCompletionManager();
       diagnosticsBgPopup_ = new DiagnosticsBackgroundPopup(this);
@@ -338,166 +301,159 @@ public class AceEditor implements DocDisplay,
       bgLinkHighlighter_ = new AceEditorBackgroundLinkHighlighter(this);
       bgChunkHighlighter_ = new AceBackgroundHighlighter(this);
       
-      widget_.addValueChangeHandler(evt ->
+      widget_.addValueChangeHandler(new ValueChangeHandler<Void>()
       {
-         if (!valueChangeSuppressed_)
+         public void onValueChange(ValueChangeEvent<Void> evt)
          {
-            ValueChangeEvent.fire(AceEditor.this, null);
+            if (!valueChangeSuppressed_)
+            {
+               ValueChangeEvent.fire(AceEditor.this, null);
+            }
          }
       });
       
-      widget_.addFoldChangeHandler(event -> AceEditor.this.fireEvent(new FoldChangeEvent()));
-      
-      events_.addHandler(EditEvent.TYPE, new EditEvent.Handler()
+      widget_.addFoldChangeHandler(new FoldChangeEvent.Handler()
       {
          @Override
-         public void onEdit(EditEvent event)
+         public void onFoldChange(FoldChangeEvent event)
          {
-            if (event.isBeforeEdit())
-            {
-               activeEditEventType_ = event.getType();
-            }
-            else
-            {
-               Scheduler.get().scheduleDeferred(() ->
-               {
-                  activeEditEventType_ = EditEvent.TYPE_NONE;
-               });
-            }
+            AceEditor.this.fireEvent(new FoldChangeEvent());
          }
       });
 
-      addPasteHandler(event ->
+      addPasteHandler(new PasteEvent.Handler()
       {
-         if (completionManager_ != null)
-            completionManager_.onPaste(event);
-
-         final Position start = getSelectionStart();
-
-         Scheduler.get().scheduleDeferred(() ->
+         @Override
+         public void onPaste(PasteEvent event)
          {
-            Range range = Range.fromPoints(start, getSelectionEnd());
-            if (shouldIndentOnPaste())
-               indentPastedRange(range);
-         });
+            if (completionManager_ != null)
+               completionManager_.onPaste(event);
+
+            final Position start = getSelectionStart();
+            
+            Scheduler.get().scheduleDeferred(new ScheduledCommand()
+            {
+               @Override
+               public void execute()
+               {
+                  Range range = Range.fromPoints(start, getSelectionEnd());
+                  indentPastedRange(range);
+               }
+            });
+         }
       });
 
       // handle click events
-      addAceClickHandler(event ->
+      addAceClickHandler(new AceClickEvent.Handler()
       {
-         fixVerticalOffsetBug();
-         if (DomUtils.isCommandClick(event.getNativeEvent()))
+         @Override
+         public void onAceClick(AceClickEvent event)
          {
-            // eat the event so ace doesn't do anything with it
-            event.preventDefault();
-            event.stopPropagation();
+            fixVerticalOffsetBug();
+            if (DomUtils.isCommandClick(event.getNativeEvent()))
+            {
+               // eat the event so ace doesn't do anything with it
+               event.preventDefault();
+               event.stopPropagation();
 
-            // go to function definition
-            fireEvent(new CommandClickEvent(event));
-         }
-         else
-         {
-            // if the focus in the Help pane or another iframe
-            // we need to make sure to get it back
-            WindowEx.get().focus();
+               // go to function definition
+               fireEvent(new CommandClickEvent(event));
+            }
+            else
+            {
+               // if the focus in the Help pane or another iframe
+               // we need to make sure to get it back
+               WindowEx.get().focus();
+            }
          }
       });
 
       lastCursorChangedTime_ = 0;
-      addCursorChangedHandler(event ->
+      addCursorChangedHandler(new CursorChangedHandler()
       {
-         fixVerticalOffsetBug();
-         clearLineHighlight();
-         lastCursorChangedTime_ = System.currentTimeMillis();
+         @Override
+         public void onCursorChanged(CursorChangedEvent event)
+         {
+            fixVerticalOffsetBug();
+            clearLineHighlight();
+            lastCursorChangedTime_ = System.currentTimeMillis();
+         }
       });
 
       lastModifiedTime_ = 0;
-      addValueChangeHandler(event ->
+      addValueChangeHandler(new ValueChangeHandler<Void>()
       {
-         lastModifiedTime_ = System.currentTimeMillis();
-         clearDebugLineHighlight();
+         @Override
+         public void onValueChange(ValueChangeEvent<Void> event)
+         {
+            lastModifiedTime_ = System.currentTimeMillis();
+            clearDebugLineHighlight();
+         }
       });
       
-      widget_.addAttachHandler(event ->
+      widget_.addAttachHandler(new AttachEvent.Handler()
       {
-         if (event.isAttached())
+         @Override
+         public void onAttachOrDetach(AttachEvent event)
          {
-            attachToWidget(widget_.getElement(), AceEditor.this);
-
-            // If the ID was set earlier, as is done for the Console's edit field, don't stomp over it
-            if (StringUtil.isNullOrEmpty(widget_.getElement().getId()))
-               ElementIds.assignElementId(widget_, ElementIds.SOURCE_TEXT_EDITOR);
-         }
-         else
-            detachFromWidget(widget_.getElement());
-
-         if (!event.isAttached())
-         {
-            for (HandlerRegistration handler : editorEventListeners_)
-               handler.removeHandler();
-            editorEventListeners_.clear();
-
-            if (completionManager_ != null)
+            if (event.isAttached())
+               attachToWidget(widget_.getElement(), AceEditor.this);
+            else
+               detachFromWidget(widget_.getElement());
+            
+            if (!event.isAttached())
             {
-               completionManager_.detach();
-               completionManager_ = null;
-            }
-
-            if (s_lastFocusedEditor == AceEditor.this)
-            {
-               s_lastFocusedEditor = null;
+               for (HandlerRegistration handler : editorEventListeners_)
+                  handler.removeHandler();
+               editorEventListeners_.clear();
+               if (completionManager_ != null)
+               {
+                  completionManager_.detach();
+                  completionManager_ = null;
+               }
             }
          }
       });
       
-      widget_.addFocusHandler((FocusEvent event) ->
+      widget_.addFocusHandler(new FocusHandler()
       {
-         String id = AceEditor.this.getWidget().getElement().getId();
-         MainWindowObject.lastFocusedEditorId().set(id);
+         @Override
+         public void onFocus(FocusEvent event)
+         {
+            String id = AceEditor.this.getWidget().getElement().getId();
+            MainWindowObject.lastFocusedEditor().set(id);
+         }
       });
-      
-      addFocusHandler((FocusEvent event) -> s_lastFocusedEditor = this);
       
       events_.addHandler(
             AceEditorCommandEvent.TYPE,
-            event ->
+            new AceEditorCommandEvent.Handler()
             {
-               // skip this if this is only for the actively focused Ace instance
-               // (note: in RStudio Server, the Ace Editor instance may become
-               // unfocused when e.g. executing commands from the menu, so we
-               // need to ensure this routes to the most recently focused editor)
-               boolean ignore =
-                     event.getExecutionPolicy() == AceEditorCommandEvent.EXECUTION_POLICY_FOCUSED &&
-                     AceEditor.this != s_lastFocusedEditor;
-
-               if (ignore)
-                  return;
-
-               switch (event.getCommand())
+               @Override
+               public void onEditorCommand(AceEditorCommandEvent event)
                {
-               case AceEditorCommandEvent.YANK_REGION:                yankRegion();               break;
-               case AceEditorCommandEvent.YANK_BEFORE_CURSOR:         yankBeforeCursor();         break;
-               case AceEditorCommandEvent.YANK_AFTER_CURSOR:          yankAfterCursor();          break;
-               case AceEditorCommandEvent.PASTE_LAST_YANK:            pasteLastYank();            break;
-               case AceEditorCommandEvent.INSERT_ASSIGNMENT_OPERATOR: insertAssignmentOperator(); break;
-               case AceEditorCommandEvent.INSERT_PIPE_OPERATOR:       insertPipeOperator();       break;
-               case AceEditorCommandEvent.JUMP_TO_MATCHING:           jumpToMatching();           break;
-               case AceEditorCommandEvent.SELECT_TO_MATCHING:         selectToMatching();         break;
-               case AceEditorCommandEvent.EXPAND_TO_MATCHING:         expandToMatching();         break;
-               case AceEditorCommandEvent.ADD_CURSOR_ABOVE:           addCursorAbove();           break;
-               case AceEditorCommandEvent.ADD_CURSOR_BELOW:           addCursorBelow();           break;
-               case AceEditorCommandEvent.EDIT_LINES_FROM_START:      editLinesFromStart();       break;
-               case AceEditorCommandEvent.INSERT_SNIPPET:             onInsertSnippet();          break;
-               case AceEditorCommandEvent.MOVE_LINES_UP:              moveLinesUp();              break;
-               case AceEditorCommandEvent.MOVE_LINES_DOWN:            moveLinesDown();            break;
-               case AceEditorCommandEvent.EXPAND_TO_LINE:             expandToLine();             break;
-               case AceEditorCommandEvent.COPY_LINES_DOWN:            copyLinesDown();            break;
-               case AceEditorCommandEvent.JOIN_LINES:                 joinLines();                break;
-               case AceEditorCommandEvent.REMOVE_LINE:                removeLine();               break;
-               case AceEditorCommandEvent.SPLIT_INTO_LINES:           splitIntoLines();           break;
-               case AceEditorCommandEvent.BLOCK_INDENT:               blockIndent();              break;
-               case AceEditorCommandEvent.BLOCK_OUTDENT:              blockOutdent();             break;
-               case AceEditorCommandEvent.REINDENT:                   reindent();                 break;
+                  // skip this if this is only for the actively focused Ace instance
+                  if (event.getExecutionPolicy() == AceEditorCommandEvent.EXECUTION_POLICY_FOCUSED &&
+                      !AceEditor.this.isFocused())
+                  {
+                     return;
+                  }
+                  
+                  switch (event.getCommand())
+                  {
+                  case AceEditorCommandEvent.YANK_REGION:                yankRegion();               break;
+                  case AceEditorCommandEvent.YANK_BEFORE_CURSOR:         yankBeforeCursor();         break;
+                  case AceEditorCommandEvent.YANK_AFTER_CURSOR:          yankAfterCursor();          break;
+                  case AceEditorCommandEvent.PASTE_LAST_YANK:            pasteLastYank();            break;
+                  case AceEditorCommandEvent.INSERT_ASSIGNMENT_OPERATOR: insertAssignmentOperator(); break;
+                  case AceEditorCommandEvent.INSERT_PIPE_OPERATOR:       insertPipeOperator();       break;
+                  case AceEditorCommandEvent.JUMP_TO_MATCHING:           jumpToMatching();           break;
+                  case AceEditorCommandEvent.SELECT_TO_MATCHING:         selectToMatching();         break;
+                  case AceEditorCommandEvent.EXPAND_TO_MATCHING:         expandToMatching();         break;
+                  case AceEditorCommandEvent.ADD_CURSOR_ABOVE:           addCursorAbove();           break;
+                  case AceEditorCommandEvent.ADD_CURSOR_BELOW:           addCursorBelow();           break;
+                  case AceEditorCommandEvent.INSERT_SNIPPET:             insertSnippet();            break;
+                  }
                }
             });
    }
@@ -512,10 +468,9 @@ public class AceEditor implements DocDisplay,
       if (StringUtil.isNullOrEmpty(selectionValue))
          return;
       
-      if (Desktop.hasDesktopFrame() && isEmacsModeOn())
+      if (Desktop.isDesktop() && isEmacsModeOn())
       {
-         Desktop.getFrame().setClipboardText(selectionValue);
-         replaceSelection("");
+         Desktop.getFrame().clipboardCut();
          clearEmacsMark();
       }
       else
@@ -535,10 +490,10 @@ public class AceEditor implements DocDisplay,
             Position.create(cursorPos.getRow(), 0),
             cursorPos);
       
-      if (Desktop.hasDesktopFrame() && isEmacsModeOn())
+      if (Desktop.isDesktop() && isEmacsModeOn())
       {
          String text = getTextForRange(yankRange);
-         Desktop.getFrame().setClipboardText(StringUtil.notNull(text));
+         Desktop.getFrame().setClipboardText(text);
          replaceRange(yankRange, "");
          clearEmacsMark();
       }
@@ -577,10 +532,10 @@ public class AceEditor implements DocDisplay,
                Position.create(cursorPos.getRow(), lineLength));
       }
       
-      if ((Desktop.hasDesktopFrame()) && isEmacsModeOn())
+      if (Desktop.isDesktop() && isEmacsModeOn())
       {
          String text = getTextForRange(yankRange);
-         Desktop.getFrame().setClipboardText(StringUtil.notNull(text));
+         Desktop.getFrame().setClipboardText(text);
          replaceRange(yankRange, "");
          clearEmacsMark();
       }
@@ -597,13 +552,9 @@ public class AceEditor implements DocDisplay,
       if (isVimModeOn() && !isVimInInsertMode())
          return;
       
-      if (Desktop.hasDesktopFrame() && isEmacsModeOn())
+      if (Desktop.isDesktop() && isEmacsModeOn())
       {
-         Desktop.getFrame().getClipboardText((String text) ->
-         {
-            replaceSelection(text);
-            setCursorPosition(getSelectionEnd());
-         });
+         Desktop.getFrame().clipboardPaste();
       }
       else
       {
@@ -649,27 +600,16 @@ public class AceEditor implements DocDisplay,
       else
          insertCode(" %>% ", false);
    }
-   
-   private boolean shouldIndentOnPaste()
-   {
-      if (fileType_ == null || !fileType_.canAutoIndent())
-         return false;
-      
-      // if the user has requested reindent on paste, then we reindent
-      boolean indentPref = RStudioGinjector.INSTANCE.getUserPrefs().reindentOnPaste().getValue();
-      if (indentPref)
-         return true;
-      
-      // if the user has explicitly executed a paste with indent command, we reindent
-      if (activeEditEventType_ == EditEvent.TYPE_PASTE_WITH_INDENT)
-         return true;
-      
-      // finally, infer based on whether shift key is down
-      return keyboard_.isShiftKeyDown();
-   }
 
    private void indentPastedRange(Range range)
    {
+      if (fileType_ == null ||
+          !fileType_.canAutoIndent() ||
+          !RStudioGinjector.INSTANCE.getUIPrefs().reindentOnPaste().getValue())
+      {
+         return;
+      }
+
       String firstLinePrefix = getSession().getTextRange(
             Range.fromPoints(Position.create(range.getStart().getRow(), 0),
                              range.getStart()));
@@ -709,16 +649,14 @@ public class AceEditor implements DocDisplay,
 
    @Inject
    void initialize(CodeToolsServerOperations server,
-                   UserPrefs uiPrefs,
+                   UIPrefs uiPrefs,
                    CollabEditor collab,
-                   KeyboardTracker keyboard,
                    Commands commands,
                    EventBus events)
    {
       server_ = server;
-      userPrefs_ = uiPrefs;
+      uiPrefs_ = uiPrefs;
       collab_ = collab;
-      keyboard_ = keyboard;
       commands_ = commands;
       events_ = events;
    }
@@ -743,7 +681,7 @@ public class AceEditor implements DocDisplay,
                            CompletionManager completionManager)
    {
       fileType_ = fileType;
-      updateLanguage(completionManager, null);
+      updateLanguage(completionManager);
    }
 
    @Override
@@ -759,113 +697,53 @@ public class AceEditor implements DocDisplay,
    }
 
    @Override
-   public void setRCompletionContext(CompletionContext context)
+   public void setRCompletionContext(RCompletionContext rContext)
    {
-      context_ = context;
+      rContext_ = rContext;
    }
 
    private void updateLanguage(boolean suppressCompletion)
    {
       if (fileType_ == null)
          return;
-      
+
       CompletionManager completionManager;
-      
-      if (!suppressCompletion && fileType_.getEditorLanguage().useRCompletion())
+      if (!suppressCompletion)
       {
-         // GWT throws an exception if we bind Ace using 'AceEditor.this' below
-         // so work around that by just creating a final reference and use that
-         final AceEditor editor = this;
-         
-         completionManager = new DelegatingCompletionManager(this, context_)
+         if (fileType_.getEditorLanguage().useRCompletion())
          {
-            @Override
-            protected void initialize(Map<Mode, CompletionManager> managers)
+            completionManager = new RCompletionManager(
+                  this,
+                  this,
+                  new CompletionPopupPanel(),
+                  server_,
+                  new Filter(),
+                  rContext_,
+                  fileType_.canExecuteChunks() ? rnwContext_ : null,
+                  this,
+                  false);
+
+            // if this is cpp then we use our own completion manager
+            // that can optionally delegate to the R completion manager
+            if (fileType_.isC() || fileType_.isRmd())
             {
-               // R completion manager
-               if (fileType_.isR() || fileType_.isRmd() || fileType_.isCpp() ||
-                   fileType_.isRhtml() || fileType_.isRnw())
-               {
-                  managers.put(DocumentMode.Mode.R, new RCompletionManager(
-                        editor,
-                        editor,
-                        new CompletionPopupPanel(),
-                        server_,
-                        new Filter(),
-                        context_,
-                        fileType_.canExecuteChunks() ? rnwContext_ : null,
-                           editor,
-                           false));
-               }
-               
-               // Markdown completion manager
-               if (fileType_.isMarkdown() || fileType_.isRmd())
-               {
-                  managers.put(DocumentMode.Mode.MARKDOWN, new MarkdownCompletionManager(
-                        editor,
-                        new CompletionPopupPanel(),
-                        server_,
-                        context_));
-               }
-               
-               // Python completion manager
-               if (fileType_.isPython() || fileType_.isRmd())
-               {
-                  managers.put(DocumentMode.Mode.PYTHON, new PythonCompletionManager(
-                        editor,
-                        new CompletionPopupPanel(),
-                        server_,
-                        context_));
-               }
-               
-               // C++ completion manager
-               if (fileType_.isC())
-               {
-                  managers.put(DocumentMode.Mode.C_CPP, new CppCompletionManager(
-                        editor,
-                        new Filter(),
-                        cppContext_));
-               }
-               
-               // SQL completion manager
-               if (fileType_.isSql() || fileType_.isRmd())
-               {
-                  managers.put(DocumentMode.Mode.SQL, new SqlCompletionManager(
-                        editor,
-                        new CompletionPopupPanel(),
-                        server_,
-                        context_));
-               }
-               
-               // Stan completion manager
-               if (fileType_.isStan() || fileType_.isRmd())
-               {
-                  managers.put(DocumentMode.Mode.STAN, new StanCompletionManager(
-                        editor,
-                        new CompletionPopupPanel(),
-                        server_,
-                        context_));
-               }
+               completionManager = new CppCompletionManager(
+                                                     this,
+                                                     new Filter(),
+                                                     cppContext_,
+                                                     completionManager);
             }
-         };
+         }
+         else
+            completionManager = new NullCompletionManager();
       }
       else
-      {
          completionManager = new NullCompletionManager();
-      }
-      
-      ScopeTreeManager scopeTreeManager = null;
-      
-      if (fileType_.isStan())
-      {
-         scopeTreeManager = new StanScopeTreeManager(this);
-      }
 
-      updateLanguage(completionManager, scopeTreeManager);
+      updateLanguage(completionManager);
    }
 
-   private void updateLanguage(CompletionManager completionManager,
-                               ScopeTreeManager scopeTreeManager)
+   private void updateLanguage(CompletionManager completionManager)
    {
       clearLint();
       if (fileType_ == null)
@@ -877,14 +755,7 @@ public class AceEditor implements DocDisplay,
          completionManager_ = null;
       }
       
-      if (scopes_ != null)
-      {
-         scopes_.detach();
-         scopes_ = null;
-      }
-      
       completionManager_ = completionManager;
-      scopes_ = scopeTreeManager;
 
       updateKeyboardHandlers();
       syncCompletionPrefs();
@@ -897,6 +768,7 @@ public class AceEditor implements DocDisplay,
       
       handlers_.fireEvent(new EditorModeChangedEvent(getModeId()));
 
+      getSession().setUseWrapMode(fileType_.getWordWrap());
       syncWrapLimit();
    }
 
@@ -907,14 +779,14 @@ public class AceEditor implements DocDisplay,
          return;
 
       boolean enabled = fileType_.getEditorLanguage().useAceLanguageTools();
-      boolean live = userPrefs_.codeCompletionOther().getValue() ==
-                                       UserPrefs.CODE_COMPLETION_OTHER_ALWAYS;
-      int characterThreshold = userPrefs_.codeCompletionCharacters().getValue();
-      int delay = userPrefs_.codeCompletionDelay().getValue();
+      boolean live = uiPrefs_.codeCompleteOther().getValue().equals(
+                                       UIPrefsAccessor.COMPLETION_ALWAYS);
+      int characterThreshold = uiPrefs_.alwaysCompleteCharacters().getValue();
+      int delay = uiPrefs_.alwaysCompleteDelayMs().getValue();
       
       widget_.getEditor().setCompletionOptions(
             enabled,
-            userPrefs_.enableSnippets().getValue(),
+            uiPrefs_.enableSnippets().getValue(),
             live,
             characterThreshold,
             delay);
@@ -927,12 +799,12 @@ public class AceEditor implements DocDisplay,
       if (fileType_ == null)
          return;
 
-      boolean useWorker = userPrefs_.showDiagnosticsOther().getValue() &&
+      boolean useWorker = uiPrefs_.showDiagnosticsOther().getValue() &&
             fileType_.getEditorLanguage().useAceLanguageTools();
 
       getSession().setUseWorker(useWorker);
       getSession().setWorkerTimeout(
-            userPrefs_.backgroundDiagnosticsDelayMs().getValue());
+            uiPrefs_.backgroundDiagnosticsDelayMs().getValue());
    }
 
    private void syncWrapLimit()
@@ -942,7 +814,7 @@ public class AceEditor implements DocDisplay,
          return;
 
       // We originally observed that large word-wrapped documents
-      // would cause Chrome on Linux to freeze (bug #3207), eventually
+      // would cause Chrome on Liunx to freeze (bug #3207), eventually
       // running of of memory. Running the profiler indicated that the
       // time was being spent inside wrap width calculations in Ace.
       // Looking at the Ace bug database there were other wrapping problems
@@ -961,7 +833,7 @@ public class AceEditor implements DocDisplay,
       // column, essentially allowing users to opt-in to the behavior
       // we used to fix the bug. So the net is:
       //
-      // (1) To fix the horizontal scrollbar problem we reverted
+      // (1) To fix the horizontal scrollbar problem we revereted
       //     the wrap mode behavior we added from Chrome (under the
       //     assumption that the issue has been fixed in Chrome)
       //
@@ -976,7 +848,7 @@ public class AceEditor implements DocDisplay,
       // exceed the horizontal threshold)
 
       // NOTE: we no longer do this at all since we observed the
-      // scrollbar problem on desktop as well
+      // scollbar problem on desktop as well
    }
 
    private void updateKeyboardHandlers()
@@ -1013,14 +885,28 @@ public class AceEditor implements DocDisplay,
       editorEventListeners_.add(AceEditorNative.addEventListener(
             widget_.getEditor().getCommandManager(),
             "afterExec",
-            (CommandWithArg<JavaScriptObject>) event -> events_.fireEvent(new AceAfterCommandExecutedEvent(event))));
+            new CommandWithArg<JavaScriptObject>()
+            {
+               @Override
+               public void execute(JavaScriptObject event)
+               {
+                  events_.fireEvent(new AceAfterCommandExecutedEvent(event));
+               }
+            }));
       
       // Listen for keyboard activity
       editorEventListeners_.add(AceEditorNative.addEventListener(
             widget_.getEditor(),
             "keyboardActivity",
-            (CommandWithArg<JavaScriptObject>) event -> events_.fireEvent(new AceKeyboardActivityEvent(event))));
-
+            new CommandWithArg<JavaScriptObject>()
+            {
+               @Override
+               public void execute(JavaScriptObject event)
+               {
+                  events_.fireEvent(new AceKeyboardActivityEvent(event));
+               }
+            }));
+      
       if (useVimMode_)
          widget_.getEditor().setMarks(marks);
    }
@@ -1070,12 +956,16 @@ public class AceEditor implements DocDisplay,
          ed.getSession().getSelection().moveCursorTo(cursorPos.getRow(),
                                                      cursorPos.getColumn(),
                                                      false);
-         scrollToY(scrollTop, 0);
-         scrollToX(scrollLeft);
-         Scheduler.get().scheduleDeferred(() ->
+         ed.getRenderer().scrollToY(scrollTop);
+         ed.getRenderer().scrollToX(scrollLeft);
+         Scheduler.get().scheduleDeferred(new ScheduledCommand()
          {
-            scrollToY(scrollTop, 0);
-            scrollToX(scrollLeft);
+            @Override
+            public void execute()
+            {
+               ed.getRenderer().scrollToY(scrollTop);
+               ed.getRenderer().scrollToX(scrollLeft);
+            }
          });
       }
       else
@@ -1110,8 +1000,6 @@ public class AceEditor implements DocDisplay,
          widget_.getEditor().getRenderer().scrollToY(y);
       else
          scrollAnimator_ = new ScrollAnimator(y, animateMs);
-
-      fireEvent(new ScrollYEvent(Position.create(getFirstVisibleRow(), 0)));
    }
 
    public void insertCode(String code)
@@ -1123,98 +1011,6 @@ public class AceEditor implements DocDisplay,
    {
       widget_.getEditor().insert(StringUtil.normalizeNewLines(code));
    }
-   
-   public void applyChanges(TextChange[] changes)
-   {
-      // special case for a single change that neither adds nor removes
-      // (identity operation). we don't feed this through the code below
-      // because a single non-mutating change will result in a selection
-      // at the beginning of the file
-      if (changes.length == 1 && changes[0].type == TextChange.Type.Equal)
-         return;
-      
-      // alias apis
-      AceEditorNative editor = widget_.getEditor();
-      EditSession session = editor.getSession();
-      Selection selection = session.getSelection();
-      AceCommandManager commandManager = editor.getCommandManager();
-      
-      // function to advance the selection
-      Consumer<Integer> advanceSelection = (Integer charsLeft) -> {
-         Position startPos = selection.getCursor();
-         Position newPos = advancePosition(session, startPos, charsLeft);
-         selection.moveCursorTo(newPos.getRow(), newPos.getColumn(), false);
-      };
-      
-      // if we have at least 1 change then set the cursor location 
-      // to the beginning of the file
-      if (changes.length > 0)
-         selection.moveCursorTo(0, 0, false);      
-      
-      // process changes
-      for (int i = 0; i<changes.length; i++) 
-      {
-         // get change and length
-         TextChange change = changes[i];
-         int length = change.value.length();
-         
-         // insert text (selection will be advanced to the end of the string)
-         if (change.type == TextChange.Type.Insert)
-         {
-            if (change.value.length() > 0)
-               commandManager.exec("insertstring", editor, change.value);
-         }
-         
-         // remove text -- we advance past it and then use the "backspace"
-         // command b/c ace gives nicer undo behavior for this action (compared
-         // to executing the "del" command)
-         else if (change.type == TextChange.Type.Delete)
-         {
-            Range newRange = selection.getRange();
-            newRange.setEnd(advancePosition(session, selection.getCursor(), length));
-            selection.setSelectionRange(newRange);
-            commandManager.exec("backspace", editor);
-         }
-         
-         // advance selection (unless this is the last change, in which 
-         // case it just represents advancing to the end of the file)
-         else if (i != (changes.length-1))
-         {
-            advanceSelection.accept(length);
-         } 
-      }  
-   }
-   
-   private static Position advancePosition(EditSession session, Position startPos, Integer chars)
-   {
-      // iterate through rows until we've consumed all the chars
-      int row = startPos.getRow();
-      int col = startPos.getColumn();
-      while (row < session.getLength()) {
-         
-         // how many chars left in the current column?
-         String line = session.getLine(row);
-         // +1 is for the newline
-         int charsLeftInLine = line.length() + 1 - col;
-         
-         // is the number of chars we still need to consume lte
-         // the number of charsLeft?
-         if (chars < charsLeftInLine) 
-         {
-            col = col + chars;
-            break;
-         }
-         else
-         {
-            chars -= charsLeftInLine;
-            col = 0;
-            row++;
-         }
-      }
-      
-      return Position.create(row, col);
-   }
-   
 
    public String getCode(Position start, Position end)
    {
@@ -1266,7 +1062,7 @@ public class AceEditor implements DocDisplay,
             false,
             true,
             true,
-            false,
+            true,
             getCursorPosition(),
             null,
             false);
@@ -1330,16 +1126,15 @@ public class AceEditor implements DocDisplay,
       completionManager_.goToHelp();
    }
 
-   public void goToDefinition()
+   public void goToFunctionDefinition()
    {
-      completionManager_.goToDefinition();
+      completionManager_.goToFunctionDefinition();
    }
 
    class PrintIFrame extends DynamicIFrame
    {
       public PrintIFrame(String code, double fontSize)
       {
-         super("Print Frame");
          code_ = code;
          fontSize_ = fontSize;
 
@@ -1367,10 +1162,13 @@ public class AceEditor implements DocDisplay,
          // Preview". The only thing you could do is close the browser tab.
          // By inserting a 5-minute delay hopefully Firefox would be done with
          // whatever print related operations are important.
-         Scheduler.get().scheduleFixedDelay(() ->
+         Scheduler.get().scheduleFixedDelay(new RepeatingCommand()
          {
-            PrintIFrame.this.removeFromParent();
-            return false;
+            public boolean execute()
+            {
+               PrintIFrame.this.removeFromParent();
+               return false;
+            }
          }, 1000 * 60 * 5);
       }
 
@@ -1380,20 +1178,10 @@ public class AceEditor implements DocDisplay,
 
    public void print()
    {
-      if (Desktop.hasDesktopFrame())
-      {
-         // the desktop frame prints the code directly
-         Desktop.getFrame().printText(StringUtil.notNull(getCode()));
-      }
-      else
-      {
-         // in server mode, we render the code to an IFrame and then print
-         // the frame using the browser
-         PrintIFrame printIFrame = new PrintIFrame(
-               getCode(),
-               RStudioGinjector.INSTANCE.getUserPrefs().fontSizePoints().getValue());
-         RootPanel.get().add(printIFrame);
-      }
+      PrintIFrame printIFrame = new PrintIFrame(
+            getCode(),
+            RStudioGinjector.INSTANCE.getUIPrefs().fontSize().getValue());
+      RootPanel.get().add(printIFrame);
    }
 
    public String getText()
@@ -1789,7 +1577,7 @@ public class AceEditor implements DocDisplay,
       if (column == line.length())
          return '\0';
 
-      return StringUtil.charAt(line, column);
+      return line.charAt(column);
    }
 
    public char getCharacterBeforeCursor()
@@ -1800,7 +1588,7 @@ public class AceEditor implements DocDisplay,
          return '\0';
 
       String line = getLine(cursorPos.getRow());
-      return StringUtil.charAt(line, column - 1);
+      return line.charAt(column - 1);
    }
 
 
@@ -2034,10 +1822,15 @@ public class AceEditor implements DocDisplay,
       final AnchoredSelection selection = new AnchoredSelectionImpl(start, end);
       if (hostWidget != null)
       {
-         hostWidget.addAttachHandler(event ->
+         hostWidget.addAttachHandler(new AttachEvent.Handler()
          {
-            if (!event.isAttached() && selection != null)
-               selection.detach();
+            @Override
+            public void onAttachOrDetach(AttachEvent event)
+            {
+               if (!event.isAttached() && selection != null)
+                  selection.detach();
+            }
+            
          });
       }
       
@@ -2112,11 +1905,14 @@ public class AceEditor implements DocDisplay,
 
    public void onActivate()
    {
-      Scheduler.get().scheduleFinally(() ->
+      Scheduler.get().scheduleFinally(new RepeatingCommand()
       {
-         widget_.onResize();
-         widget_.onActivate();
-         return false;
+         public boolean execute()
+         {
+            widget_.onResize();
+            widget_.onActivate();
+            return false;
+         }
       });
    }
 
@@ -2144,11 +1940,6 @@ public class AceEditor implements DocDisplay,
    public void setShowLineNumbers(boolean on)
    {
       widget_.getEditor().getRenderer().setShowGutter(on);
-   }
-   
-   public boolean getUseSoftTabs()
-   {
-      return getSession().getUseSoftTabs();
    }
 
    public void setUseSoftTabs(boolean on)
@@ -2200,41 +1991,16 @@ public class AceEditor implements DocDisplay,
    }
 
    /**
-    * Sets the soft wrap mode for the editor
+    * Warning: This will be overridden whenever the file type is set
     */
    public void setUseWrapMode(boolean useWrapMode)
    {
       getSession().setUseWrapMode(useWrapMode);
    }
-   
-   /**
-    * Gets whether or not the editor is using soft wrapping
-    */
-   public boolean getUseWrapMode()
-   {
-      return getSession().getUseWrapMode();
-   }
 
    public void setTabSize(int tabSize)
    {
       getSession().setTabSize(tabSize);
-   }
-   
-   public void autoDetectIndentation(boolean on)
-   {
-      if (!on)
-         return;
-      
-      JsArrayString lines = getLines();
-      if (lines.length() < 5)
-         return;
-
-      int indentSize = StringUtil.detectIndent(lines);
-      if (indentSize > 0)
-      {
-         setTabSize(indentSize);
-         setUseSoftTabs(true);
-      }
    }
 
    public void setShowInvisibles(boolean show)
@@ -2390,43 +2156,23 @@ public class AceEditor implements DocDisplay,
    {
       return widget_.addAttachHandler(handler);
    }
-   
+
    public HandlerRegistration addEditorFocusHandler(FocusHandler handler)
    {
       return widget_.addFocusHandler(handler);
    }
    
-   public HandlerRegistration addEditorBlurHandler(BlurHandler handler)
-   {
-      return widget_.addBlurHandler(handler);
-   }
-
-   public HandlerRegistration addContextMenuHandler(ContextMenuHandler handler)
-   {
-      return widget_.addContextMenuHandler(handler);
-   }
-
-   public HandlerRegistration addScrollYHandler(ScrollYEvent.Handler handler)
-   {
-      return widget_.addScrollYHandler(handler);
-   }
-
-   public Scope getScopeAtPosition(Position position)
-   {
-      if (hasCodeModelScopeTree())
-         return getSession().getMode().getCodeModel().getCurrentScope(position);
-      
-      if (scopes_ != null)
-         return scopes_.getScopeAt(position);
-      
-      return null;
-   }
-
    public Scope getCurrentScope()
    {
-      return getScopeAtPosition(getCursorPosition());
+      return getSession().getMode().getCodeModel().getCurrentScope(
+            getCursorPosition());
    }
    
+   public Scope getScopeAtPosition(Position position)
+   {
+      return getSession().getMode().getCodeModel().getCurrentScope(position);
+   }
+
    @Override
    public String getNextLineIndent()
    {
@@ -2568,7 +2314,7 @@ public class AceEditor implements DocDisplay,
    {
       Position cursorPos = getCursorPosition();
       int cursorRow = cursorPos.getRow();
-
+      
       if (cursorRow >= widget_.getEditor().getLastVisibleRow() - rowsAround)
       {
          Position alignPos = Position.create(cursorRow + rowsAround, 0);
@@ -2580,7 +2326,7 @@ public class AceEditor implements DocDisplay,
          widget_.getEditor().getRenderer().alignCursor(alignPos, 0);
       }
    }
-
+   
    @Override
    public void scrollCursorIntoViewIfNecessary()
    {
@@ -2592,12 +2338,12 @@ public class AceEditor implements DocDisplay,
    {
       return StringUtil.isEndOfLineInRStringState(getCurrentLineUpToCursor());
    }
-
+   
    public void gotoPageUp()
    {
       widget_.getEditor().gotoPageUp();
    }
-
+   
    public void gotoPageDown()
    {
       widget_.getEditor().gotoPageDown();
@@ -2613,46 +2359,40 @@ public class AceEditor implements DocDisplay,
    {
       widget_.getEditor().revealRange(range, animate);
    }
-
+   
    public CodeModel getCodeModel()
    {
       return getSession().getMode().getCodeModel();
    }
-
+   
    public boolean hasCodeModel()
    {
       return getSession().getMode().hasCodeModel();
    }
 
-   public boolean hasCodeModelScopeTree()
+   public boolean hasScopeTree()
    {
       return hasCodeModel() && getCodeModel().hasScopes();
    }
-
+   
    public void buildScopeTree()
    {
       // Builds the scope tree as a side effect
-      if (hasCodeModelScopeTree())
+      if (hasScopeTree())
          getScopeTree();
    }
-
+   
    public int buildScopeTreeUpToRow(int row)
    {
-      if (!hasCodeModelScopeTree())
+      if (!hasScopeTree())
          return 0;
-
+      
       return getSession().getMode().getRCodeModel().buildScopeTreeUpToRow(row);
    }
 
    public JsArray<Scope> getScopeTree()
    {
-      if (hasCodeModelScopeTree())
-         return getSession().getMode().getCodeModel().getScopeTree();
-
-      if (scopes_ != null)
-         return scopes_.getScopeTree();
-
-      return JavaScriptObject.createArray().cast();
+      return getSession().getMode().getCodeModel().getScopeTree();
    }
 
    @Override
@@ -2678,19 +2418,19 @@ public class AceEditor implements DocDisplay,
    {
       getSession().toggleFold();
    }
-
+   
    @Override
    public void setFoldStyle(String style)
    {
       getSession().setFoldStyle(style);
    }
-
+   
    @Override
    public JsMap<Position> getMarks()
    {
       return widget_.getEditor().getMarks();
    }
-
+   
    @Override
    public void setMarks(JsMap<Position> marks)
    {
@@ -2701,29 +2441,26 @@ public class AceEditor implements DocDisplay,
    public void jumpToMatching()
    {
       widget_.getEditor().jumpToMatching(false, false);
-      scrollCursorIntoViewIfNecessary();
    }
 
    @Override
    public void selectToMatching()
    {
       widget_.getEditor().jumpToMatching(true, false);
-      scrollCursorIntoViewIfNecessary();
    }
 
    @Override
    public void expandToMatching()
    {
       widget_.getEditor().jumpToMatching(true, true);
-      scrollCursorIntoViewIfNecessary();
    }
-
+   
    @Override
    public void addCursorAbove()
    {
       widget_.getEditor().execCommand("addCursorAbove");
    }
-
+   
    @Override
    public void addCursorBelow()
    {
@@ -2731,53 +2468,11 @@ public class AceEditor implements DocDisplay,
    }
 
    @Override
-   public void editLinesFromStart()
-   {
-      editLines_.editLinesFromStart();
-   }
-
-   @Override
-   public void moveLinesUp()
-   {
-      widget_.getEditor().execCommand("movelinesup");
-   }
-
-   @Override
-   public void moveLinesDown()
-   {
-      widget_.getEditor().execCommand("movelinesdown");
-   }
-
-   @Override
-   public void expandToLine()
-   {
-      widget_.getEditor().execCommand("expandtoline");
-   }
-
-   @Override
-   public void copyLinesDown()
-   {
-      widget_.getEditor().execCommand("copylinesdown");
-   }
-
-   @Override
-   public void joinLines()
-   {
-      widget_.getEditor().execCommand("joinlines");
-   }
-
-   @Override
-   public void removeLine()
-   {
-      widget_.getEditor().execCommand("removeline");
-   }
-
-   @Override
    public void splitIntoLines()
    {
       widget_.getEditor().splitIntoLines();
    }
-
+   
    @Override
    public int getFirstFullyVisibleRow()
    {
@@ -3036,26 +2731,14 @@ public class AceEditor implements DocDisplay,
    
    public boolean isScopeTreeReady(int row)
    {
-      // NOTE: 'hasScopeTree()' implies JavaScript-side scope tree
-      if (hasCodeModelScopeTree())
-         return backgroundTokenizer_.isReady(row);
-      
-      if (scopes_ != null)
-         return scopes_.isReady(row);
-      
-      return false;
+      return backgroundTokenizer_.isReady(row);
    }
-
+   
    public HandlerRegistration addScopeTreeReadyHandler(ScopeTreeReadyEvent.Handler handler)
    {
       return handlers_.addHandler(ScopeTreeReadyEvent.TYPE, handler);
    }
 
-   public HandlerRegistration addActiveScopeChangedHandler(ActiveScopeChangedEvent.Handler handler)
-   {
-      return handlers_.addHandler(ActiveScopeChangedEvent.TYPE, handler);
-   }
-   
    public HandlerRegistration addRenderFinishedHandler(RenderFinishedEvent.Handler handler)
    {
       return widget_.addHandler(handler, RenderFinishedEvent.TYPE);
@@ -3085,15 +2768,10 @@ public class AceEditor implements DocDisplay,
    {
       return widget_.addUndoRedoHandler(handler);
    }
-   
+
    public HandlerRegistration addPasteHandler(PasteEvent.Handler handler)
    {
       return widget_.addPasteHandler(handler);
-   }
-   
-   public HandlerRegistration addEditHandler(EditEvent.Handler handler)
-   {
-      return widget_.addHandler(handler, EditEvent.TYPE);
    }
 
    public HandlerRegistration addAceClickHandler(Handler handler)
@@ -3198,6 +2876,21 @@ public class AceEditor implements DocDisplay,
    public void forceCursorChange()
    {
       widget_.forceCursorChange();
+   }
+
+   public void scrollToCursor(ScrollPanel scrollPanel,
+                              int paddingVert,
+                              int paddingHoriz)
+   {
+      DomUtils.ensureVisibleVert(
+            scrollPanel.getElement(),
+            widget_.getEditor().getRenderer().getCursorElement(),
+            paddingVert);
+      DomUtils.ensureVisibleHoriz(
+            scrollPanel.getElement(),
+            widget_.getEditor().getRenderer().getCursorElement(),
+            paddingHoriz, paddingHoriz,
+            false);
    }
 
    public void scrollToLine(int row, boolean center)
@@ -3445,9 +3138,9 @@ public class AceEditor implements DocDisplay,
             continue;
          
          String tokenValue = token.getValue();
-         return tokenValue == "}" ||
-                tokenValue == ")" ||
-                tokenValue == "]";
+         return tokenValue.equals("}") ||
+                tokenValue.equals(")") ||
+                tokenValue.equals("]");
       }
       
       return false;
@@ -3468,9 +3161,9 @@ public class AceEditor implements DocDisplay,
             continue;
          
          String tokenValue = token.getValue();
-         return tokenValue == "{" ||
-                tokenValue == "(" ||
-                tokenValue == "[";
+         return tokenValue.equals("{") ||
+                tokenValue.equals("(") ||
+                tokenValue.equals("[");
       }
       
       return false;
@@ -3514,18 +3207,9 @@ public class AceEditor implements DocDisplay,
    @Override
    public Range getMultiLineExpr(Position pos, int startRowLimit, int endRowLimit)
    {
-      if (DocumentMode.isSelectionInRMode(this))
-      {
-         return rMultiLineExpr(pos, startRowLimit, endRowLimit);
-      }
-      else
-      {
-         return getParagraph(pos, startRowLimit, endRowLimit);
-      }
-   }
-   
-   private Range rMultiLineExpr(Position pos, int startRowLimit, int endRowLimit)
-   {
+      if (!DocumentMode.isSelectionInRMode(this))
+         return null;
+
       // create token cursor (will be used to walk tokens as needed)
       TokenCursor c = getSession().getMode().getCodeModel().getTokenCursor();
       
@@ -3619,7 +3303,7 @@ public class AceEditor implements DocDisplay,
          
          // keep going if we're in a multiline string
          String state = getSession().getState(startRow - 1);
-         if (state == "qstring" || state == "qqstring")
+         if (state.equals("qstring") || state.equals("qqstring"))
          {
             startRow--;
             continue;
@@ -3643,29 +3327,20 @@ public class AceEditor implements DocDisplay,
       
       while (endRow <= endRowLimit)
       {
-         // continue search if we're in a multi-line string
-         // (forego updating our bracket counts)
-         String state = getSession().getState(endRow);
-         if (state == "qstring" || state == "qqstring")
-         {
-            endRow++;
-            continue;
-         }
-         
          // update bracket token counts
          JsArray<Token> tokens = getTokens(endRow);
          for (Token token : JsUtil.asIterable(tokens))
          {
             String value = token.getValue();
             
-            parenCount += value == "(" ? 1 : 0;
-            parenCount -= value == ")" ? 1 : 0;
+            parenCount += value.equals("(") ? 1 : 0;
+            parenCount -= value.equals(")") ? 1 : 0;
             
-            braceCount += value == "{" ? 1 : 0;
-            braceCount -= value == "}" ? 1 : 0;
+            braceCount += value.equals("{") ? 1 : 0;
+            braceCount -= value.equals("}") ? 1 : 0;
             
-            bracketCount += value == "[" ? 1 : 0;
-            bracketCount -= value == "]" ? 1 : 0;
+            bracketCount += value.equals("[") ? 1 : 0;
+            bracketCount -= value.equals("]") ? 1 : 0;
          }
          
          // continue search if line ends with binary operator
@@ -3677,6 +3352,14 @@ public class AceEditor implements DocDisplay,
          
          // continue search if we have unbalanced brackets
          if (parenCount > 0 || braceCount > 0 || bracketCount > 0)
+         {
+            endRow++;
+            continue;
+         }
+         
+         // continue search if we're in a multi-line string
+         String state = getSession().getState(endRow);
+         if (state.equals("qstring") || state.equals("qqstring"))
          {
             endRow++;
             continue;
@@ -3731,7 +3414,7 @@ public class AceEditor implements DocDisplay,
       
       return range;
    }
-   
+
    // ---- Annotation related operations
 
    public JsArray<AceAnnotation> getAnnotations()
@@ -3757,18 +3440,6 @@ public class AceEditor implements DocDisplay,
    }
 
    @Override
-   public void removeMarkers(BiPredicate<AceAnnotation, Marker> predicate)
-   {
-      widget_.removeMarkers(predicate);
-   }
-
-   @Override
-   public void removeMarkersAtWord(String word)
-   {
-      widget_.removeMarkersAtWord(word);
-   }
-
-   @Override
    public void showLint(JsArray<LintItem> lint)
    {
       widget_.showLint(lint);
@@ -3786,10 +3457,14 @@ public class AceEditor implements DocDisplay,
       if (infoBar_ == null)
       {
          infoBar_ = new AceInfoBar(widget_);
-         widget_.addKeyDownHandler(event ->
+         widget_.addKeyDownHandler(new KeyDownHandler()
          {
-            if (event.getNativeKeyCode() == KeyCodes.KEY_ESCAPE)
-               infoBar_.hide();
+            @Override
+            public void onKeyDown(KeyDownEvent event)
+            {
+               if (event.getNativeKeyCode() == KeyCodes.KEY_ESCAPE)
+                  infoBar_.hide();
+            }
          });
       }
          
@@ -3825,11 +3500,6 @@ public class AceEditor implements DocDisplay,
    public int getLastVisibleRow()
    {
       return widget_.getEditor().getLastVisibleRow();
-   }
-
-   public void blockIndent()
-   {
-      widget_.getEditor().blockIndent();
    }
 
    public void blockOutdent()
@@ -3892,9 +3562,8 @@ public class AceEditor implements DocDisplay,
    public TokenIterator createTokenIterator(Position position)
    {
       TokenIterator it = TokenIterator.create(getSession());
-      if (position == null)
-         position = Position.create(0, 0);
-      it.moveToPosition(position);
+      if (position != null)
+         it.moveToPosition(position);
       return it;
    }
 
@@ -3908,7 +3577,14 @@ public class AceEditor implements DocDisplay,
       // keep up
       valueChangeSuppressed_ = true;
 
-      collab_.beginCollabSession(this, params, dirtyState, () -> valueChangeSuppressed_ = false);
+      collab_.beginCollabSession(this, params, dirtyState, new Command()
+      {
+         @Override
+         public void execute()
+         {
+            valueChangeSuppressed_ = false;
+         }
+      });
    }
    
    @Override
@@ -3946,7 +3622,14 @@ public class AceEditor implements DocDisplay,
       return editor.tabstopManager != null;
    }-*/;
    
-   private boolean onInsertSnippet()
+   private void insertSnippet()
+   {
+      if (!snippets_.onInsertSnippet())
+         blockOutdent();
+   }
+   
+   @Override
+   public boolean onInsertSnippet()
    {
       return snippets_.onInsertSnippet();
    }
@@ -4070,7 +3753,7 @@ public class AceEditor implements DocDisplay,
       for (int i = 0; i<lineWidgets.length(); i++)
       {
          LineWidget lineWidget = lineWidgets.get(i);
-         if (lineWidget.getType() == ChunkDefinition.LINE_WIDGET_TYPE)
+         if (lineWidget.getType().equals(ChunkDefinition.LINE_WIDGET_TYPE))
          {
             ChunkDefinition chunk = lineWidget.getData();
             chunks.push(chunk.with(lineWidget.getRow(), 
@@ -4100,31 +3783,7 @@ public class AceEditor implements DocDisplay,
    {
       showChunkOutputInline_ = show;
    }
-
-   /**
-    * Set an aria-label on the input element
-    * @param label
-    */
-   public final void setTextInputAriaLabel(String label)
-   {
-      widget_.getEditor().setTextInputAriaLabel(label);
-   }
-
-   public void setTabAlwaysMovesFocus()
-   {
-      widget_.setTabKeyMode(TabKeyMode.AlwaysMoveFocus);
-   }
-
-   public final void setScrollSpeed(double speed)
-   {
-      widget_.getEditor().setScrollSpeed(speed);
-   }
    
-   public final void setIndentedSoftWrap(boolean softWrap)
-   {
-      widget_.getEditor().setIndentedSoftWrap(softWrap);
-   }
-
    private void fireLineWidgetsChanged()
    {
       AceEditor.this.fireEvent(new LineWidgetsChangedEvent());
@@ -4156,9 +3815,10 @@ public class AceEditor implements DocDisplay,
             }
          };
          
-         editor_.addDocumentChangedHandler(event ->
+         editor_.addDocumentChangedHandler(new DocumentChangedEvent.Handler()
          {
-            if (editor_.hasCodeModelScopeTree())
+            @Override
+            public void onDocumentChanged(DocumentChangedEvent event)
             {
                row_ = event.getEvent().getRange().getStart().getRow();
                timer_.schedule(DELAY_MS);
@@ -4206,13 +3866,14 @@ public class AceEditor implements DocDisplay,
          double elapsed = timestamp - startTime_;
          if (elapsed >= ms_)
          {
-            scrollToY(targetY_, 0);
+            widget_.getEditor().getRenderer().scrollToY(targetY_);
             complete();
             return;
          }
 
          // ease-out exponential
-         scrollToY((int)(delta_ * (-Math.pow(2, -10 * elapsed / ms_) + 1)) + startY_, 0);
+         widget_.getEditor().getRenderer().scrollToY(
+               (int)(delta_ * (-Math.pow(2, -10 * elapsed / ms_) + 1)) + startY_);
 
          // request next frame
          handle_ = AnimationScheduler.get().requestAnimationFrame(this);
@@ -4230,13 +3891,10 @@ public class AceEditor implements DocDisplay,
    private final HandlerManager handlers_ = new HandlerManager(this);
    private final AceEditorWidget widget_;
    private final SnippetHelper snippets_;
-   private final AceEditorMonitor monitor_;
    private ScrollAnimator scrollAnimator_;
    private CompletionManager completionManager_;
-   private ScopeTreeManager scopes_;
    private CodeToolsServerOperations server_;
-   private UserPrefs userPrefs_;
-   private KeyboardTracker keyboard_;
+   private UIPrefs uiPrefs_;
    private CollabEditor collab_;
    private Commands commands_;
    private EventBus events_;
@@ -4246,7 +3904,7 @@ public class AceEditor implements DocDisplay,
    private boolean useVimMode_ = false;
    private RnwCompletionContext rnwContext_;
    private CppCompletionContext cppContext_;
-   private CompletionContext context_ = null;
+   private RCompletionContext rContext_ = null;
    private Integer lineHighlightMarkerId_ = null;
    private Integer lineDebugMarkerId_ = null;
    private Integer executionLine_ = null;
@@ -4260,7 +3918,6 @@ public class AceEditor implements DocDisplay,
    private int scrollTarget_ = 0;
    private HandlerRegistration scrollCompleteReg_;
    private final AceEditorMixins mixins_;
-   private final AceEditorEditLinesHelper editLines_;
    
    private static final ExternalJavaScriptLoader getLoader(StaticDataResource release)
    {
@@ -4304,9 +3961,6 @@ public class AceEditor implements DocDisplay,
    private long lastModifiedTime_;
    private String yankedText_ = null;
    
-   private int activeEditEventType_ = EditEvent.TYPE_NONE;
-   
-   private static AceEditor s_lastFocusedEditor = null;
    
    private final List<HandlerRegistration> editorEventListeners_;
 }

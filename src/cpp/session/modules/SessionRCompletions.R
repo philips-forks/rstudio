@@ -1,7 +1,7 @@
 #
 # SessionRCompletions.R
 #
-# Copyright (C) 2014 by RStudio, PBC
+# Copyright (C) 2014 by RStudio, Inc.
 #
 # Unless you have received this program directly from RStudio pursuant
 # to the terms of a commercial license agreement with RStudio, then
@@ -16,7 +16,7 @@
 # Put the autocompletion types in the .rs.Env environment so they're accessible
 # everywhere (sync with RCompletionManager.java)
 assign(x = ".rs.acContextTypes",
-       envir = as.environment("tools:rstudio"),
+       pos = which(search() == "tools:rstudio"),
        value = list(
           UNKNOWN            =  0,
           FUNCTION           =  1,
@@ -31,14 +31,13 @@ assign(x = ".rs.acContextTypes",
           ROXYGEN            = 10,
           HELP               = 11,
           ARGUMENT           = 12,
-          PACKAGE            = 13,
-          PLUMBER            = 14
+          PACKAGE            = 13
        )
 )
 
 # Sync with RCompletionTypes.java
 assign(x = ".rs.acCompletionTypes",
-       envir = as.environment("tools:rstudio"),
+       pos = which(search() == "tools:rstudio"),
        value = list(
           UNKNOWN     =  0,
           VECTOR      =  1,
@@ -71,14 +70,8 @@ assign(x = ".rs.acCompletionTypes",
 
 .rs.addFunction("getCompletionType", function(object)
 {
-   # Control-flow keywords
-   if (identical(object, base::`break`) ||
-       identical(object, base::`next`) ||
-       identical(object, base::`repeat`))
-      .rs.acCompletionTypes$KEYWORD
-   
    # Reference classes
-   else if (inherits(object, "refMethodDef"))
+   if (inherits(object, "refMethodDef"))
       .rs.acCompletionTypes$R5_METHOD
    else if (inherits(object, "refObjectGenerator"))
       .rs.acCompletionTypes$R5_CLASS
@@ -161,15 +154,11 @@ assign(x = ".rs.acCompletionTypes",
    tags <- c(
       "@aliases ",
       "@author ",
-      "@backref ",
-      "@concept ",
+      "@concepts ",
       "@describeIn ",
       "@description ",
       "@details ",
       "@docType ",
-      "@encoding ",
-      "@eval ",
-      "@evalNamespace ",
       "@evalRd ",
       "@example ",
       "@examples ",
@@ -196,8 +185,8 @@ assign(x = ".rs.acCompletionTypes",
       "@noMd",
       "@noRd",
       "@param ",
-      "@rawNamespace ",
       "@rawRd ",
+      "@rawNamespace ",
       "@rdname ",
       "@references ",
       "@return ",
@@ -214,72 +203,6 @@ assign(x = ".rs.acCompletionTypes",
    
    matchingTags <- grep(paste("^", tag, sep = ""), tags, value = TRUE)
    
-   .rs.makeCompletions(tag,
-                       matchingTags,
-                       type = .rs.acCompletionTypes$ROXYGEN,
-                       excludeOtherCompletions = TRUE)
-})
-
-.rs.addFunction("attemptPlumberTagCompletion", function(token, line)
-{
-   emptyCompletions <- .rs.emptyCompletions(excludeOtherCompletions = TRUE)
-
-   # fix up tokenization
-   if (grepl("^\\s*#+\\*\\s*$", line) && token == "*")
-      token <- ""
-
-   # allow the token to be empty only if we're attempting completions
-   # at the start of the line
-   if (token == "")
-   {
-      match <- grepl("^\\s*#+\\*\\s*$", line)
-      if (!match)
-         return(emptyCompletions)
-   }
-   else
-   {
-      match <- grepl("^@[a-zA-Z0-9]*$", token, perl = TRUE)
-      if (!match)
-         return(emptyCompletions)
-   }
-
-   tag <- sub(".*(?=@)", '', token, perl = TRUE)
-
-   # All known Plumber tags, in alphabetical order
-   tags <- c(
-      "@apiBasePath ",
-      "@apiConsumes ",
-      "@apiContact ",
-      "@apiDescription ",
-      "@apiHost ",
-      "@apiLicense ",
-      "@apiProduces ",
-      "@apiSchemes ",
-      "@apiTOS ",
-      "@apiTag ",
-      "@apiTitle ",
-      "@apiVersion ",
-      "@assets ",
-      "@delete ",
-      "@filter ",
-      "@get ",
-      "@head ",
-      "@jpeg ",
-      "@options ",
-      "@param ",
-      "@patch ",
-      "@png ",
-      "@post ",
-      "@preempt ",
-      "@put ",
-      "@response ",
-      "@serializer ",
-      "@tag ",
-      "@use "
-   )
-
-   matchingTags <- grep(paste("^", tag, sep = ""), tags, value = TRUE)
-
    .rs.makeCompletions(tag,
                        matchingTags,
                        type = .rs.acCompletionTypes$ROXYGEN,
@@ -388,15 +311,11 @@ assign(x = ".rs.acCompletionTypes",
       absolutePaths <- index$paths
    }
    
-   # Merge in completions from the current directory. This can be
-   # slow on networked filesystems so do this with a timeout.
-   dirPaths <- .rs.withTimeLimit(1, .rs.listFilesFuzzy(directory, tokenName))
-   if (is.null(dirPaths))
-      dirPaths <- character()
-   
+   # Merge in completions from the current directory.
+   dirPaths <- .rs.listFilesFuzzy(directory, tokenName)
    if (directoriesOnly)
    {
-      dirInfo <- .rs.fileInfo(dirPaths)
+      dirInfo <- file.info(dirPaths)
       dirPaths <- dirPaths[dirInfo$isdir]
    }
    absolutePaths <- sort(union(absolutePaths, dirPaths))
@@ -447,7 +366,7 @@ assign(x = ".rs.acCompletionTypes",
    # Otherwise, query the file info for the set of completions we're using
    else
    {
-      isDir <- .rs.fileInfo(absolutePaths)[, "isdir"] %in% TRUE ## protect against NA
+      isDir <- file.info(absolutePaths)[, "isdir"] %in% TRUE ## protect against NA
       type <- ifelse(isDir,
                      .rs.acCompletionTypes$DIRECTORY,
                      .rs.acCompletionTypes$FILE)
@@ -943,14 +862,12 @@ assign(x = ".rs.acCompletionTypes",
 })
 
 
-.rs.addFunction("emptyCompletions", function(token = "",
-                                             excludeOtherCompletions = FALSE,
+.rs.addFunction("emptyCompletions", function(excludeOtherCompletions = FALSE,
                                              overrideInsertParens = FALSE,
-                                             orderStartsWithAlnumFirst = TRUE,
-                                             language = "R")
+                                             orderStartsWithAlnumFirst = TRUE)
 {
    .rs.makeCompletions(
-      token = token,
+      token = "",
       results = character(),
       packages = character(),
       quote = logical(),
@@ -958,8 +875,7 @@ assign(x = ".rs.acCompletionTypes",
       fguess = "",
       excludeOtherCompletions = .rs.scalar(excludeOtherCompletions),
       overrideInsertParens = .rs.scalar(overrideInsertParens),
-      orderStartsWithAlnumFirst = .rs.scalar(orderStartsWithAlnumFirst),
-      language = .rs.scalar(language)
+      orderStartsWithAlnumFirst = .rs.scalar(orderStartsWithAlnumFirst)
    )
 })
 
@@ -988,14 +904,10 @@ assign(x = ".rs.acCompletionTypes",
 
 .rs.addFunction("formCompletionVector", function(object, default, n)
 {
-   if (length(object) == 0)
-      rep(default, length.out = n)
-   else if (length(object) == 1)
-      rep.int(object, n)
-   else if (length(object) == n)
-      object
+   if (!length(object))
+      rep.int(default, n)
    else
-      rep(object, length.out = n)
+      rep.int(object, n)
 })
 
 .rs.addFunction("makeCompletions", function(token,
@@ -1003,27 +915,21 @@ assign(x = ".rs.acCompletionTypes",
                                             packages = character(),
                                             quote = logical(),
                                             type = numeric(),
-                                            meta = character(),
                                             fguess = "",
                                             excludeOtherCompletions = FALSE,
                                             overrideInsertParens = FALSE,
                                             orderStartsWithAlnumFirst = TRUE,
                                             cacheable = TRUE,
-                                            helpHandler = NULL,
-                                            language = "R")
+                                            helpHandler = NULL)
 {
    if (is.null(results))
       results <- character()
-   
-   if (is.null(token))
-      token <- ""
    
    # Ensure other 'vector' completions are of the same length as 'results'
    n        <- length(results)
    packages <- .rs.formCompletionVector(packages, "", n)
    quote    <- .rs.formCompletionVector(quote, FALSE, n)
    type     <- .rs.formCompletionVector(type, .rs.acCompletionTypes$UNKNOWN, n)
-   meta     <- .rs.formCompletionVector(meta, "", n)
    
    # Favor completions starting with a letter
    if (orderStartsWithAlnumFirst)
@@ -1038,7 +944,6 @@ assign(x = ".rs.acCompletionTypes",
       packages <- packages[order]
       quote    <- quote[order]
       type     <- type[order]
-      meta     <- meta[order]
    }
    
    # Avoid generating too many completions
@@ -1052,7 +957,6 @@ assign(x = ".rs.acCompletionTypes",
       packages <- packages[idx]
       quote    <- quote[idx]
       type     <- type[idx]
-      meta     <- meta[idx]
    }
    
    list(token = token,
@@ -1060,13 +964,11 @@ assign(x = ".rs.acCompletionTypes",
         packages = packages,
         quote = quote,
         type = type,
-        meta = meta,
         fguess = fguess,
         excludeOtherCompletions = .rs.scalar(excludeOtherCompletions),
         overrideInsertParens = .rs.scalar(overrideInsertParens),
         cacheable = .rs.scalar(cacheable),
-        helpHandler = .rs.scalar(helpHandler),
-        language = .rs.scalar(language))
+        helpHandler = .rs.scalar(helpHandler))
 })
 
 .rs.addFunction("subsetCompletions", function(completions, indices)
@@ -1079,7 +981,7 @@ assign(x = ".rs.acCompletionTypes",
 
 .rs.addFunction("appendCompletions", function(old, new)
 {
-   for (name in c("results", "packages", "quote", "type", "meta"))
+   for (name in c("results", "packages", "quote", "type"))
       old[[name]] <- c(old[[name]], new[[name]])
    
    # resolve duplicates -- a completion is duplicated if its result
@@ -1091,12 +993,9 @@ assign(x = ".rs.acCompletionTypes",
    
    if (length(drop))
    {
-      for (name in c("results", "packages", "quote", "type", "meta"))
+      for (name in c("results", "packages", "quote", "type"))
          old[[name]] <- old[[name]][-c(drop)]
    }
-   
-   if (length(new$token) && new$token != "")
-      old$token <- new$token
    
    if (length(new$fguess) && new$fguess != "")
       old$fguess <- new$fguess
@@ -1235,21 +1134,22 @@ assign(x = ".rs.acCompletionTypes",
          dollarNamesMethod <- .rs.getDollarNamesMethod(object, TRUE, envir = envir)
          if (is.function(dollarNamesMethod))
          {
-            allNames <- dollarNamesMethod(object, "")
+            allNames <- dollarNamesMethod(object)
             
-            # detect completion systems that append closing parentheses
-            # to the completion item, and assume those are functions
-            # rJava and Rcpp will do this for some objects
-            # for example:
-            # - rJava:::.DollarNames.jobjref
-            # - Rcpp:::.DollarNames.C++Object
-            types <- ifelse(
-               grepl("[()]\\s*$", allNames),
-               .rs.acCompletionTypes$FUNCTION,
-               .rs.acCompletionTypes$UNKNOWN
-            )
-            allNames <- gsub("[()]*\\s*$", "", allNames)
-            attr(allNames, "types") <- as.integer(types)
+            # rJava will include closing parentheses as part of the
+            # completion list -- clean those up and use them to infer
+            # symbol types
+            if ("rJava" %in% loadedNamespaces() &&
+                identical(environment(dollarNamesMethod), asNamespace("rJava")))
+            {
+               types <- ifelse(
+                  grepl("[()]$", allNames),
+                  .rs.acCompletionTypes$FUNCTION,
+                  .rs.acCompletionTypes$UNKNOWN
+               )
+               allNames <- gsub("[()]*$", "", allNames)
+               attr(allNames, "types") <- types
+            }
             
             # check for custom helpHandler
             helpHandler <- attr(allNames, "helpHandler", exact = TRUE)
@@ -1639,6 +1539,9 @@ assign(x = ".rs.acCompletionTypes",
       rep.int(names[i], length(objects[[i]]))
    }))
    
+   # Keywords are really from the base package
+   packages[packages == "keywords"] <- "base"
+   
    # discover completion matches for this token
    keep <- .rs.fuzzyMatches(results, token)
    results <- results[keep]
@@ -1669,36 +1572,17 @@ assign(x = ".rs.acCompletionTypes",
    packages <- packages[order]
    
    type <- vapply(seq_along(results), function(i) {
-      
       if (packages[[i]] == "keywords")
-         return(.rs.acCompletionTypes$KEYWORD)
-      
-      if (packages[[i]] == "")
-         return(.rs.acCompletionTypes$UNKNOWN)
-      
-      object <- tryCatch(
-         get(results[[i]], packages[[i]]),
-         error = identity
-      )
-      
-      if (inherits(object, "error"))
-         return(.rs.acCompletionTypes$UNKNOWN)
-      
-      type <- .rs.getCompletionType(object)
-      
-      # fix up source package for S4 generics
-      if (type %in% .rs.acCompletionTypes$S4_GENERIC) {
-         package <- attr(object, "package", exact = TRUE)
-         if (is.character(package) && nzchar(package))
-            packages[[i]] <<- package
-      }
-      
-      return(type)
-      
+         .rs.acCompletionTypes$KEYWORD
+      else if (packages[[i]] == "")
+         ## Don't try to evaluate these as we don't want to force promises in debug contexts
+         .rs.acCompletionTypes$UNKNOWN
+      else
+         tryCatch(
+            .rs.getCompletionType(get(results[[i]], pos = which(search() == packages[[i]]))),
+            error = function(e) .rs.acCompletionTypes$UNKNOWN
+         )
    }, FUN.VALUE = numeric(1), USE.NAMES = FALSE)
-   
-   # Keywords are really from the base package
-   packages[packages == "keywords"] <- "base"
    
    .rs.makeCompletions(token = token,
                        results = results,
@@ -1833,8 +1717,7 @@ assign(x = ".rs.acCompletionTypes",
    
    if (!("knit_params" %in% getNamespaceExports(asNamespace("knitr"))))
       return(NULL)
-
-   Encoding(content) <- "UTF-8"
+   
    knitr::knit_params(content)
 })
 
@@ -1906,8 +1789,7 @@ assign(x = ".rs.acCompletionTypes",
                                                   excludeArgsFromObject,
                                                   filePath,
                                                   documentId,
-                                                  line,
-                                                  isConsole)
+                                                  line)
 {
    # Ensure UTF-8 encoding, as that's the encoding set when passed down from
    # the client
@@ -1919,11 +1801,6 @@ assign(x = ".rs.acCompletionTypes",
    excludeArgs <- .rs.setEncodingUnknownToUTF8(excludeArgs)
    excludeArgsFromObject <- .rs.setEncodingUnknownToUTF8(excludeArgsFromObject)
    filePath <- .rs.setEncodingUnknownToUTF8(filePath)
-   
-   # If the R console is requesting completions, but the Python REPL is
-   # active, then delegate to that machinery.
-   if (isConsole && .rs.reticulate.replIsActive())
-      return(.rs.rpc.python_get_completions(line, NULL))
    
    # Inject 'params' into the global env to provide for completions in
    # parameterized R Markdown documents
@@ -2037,11 +1914,7 @@ assign(x = ".rs.acCompletionTypes",
    # Roxygen
    if (.rs.acContextTypes$ROXYGEN %in% type)
       return(.rs.attemptRoxygenTagCompletion(token, line))
-
-   # Plumber
-   if (.rs.acContextTypes$PLUMBER %in% type)
-      return(.rs.attemptPlumberTagCompletion(token, line))
-
+   
    # install.packages
    if (length(string) && string[[1]] == "install.packages" && numCommas[[1]] == 0)
       return(.rs.getCompletionsInstallPackages(token))
@@ -2181,20 +2054,21 @@ assign(x = ".rs.acCompletionTypes",
       # NOTE: For Markdown link completions, we overload the meaning of the
       # function call string here, and use it as a signal to generate paths
       # relative to the R markdown path.
+      isMarkdownLink <- identical(functionCallString, "useFile")
       isRmd <- .rs.endsWith(tolower(filePath), ".rmd")
       
       path <- NULL
       
-      # if in an Rmd file, ask it for its desired working dir (can be changed
-      # with the knitr root.dir option)
-      if (isRmd)
+      if (!isMarkdownLink && isRmd) 
       {
+         # if in an Rmd file, ask it for its desired working dir (can be changed
+         # with the knitr root.dir option)
          path <- .Call("rs_getRmdWorkingDir", filePath, documentId)
       }
 
-      if (is.null(path) && isRmd)
+      if (is.null(path) && (isMarkdownLink || isRmd)) 
       {
-         # for R Markdown documents without an explicit working dir, use the
+         # for links, or R Markdown without an explicit working dir, use the
          # base directory of the file
          path <- suppressWarnings(.rs.normalizePath(dirname(filePath)))
       }
@@ -2481,9 +2355,6 @@ assign(x = ".rs.acCompletionTypes",
    leftData <- .rs.getAnywhere(leftDataName, envir)
    rightData <- .rs.getAnywhere(rightDataName, envir)
    
-   if (!is.list(leftData) || !is.list(rightData))
-      return(.rs.emptyCompletions(excludeOtherCompletions = TRUE))
-   
    if (cursorPos == "left" && !is.null(leftData))
    {
       completions <- .rs.selectFuzzyMatches(
@@ -2617,9 +2488,10 @@ assign(x = ".rs.acCompletionTypes",
    ## could be slow
    pkgCacheName <- ".completions.attachedPackagesCache"
    helpTopicsName <- ".completions.helpTopics"
+   rsEnvPos <- which(search() == "tools:rstudio")
    
    attachedPackagesCache <- tryCatch(
-      get(pkgCacheName, envir = .rs.toolsEnv()),
+      get(pkgCacheName, pos = rsEnvPos),
       error = function(e) character()
    )
    
@@ -2630,7 +2502,7 @@ assign(x = ".rs.acCompletionTypes",
    {
       assign(pkgCacheName,
              basename(paths),
-             envir = .rs.toolsEnv())
+             pos = rsEnvPos)
       
       # Get the set of help topics
       topics <- lapply(paths, .rs.readAliases)
@@ -2638,10 +2510,10 @@ assign(x = ".rs.acCompletionTypes",
       
       assign(helpTopicsName,
              topics,
-             envir = .rs.toolsEnv())
+             pos = rsEnvPos)
    }
    
-   aliases <- get(helpTopicsName, envir = .rs.toolsEnv())
+   aliases <- get(helpTopicsName, pos = rsEnvPos)
    
    ## If the token is of the form `<pkg>::<topic>`,
    ## then attempt to get the topic 'topic' for that
@@ -2668,24 +2540,22 @@ assign(x = ".rs.acCompletionTypes",
          if (!is.null(pkgPath))
          {
             aliases[[pkg]] <- .rs.readAliases(pkgPath)
-            assign(helpTopicsName, aliases, envir = .rs.toolsEnv())
+            assign(helpTopicsName, aliases, pos = rsEnvPos)
          }
       }
       
-      # filter the aliases list to just this package
-      aliases <- aliases[names(aliases) %in% pkg]
+      aliases <- tryCatch(
+         aliases[[pkg]],
+         error = function(e) character()
+      )
    }
    
-   filtered <- lapply(aliases, function(alias) {
-      .rs.selectFuzzyMatches(alias, token)
-   })
-   
-   listed <- .rs.namedVectorAsList(filtered)
+   aliases <- unlist(aliases)
+   results <- .rs.selectFuzzyMatches(aliases, token)
    
    completions <- .rs.makeCompletions(
       token = token,
-      results = listed$values,
-      packages = listed$names,
+      results = results,
       quote = quote,
       type = .rs.acCompletionTypes$HELP,
       overrideInsertParens = TRUE
@@ -2854,7 +2724,7 @@ assign(x = ".rs.acCompletionTypes",
    fileCacheName <- paste(file, "shinyUILastModifiedTime", sep = "-")
    completionsCacheName <- paste(file, "shinyUICompletions", sep = "-")
    
-   info <- .rs.fileInfo(file)
+   info <- file.info(file)
    mtime <- info[1, "mtime"]
    if (identical(mtime, .rs.get(fileCacheName)) &&
        !is.null(.rs.get(completionsCacheName)))
@@ -2974,7 +2844,7 @@ assign(x = ".rs.acCompletionTypes",
    fileCacheName <- paste(file, "shinyServerLastModifiedTime", sep = "-")
    completionsCacheName <- paste(file, "shinyServerCompletions", sep = "-")
    
-   info <- .rs.fileInfo(file)
+   info <- file.info(file)
    mtime <- info[1, "mtime"]
    if (identical(mtime, .rs.get(fileCacheName)) &&
        !is.null(.rs.get(completionsCacheName)))
@@ -3024,7 +2894,7 @@ assign(x = ".rs.acCompletionTypes",
    if (is.call(object))
    {
       operator <- as.character(object[[1]])
-      if (length(object) == 3 && (operator == "$" || operator == "[["))
+      if (operator == "$" || operator == "[[")
       {
          name <- if (is.symbol(object[[2]]))
             as.character(object[[2]])
@@ -3048,7 +2918,6 @@ assign(x = ".rs.acCompletionTypes",
       }
       
       if (length(object) > 1)
-      {
          for (j in 2:length(object))
          {
             if (is.call(object[[j]]))
@@ -3060,7 +2929,6 @@ assign(x = ".rs.acCompletionTypes",
                                             outputCount)
             }
          }
-      }
    }
    
 })
@@ -3221,25 +3089,10 @@ assign(x = ".rs.acCompletionTypes",
 .rs.addFunction("getInferredCompletions", function(packages = character(),
                                                    simplify = TRUE)
 {
-   # get completions from database
-   completionList <- .Call("rs_getInferredCompletions",
-                           as.character(packages),
-                           PACKAGE = "(embedding)")
-   
-   # append dataset completions on to export vector
-   completionList <- lapply(completionList, function(completion) {
-      datasetTypes <- rep.int(.rs.acCompletionTypes$DATASET, length(completion$datasets))
-      completion$exports  <- c(completion$exports, completion$datasets)
-      completion$types    <- c(completion$types, datasetTypes)
-      completion$datasets <- NULL
-      completion
-   })
-   
-   # simplify if requested
-   if (simplify && length(completionList) == 1)
-      return(completionList[[1]])
-   
-   completionList
+   result <- .Call("rs_getInferredCompletions", as.character(packages))
+   if (simplify && length(result) == 1)
+      return(result[[1]])
+   result
 })
 
 .rs.addFunction("getCompletionsLibraryContextArgumentNames", function(token,
@@ -3390,12 +3243,10 @@ assign(x = ".rs.acCompletionTypes",
 
 .rs.addJsonRpcHandler("transform_snippet", function(snippet)
 {
-   Encoding(snippet) <- "UTF-8"
-   
    # Extract any R code from the snippet
    reRCode <- "`[Rr]\\s+[^`]+`"
    matches <- gregexpr(reRCode, snippet, perl = TRUE)[[1]]
-   if (identical(c(matches), -1L))
+   if (matches == -1)
       return(snippet)
    
    match.length <- attr(matches, "match.length")
@@ -3458,32 +3309,20 @@ assign(x = ".rs.acCompletionTypes",
    utils:::.completeToken()
    results <- utils:::.retrieveCompletions()
    
-   packages <- NULL
-   type <- .rs.formCompletionVector(
-      attr(results, "type"),
-      .rs.acCompletionTypes$UNKNOWN,
-      length(results)
-   )
+   packages <- sub('^package:', '', .rs.which(results))
    
-   if (type[[1]] %in% c(.rs.acCompletionTypes$UNKNOWN, .rs.acCompletionTypes$FUNCTION))
-   {
-      packages <- sub('^package:', '', .rs.which(results))
-      
-      # ensure spaces around =
-      results <- sub("=$", " = ", results)
-      
-      choose <- packages == '.GlobalEnv'
-      results <- c(results[choose], results[!choose])
-      packages <- c(packages[choose], packages[!choose])
-      type <- c(type[choose], type[!choose])
-      
-      packages <- sub('^\\.GlobalEnv$', '', packages)
-   }
+   # ensure spaces around =
+   results <- sub("=$", " = ", results)
+   
+   choose = packages == '.GlobalEnv'
+   results.sorted = c(results[choose], results[!choose])
+   packages.sorted = c(packages[choose], packages[!choose])
+   
+   packages.sorted = sub('^\\.GlobalEnv$', '', packages.sorted)
    
    .rs.makeCompletions(
       token = token,
-      results = results,
-      packages = packages,
-      type = type
+      results = results.sorted,
+      packages = packages.sorted
    )
 })

@@ -1,7 +1,7 @@
 /*
  * SourceCppOutputPane.java
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -49,7 +49,7 @@ public class SourceCppOutputPane extends WorkbenchPane
    @Override
    protected Toolbar createMainToolbar()
    {
-      Toolbar toolbar = new Toolbar("C++ Tab");
+      Toolbar toolbar = new Toolbar();
       fileLabel_ = new ToolbarFileLabel(toolbar, 200);
       compilePanel_.connectToolbar(toolbar);
       return toolbar;

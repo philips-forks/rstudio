@@ -1,7 +1,7 @@
 /*
  * Util.hpp
  *
- * Copyright (C) 2009-18 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -20,10 +20,8 @@
 #include <vector>
 #include <map>
 
-#include <boost/asio/buffer.hpp>
 #include <boost/lexical_cast.hpp>
 #include <boost/date_time/posix_time/posix_time.hpp>
-#include <boost/system/error_code.hpp>
 
 namespace rstudio {
 namespace core {
@@ -141,7 +139,7 @@ void buildQueryString(const Fields& fields, std::string* pQueryString);
 void parseQueryString(const std::string& queryString, Fields* pFields);
    
 std::string urlEncode(const std::string& in, bool queryStringSpaces = false);
-std::string urlDecode(const std::string& in);
+std::string urlDecode(const std::string& in, bool fromQueryString = false);
    
    
 boost::posix_time::ptime parseHttpDate(const std::string& date);
@@ -150,8 +148,6 @@ boost::posix_time::ptime parseAtomDate(const std::string& date);
    
 std::string httpDate(const boost::posix_time::ptime& datetime = 
                            boost::posix_time::second_clock::universal_time());
-
-bool isValidDate(const std::string& httpDate);
 
 
 std::string pathAfterPrefix(const Request& request,
@@ -164,24 +160,6 @@ void fileRequestHandler(const std::string& wwwLocalPath,
                         const std::string& baseUri,
                         const core::http::Request& request,
                         core::http::Response* pResponse);
-
-std::string formatMessageAsHttpChunk(const std::string& message);
-
-// determines if the given string is a well-formed IP address
-bool isIpAddress(const std::string& addr);
-
-// determines if the given string is a network address by
-// querying the DNS system
-bool isNetworkAddress(const std::string& str);
-
-// determins if the given request is request to upgrade the connection to a websocket
-bool isWSUpgradeRequest(const Request& request);
-
-// does the given error represent SSL truncation/shutdown?
-bool isSslShutdownError(const boost::system::error_code& code);
-
-std::string addQueryParam(const std::string& uri,
-                          const std::string& queryParam);
 
 } // namespace util
 

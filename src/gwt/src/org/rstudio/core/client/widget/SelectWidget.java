@@ -1,7 +1,7 @@
 /*
  * SelectWidget.java
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -23,19 +23,13 @@ import com.google.gwt.user.client.ui.Composite;
 import com.google.gwt.user.client.ui.FlowPanel;
 import com.google.gwt.user.client.ui.HasVerticalAlignment;
 import com.google.gwt.user.client.ui.HorizontalPanel;
+import com.google.gwt.user.client.ui.Label;
 import com.google.gwt.user.client.ui.ListBox;
 import com.google.gwt.user.client.ui.Panel;
 import com.google.gwt.user.client.ui.Widget;
 
 public class SelectWidget extends Composite
 {
-   public static String ExternalLabel = null;
-
-   public SelectWidget()
-   {
-      this(ExternalLabel);
-   }
-   
    public SelectWidget(String label)
    {
       this(label, null, false);
@@ -69,17 +63,7 @@ public class SelectWidget extends Composite
       this(label, options, values, isMultipleSelect, 
            horizontalLayout, listOnLeft, false);
    }
-
-   /**
-    * @param label label text, or empty string (supplied later via setLabel), or ExternalLabel if
-    *              a label will be associated outside this control
-    * @param options
-    * @param values
-    * @param isMultipleSelect
-    * @param horizontalLayout
-    * @param listOnLeft
-    * @param fillContainer
-    */
+   
    public SelectWidget(String label,
                        String[] options,
                        String[] values,
@@ -107,40 +91,27 @@ public class SelectWidget extends Composite
       if (horizontalLayout)
       {
          horizontalPanel_ = new HorizontalPanel();
-         if (label != ExternalLabel)
-         {
-            label_ = new FormLabel(label, listBox_);
-         }
-         else
-         {
-            label_ = new FormLabel(""); // to maintain layout
-         }
+         Label labelWidget = new Label(label);
          if (listOnLeft)
          {
             horizontalPanel_.add(listBox_);
-            horizontalPanel_.add(label_);
+            horizontalPanel_.add(labelWidget);
          }
          else
          {
-            horizontalPanel_.add(label_);
+            horizontalPanel_.add(labelWidget);
             horizontalPanel_.add(listBox_);
          }
-
-         horizontalPanel_.setCellVerticalAlignment(label_, HasVerticalAlignment.ALIGN_MIDDLE);
+        
+         horizontalPanel_.setCellVerticalAlignment(
+                                          labelWidget, 
+                                          HasVerticalAlignment.ALIGN_MIDDLE);
          panel = horizontalPanel_;
       }
       else
       {
-         if (label != ExternalLabel)
-         {
-            label_ = new FormLabel(label, listBox_, true);
-         }
-         else
-         {
-            label_ = new FormLabel("", true); // to maintain layout
-         }
          flowPanel_ = new FlowPanel();
-         flowPanel_.add(label_);
+         flowPanel_.add(new Label(label, true));
          panel = flowPanel_;
          panel.add(listBox_);
       }
@@ -167,11 +138,6 @@ public class SelectWidget extends Composite
       return listBox_;
    }
    
-   public void setLabel(String label)
-   {
-      label_.setText(label);
-   }
-   
    public void setChoices(String[] options)
    {
       setChoices(options, options);
@@ -183,23 +149,13 @@ public class SelectWidget extends Composite
       for (int i = 0; i < options.length; i++)
          addChoice(options[i], values[i]);
       
-      selectFirstItem();
-   }
-   
-   public void addChoice(String option)
-   {
-      addChoice(option, option);
+      if (listBox_.getItemCount() > 0)
+         listBox_.setSelectedIndex(0);
    }
    
    public void addChoice(String option, String value)
    {
       listBox_.addItem(option, value);
-   }
-   
-   public void selectFirstItem()
-   {
-      if (listBox_.getItemCount() > 0)
-         listBox_.setSelectedIndex(0);
    }
 
    public void setEnabled(boolean enabled)
@@ -215,7 +171,7 @@ public class SelectWidget extends Composite
    public boolean setValue(String value)
    {
       for (int i = 0; i < listBox_.getItemCount(); i++)
-         if (value == listBox_.getValue(i))
+         if (value.equals(listBox_.getValue(i)))
          {
             listBox_.setSelectedIndex(i);
             return true;
@@ -262,6 +218,5 @@ public class SelectWidget extends Composite
    
    private HorizontalPanel horizontalPanel_ = null;
    private FlowPanel flowPanel_ = null;
-   private FormLabel label_ = null;
    private final ListBox listBox_;
 }

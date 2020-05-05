@@ -1,7 +1,7 @@
 /*
  * DesktopApplicationHeader.java
  *
- * Copyright (C) 2009-20 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -16,30 +16,21 @@ package org.rstudio.studio.client.application.ui.impl;
 
 import java.util.ArrayList;
 
-import org.rstudio.core.client.ElementIds;
-import org.rstudio.core.client.StringUtil;
-import org.rstudio.core.client.command.AppMenuBar;
 import org.rstudio.core.client.command.CommandBinder;
 import org.rstudio.core.client.command.Handler;
 import org.rstudio.core.client.command.impl.DesktopMenuCallback;
 import org.rstudio.core.client.dom.DomUtils;
-import org.rstudio.core.client.dom.WindowEx;
 import org.rstudio.core.client.js.JsObject;
-import org.rstudio.core.client.resources.ImageResource2x;
 import org.rstudio.core.client.theme.res.ThemeResources;
 import org.rstudio.core.client.theme.res.ThemeStyles;
 import org.rstudio.core.client.widget.Operation;
-import org.rstudio.core.client.widget.ToolbarButton;
-import org.rstudio.core.client.widget.ToolbarLabel;
 import org.rstudio.studio.client.RStudioGinjector;
 import org.rstudio.studio.client.application.ApplicationQuit;
 import org.rstudio.studio.client.application.ApplicationQuit.QuitContext;
 import org.rstudio.studio.client.application.Desktop;
 import org.rstudio.studio.client.application.DesktopHooks;
-import org.rstudio.studio.client.application.DesktopInfo;
 import org.rstudio.studio.client.application.IgnoredUpdates;
 import org.rstudio.studio.client.application.events.EventBus;
-import org.rstudio.studio.client.application.events.LogoutRequestedEvent;
 import org.rstudio.studio.client.application.model.ApplicationServerOperations;
 import org.rstudio.studio.client.application.model.UpdateCheckResult;
 import org.rstudio.studio.client.application.ui.ApplicationHeader;
@@ -58,7 +49,7 @@ import org.rstudio.studio.client.workbench.model.ClientState;
 import org.rstudio.studio.client.workbench.model.Session;
 import org.rstudio.studio.client.workbench.model.SessionInfo;
 import org.rstudio.studio.client.workbench.model.helper.JSObjectStateValue;
-import org.rstudio.studio.client.workbench.prefs.model.UserPrefs;
+import org.rstudio.studio.client.workbench.prefs.model.UIPrefs;
 import org.rstudio.studio.client.workbench.views.console.events.SendToConsoleEvent;
 import org.rstudio.studio.client.workbench.views.files.events.ShowFolderEvent;
 import org.rstudio.studio.client.workbench.views.files.events.ShowFolderHandler;
@@ -71,16 +62,18 @@ import com.google.gwt.core.client.Scheduler;
 import com.google.gwt.core.client.Scheduler.ScheduledCommand;
 import com.google.gwt.dom.client.Element;
 import com.google.gwt.user.client.Timer;
-import com.google.gwt.user.client.Window;
 import com.google.gwt.user.client.ui.Widget;
-import com.google.gwt.resources.client.ClientBundle;
-import com.google.gwt.resources.client.ImageResource;
 import com.google.inject.Inject;
 import com.google.inject.Provider;
 
-public class DesktopApplicationHeader implements ApplicationHeader,
-                                      WebApplicationHeaderOverlay.Context
+public class DesktopApplicationHeader implements ApplicationHeader
 {
+   public interface Binder
+         extends CommandBinder<Commands, DesktopApplicationHeader>
+   {
+   }
+   private static Binder binder_ = GWT.create(Binder.class);
+
    public DesktopApplicationHeader()
    {
       RStudioGinjector.INSTANCE.injectMembers(this);
@@ -93,7 +86,7 @@ public class DesktopApplicationHeader implements ApplicationHeader,
                           ApplicationServerOperations server, 
                           Provider<DesktopHooks> pDesktopHooks,
                           Provider<CodeSearch> pCodeSearch,
-                          Provider<UserPrefs> pUIPrefs,
+                          Provider<UIPrefs> pUIPrefs,
                           ErrorManager errorManager,
                           GlobalDisplay globalDisplay,
                           ApplicationQuit appQuit)
@@ -106,17 +99,12 @@ public class DesktopApplicationHeader implements ApplicationHeader,
       server_ = server;
       appQuit_ = appQuit;
       binder_.bind(commands, this);
-      overlay_ = new WebApplicationHeaderOverlay();
-
       commands.mainMenu(new DesktopMenuCallback());
 
       pDesktopHooks.get();
 
-      if (!Desktop.isRemoteDesktop())
-      {
-         commands.uploadFile().remove();
-         commands.exportFiles().remove();
-      }
+      commands.uploadFile().remove();
+      commands.exportFiles().remove();
       commands.updateCredentials().remove();
    
       commands.checkForUpdates().setVisible(true);
@@ -129,22 +117,9 @@ public class DesktopApplicationHeader implements ApplicationHeader,
          {
             final SessionInfo sessionInfo = session.getSessionInfo();
             
-            isFlatTheme_ = RStudioThemes.isFlat(pUIPrefs_.get());
-
-            if (Desktop.isRemoteDesktop())
-               addSignoutToolbar();
-
-            overlay_.addConnectionStatusToolbar(DesktopApplicationHeader.this);
-
+            isFlatTheme_ = RStudioThemes.isFlat(pUIPrefs_.get()); 
             toolbar_.completeInitialization(sessionInfo);
-
-            if (Desktop.isRemoteDesktop())
-            {
-               overlay_.addRVersionsToolbar(DesktopApplicationHeader.this);
-               overlay_.addSessionsToolbar(DesktopApplicationHeader.this);
-               addQuitSessionButton(commands);
-            }
-
+            
             new JSObjectStateValue(
                   "updates",
                   "ignoredUpdates",
@@ -178,7 +153,7 @@ public class DesktopApplicationHeader implements ApplicationHeader,
                public void execute()
                {
                   Desktop.getFrame().onWorkbenchInitialized(
-                        StringUtil.notNull(sessionInfo.getScratchDir()));
+                        sessionInfo.getScratchDir());
                   
                   if (sessionInfo.getDisableCheckForUpdates())
                      commands.checkForUpdates().remove();
@@ -197,35 +172,28 @@ public class DesktopApplicationHeader implements ApplicationHeader,
       {
          public void onShowFolder(ShowFolderEvent event)
          {
-            Desktop.getFrame().showFolder(StringUtil.notNull(event.getPath().getPath()));
+            Desktop.getFrame().showFolder(event.getPath().getPath());
          }
       });
       
-      toolbar_ = new GlobalToolbar(commands, pCodeSearch);
+      toolbar_ = new GlobalToolbar(commands, 
+                                   events, 
+                                   pCodeSearch);
       ThemeStyles styles = ThemeResources.INSTANCE.themeStyles(); 
       toolbar_.getWrapper().addStyleName(styles.desktopGlobalToolbarWrapper());
       toolbar_.addStyleName(styles.desktopGlobalToolbar());
    }
    
-   @Override
    public void showToolbar(boolean showToolbar)
    {
       toolbar_.setVisible(showToolbar);
    }
    
-   @Override
    public boolean isToolbarVisible()
    {
       return toolbar_.isVisible();
    }
-
-   @Override
-   public void focusToolbar()
-   {
-      toolbar_.setFocus();
-   }
    
-   @Override
    public void focusGoToFunction()
    {
       toolbar_.focusGoToFunction();
@@ -235,60 +203,17 @@ public class DesktopApplicationHeader implements ApplicationHeader,
    {
       eventBus_.fireEvent(new EditEvent(true, type));
    }
-
-   private void addSignoutToolbar()
-   {
-
-      if (session_.getSessionInfo().getShowIdentity() && session_.getSessionInfo().getAllowFullUI())
-      {
-         String userIdentity = session_.getSessionInfo().getUserIdentity();
-         ToolbarLabel usernameLabel = new ToolbarLabel();
-         usernameLabel.setTitle(userIdentity);
-         userIdentity = userIdentity.split("@")[0];
-         usernameLabel.setText(userIdentity);
-
-         addRightCommand(usernameLabel);
-
-         ToolbarButton signOutButton = new ToolbarButton(
-               ToolbarButton.NoText,
-               "Sign out",
-               new ImageResource2x(RESOURCES.signOut2x()),
-               event -> eventBus_.fireEvent(new LogoutRequestedEvent()));
-
-
-         addRightCommand(signOutButton);
-         addRightCommandSeparator();
-      }
-   }
-
-   private void addQuitSessionButton(Commands commands)
-   {
-      if (session_.getSessionInfo().getAllowFullUI())
-      {
-         addRightCommandSeparator();
-         addRightCommand(commands.quitSession().createToolbarButton());
-      }
-
-   }
-
-   interface Resources extends ClientBundle
-   {
-      @Source("signOut_2x.png")
-      ImageResource signOut2x();
-   }
-
-   private static final DesktopApplicationHeader.Resources RESOURCES =  (DesktopApplicationHeader.Resources) GWT.create(DesktopApplicationHeader.Resources.class);
    
    @Handler
    void onUndoDummy()
    {
-      Desktop.getFrame().undo();
+      Desktop.getFrame().undo(isFocusInAceInstance());
    }
 
    @Handler
    void onRedoDummy()
    {
-      Desktop.getFrame().redo();
+      Desktop.getFrame().redo(isFocusInAceInstance());
    }
 
    @Handler
@@ -313,18 +238,11 @@ public class DesktopApplicationHeader implements ApplicationHeader,
       fireEditEvent(EditEvent.TYPE_PASTE);
       Desktop.getFrame().clipboardPaste();
    }
-   
-   @Handler
-   void onPasteWithIndentDummy()
-   {
-      fireEditEvent(EditEvent.TYPE_PASTE_WITH_INDENT);
-      Desktop.getFrame().clipboardPaste();
-   }
 
    @Handler
    void onShowLogFiles()
    {
-      Desktop.getFrame().showFolder(StringUtil.notNull(session_.getSessionInfo().getLogDir()));
+      Desktop.getFrame().showFolder(session_.getSessionInfo().getLogDir());
    }
    
    @Handler
@@ -341,37 +259,6 @@ public class DesktopApplicationHeader implements ApplicationHeader,
          }
       }.schedule(1000);
       
-   }
-   
-   @Handler
-   void onOpenDeveloperConsole()
-   {
-      int port = DesktopInfo.getChromiumDevtoolsPort();
-      if (port == 0)
-      {
-         globalDisplay_.showErrorMessage(
-               "Error Opening Devtools",
-               "The Chromium devtools server could not be activated.");
-      }
-      else
-      {
-         globalDisplay_.openMinimalWindow(
-               ("http://127.0.0.1:" + DesktopInfo.getChromiumDevtoolsPort()),
-               Window.getClientWidth() - 20,
-               Window.getClientHeight() - 20);
-      }
-   }
-   
-   @Handler
-   void onShowGpuDiagnostics()
-   {
-      globalDisplay_.openMinimalWindow("chrome://gpu", 500, 400);
-   }
-   
-   @Handler
-   void onReloadUi()
-   {
-      WindowEx.get().reload();
    }
 
    @Handler
@@ -423,7 +310,7 @@ public class DesktopApplicationHeader implements ApplicationHeader,
          JsArrayString ignoredUpdates = ignoredUpdates_.getIgnoredUpdates();
          for (int i = 0; i < ignoredUpdates.length(); i++)
          {
-            if (ignoredUpdates.get(i) == result.getUpdateVersion())
+            if (ignoredUpdates.get(i).equals(result.getUpdateVersion()))
             {
                ignoredUpdate = true;
             }
@@ -432,12 +319,10 @@ public class DesktopApplicationHeader implements ApplicationHeader,
       if (result.getUpdateVersion().length() > 0 &&
           !ignoredUpdate)
       {
-         ArrayList<String> buttonLabels = new ArrayList<>();
-         ArrayList<String> elementIds = new ArrayList<>();
-         ArrayList<Operation> buttonOperations = new ArrayList<>();
+         ArrayList<String> buttonLabels = new ArrayList<String>();
+         ArrayList<Operation> buttonOperations = new ArrayList<Operation>();
          
          buttonLabels.add("Quit and Download...");
-         elementIds.add(ElementIds.DIALOG_YES_BUTTON);
          buttonOperations.add(new Operation() {
             @Override
             public void execute()
@@ -447,15 +332,14 @@ public class DesktopApplicationHeader implements ApplicationHeader,
                   @Override
                   public void onReadyToQuit(boolean saveChanges)
                   {
-                     Desktop.getFrame().browseUrl(StringUtil.notNull(result.getUpdateUrl()));
-                     appQuit_.performQuit(null, saveChanges);
+                     Desktop.getFrame().browseUrl(result.getUpdateUrl());
+                     appQuit_.performQuit(saveChanges);
                   }
                }); 
             }
          });
 
          buttonLabels.add("Remind Later");
-         elementIds.add(ElementIds.DIALOG_NO_BUTTON);
          buttonOperations.add(new Operation() {
             @Override
             public void execute()
@@ -469,7 +353,6 @@ public class DesktopApplicationHeader implements ApplicationHeader,
          if (result.getUpdateUrgency() == 0)
          {
             buttonLabels.add("Ignore Update");
-            elementIds.add(ElementIds.DIALOG_CANCEL_BUTTON);
             buttonOperations.add(new Operation() {
                @Override
                public void execute()
@@ -483,8 +366,7 @@ public class DesktopApplicationHeader implements ApplicationHeader,
          globalDisplay_.showGenericDialog(GlobalDisplay.MSG_QUESTION, 
                "Update Available", 
                result.getUpdateMessage(), 
-               buttonLabels,
-               elementIds,
+               buttonLabels, 
                buttonOperations, 0);
       }
       else if (manual) 
@@ -514,7 +396,6 @@ public class DesktopApplicationHeader implements ApplicationHeader,
       return false;
    }
    
-   @SuppressWarnings("unused")
    private static boolean isFocusInAceInstance()
    {
       Element focusElem = DomUtils.getActiveElement();
@@ -522,94 +403,15 @@ public class DesktopApplicationHeader implements ApplicationHeader,
          return focusElem.hasClassName("ace_text-input");
       return false;
    }
-
-   @Override
-   public void addCommand(Widget widget)
-   {
-      toolbar_.addRightWidget(widget);
-   }
-
-   @Override
-   public Widget addCommandSeparator()
-   {
-      return toolbar_.addRightSeparator();
-   }
-
-   @Override
-   public void addLeftCommand(Widget widget)
-   {
-      toolbar_.addLeftWidget(widget);
-   }
-
-   @Override
-   public void addLeftCommand(Widget widget, String width)
-   {
-      toolbar_.addLeftWidget(widget);
-   }
-
-   @Override
-   public void addRightCommand(Widget widget)
-   {
-      toolbar_.addRightWidget(widget);
-   }
-
-   @Override
-   public Widget addRightCommandSeparator()
-   {
-      return toolbar_.addRightSeparator();
-   }
-
-   @Override
-   public void addProjectCommand(Widget widget)
-   {
-
-   }
-
-   @Override
-   public Widget addProjectCommandSeparator()
-   {
-      return null;
-   }
-
-   @Override
-   public void addProjectRightCommand(Widget widget)
-   {
-      toolbar_.addRightWidget(widget);
-   }
-
-   @Override
-   public Widget addProjectRightCommandSeparator()
-   {
-      return toolbar_.addRightSeparator();
-   }
-
-   @Override
-   public void addUserCommand(Widget widget)
-   {
-
-   }
-
-   @Override
-   public AppMenuBar getMainMenu()
-   {
-      return null;
-   }
-
-   public interface Binder
-         extends CommandBinder<Commands, DesktopApplicationHeader>
-   {
-   }
-
-   private static Binder binder_ = GWT.create(Binder.class);
+   
    private Session session_;
    private EventBus eventBus_;
    private GlobalToolbar toolbar_;
    private GlobalDisplay globalDisplay_;
-   Provider<UserPrefs> pUIPrefs_;
+   Provider<UIPrefs> pUIPrefs_;
    private ApplicationServerOperations server_;
    private IgnoredUpdates ignoredUpdates_;
    private boolean ignoredUpdatesDirty_ = false;
    private ApplicationQuit appQuit_; 
    private Boolean isFlatTheme_ = false;
-   private WebApplicationHeaderOverlay overlay_;
 }

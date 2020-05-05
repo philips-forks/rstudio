@@ -1,7 +1,7 @@
 /*
  * TerminalList.java
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-17 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -18,15 +18,15 @@ package org.rstudio.studio.client.workbench.views.terminal;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 
+import org.rstudio.core.client.Debug;
 import org.rstudio.core.client.ResultCallback;
-import org.rstudio.core.client.StringUtil;
 import org.rstudio.studio.client.RStudioGinjector;
 import org.rstudio.studio.client.application.events.EventBus;
 import org.rstudio.studio.client.common.console.ConsoleProcess.ConsoleProcessFactory;
 import org.rstudio.studio.client.common.console.ConsoleProcessInfo;
+import org.rstudio.studio.client.workbench.prefs.model.UIPrefs;
 import org.rstudio.studio.client.workbench.views.terminal.events.TerminalBusyEvent;
 import org.rstudio.studio.client.workbench.views.terminal.events.TerminalCwdEvent;
-import org.rstudio.studio.client.workbench.views.terminal.events.TerminalReceivedConsoleProcessInfoEvent;
 import org.rstudio.studio.client.workbench.views.terminal.events.TerminalSubprocEvent;
 
 import com.google.inject.Inject;
@@ -37,54 +37,56 @@ import com.google.inject.Provider;
  * available terminals and reconnect to them.
  */
 public class TerminalList implements Iterable<String>,
-                                     TerminalCwdEvent.Handler,
-                                     TerminalReceivedConsoleProcessInfoEvent.Handler
+                                     TerminalSubprocEvent.Handler,
+                                     TerminalCwdEvent.Handler
 {
    private static class TerminalListData
    {
-      TerminalListData(ConsoleProcessInfo cpi, boolean hasSession)
+      public TerminalListData(ConsoleProcessInfo cpi, boolean hasSession)
       {
          cpi_ = cpi;
          sessionCreated_ = hasSession;
       }
-
-      ConsoleProcessInfo getCPI()
+      
+      public ConsoleProcessInfo getCPI()
       {
          return cpi_;
       }
 
-      void setSessionCreated()
+      public void setSessionCreated()
       {
          sessionCreated_ = true;
       }
-
-      boolean getSessionCreated()
+      
+      public boolean getSessionCreated()
       {
          return sessionCreated_;
       }
-
-      private final ConsoleProcessInfo cpi_;
+      
+      private ConsoleProcessInfo cpi_;
       private boolean sessionCreated_;
    }
-
-   protected TerminalList()
+   
+   protected TerminalList() 
    {
-      RStudioGinjector.INSTANCE.injectMembers(this);
+      RStudioGinjector.INSTANCE.injectMembers(this); 
+      eventBus_.addHandler(TerminalSubprocEvent.TYPE, this);
       eventBus_.addHandler(TerminalCwdEvent.TYPE, this);
-      eventBus_.addHandler(TerminalReceivedConsoleProcessInfoEvent.TYPE, this);
    }
 
    @Inject
    private void initialize(Provider<ConsoleProcessFactory> pConsoleProcessFactory,
-                           EventBus events)
+                           EventBus events,
+                           UIPrefs uiPrefs)
    {
       pConsoleProcessFactory_ = pConsoleProcessFactory;
       eventBus_ = events;
+      uiPrefs_ = uiPrefs;
    }
 
    /**
     * Add metadata from supplied TerminalSession
-    * @param term terminal to add
+    * @param terminal terminal to add
     */
    public void addTerminal(TerminalSession term)
    {
@@ -115,7 +117,7 @@ public class TerminalList implements Iterable<String>,
          return false;
       }
 
-      if (!StringUtil.equals(current.getTitle(), title))
+      if (!current.getTitle().equals(title))
       {
          current.setTitle(title);
          return true;
@@ -127,17 +129,22 @@ public class TerminalList implements Iterable<String>,
     * update has subprocesses flag
     * @param handle terminal handle
     * @param childProcs new subprocesses flag value
+    * @return true if changed, false if unchanged
     */
-   private void setChildProcs(String handle, boolean childProcs)
+   private boolean setChildProcs(String handle, boolean childProcs)
    {
       ConsoleProcessInfo current = getMetadataForHandle(handle);
       if (current == null)
-         return;
+      {
+         return false;
+      }
 
       if (current.getHasChildProcs() != childProcs)
       {
          current.setHasChildProcs(childProcs);
+         return true;
       }
+      return false;
    }
 
    /**
@@ -151,7 +158,7 @@ public class TerminalList implements Iterable<String>,
       if (current == null)
          return;
 
-      if (!StringUtil.equals(current.getCwd(), cwd))
+      if (current.getCwd() != cwd)
       {
          current.setCwd(cwd);
       }
@@ -181,7 +188,7 @@ public class TerminalList implements Iterable<String>,
    /**
     * update caption
     * @param handle terminal handle
-    * @param caption new caption
+    * @param zombie new caption
     */
    public void setCaption(String handle, String caption)
    {
@@ -234,7 +241,7 @@ public class TerminalList implements Iterable<String>,
       int i = 0;
       for (final java.util.Map.Entry<String, TerminalListData> item : terminals_.entrySet())
       {
-         if (StringUtil.equals(item.getValue().getCPI().getHandle(), handle))
+         if (item.getValue().getCPI().getHandle().equals(handle))
          {
             return i;
          }
@@ -264,6 +271,24 @@ public class TerminalList implements Iterable<String>,
    }
 
    /**
+    * Determine if a caption is already in use
+    * @param caption to check
+    * @return true if caption is not in use (i.e. a new terminal can use it)
+    */
+   public boolean isCaptionAvailable(String caption)
+   {
+      for (final java.util.Map.Entry<String, TerminalListData> item : terminals_.entrySet())
+      {
+         if (item.getValue().getCPI().getCaption().equals(caption))
+         {
+            return false;
+         }
+      }
+
+      return true;
+   }
+
+   /**
     * Obtain handle for given caption.
     * @param caption to find
     * @return handle if found, or null
@@ -272,14 +297,14 @@ public class TerminalList implements Iterable<String>,
    {
       for (final java.util.Map.Entry<String, TerminalListData> item : terminals_.entrySet())
       {
-         if (StringUtil.equals(item.getValue().getCPI().getCaption(), caption))
+         if (item.getValue().getCPI().getCaption().equals(caption))
          {
             return item.getValue().getCPI().getHandle();
          }
       }
       return null;
    }
-
+   
    /**
     * Obtain autoclose mode for a given terminal handle.
     * @param handle handle to query
@@ -299,7 +324,7 @@ public class TerminalList implements Iterable<String>,
     * @param handle handle of terminal of interest
     * @return terminal metadata or null if not found
     */
-   public ConsoleProcessInfo getMetadataForHandle(String handle)
+   private ConsoleProcessInfo getMetadataForHandle(String handle)
    {
       TerminalListData data = getFullMetadataForHandle(handle);
       if (data == null)
@@ -315,6 +340,47 @@ public class TerminalList implements Iterable<String>,
    private TerminalListData getFullMetadataForHandle(String handle)
    {
       return terminals_.get(handle);
+   }
+
+   /**
+    * Initiate startup of a new terminal
+    */
+   public void createNewTerminal(final ResultCallback<Boolean, String> callback)
+   {
+      ConsoleProcessInfo info = ConsoleProcessInfo.createNewTerminalInfo(
+            uiPrefs_.terminalTrackEnvironment().getValue());
+      startTerminal(info, callback);
+   }
+
+   /**
+    * Reconnect to a known terminal.
+    * @param handle
+    * @return true if terminal was known and reconnect initiated
+    */
+   public boolean reconnectTerminal(String handle)
+   {
+      ConsoleProcessInfo existing = getMetadataForHandle(handle);
+      if (existing == null)
+      {
+         return false;
+      }
+
+      existing.setHandle(handle);
+      startTerminal(existing, new ResultCallback<Boolean, String>()
+      {
+         @Override
+         public void onSuccess(Boolean connected) 
+         {
+         }
+
+         @Override
+         public void onFailure(String msg)
+         {
+            Debug.log(msg);
+         }
+      });
+
+      return true;
    }
 
    /**
@@ -360,56 +426,30 @@ public class TerminalList implements Iterable<String>,
       return false;
    }
 
-   /**
-    * Orchestrates the creation and connection of a terminal.
-    *
-    * @param session TerminalSession widget to contain the terminal emulator. Xterm.js requires
-    *                the Widget's element be visible (have dimensions)
-    * @param callback done, Boolean if successful, String if failed
-    */
-   public void startTerminal(TerminalSession session,
-                             final ResultCallback<Boolean, String> callback)
+   private void startTerminal(ConsoleProcessInfo info, 
+                              final ResultCallback<Boolean, String> callback)
    {
       // When terminals are created via the R API, guard against creation of multiple
       // TerminalSession objects for the same terminal. For terminals created via the
       // UI, we already guard against this via TerminalPane.creatingTerminal_.
-      TerminalListData existing = getFullMetadataForHandle(session.getProcInfo().getHandle());
+      TerminalListData existing = getFullMetadataForHandle(info.getHandle());
       if (existing != null && existing.getSessionCreated())
       {
          callback.onSuccess(false);
          return;
       }
 
-      // initialize xterm.js
-      session.open(() -> {
-         if (existing != null)
-         {
-            existing.setSessionCreated();
-         }
+      TerminalSession newSession = new TerminalSession(
+            info, uiPrefs_.blinkingCursor().getValue(), true /*focus*/);
 
-         // connect the emulator to server-side process
-         session.connect(new ResultCallback<Boolean, String>()
-         {
-            @Override
-            public void onSuccess(Boolean connected)
-            {
-               if (connected)
-                  updateTerminalBusyStatus();
-               callback.onSuccess(connected);
-            }
-
-            @Override
-            public void onFailure(String msg)
-            {
-               callback.onFailure(msg);
-            }
-         });
-      });
+      if (existing != null)
+      {
+         existing.setSessionCreated();
+      }
+      newSession.connect(callback);
+      updateTerminalBusyStatus();
    }
 
-   /**
-    * Broadcast event which indicates if any terminals are busy.
-    */
    private void updateTerminalBusyStatus()
    {
       eventBus_.fireEvent(new TerminalBusyEvent(haveSubprocs()));
@@ -421,7 +461,8 @@ public class TerminalList implements Iterable<String>,
       return terminals_.keySet().iterator();
    }
 
-   public void updateTerminalSubprocsStatus(TerminalSubprocEvent event)
+   @Override
+   public void onTerminalSubprocs(TerminalSubprocEvent event)
    {
       setChildProcs(event.getHandle(), event.hasSubprocs());
       updateTerminalBusyStatus();
@@ -432,17 +473,11 @@ public class TerminalList implements Iterable<String>,
    {
       setCwd(event.getHandle(), event.getCwd());
    }
-
-   @Override
-   public void onTerminalReceivedConsoleProcessInfo(TerminalReceivedConsoleProcessInfoEvent event)
-   {
-      addTerminal(event.getData(), true);
-   }
-
+   
    public String debug_dumpTerminalList()
    {
       StringBuilder dump = new StringBuilder();
-
+     
       dump.append("Terminal List Count: ");
       dump.append(terminalCount());
       dump.append("\n");
@@ -466,9 +501,11 @@ public class TerminalList implements Iterable<String>,
     * Map of terminal handles to terminal metadata; order they are added
     * is the order they will be iterated.
     */
-   private final LinkedHashMap<String, TerminalListData> terminals_ = new LinkedHashMap<>();
+   private LinkedHashMap<String, TerminalListData> terminals_ = 
+                new LinkedHashMap<String, TerminalListData>();
 
-   // Injected ----
+   // Injected ----  
    private Provider<ConsoleProcessFactory> pConsoleProcessFactory_;
    private EventBus eventBus_;
+   private UIPrefs uiPrefs_;
 }

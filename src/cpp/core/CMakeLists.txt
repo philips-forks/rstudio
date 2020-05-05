@@ -1,7 +1,7 @@
 #
 # CMakeLists.txt
 #
-# Copyright (C) 2009-19 by RStudio, PBC
+# Copyright (C) 2009-16 by RStudio, Inc.
 #
 # Unless you have received this program directly from RStudio pursuant
 # to the terms of a commercial license agreement with RStudio, then
@@ -21,43 +21,40 @@ add_subdirectory(tex/synctex)
 # include files
 file(GLOB_RECURSE CORE_HEADER_FILES "*.h*")
 
-if(MSVC)
-   add_definitions(-DHUNSPELL_STATIC)
-endif()
-
 # source files
 set (CORE_SOURCE_FILES
+   Assert.cpp
    Backtrace.cpp
    Base64.cpp
    BoostErrors.cpp
    BrowserUtils.cpp
-   collection/MruList.cpp
-   ConfigProfile.cpp
    ConfigUtils.cpp
-   CrashHandler.cpp
-   Database.cpp
    DateTime.cpp
-   ExponentialBackoff.cpp
+   Error.cpp 
    Exec.cpp
-   FileInfo.cpp
+   FileInfo.cpp 
+   FileLogWriter.cpp
+   FilePath.cpp
    FileSerializer.cpp
    FileUtils.cpp
    GitGraph.cpp
    Hash.cpp
    HtmlUtils.cpp
    Log.cpp
-   LogOptions.cpp
+   LogWriter.cpp
    PerformanceTimer.cpp
    ProgramOptions.cpp
    RegexUtils.cpp
    RecursionGuard.cpp
+   SafeConvert.cpp
    Settings.cpp
+   StderrLogWriter.cpp
    StringUtils.cpp
    ColorUtils.cpp
    Thread.cpp
    Trace.cpp
-   WaitUtils.cpp
    YamlUtil.cpp
+   WaitUtils.cpp
    file_lock/FileLock.cpp
    file_lock/AdvisoryFileLock.cpp
    file_lock/LinkBasedFileLock.cpp
@@ -75,15 +72,15 @@ set (CORE_SOURCE_FILES
    libclang/TranslationUnit.cpp
    libclang/UnsavedFiles.cpp
    libclang/Utils.cpp
+   json/Json.cpp
    json/JsonRpc.cpp
+   json/spirit/json_spirit_reader.cpp
+   json/spirit/json_spirit_value.cpp
+   json/spirit/json_spirit_writer.cpp
    http/Cookie.cpp
    http/Header.cpp
    http/Message.cpp
    http/MultipartRelated.cpp
-   http/ChunkParser.cpp
-   http/ChunkProxy.cpp
-   http/CSRFToken.cpp
-   http/FormProxy.cpp
    http/Request.cpp
    http/RequestParser.cpp
    http/Response.cpp
@@ -107,17 +104,16 @@ set (CORE_SOURCE_FILES
    r_util/RSessionContext.cpp
    r_util/RTokenizer.cpp
    r_util/RSourceIndex.cpp
+   r_util/RTokenizerTests.cpp
    r_util/RUserData.cpp
    spelling/HunspellCustomDictionaries.cpp
    spelling/HunspellDictionaryManager.cpp
    spelling/HunspellSpellingEngine.cpp
    system/ChildProcessSubprocPoll.cpp
-   system/Crypto.cpp
    system/Environment.cpp
    system/Process.cpp
    system/ShellUtils.cpp
    system/System.cpp
-   system/Xdg.cpp
    system/file_monitor/FileMonitor.cpp
    terminal/PrivateCommand.cpp
    tex/TexLogParser.cpp
@@ -127,7 +123,6 @@ set (CORE_SOURCE_FILES
    text/DcfParser.cpp
    text/TemplateFilter.cpp
    text/TermBufferParser.cpp
-   zlib/zlib.cpp
 )
 
 # UNIX specific
@@ -158,6 +153,8 @@ if (UNIX)
    if(EXISTS "/proc/self")
       set(HAVE_PROCSELF TRUE)
    endif()
+   configure_file (${CMAKE_CURRENT_SOURCE_DIR}/config.h.in
+                   ${CMAKE_CURRENT_BINARY_DIR}/config.h)
 
    # find packages and libraries
    find_library(PTHREAD_LIBRARIES pthread)
@@ -187,11 +184,11 @@ if (UNIX)
    if(APPLE)
       if(${MACOSX_VERSION} VERSION_GREATER "10.10"
             AND EXISTS "/usr/local/opt/openssl")
-
+   
          set(CORE_SYSTEM_LIBRARIES
             ${CORE_SYSTEM_LIBRARIES}
             -L/usr/local/opt/openssl/lib -lssl -lcrypto)
-
+   
          set(CORE_INCLUDE_DIRS
             ${CORE_INCLUDE_DIRS}
             /usr/local/opt/openssl/include)
@@ -203,24 +200,17 @@ if (UNIX)
       endif()
    endif()
 
-   find_package(OpenSSL REQUIRED QUIET)
-   set(CORE_SYSTEM_LIBRARIES
-         ${CORE_SYSTEM_LIBRARIES}
-         ${OPENSSL_LIBRARIES}
-      )
-   set(CORE_INCLUDE_DIRS
-      ${CORE_INCLUDE_DIRS}
-      ${OPENSSL_INCLUDE_DIR}
-   )
-
    if(RSTUDIO_SERVER)
+      find_package(OpenSSL REQUIRED QUIET)
       find_package(PAM REQUIRED)
       set(CORE_SYSTEM_LIBRARIES
          ${CORE_SYSTEM_LIBRARIES}
+         ${OPENSSL_LIBRARIES}
          ${PAM_LIBRARIES}
       )
       set(CORE_INCLUDE_DIRS
          ${CORE_INCLUDE_DIRS}
+         ${OPENSSL_INCLUDE_DIRS}
          ${PAM_INCLUDE_DIRS}
       )
    endif()
@@ -232,10 +222,10 @@ if (UNIX)
       r_util/REnvironmentPosix.cpp
       r_util/RSessionLaunchProfile.cpp
       r_util/RVersionsPosix.cpp
+      SyslogLogWriter.cpp
       system/PosixChildProcessTracker.cpp
       system/PosixEnvironment.cpp
       system/PosixFileScanner.cpp
-      system/PosixInterrupts.cpp
       system/PosixLibraryLoader.cpp
       system/PosixNfs.cpp
       system/PosixParentProcessMonitor.cpp
@@ -246,8 +236,16 @@ if (UNIX)
       system/PosixUser.cpp
       system/PosixGroup.cpp
       system/PosixChildProcess.cpp
-      system/PosixProcess.cpp
    )
+
+   if(RSTUDIO_SERVER)
+      set(CORE_SOURCE_FILES ${CORE_SOURCE_FILES}
+         DistributedEvents.cpp
+         SocketRpc.cpp
+         system/PosixCrypto.cpp
+         system/Pam.cpp
+      )
+   endif()
 
    if(APPLE)
       set(CORE_SOURCE_FILES ${CORE_SOURCE_FILES}
@@ -268,28 +266,19 @@ else()
    add_subdirectory(zlib)
 
    # system libraries
-   set (CORE_SYSTEM_LIBRARIES
-      WS2_32
-      MsWSock
-      RpcRT4
-      ShLwApi
-      AdvAPI32
-      Crypt32
-      ${OPENSSL_LIBRARIES}
-   )
+   set (CORE_SYSTEM_LIBRARIES -lws2_32 -lmswsock -lrpcrt4 -lShlwapi)
 
    # source files
    set(CORE_SOURCE_FILES ${CORE_SOURCE_FILES}
+      Win32StringUtils.cpp
       http/NamedPipeProtocol.cpp
       system/Win32FileScanner.cpp
       system/RegistryKey.cpp
       system/Win32Environment.cpp
-      system/Win32Interrupts.cpp
       system/Win32LibraryLoader.cpp
       system/Win32ParentProcessMonitor.cpp
       system/Win32Pty.cpp
       system/Win32OutputCapture.cpp
-      system/Win32RuntimeLibrary.cpp
       system/Win32ShellUtils.cpp
       system/Win32System.cpp
       system/Win32ChildProcess.cpp
@@ -299,9 +288,6 @@ else()
    )
 
 endif()
-
-configure_file (${CMAKE_CURRENT_SOURCE_DIR}/config.h.in
-      ${CMAKE_CURRENT_BINARY_DIR}/config.h)
 
 # define include dirs
 set(CORE_INCLUDE_DIRS ${CORE_INCLUDE_DIRS} include)
@@ -318,30 +304,20 @@ if(RSTUDIO_ADDINS_PATH)
    endif()
 endif()
 
-set(SHARED_CORE_INCLUDE_DIRS
-   ${SHARED_CORE_SOURCE_DIR}/include)
-
 # include directories
 include_directories(
    ${CORE_INCLUDE_DIRS}
-   ${SHARED_CORE_INCLUDE_DIRS}
-   ${EXT_SOURCE_DIR}
    ${CMAKE_CURRENT_BINARY_DIR}
    ${TESTS_INCLUDE_DIR}
 )
 
 # define shared library
 add_library(rstudio-core STATIC ${CORE_SOURCE_FILES} ${CORE_HEADER_FILES})
-define_source_file_names(rstudio-core)
 
 # link dependencies
 target_link_libraries(
    rstudio-core
-   rstudio-core-hunspell
-   rstudio-shared-core
    ${Boost_LIBRARIES}
-   ${CRASHPAD_LIBRARIES}
-   ${SOCI_LIBRARIES}
    ${CORE_SYSTEM_LIBRARIES}
 )
 
@@ -360,13 +336,8 @@ if (RSTUDIO_UNIT_TESTS_ENABLED)
       rstudio-core
       rstudio-core-synctex
       rstudio-core-hunspell
-      rstudio-shared-core
       ${Boost_LIBRARIES}
-      ${SOCI_LIBRARIES}
       ${CORE_SYSTEM_LIBRARIES}
    )
 
-   if(WIN32)
-      target_link_libraries(rstudio-core-tests rstudio-core-zlib)
-   endif()
 endif()

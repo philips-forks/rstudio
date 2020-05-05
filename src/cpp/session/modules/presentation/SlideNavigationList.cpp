@@ -1,7 +1,7 @@
 /*
  * SlideNavigationList.cpp
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -17,6 +17,8 @@
 #include "SlideNavigationList.hpp"
 
 #include <sstream>
+
+#include <boost/foreach.hpp>
 
 #include <session/SessionModuleContext.hpp>
 
@@ -56,7 +58,7 @@ void SlideNavigationList::add(const Slide& slide)
    // if there is no navigation then we only add the first slide
    if (!allowNavigation_)
    {
-      if (slides_.isEmpty())
+      if (slides_.empty())
          addSlide(slide.title(), 0, 0, slide.line());
    }
    else if (!allowSlideNavigation_)
@@ -67,7 +69,7 @@ void SlideNavigationList::add(const Slide& slide)
    else
    {
       int indent = 0;
-      if (slides_.isEmpty())
+      if (slides_.empty())
       {
          inSubSection_ = false;
          indent = 0;
@@ -100,9 +102,9 @@ void SlideNavigationList::complete()
    // if we don't have any sections then flatted the indents
    if (!hasSections_)
    {
-      for (json::Value slide : slides_)
+      BOOST_FOREACH(json::Value& slide, slides_)
       {
-         slide.getObject()["indent"] = 0;
+         slide.get_obj()["indent"] = 0;
       }
    }
 }
@@ -111,7 +113,7 @@ std::string SlideNavigationList::asCall() const
 {
    std::ostringstream ostr;
    ostr << "window.parent.initPresentationNavigator(";
-   asJson().write(ostr);
+   json::write(asJson(), ostr);
    ostr << ");";
    return ostr.str();
 }

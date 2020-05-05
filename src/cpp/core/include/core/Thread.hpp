@@ -1,7 +1,7 @@
 /*
  * Thread.hpp
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-17 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -23,7 +23,7 @@
 
 #include <core/BoostErrors.hpp>
 #include <core/BoostThread.hpp>
-#include <shared_core/Error.hpp>
+#include <core/Error.hpp>
 #include <core/Log.hpp>
 
 #define LOCK_MUTEX(m)                                                          \
@@ -31,20 +31,17 @@
    {                                                                           \
       boost::lock_guard<boost::mutex> lock(m);
 
-#define RECURSIVE_LOCK_MUTEX(m)                                                \
-   try                                                                         \
-   {                                                                           \
-      boost::lock_guard<boost::recursive_mutex> lock(m);
+#define RECURSIVE_LOCK_MUTEX(m) try {\
+   boost::lock_guard<boost::recursive_mutex> lock(m);
 
 #define END_LOCK_MUTEX                                                         \
    }                                                                           \
    catch (const boost::thread_resource_error& e)                               \
    {                                                                           \
-      core::Error threadError(boost::thread_error::ec_from_exception(e),       \
-                              ERROR_LOCATION);                                 \
+      Error threadError(boost::thread_error::ec_from_exception(e),             \
+                        ERROR_LOCATION);                                       \
       LOG_ERROR(threadError);                                                  \
-   }                                                                           \
-   CATCH_UNEXPECTED_EXCEPTION
+   }
 
 namespace rstudio {
 namespace core {
@@ -300,7 +297,7 @@ private:
 };
 
 void safeLaunchThread(boost::function<void()> threadMain,
-                      boost::thread* pThread = nullptr);
+                      boost::thread* pThread = NULL);
       
 } // namespace thread
 } // namespace core

@@ -1,7 +1,7 @@
 /*
  * Response.hpp
  *
- * Copyright (C) 2009-18 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -18,23 +18,18 @@
 
 #include <iostream>
 #include <sstream>
-
-#include <boost/function.hpp>
-#include <boost/optional.hpp>
 #include <boost/type_traits/is_same.hpp>
-#include <boost/make_shared.hpp>
 #include <boost/iostreams/copy.hpp>
 #include <boost/iostreams/concepts.hpp>
 #include <boost/iostreams/filtering_stream.hpp>
-#include <boost/iostreams/restrict.hpp>
 
 #ifndef _WIN32
 #include <boost/iostreams/filter/gzip.hpp>
 #endif
 
 #include <core/BrowserUtils.hpp>
-#include <shared_core/Error.hpp>
-#include <shared_core/FilePath.hpp>
+#include <core/Error.hpp>
+#include <core/FilePath.hpp>
 #include <core/FileUtils.hpp>
 
 #include "Message.hpp"
@@ -47,9 +42,6 @@ namespace core {
 class ErrorLocation;
    
 namespace http {
-
-// uri not found handler
-typedef boost::function<void(const Request&, Response*)> NotFoundHandler;
 
 class Cookie ;
    
@@ -69,7 +61,6 @@ enum Code {
    Forbidden = 403,
    NotFound = 404,
    MethodNotAllowed = 405,
-   Conflict = 409,
    RangeNotSatisfiable = 416,
    InternalServerError = 500 ,
    NotImplemented = 501, 
@@ -90,33 +81,8 @@ public:
       BOOST_ASSERT(false); 
       return boost::iostreams::write(dest, s, n);
    }   
-};
-
-struct StreamBuffer
-{
-   char* data;
-   size_t size;
-
-   StreamBuffer(char* data, size_t size) :
-      data(data), size(size)
-   {
-   }
-
-   ~StreamBuffer()
-   {
-      delete [] data;
-   }
-};
-
-class StreamResponse
-{
-public:
-   virtual ~StreamResponse() {}
-
-   virtual Error initialize() = 0;
-   virtual std::shared_ptr<StreamBuffer> nextBuffer() = 0;
-};
-
+};     
+   
 class Response : public Message
 {
 public:
@@ -132,7 +98,6 @@ public:
       statusCode_ = response.statusCode_;
       statusCodeStr_ = response.statusCodeStr_;
       statusMessage_ = response.statusMessage_;
-      streamResponse_ = response.streamResponse_;
    }
 
 public:   
@@ -154,9 +119,7 @@ public:
    
    void setBrowserCompatible(const Request& request);
 
-   void addCookie(const Cookie& cookie, bool iFrameLegacyCookies);
-   void clearCookies();
-   Headers getCookies(const std::vector<std::string>& names = {}, bool iFrameLegacyCookies = false) const;
+   void addCookie(const Cookie& cookie) ;
    
    Error setBody(const std::string& content);
    
@@ -248,7 +211,7 @@ public:
             body_ = body_ + std::string(1024 - body_.length(), ' ');
          }
 
-         setContentLength(static_cast<int>(body_.length()));
+         setContentLength(body_.length());
          
          // return success
          return Success();
@@ -261,10 +224,6 @@ public:
          return error;
       }
    }   
-
-   void setStreamFile(const FilePath& filePath,
-                      const Request& request,
-                      std::streamsize buffSize = 65536);
 
    Error setBody(const FilePath& filePath, std::streamsize buffSize = 512)
    {
@@ -279,8 +238,8 @@ public:
                  bool padding = false)
    {
       // open the file
-      std::shared_ptr<std::istream> pIfs;
-      Error error = filePath.openForRead(pIfs);
+      boost::shared_ptr<std::istream> pIfs;
+      Error error = filePath.open_r(&pIfs);
       if (error)
          return error;
       
@@ -294,7 +253,7 @@ public:
          Error error = systemError(boost::system::errc::io_error,
                                    ERROR_LOCATION);
          error.addProperty("what", e.what());
-         error.addProperty("path", filePath.getAbsolutePath());
+         error.addProperty("path", filePath.absolutePath());
          return error;
       }
    }
@@ -315,27 +274,24 @@ public:
       // ensure that the file exists
       if (!filePath.exists())
       {
-         setNotFoundError(request);
+         setNotFoundError(request.uri());
          return;
       }
       
       // set content type
-      setContentType(filePath.getMimeContentType());
+      setContentType(filePath.mimeContentType());
       
       // gzip if possible
       if (request.acceptsEncoding(kGzipEncoding))
          setContentEncoding(kGzipEncoding);
 
-      Error error = setBody(filePath, filter, 128, usePadding(request, filePath));
-      if (error)
-         setError(status::InternalServerError, error.getMessage());
-   }
+      bool padding =
+          browser_utils::isQt(request.headerValue("User-Agent")) &&
+          filePath.mimeContentType() == "text/html";
 
-   bool usePadding(const Request& request,
-                   const FilePath& filePath) const
-   {
-      return browser_utils::isQt(request.headerValue("User-Agent")) &&
-             filePath.getMimeContentType() == "text/html";
+      Error error = setBody(filePath, filter, 128, padding);
+      if (error)
+         setError(status::InternalServerError, error.code().message());
    }
    
    void setCacheableFile(const FilePath& filePath, const Request& request)
@@ -352,13 +308,13 @@ public:
       // ensure that the file exists
       if (!filePath.exists())
       {
-         setNotFoundError(request);
+         setNotFoundError(request.uri());
          return;
       }
       
       // set Last-Modified
       using namespace boost::posix_time;
-      ptime lastModifiedDate = from_time_t(filePath.getLastWriteTime());
+      ptime lastModifiedDate = from_time_t(filePath.lastWriteTime());
       setHeader("Last-Modified", util::httpDate(lastModifiedDate));
       
       // compare file modified time to If-Modified-Since
@@ -382,33 +338,13 @@ public:
    // these calls do no stream io or encoding so don't return errors
    void setBodyUnencoded(const std::string& body);
    void setError(int statusCode, const std::string& message);
-
-   // request uri not found
-   void setNotFoundError(const http::Request& request);
-
-   // non-request uri not found
-   void setNotFoundError(const std::string& uri, const http::Request& request);
-
+   void setNotFoundError(const std::string& uri);
    void setError(const Error& error);
    
    void setMovedPermanently(const http::Request& request, const std::string& location);
    void setMovedTemporarily(const http::Request& request, const std::string& location);
    
-   void setNotFoundHandler(const NotFoundHandler& handler)
-   {
-      notFoundHandler_ = handler;
-   }
-
-   bool isStreamResponse() const
-   {
-      return static_cast<bool>(streamResponse_);
-   }
-
-   boost::shared_ptr<StreamResponse> getStreamResponse() const
-   {
-      return streamResponse_;
-   }
-
+   
 private:
    virtual void appendFirstLineBuffers(
          std::vector<boost::asio::const_buffer>& buffers) const ;
@@ -432,10 +368,6 @@ private:
 
    // string storage for integer members (need for toBuffers)
    mutable std::string statusCodeStr_ ;
-
-   NotFoundHandler notFoundHandler_;
-
-   boost::shared_ptr<StreamResponse> streamResponse_;
 };
 
 std::ostream& operator << (std::ostream& stream, const Response& r) ;

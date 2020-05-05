@@ -3,7 +3,7 @@
 #
 # build.xml
 #
-# Copyright (C) 2009-20 by RStudio, PBC
+# Copyright (C) 2009-17 by RStudio, Inc.
 #
 # This program is licensed to you under the terms of version 3 of the
 # GNU Affero General Public License. This program is distributed WITHOUT
@@ -15,44 +15,33 @@
 
 <project name="client" default="build" basedir=".">
 
-   <!-- configure dirs -->
-   <property name="src.dir" value="./src"/>        <!-- main Java sources -->
-   <property name="test.dir" value="./test"/>      <!-- Java sources for tests -->
-   <property name="www.dir" value="./www"/>        <!-- output folder for www artifacts (HTML, etc.) -->
-   <property name="build.dir" value="./bin"/>      <!-- output folder for compiled classes -->
-   <property name="lib.dir" value="./lib"/>        <!-- libraries (GWT, GIN, etc. -->
-   <property name="tools.dir" value="./tools"/>    <!-- other tools -->
-   <property name="extras.dir" value="./extras"/>  <!-- extras: symbol maps, etc. -->
-
    <taskdef name="jscomp"
             classname="com.google.javascript.jscomp.ant.CompileTask"
-            classpath="${tools.dir}/compiler/compiler.jar"/>
-
+            classpath="./tools/compiler/compiler.jar"/>
    <!-- Configure path to GWT SDK -->
-   <property name="gwt.sdk" value="${lib.dir}/gwt/gwt-rstudio"/>
+   <property name="gwt.sdk" value="lib/gwt/2.7.0"/>
+
    <property name="gwt.extra.args" value=""/>
    <property name="gwt.main.module" value="org.rstudio.studio.RStudio"/>
-   <property name="ace.bin" value="${src.dir}/org/rstudio/studio/client/workbench/views/source/editors/text/ace"/>
-
-   <!-- configure code server -->
-   <property name="bind.address" value="127.0.0.1"/>
+   <property name="ace.bin" value="src/org/rstudio/studio/client/workbench/views/source/editors/text/ace"/>
 
    <path id="project.class.path">
-     <pathelement location="${build.dir}"/>
+      <pathelement location="bin"/>
       <fileset dir="${gwt.sdk}" includes="*.jar"/>
-      <fileset dir="${lib.dir}/gin/2.1.2" includes="*.jar"/>
-      <fileset dir="${lib.dir}/elemental2/" includes="*.jar"/>
+      <fileset dir="lib/gin/1.5" includes="*.jar"/>
    </path>
 
    <path id="test.class.path">
-      <pathelement location="{build.dir}"/>
+      <pathelement location="bin"/>
+      <fileset dir="lib/selenium/2.37.0" includes="*.jar"/>
+      <fileset dir="lib/selenium/2.37.0/libs" includes="*.jar"/>
    </path>
 
    <path id="unittest.class.path">
-       <fileset dir="${lib.dir}/" includes="*.jar"/>
+      <fileset dir="lib/" includes="*.jar"/>
    </path>
 
-   <fileset id="acesupport.sources.fileset" dir="${src.dir}/../acesupport">
+   <fileset id="acesupport.sources.fileset" dir="acesupport">
       <include name="**/*.js"/>
       <exclude name="extern.js"/>
    </fileset>
@@ -65,7 +54,7 @@
       <jscomp compilationLevel="simple" warning="default"
               debug="false" output="${ace.bin}/acesupport.js">
               
-          <externs dir="${src.dir}/../acesupport">
+          <externs dir="acesupport">
              <file name="extern.js"/>
           </externs>
 
@@ -81,47 +70,21 @@
       <echo>Concatenated acesupport files to 'acesupport.js'</echo>
    </target>
 
-   <!-- panmirror typescript library -->
-   <property name="node.version" value="10.19.0"/>
-   <property name="node.dir" value="../../dependencies/common/node/${node.version}"/>
-   <condition property="node.bin" value="../../../${node.dir}/bin/node">
-     <not>
-        <os family="windows" />
-     </not>
-   </condition>
-   <condition property="node.bin" value="${node.dir}/node.exe">
-     <os family="windows" />
-   </condition>
-
-   <!-- use node from /opt/rstudio-tools if installed (typical for Docker) -->
-   <available property="node.bin" value="/opt/rstudio-tools/dependencies/common/node/${node.version}/bin/node" file="/opt/rstudio-tools/dependencies/common/node/${node.version}/bin/node"/>
-
-   <property name="panmirror.dir" value="./panmirror/src/editor"/>
-   <property name="panmirror.build.dir" value="./www/js/panmirror"/>      
-   <target name="panmirror" description="Compile panmirror library">
-      <mkdir dir="${panmirror.build.dir}"/>
-      <exec executable="${node.bin}" dir="${panmirror.dir}" spawn="${panmirror.spawn}">
-         <arg value="fuse"/>
-         <arg value="${panmirror.target}"/>
-         <env key="NODE_PATH" path="${env.NODE_PATH}:/opt/rstudio-tools/panmirror/node_modules"/>
-      </exec>
-   </target>
-
    <target name="javac" description="Compile java source">
-      <mkdir dir="${build.dir}"/>
+      <mkdir dir="bin"/>
       <!-- Compile com.google stuff separately from org.rstudio stuff since
          theirs have lots of deprecation warnings we can't do anything about -->
-      <javac srcdir="${src.dir}" includes="com/google/**" encoding="utf-8"
-             destdir="${build.dir}"
-             source="1.8" target="1.8" nowarn="true" deprecation="false"
+      <javac srcdir="src" includes="com/google/**" encoding="utf-8"
+             destdir="bin"
+             source="1.5" target="1.5" nowarn="true" deprecation="false"
              debug="true" debuglevel="lines,vars,source"
              includeantruntime="false">
          <classpath refid="project.class.path"/>
          <compilerarg value="-Xlint:-deprecation"/>
       </javac>
-      <javac srcdir="${src.dir}" includes="org/rstudio/**" encoding="utf-8"
-             destdir="${build.dir}"
-             source="1.8" target="1.8" nowarn="true" deprecation="true"
+      <javac srcdir="src" includes="org/rstudio/**" encoding="utf-8"
+             destdir="bin"
+             source="1.5" target="1.5" nowarn="true" deprecation="true"
              debug="true" debuglevel="lines,vars,source"
              includeantruntime="false"
              fork="true">
@@ -130,25 +93,21 @@
          <compilerarg value="-J-Xms256m"/>
          <compilerarg value="-J-Xmx512m"/>
       </javac>
-      <copy todir="${build.dir}">
-         <fileset dir="${src.dir}" excludes="**/*.java"/>
+      <copy todir="bin">
+         <fileset dir="src" excludes="**/*.java"/>
       </copy>
    </target>
 
    <target name="gwtc" depends="ext,javac" description="GWT compile to JavaScript">
-      <antcall target="panmirror">
-         <param name="panmirror.target" value="ide-dist"/>
-         <param name="panmirror.spawn" value="false"/>
-      </antcall>
       <java failonerror="true" fork="true" classname="com.google.gwt.dev.Compiler">
          <classpath>
-            <pathelement location="${src.dir}"/>
+            <pathelement location="src"/>
             <path refid="project.class.path"/>
          </classpath>
          <!-- add jvmarg -Xss16M or similar if you see a StackOverflowError -->
          <jvmarg value="-Xmx1536M"/>
          <arg value="-war"/>
-         <arg value="${www.dir}"/>
+         <arg value="www"/>
          <arg value="-localWorkers"/>
          <arg value="2"/>
          <arg value="-XdisableClassMetadata"/>
@@ -156,9 +115,8 @@
          <arg line="-strict"/>
          <arg line="-gen gen"/>
          <!--<arg line="-style PRETTY"/>-->
-         <arg line="-extra ${extras.dir}"/>
+         <arg line="-extra extras"/>
          <arg line="${gwt.extra.args}"/>
-         <arg value="-generateJsInteropExports"/>
          <!-- Additional arguments like -logLevel DEBUG -->
          <arg value="${gwt.main.module}"/>
       </java>
@@ -170,80 +128,112 @@
          <param name="gwt.extra.args" value="${gwt.extra.args} -compileReport"/>
       </antcall>
       <exec executable="open" os="Mac OS X">
-         <arg file="${extras.dir}/rstudio/soycReport/compile-report/index.html"/>
+         <arg file="extras/rstudio/soycReport/compile-report/index.html"/>
       </exec>
    </target>
 
    <target name="draft" description="Compile using GWT's draft mode">
       <antcall target="gwtc">
          <param name="gwt.main.module" value="org.rstudio.studio.RStudioDraft"/>
-         <param name="gwt.extra.args" value="${gwt.extra.args} -draftCompile -Xnamespace NONE" />
+         <param name="gwt.extra.args" value="${gwt.extra.args} -draftCompile" />
       </antcall>
    </target>
 
-   <target name="desktop" description="Run desktop development mode">
-      <antcall target="codeserver">
-         <param name="gwt.main.module" value="org.rstudio.studio.RStudioDesktopSuperDevMode"/>
-      	 <param name="panmirror.target" value="ide-dev"/>
-      </antcall>
-   </target>
-
-   <target name="devmode" description="Run server development mode">
-      <antcall target="codeserver">
-         <param name="gwt.main.module" value="org.rstudio.studio.RStudioSuperDevMode"/>
-      	 <param name="panmirror.target" value="ide-dev"/>
-      </antcall>
-   </target>
-	
-	<target name="devmode-panmirror" description="Run server development mode">
-      <antcall target="codeserver">
-         <param name="gwt.main.module" value="org.rstudio.studio.RStudioSuperDevMode"/>
-         <param name="panmirror.target" value="ide-dev-watch"/>
-      </antcall>
-	</target>
-
-   <target name="codeserver" depends="acesupport,javac" description="Run GWT devmode code server">
-      <antcall target="panmirror">
-         <param name="panmirror.target" value="${panmirror.target}"/>
-         <param name="panmirror.spawn" value="true"/>
-      </antcall>
+   <target name="desktop" depends="acesupport,javac" description="Run development mode">
       <java failonerror="true" fork="true" classname="com.google.gwt.dev.DevMode">
          <classpath>
-            <pathelement location="${src.dir}"/>
+            <pathelement location="src"/>
             <path refid="project.class.path"/>
          </classpath>
          <jvmarg value="-Xmx2048M"/>
-         <arg value="-style"/>
-         <arg value="PRETTY"/>
-         <arg value="-XmethodNameDisplayMode"/>
-         <arg value="ABBREVIATED"/>
          <arg value="-war"/>
-         <arg value="${www.dir}"/>
+         <arg value="www"/>
          <arg value="-noserver"/>
          <arg value="-startupUrl"/>
          <arg value="http://localhost:8787"/>
-         <arg line="-bindAddress ${bind.address}"/>
-         <arg value="-generateJsInteropExports"/>
-         <arg value="${gwt.main.module}"/>
+         <arg line="-bindAddress 127.0.0.1"/>
+         <arg value="org.rstudio.studio.RStudioDesktopSuperDevMode"/>
+      </java>
+   </target>
+	
+   <target name="devmode" depends="acesupport,javac" description="Run development mode">
+      <java failonerror="true" fork="true" classname="com.google.gwt.dev.DevMode">
+         <classpath>
+            <pathelement location="src"/>
+            <path refid="project.class.path"/>
+         </classpath>
+         <jvmarg value="-Xmx2048M"/>
+         <arg value="-war"/>
+         <arg value="www"/>
+         <arg value="-noserver"/>
+         <arg value="-startupUrl"/>
+         <arg value="http://localhost:8787"/>
+         <arg line="-bindAddress 127.0.0.1"/>
+         <!-- Additional arguments like -logLevel DEBUG -->
+         <arg value="org.rstudio.studio.RStudioSuperDevMode"/>
+      </java>
+   </target>
+
+   <target name="superdevmode" description="Run super dev mode">
+   	<antcall target="gwtc">
+          <param name="gwt.main.module" value="org.rstudio.studio.RStudioSuperDevMode"/>
+   	</antcall>
+      <java failonerror="true" fork="true" classname="com.google.gwt.dev.codeserver.CodeServer">
+         <classpath>
+            <pathelement location="src"/>
+            <path refid="project.class.path"/>
+         </classpath>
+         <jvmarg value="-Xmx2048M"/>
+      	<arg value="-src"/>
+      	<arg value = "src"/>
+         <arg value="org.rstudio.studio.RStudioSuperDevMode"/>
       </java>
    </target>
 
    <target name="build" depends="gwtc" description="Build this project" />
 
    <target name="clean" description="Cleans this project">
-      <delete dir="${build.dir}" failonerror="false" />
+      <delete dir="bin" failonerror="false" />
       <delete dir="gwt-unitCache" failonerror="false" />
-      <delete dir="${www.dir}/rstudio" failonerror="false" />
+      <delete dir="www/rstudio" failonerror="false" />
       <delete file="${ace.bin}/acesupport.js" failonerror="false" />
-      <delete dir="${panmirror.build.dir}" failonerror="false"/>
       <delete dir="gen" failonerror="false" />
-      <delete dir="${extras.dir}" failonerror="false" />
+      <delete dir="extras" failonerror="false" />
+   </target>
+
+   <target name="test" description="Runs Selenium tests" depends="build-tests">
+      <parallel>
+         <daemons>
+            <exec executable="lib/selenium/chromedriver/2.7/chromedriver-mac" os="Mac OS X" />
+            <exec executable="lib/selenium/chromedriver/2.7/chromedriver-win.exe" os="Windows NT" />
+            <exec executable="lib/selenium/chromedriver/2.7/chromedriver-linux" os="Linux" />
+         </daemons>
+         <sequential>
+            <java failonerror="true" fork="true" classname="org.junit.runner.JUnitCore">
+               <classpath>
+                  <pathelement location="src"/>
+                  <path refid="test.class.path"/>
+               </classpath>
+               <arg value="org.rstudio.studio.selenium.RStudioTestSuite"/>
+            </java>
+         </sequential>
+      </parallel>
+   </target>
+
+   <target name="build-tests" description="Builds Selenium tests">
+      <javac srcdir="test" includes="org/rstudio/studio/selenium/**" encoding="utf-8"
+             destdir="bin"
+             source="1.5" target="1.5" nowarn="true" deprecation="true"
+             debug="true" debuglevel="lines,vars,source"
+             includeantruntime="false">
+         <classpath refid="test.class.path"/>
+      </javac>
    </target>
 
    <target name="build-unittests" description="Builds JUnit unit tests">
-       <javac srcdir="test" includes="org/rstudio/**/client/**" encoding="utf-8"
-             destdir="${build.dir}"
-             source="1.8" target="1.8" nowarn="true" deprecation="true"
+       <javac srcdir="test" includes="org/rstudio/studio/client/**" encoding="utf-8"
+             destdir="bin"
+             source="1.5" target="1.5" nowarn="true" deprecation="true"
              debug="true" debuglevel="lines,vars,source"
              includeantruntime="false">
          <classpath refid="unittest.class.path"/>
@@ -254,8 +244,8 @@
    <target name="unittest" description="Runs JUnit unit tests" depends="build-unittests">
      <java failonerror="true" fork="true" classname="org.junit.runner.JUnitCore">
         <classpath>
-            <pathelement location="${test.dir}"/>
-            <pathelement location="${src.dir}"/>
+            <pathelement location="test"/>
+            <pathelement location="src"/>
         </classpath>
         <classpath refid="project.class.path"/>
         <classpath refid="unittest.class.path"/>

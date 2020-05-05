@@ -1,7 +1,7 @@
 /*
  * DesktopPosixDetectRHome.cpp
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -15,15 +15,22 @@
 
 #include "DesktopDetectRHome.hpp"
 
+#include <vector>
+
 #include <boost/algorithm/string/trim.hpp>
 
+#include <QtCore>
 #include <QMessageBox>
 
+#include <core/Error.hpp>
+#include <core/Log.hpp>
+#include <core/FilePath.hpp>
 #include <core/system/System.hpp>
 #include <core/system/Environment.hpp>
 #include <core/r_util/REnvironment.hpp>
 
 #include "DesktopUtils.hpp"
+#include "DesktopOptions.hpp"
 
 using namespace rstudio::core;
 
@@ -35,9 +42,9 @@ namespace {
 void showRNotFoundError(const std::string& msg)
 {
    showMessageBox(QMessageBox::Critical,
-                  nullptr,
+                  NULL,
                   QString::fromUtf8("R Not Found"),
-                  QString::fromUtf8(msg.c_str()), QString());
+                  QString::fromUtf8(msg.c_str()));
 }
 
 } // anonymous namespace
@@ -50,23 +57,12 @@ bool prepareEnvironment(Options& options)
    if (!whichROverride.empty())
       rWhichRPath = FilePath(whichROverride);
 
-#ifdef Q_OS_MAC
-   FilePath rLdScriptPath = options.scriptsPath().completePath("session/r-ldpath");
-   if (!rLdScriptPath.exists())
-   {
-      FilePath executablePath;
-      Error error = core::system::executablePath(nullptr, &executablePath);
-      if (error)
-         LOG_ERROR(error);
-      rLdScriptPath = executablePath.getParent().completePath("r-ldpath");
-   }
-#else
    // determine rLdPaths script location
    FilePath supportingFilePath = options.supportingFilePath();
-   FilePath rLdScriptPath = supportingFilePath.completePath("bin/r-ldpath");
+   FilePath rLdScriptPath = supportingFilePath.complete("bin/r-ldpath");
    if (!rLdScriptPath.exists())
-      rLdScriptPath = supportingFilePath.completePath("session/r-ldpath");
-#endif
+      rLdScriptPath = supportingFilePath.complete("session/r-ldpath");
+
    // attempt to detect R environment
    std::string rScriptPath, rVersion, errMsg;
    r_util::EnvironmentVars rEnvVars;

@@ -1,7 +1,7 @@
 /*
  * ChunkWindowManager.java
  *
- * Copyright (C) 2009-15 by RStudio, PBC
+ * Copyright (C) 2009-15 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -28,7 +28,6 @@ import org.rstudio.studio.client.workbench.views.source.editors.text.events.Chun
 import org.rstudio.studio.client.workbench.views.source.editors.text.events.ChunkSatelliteCodeExecutingEvent;
 import org.rstudio.studio.client.workbench.views.source.editors.text.events.ChunkSatelliteOpenWindowEvent;
 import org.rstudio.studio.client.workbench.views.source.editors.text.events.ChunkSatelliteWindowOpenedEvent;
-import org.rstudio.studio.client.workbench.views.source.editors.text.events.ChunkSatelliteWindowRegisteredEvent;
 import org.rstudio.studio.client.workbench.views.source.events.ChunkChangeEvent;
 
 import com.google.inject.Inject;
@@ -118,10 +117,8 @@ public class ChunkWindowManager
       String chunkId = event.getChunkId();
 
       satelliteChunks_.add(new Pair<String, String>(docId, chunkId));
-      events_.fireEventToAllSatellites(event);
 
-      ChunkSatelliteWindowRegisteredEvent registeredEvent = new ChunkSatelliteWindowRegisteredEvent(docId, chunkId);
-      events_.fireEvent(registeredEvent);
+      events_.fireEventToAllSatellites(event);
    }
 
    @Override

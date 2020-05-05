@@ -1,7 +1,7 @@
 /*
  * DataEditingTargetWidget.java
  *
- * Copyright (C) 2009-20 by RStudio, PBC
+ * Copyright (C) 2009-15 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -22,20 +22,16 @@ import com.google.gwt.resources.client.ClientBundle;
 import com.google.gwt.resources.client.CssResource;
 import com.google.gwt.user.client.ui.*;
 
-import org.rstudio.core.client.CommandWith2Args;
-import org.rstudio.core.client.RegexUtil;
 import org.rstudio.core.client.StringUtil;
 import org.rstudio.core.client.dom.IFrameElementEx;
 import org.rstudio.core.client.dom.WindowEx;
-import org.rstudio.core.client.widget.GridViewerStyles;
+import org.rstudio.core.client.theme.ThemeColors;
 import org.rstudio.core.client.widget.RStudioFrame;
 import org.rstudio.core.client.widget.RStudioThemedFrame;
 import org.rstudio.core.client.widget.Toolbar;
-import org.rstudio.studio.client.application.events.EventBus;
 import org.rstudio.studio.client.common.AutoGlassPanel;
 import org.rstudio.studio.client.dataviewer.DataTable;
 import org.rstudio.studio.client.workbench.commands.Commands;
-import org.rstudio.studio.client.workbench.views.console.events.SendToConsoleEvent;
 import org.rstudio.studio.client.workbench.views.source.PanelWithToolbars;
 import org.rstudio.studio.client.workbench.views.source.editors.EditingTargetToolbar;
 import org.rstudio.studio.client.workbench.views.source.editors.urlcontent.UrlContentEditingTarget;
@@ -66,62 +62,66 @@ public class DataEditingTargetWidget extends Composite
       resources.styles().ensureInjected();
    }
 
-   public DataEditingTargetWidget(String title,
-                                  Commands commands, 
-                                  EventBus events,
-                                  DataItem dataItem)
+   private String getCustomStyle()
+   {
+      return
+         ".rstudio-themes-flat.rstudio-themes-default #rsGridData_info,\n" +
+         ".rstudio-themes-flat.rstudio-themes-default table.dataTable thead th,\n" +
+         ".rstudio-themes-flat.rstudio-themes-default table.dataTable thead td,\n" +
+         ".rstudio-themes-flat.rstudio-themes-default table.dataTable tbody td {\n" +
+         "   border-color: " + ThemeColors.defaultBorder + ";\n" +
+         "}\n" +
+         "\n" +
+         ".rstudio-themes-flat.rstudio-themes-dark-grey #rsGridData_info,\n" +
+         ".rstudio-themes-flat.rstudio-themes-dark-grey table.dataTable thead th,\n" +
+         ".rstudio-themes-flat.rstudio-themes-dark-grey table.dataTable thead td,\n" +
+         ".rstudio-themes-flat.rstudio-themes-dark-grey table.dataTable tbody td {\n" +
+         "   border-color: " + ThemeColors.darkGreyBorder + ";\n" +
+         "}\n" +
+         "\n" +
+         ".rstudio-themes-flat.rstudio-themes-alternate #rsGridData_info,\n" +
+         ".rstudio-themes-flat.rstudio-themes-alternate table.dataTable thead th,\n" +
+         ".rstudio-themes-flat.rstudio-themes-alternate table.dataTable thead td,\n" +
+         ".rstudio-themes-flat.rstudio-themes-alternate table.dataTable tbody td {\n" +
+         "   border-color: " + ThemeColors.alternateBorder + ";\n" +
+         "}\n" +
+         "\n" +
+         ".rstudio-themes-flat.rstudio-themes-default #rsGridData_info,\n" +
+         ".rstudio-themes-flat.rstudio-themes-default th,\n" +
+         ".rstudio-themes-flat.rstudio-themes-default td.first-child,\n" +
+         ".rstudio-themes-flat.rstudio-themes-default table.dataTable thead td {\n" +
+         "   background-color: " + ThemeColors.defaultBackground + ";\n" +
+         "}\n" +
+         "\n" +
+         ".rstudio-themes-flat.rstudio-themes-dark-grey #rsGridData_info,\n" +
+         ".rstudio-themes-flat.rstudio-themes-dark-grey th,\n" +
+         ".rstudio-themes-flat.rstudio-themes-dark-grey td.first-child,\n" +
+         ".rstudio-themes-flat.rstudio-themes-dark-grey table.dataTable thead th {\n" +
+         "   background-color: " + ThemeColors.darkGreyBackground + ";\n" +
+         "}\n" +
+         "\n" +
+         ".rstudio-themes-flat.rstudio-themes-alternate #rsGridData_info,\n" +
+         ".rstudio-themes-flat.rstudio-themes-alternate th,\n" +
+         ".rstudio-themes-flat.rstudio-themes-alternate td.first-child,\n" +
+         ".rstudio-themes-flat.rstudio-themes-alternate table.dataTable thead th {\n" +
+         "   background-color: " + ThemeColors.alternateBackground + ";\n" +
+         "}\n" +
+         "\n";
+   }
+
+   public DataEditingTargetWidget(Commands commands, DataItem dataItem)
    {
       Styles styles = resources.styles();
 
       commands_ = commands;
 
       frame_ = new RStudioThemedFrame(
-         title,
          dataItem.getContentUrl(),
-         GridViewerStyles.getCustomStyle(),
+         getCustomStyle(),
          null,
          false);
       frame_.setSize("100%", "100%");
       table_ = new DataTable(this);
-      
-      // when loaded, hook up event handlers
-      frame_.addLoadHandler((event) ->
-      {
-         CommandWith2Args<Integer, Integer> view = (row, col) ->
-         {
-            String lho = dataItem.getExpression();
-            String object = dataItem.getObject();
-            if (StringUtil.isNullOrEmpty(object))
-            {
-               // we're viewing an expression -- wrap in parens before indexing
-               lho = "(" + lho + ")";
-            }
-            else
-            {
-               // we're viewing a live variable
-               if (RegexUtil.isSyntacticRIdentifier(object))
-               {
-                  // object is a valid identifier, use as-is
-                  lho = object;
-               }
-               else
-               {
-                  // not a valid identifier; escape before indexing
-                  lho = "`" + object + "`";
-               }
-            }
-            events.fireEvent(new SendToConsoleEvent(
-                  "View(" + lho + 
-                     "[[" + col + "]]" + 
-                     "[[" + row + "]])", true));
-         };
-         
-         table_.addKeyDownHandler();
-         table_.setDataViewerCallback(view);
-         table_.setListViewerCallback(view);
-         table_.setColumnFrameCallback();
-         
-      });
 
       Widget mainWidget;
 
@@ -181,28 +181,21 @@ public class DataEditingTargetWidget extends Composite
       return frameEl.getContentWindow();
    }
 
-   @Override
    public void print()
    {
       getWindow().print();
    }
-
-   @Override
-   public void setAccessibleName(String name)
-   {
-      // Accessible name is set on container of this widget
-   }
-
+   
    public void setFilterUIVisible(boolean visible)
    {
       if (table_ != null)
          table_.setFilterUIVisible(visible);
    }
    
-   public void refreshData()
+   public void refreshData(boolean structureChanged, boolean sizeChanged)
    {
       if (table_ != null)
-         table_.refreshData();
+         table_.refreshData(structureChanged, sizeChanged);
    }
    
    public void onActivate()

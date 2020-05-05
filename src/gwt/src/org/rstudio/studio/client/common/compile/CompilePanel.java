@@ -1,7 +1,7 @@
 /*
  * CompilePanel.java
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -57,7 +57,7 @@ public class CompilePanel extends Composite
    {
       Commands commands = RStudioGinjector.INSTANCE.getCommands();
       ImageResource stopImage = commands.interruptR().getImageResource();
-      stopButton_ = new ToolbarButton(ToolbarButton.NoText, "Stop", stopImage);
+      stopButton_ = new ToolbarButton(stopImage, null);
       stopButton_.setVisible(false);
       toolbar.addRightWidget(stopButton_);
       
@@ -136,31 +136,24 @@ public class CompilePanel extends Composite
       outputDisplay_.writeOutput(output);
    }
    
-   public void clearOutput()
+   public void showErrors(String basePath, 
+                          JsArray<SourceMarker> errors,
+                          int autoSelect)
    {
-      outputDisplay_.clear();
+      showErrors(basePath, errors, autoSelect, false);
    }
    
    public void showErrors(String basePath, 
                           JsArray<SourceMarker> errors,
                           int autoSelect,
-                          boolean openErrors)
-   {
-      showErrors(basePath, errors, autoSelect, false, openErrors);
-   }
-   
-   public void showErrors(String basePath, 
-                          JsArray<SourceMarker> errors,
-                          int autoSelect,
-                          boolean alwaysShowList,
-                          boolean openErrors)
+                          boolean alwaysShowList)
    {
       errorList_.showMarkers(targetFileName_, 
                              basePath, 
                              errors,
                              autoSelect);
 
-      if (openErrors && (alwaysShowList || SourceMarker.showErrorList(errors)))
+      if (alwaysShowList || SourceMarker.showErrorList(errors))
       {
          panel_.setWidget(errorList_);
          showOutputButton_.setVisible(true);

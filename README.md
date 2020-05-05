@@ -6,14 +6,13 @@ RStudio is an integrated development environment (IDE) for the
 features include:
 
 - Customizable workbench with all of the tools required to work with R in one
-  place (console, source, plots, workspace, help, history, etc.).
+place (console, source, plots, workspace, help, history, etc.).
 - Syntax highlighting editor with code completion.
 - Execute code directly from the source editor (line, selection, or file).
 - Full support for authoring Sweave and TeX documents.
-- Runs on Windows, Mac, and Linux, and has a community-maintained 
-  [FreeBSD port](https://www.freshports.org/devel/RStudio/)
-- Can also be run as a server, enabling multiple users to access the RStudio
-  IDE using a web browser.
+- Runs on all major platforms (Windows, Mac, and Linux) and can also be
+run as a server, enabling multiple users to access the RStudio IDE using
+a web browser.
 
 For more information on RStudio please visit the 
 [project website](http://www.rstudio.com/).
@@ -42,5 +41,12 @@ See also the following files included with the distribution:
 - INSTALL - How to build and install RStudio from source
 
 If you have problems or want to share feedback with us please visit our
-[community forum](https://community.rstudio.com/c/rstudio-ide). For other
-inquiries you can also email us at [info@rstudio.com](mailto:info@rstudio.com). 
+[support website](http://support.rstudio.com/). For other inquiries you can
+also email us at [info@rstudio.com](mailto:info@rstudio.com). 
+
+Changes in this forked repo
+-----------------------------------------------------------------------------
+Customizing default PAM with encoded secretkey in the header with logged in user details.
+This can be plugged into a solution with existing authentication(Ex: OAuth) mechanism where rstudio is used as one of the micro-services.
+
+`secretKey.txt` is available at rstudio/src/gwt/www/templates/ which needs to be updated.

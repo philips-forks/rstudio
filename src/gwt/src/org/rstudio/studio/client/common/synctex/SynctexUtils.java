@@ -1,7 +1,7 @@
 /*
  * SynctexUtils.java
  *
- * Copyright (C) 2009-12 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -17,14 +17,13 @@
 package org.rstudio.studio.client.common.synctex;
 
 import org.rstudio.studio.client.application.Desktop;
-import org.rstudio.studio.client.application.DesktopInfo;
 
 public class SynctexUtils
 {
    public static String getDesktopSynctexViewer()
    {
       if (Desktop.isDesktop())
-         return DesktopInfo.getDesktopSynctexViewer();
+         return Desktop.getFrame().getDesktopSynctexViewer();
       else
          return "";
    }

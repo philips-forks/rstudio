@@ -1,7 +1,7 @@
 /*
  * SessionBuildEnvironment.cpp
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -18,9 +18,10 @@
 
 #include <boost/regex.hpp>
 #include <boost/format.hpp>
+#include <boost/foreach.hpp>
 
-#include <shared_core/Error.hpp>
-#include <shared_core/FilePath.hpp>
+#include <core/Error.hpp>
+#include <core/FilePath.hpp>
 
 #include <core/FileSerializer.hpp>
 #include <core/system/System.hpp>
@@ -28,7 +29,6 @@
 #include <core/r_util/RToolsInfo.hpp>
 
 #include <r/RExec.hpp>
-#include <r/RVersionInfo.hpp>
 
 #include <session/SessionModuleContext.hpp>
 
@@ -47,17 +47,17 @@ r_util::RToolsInfo scanPathForRTools()
    // first confirm ls.exe is in Rtools
    r_util::RToolsInfo noToolsFound;
    FilePath lsPath = module_context::findProgram("ls.exe");
-   if (lsPath.isEmpty())
+   if (lsPath.empty())
       return noToolsFound;
 
    // we have a candidate installPath
-   FilePath installPath = lsPath.getParent().getParent();
+   FilePath installPath = lsPath.parent().parent();
    core::system::ensureLongPath(&installPath);
-   if (!installPath.completeChildPath("Rtools.txt").exists())
+   if (!installPath.childPath("Rtools.txt").exists())
       return noToolsFound;
 
    // find the version path
-   FilePath versionPath = installPath.completeChildPath("VERSION.txt");
+   FilePath versionPath = installPath.childPath("VERSION.txt");
    if (!versionPath.exists())
       return noToolsFound;
 
@@ -65,7 +65,7 @@ r_util::RToolsInfo scanPathForRTools()
    FilePath gccPath = module_context::findProgram("gcc.exe");
    if (!gccPath.exists())
       return noToolsFound;
-   if (!gccPath.getParent().getParent().getParent().completeChildPath("Rtools.txt").exists())
+   if (!gccPath.parent().parent().parent().childPath("Rtools.txt").exists())
       return noToolsFound;
 
    // Rtools is in the path -- now crack the VERSION file
@@ -94,7 +94,7 @@ std::string formatPath(const FilePath& filePath)
    FilePath displayPath = filePath;
    core::system::ensureLongPath(&displayPath);
    return boost::algorithm::replace_all_copy(
-                                 displayPath.getAbsolutePath(), "/", "\\");
+                                 displayPath.absolutePath(), "/", "\\");
 }
 
 template <typename T>
@@ -109,7 +109,6 @@ bool doAddRtoolsToPathIfNecessary(T* pTarget,
     Error error = r::exec::RFunction(".rs.isRtoolsOnPath").call(&rToolsOnPath);
     if (error)
        LOG_ERROR(error);
-
     if (rToolsOnPath)
     {
        // perform an extra check to see if the version on the path is not
@@ -120,13 +119,13 @@ bool doAddRtoolsToPathIfNecessary(T* pTarget,
           if (!module_context::isRtoolsCompatible(rTools))
           {
             boost::format fmt(
-             "WARNING: Rtools version %1% is on the PATH (installed at %2%) "
+             "WARNING: Rtools version %1% is on the PATH (intalled at %2%) "
              "but is "
              "not compatible with the currently running version of R."
              "\n\nPlease download and install the appropriate version of "
              "Rtools to ensure that packages are built correctly:"
              "\n\nhttps://cran.rstudio.com/bin/windows/Rtools/"
-             "\n\nNote that in addition to installing a compatible version you "
+             "\n\nNote that in addition to installing a compatible verison you "
              "also need to remove the incompatible version from your PATH");
             *pWarningMessage = boost::str(
                fmt % rTools.name() % formatPath(rTools.installPath()));
@@ -136,17 +135,15 @@ bool doAddRtoolsToPathIfNecessary(T* pTarget,
        return false;
     }
 
-    std::string rtoolsHomeEnvVar;
-
-    // Rtools 4.0 will set RTOOLS40_HOME
-    auto rVersion = r::version_info::currentRVersion();
-    if (rVersion.versionMajor() == 4)
-       rtoolsHomeEnvVar = "RTOOLS40_HOME";
-
     // ok so scan for R tools
     bool usingGcc49 = module_context::usingMingwGcc49();
     std::vector<r_util::RToolsInfo> rTools;
-    core::r_util::scanForRTools(usingGcc49, rtoolsHomeEnvVar, &rTools);
+    error = core::r_util::scanRegistryForRTools(usingGcc49, &rTools);
+    if (error)
+    {
+       LOG_ERROR(error);
+       return false;
+    }
 
     // enumerate them to see if we have a compatible version
     // (go in reverse order for most recent first)
@@ -218,7 +215,7 @@ bool addRtoolsToPathIfNecessary(std::string* pPath,
                                     &environmentVars,
                                     pWarningMessage))
    {
-      for (const core::system::Option& var : environmentVars)
+      BOOST_FOREACH(const core::system::Option& var, environmentVars)
       {
          core::system::setenv(var.first, var.second);
       }
@@ -238,7 +235,7 @@ bool addRtoolsToPathIfNecessary(core::system::Options* pEnvironment,
                                     &environmentVars,
                                     pWarningMessage))
    {
-      for (const core::system::Option& var : environmentVars)
+      BOOST_FOREACH(const core::system::Option& var, environmentVars)
       {
          core::system::setenv(pEnvironment, var.first, var.second);
       }

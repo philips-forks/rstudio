@@ -1,7 +1,7 @@
 /*
  * ServerPAMAuthOverlay.cpp
  *
- * Copyright (C) 2009-12 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -15,13 +15,16 @@
 
 #include "ServerPAMAuth.hpp"
 
-#include <shared_core/Error.hpp>
-
 namespace rstudio {
 namespace server {
 namespace pam_auth {
 
 bool canSetSignInCookies()
+{
+   return true;
+}
+
+bool canStaySignedIn()
 {
    return true;
 }
@@ -32,20 +35,11 @@ void onUserAuthenticated(const std::string& username,
 
 }
 
-void onUserUnauthenticated(const std::string& username,
-                           bool signedOut)
+void onUserUnauthenticated(const std::string& username)
 {
 
 }
 
-namespace overlay {
-
-core::Error initialize()
-{
-   return core::Success();
-}
-
-} // namespace overlay
 } // namespace pam_auth
 } // namespace server
 } // namespace rstudio

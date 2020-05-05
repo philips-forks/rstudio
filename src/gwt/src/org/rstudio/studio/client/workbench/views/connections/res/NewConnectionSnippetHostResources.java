@@ -1,7 +1,7 @@
 /*
  * NewConnectionSnippetHostResources.java
  *
- * Copyright (C) 2009-17 by RStudio, PBC
+ * Copyright (C) 2009-17 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -25,10 +25,4 @@ public interface NewConnectionSnippetHostResources extends ClientBundle
    
    @Source("connectionSettings.png")
    ImageResource configImage();
-
-   @Source("connectionUninstall.png")
-   ImageResource trashImage();
-
-   @Source("connectionUninstall_2x.png")
-   ImageResource trashImage2x();
 }

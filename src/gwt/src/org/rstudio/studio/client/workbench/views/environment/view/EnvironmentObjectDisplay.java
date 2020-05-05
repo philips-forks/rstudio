@@ -1,7 +1,7 @@
 /*
  * EnvironmentObjectDisplay.java
  *
- * Copyright (C) 2009-12 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -17,9 +17,7 @@ package org.rstudio.studio.client.workbench.views.environment.view;
 
 import java.util.List;
 
-import org.rstudio.core.client.SafeHtmlUtil;
 import org.rstudio.core.client.cellview.ScrollingDataGrid;
-import org.rstudio.core.client.theme.res.ThemeStyles;
 import org.rstudio.studio.client.workbench.views.environment.EnvironmentPane;
 
 import com.google.gwt.cell.client.FieldUpdater;
@@ -64,8 +62,28 @@ public abstract class EnvironmentObjectDisplay
          public SafeHtml render(String str)
          {
             SafeHtmlBuilder sb = new SafeHtmlBuilder();
-            SafeHtmlUtil.highlightSearchMatch(sb, str, host_.getFilterText(), 
-                  ThemeStyles.INSTANCE.filterMatch());
+            boolean hasMatch = false;
+            String filterText = host_.getFilterText();
+            if (filterText.length() > 0)
+            {
+               int idx = str.toLowerCase().indexOf(filterText);
+               if (idx >= 0)
+               {
+                  hasMatch = true;
+                  sb.appendEscaped(str.substring(0, idx));
+                  sb.appendHtmlConstant(
+                        "<span class=\"" + 
+                        environmentStyle_.filterMatch() + 
+                        "\">");
+                  sb.appendEscaped(str.substring(idx, 
+                        idx + filterText.length()));
+                  sb.appendHtmlConstant("</span>");
+                  sb.appendEscaped(str.substring(idx + filterText.length(), 
+                        str.length()));
+               }
+            }
+            if (!hasMatch)
+               sb.appendEscaped(str);
             return sb.toSafeHtml();
          }
       };
@@ -89,19 +107,17 @@ public abstract class EnvironmentObjectDisplay
          {
             boolean isClickable =
                   host_.enableClickableObjects() &&
-                  (object.isPromise() ||
-                   object.getCategory() != RObjectEntry.Categories.Value);
+                  object.getCategory() != RObjectEntry.Categories.Value;
             
             if (isClickable)
-               observer_.viewObject(object.isPromise() ?
-                  "force" : "View", object.rObject.getName());
+               observer_.viewObject(object.rObject.getName());
          }
       });
    }
    
    protected boolean selectionEnabled()
    {
-      return environmentName_ == EnvironmentPane.GLOBAL_ENVIRONMENT_NAME;
+      return environmentName_.equals(EnvironmentPane.GLOBAL_ENVIRONMENT_NAME);
    }
 
    protected AbstractSafeHtmlRenderer<String> filterRenderer_;

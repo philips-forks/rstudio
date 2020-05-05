@@ -1,7 +1,7 @@
 /*
  * PlotPublishMRUList.java
  *
- * Copyright (C) 2009-15 by RStudio, PBC
+ * Copyright (C) 2009-15 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -18,7 +18,6 @@ import java.util.ArrayList;
 
 import org.rstudio.core.client.StringUtil;
 import org.rstudio.core.client.command.AppCommand;
-import org.rstudio.core.client.resources.ImageResource2x;
 import org.rstudio.core.client.widget.OperationWithInput;
 import org.rstudio.core.client.widget.ToolbarPopupMenu;
 import org.rstudio.studio.client.rsconnect.ui.RSConnectResources;
@@ -97,7 +96,7 @@ public class PlotPublishMRUList
          displayName += " (" + mruEntry.server + ")";
          
          menu.addItem(new MenuItem(AppCommand.formatMenuLabel(
-               new ImageResource2x(RSConnectResources.INSTANCE.republishPlot2x()), 
+               RSConnectResources.INSTANCE.republishPlot2x(), 
                displayName, null), true, 
                new Command() 
          {

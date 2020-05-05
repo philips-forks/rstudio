@@ -1,7 +1,7 @@
 /*
  * Win32ChildProcess.cpp
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-17 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -13,6 +13,7 @@
  *
  */
 
+#include "ChildProcess.hpp"
 #include "ChildProcessSubprocPoll.hpp"
 #include "Win32Pty.hpp"
 
@@ -21,12 +22,12 @@
 #include <windows.h>
 #include <Shlwapi.h>
 
+#include <boost/foreach.hpp>
 #include <boost/algorithm/string/predicate.hpp>
 
-#include <core/system/ChildProcess.hpp>
 #include <core/system/System.hpp>
 #include <core/system/ShellUtils.hpp>
-#include <shared_core/FilePath.hpp>
+#include <core/FilePath.hpp>
 #include <core/StringUtils.hpp>
 
 #include "CriticalSection.hpp"
@@ -65,7 +66,7 @@ std::string findOnPath(const std::string& exe,
    std::vector<TCHAR> exeBuffer(MAX_PATH*4);
    exeBuffer.insert(exeBuffer.begin(), resolvedExe.begin(), resolvedExe.end());
    exeBuffer.push_back('\0');
-   if (::PathFindOnPath(&(exeBuffer[0]), nullptr))
+   if (::PathFindOnPath(&(exeBuffer[0]), NULL))
    {
       return std::string(&(exeBuffer[0]));
    }
@@ -120,20 +121,19 @@ Error readPipeUntilDone(HANDLE hPipe, std::string* pOutput)
    while(TRUE)
    {
       // read from pipe
-      BOOL result = ::ReadFile(hPipe, buff, sizeof(buff), &nBytesRead, nullptr);
-      auto lastErr = ::GetLastError();
+      BOOL result = ::ReadFile(hPipe, buff, sizeof(buff), &nBytesRead, NULL);
 
       // end of file
       if (nBytesRead == 0)
          break;
 
       // pipe broken
-      else if (!result && (lastErr == ERROR_BROKEN_PIPE))
+      else if (!result && (::GetLastError() == ERROR_BROKEN_PIPE))
          break;
 
       // unexpected error
       else if (!result)
-         return systemError(lastErr, ERROR_LOCATION);
+         return systemError(::GetLastError(), ERROR_LOCATION);
 
       // got input, append it
       else
@@ -148,17 +148,16 @@ Error readPipeUntilDone(HANDLE hPipe, std::string* pOutput)
 struct ChildProcess::Impl
 {
    Impl()
-      : hStdInWrite(nullptr),
-        hStdOutRead(nullptr),
-        hStdErrRead(nullptr),
-        hProcess(nullptr),
+      : hStdInWrite(NULL),
+        hStdOutRead(NULL),
+        hStdErrRead(NULL),
+        hProcess(NULL),
         closeStdIn_(&hStdInWrite, ERROR_LOCATION),
         closeStdOut_(&hStdOutRead, ERROR_LOCATION),
         closeStdErr_(&hStdErrRead, ERROR_LOCATION),
         closeProcess_(&hProcess, ERROR_LOCATION),
         pid(static_cast<PidType>(-1)),
-        ctrlC(0x03),
-        terminated(false)
+        ctrlC(0x03)
    {
    }
 
@@ -169,7 +168,6 @@ struct ChildProcess::Impl
    PidType pid;
    WinPty pty;
    char ctrlC;
-   bool terminated;
 
 private:
    CloseHandleOnExitScope closeStdIn_;
@@ -194,7 +192,7 @@ void ChildProcess::init(const std::string& exe,
    options_ = options;
    resolveCommand(&exe_, &args_);
 
-   if (!options.stdOutFile.isEmpty() || !options.stdErrFile.isEmpty())
+   if (!options.stdOutFile.empty() || !options.stdErrFile.empty())
    {
       LOG_ERROR_MESSAGE(
                "stdOutFile/stdErrFile options cannot be used with runProgram");
@@ -215,7 +213,7 @@ void ChildProcess::init(const std::string& command,
 void ChildProcess::init(const ProcessOptions& options)
 {
    options_ = options;
-   exe_ = options_.shellPath.getAbsolutePathNative();
+   exe_ = options_.shellPath.absolutePathNative();
    args_ = options_.args;
 }
 
@@ -239,13 +237,11 @@ Error ChildProcess::writeToStdin(const std::string& input, bool eof)
          DWORD dwWritten;
          BOOL bSuccess = ::WriteFile(pImpl_->hStdInWrite,
                                      input.data(),
-                                     static_cast<DWORD>(input.length()),
+                                     input.length(),
                                      &dwWritten,
-                                     nullptr);
+                                     NULL);
          if (!bSuccess)
-         {
-            return LAST_SYSTEM_ERROR();
-         }
+            return systemError(::GetLastError(), ERROR_LOCATION);
       }
    }
 
@@ -283,9 +279,7 @@ Error ChildProcess::terminate()
 {
    // terminate with exit code 15 (15 is SIGTERM on posix)
    if (!::TerminateProcess(pImpl_->hProcess, 15))
-   {
-      return LAST_SYSTEM_ERROR();
-   }
+      return systemError(::GetLastError(), ERROR_LOCATION);
    else
       return Success();
 }
@@ -318,17 +312,15 @@ namespace {
 
 Error openFile(const FilePath& file, bool inheritable, HANDLE* phFile)
 {
-   HANDLE hFile = ::CreateFileW(file.getAbsolutePathW().c_str(),
+   HANDLE hFile = ::CreateFileW(file.absolutePathW().c_str(),
                                 GENERIC_WRITE,
                                 0,
-                                nullptr,
+                                NULL,
                                 CREATE_ALWAYS,
                                 FILE_ATTRIBUTE_NORMAL,
-                                nullptr);
+                                NULL);
    if (hFile == INVALID_HANDLE_VALUE)
-   {
-      return LAST_SYSTEM_ERROR();
-   }
+      return systemError(::GetLastError(), ERROR_LOCATION);
 
    if (inheritable)
    {
@@ -336,7 +328,7 @@ Error openFile(const FilePath& file, bool inheritable, HANDLE* phFile)
                                   HANDLE_FLAG_INHERIT,
                                   HANDLE_FLAG_INHERIT))
       {
-         Error err = LAST_SYSTEM_ERROR();
+         Error err = systemError(::GetLastError(), ERROR_LOCATION);
          ::CloseHandle(hFile);
          return err;
       }
@@ -378,48 +370,36 @@ Error ChildProcess::run()
 
    // Standard input pipe
    HANDLE hStdInRead;
-   if (!::CreatePipe(&hStdInRead, &pImpl_->hStdInWrite, nullptr, 0))
-   {
-      return LAST_SYSTEM_ERROR();
-   }
+   if (!::CreatePipe(&hStdInRead, &pImpl_->hStdInWrite, NULL, 0))
+      return systemError(::GetLastError(), ERROR_LOCATION);
    CloseHandleOnExitScope closeStdIn(&hStdInRead, ERROR_LOCATION);
    if (!::SetHandleInformation(hStdInRead,
                                HANDLE_FLAG_INHERIT,
                                HANDLE_FLAG_INHERIT))
-   {
-      return LAST_SYSTEM_ERROR();
-   }
+      return systemError(::GetLastError(), ERROR_LOCATION);
 
    // Standard output pipe
    HANDLE hStdOutWrite;
-   if (!::CreatePipe(&pImpl_->hStdOutRead, &hStdOutWrite, nullptr, 0))
-   {
-      return LAST_SYSTEM_ERROR();
-   }
+   if (!::CreatePipe(&pImpl_->hStdOutRead, &hStdOutWrite, NULL, 0))
+      return systemError(::GetLastError(), ERROR_LOCATION);
    CloseHandleOnExitScope closeStdOut(&hStdOutWrite, ERROR_LOCATION);
    if (!::SetHandleInformation(hStdOutWrite,
                                HANDLE_FLAG_INHERIT,
                                HANDLE_FLAG_INHERIT) )
-   {
-      return LAST_SYSTEM_ERROR();
-   }
+      return systemError(::GetLastError(), ERROR_LOCATION);
 
    // Standard error pipe
    HANDLE hStdErrWrite;
-   if (!::CreatePipe(&pImpl_->hStdErrRead, &hStdErrWrite, nullptr, 0))
-   {
-      return LAST_SYSTEM_ERROR();
-   }
+   if (!::CreatePipe(&pImpl_->hStdErrRead, &hStdErrWrite, NULL, 0))
+      return systemError(::GetLastError(), ERROR_LOCATION);
    CloseHandleOnExitScope closeStdErr(&hStdErrWrite, ERROR_LOCATION);
    if (!::SetHandleInformation(hStdErrWrite,
                                HANDLE_FLAG_INHERIT,
                                HANDLE_FLAG_INHERIT) )
-   {
-      return LAST_SYSTEM_ERROR();
-   }
+      return systemError(::GetLastError(), ERROR_LOCATION);
 
    // populate startup info
-   STARTUPINFOW si = { sizeof(STARTUPINFOW) };
+   STARTUPINFO si = { sizeof(STARTUPINFO) };
    si.dwFlags |= STARTF_USESTDHANDLES;
    si.hStdOutput = hStdOutWrite;
    si.hStdError = options_.redirectStdErrToStdOut ? hStdOutWrite
@@ -427,7 +407,7 @@ Error ChildProcess::run()
    si.hStdInput = hStdInRead;
 
    HANDLE hStdOutWriteFile = INVALID_HANDLE_VALUE;
-   if (!options_.stdOutFile.isEmpty())
+   if (!options_.stdOutFile.empty())
    {
       error = openFile(options_.stdOutFile, true, &hStdOutWriteFile);
       if (error)
@@ -437,7 +417,7 @@ Error ChildProcess::run()
    CloseHandleOnExitScope closeStdOutFile(&hStdOutWriteFile, ERROR_LOCATION);
 
    HANDLE hStdErrWriteFile = INVALID_HANDLE_VALUE;
-   if (!options_.stdErrFile.isEmpty())
+   if (!options_.stdErrFile.empty())
    {
       error = openFile(options_.stdErrFile, true, &hStdErrWriteFile);
       if (error)
@@ -447,46 +427,41 @@ Error ChildProcess::run()
    CloseHandleOnExitScope closeStdErrFile(&hStdErrWriteFile, ERROR_LOCATION);
 
    // build command line
-   std::vector<WCHAR> cmdLine;
+   std::vector<TCHAR> cmdLine;
 
-   bool exeQuot =
-         std::string::npos != exe_.find(' ') &&
-         std::string::npos == exe_.find('"');
-
+   bool exeQuot = std::string::npos != exe_.find(' ')
+         && std::string::npos == exe_.find('"');
    if (exeQuot)
-      cmdLine.push_back(L'"');
-   std::wstring exeWide = string_utils::utf8ToWide(exe_);
-   std::copy(exeWide.begin(), exeWide.end(), std::back_inserter(cmdLine));
+      cmdLine.push_back('"');
+   std::copy(exe_.begin(), exe_.end(), std::back_inserter(cmdLine));
    if (exeQuot)
-      cmdLine.push_back(L'"');
+      cmdLine.push_back('"');
 
-   for (std::string& arg : args_)
+   BOOST_FOREACH(std::string& arg, args_)
    {
-      cmdLine.push_back(L' ');
+      cmdLine.push_back(' ');
 
       // This is kind of gross. Ideally we would be more deterministic
       // than this.
-      bool quot =
-            std::string::npos != arg.find(' ') &&
-            std::string::npos == arg.find('"');
+      bool quot = std::string::npos != arg.find(' ')
+            && std::string::npos == arg.find('"');
 
       if (quot)
-         cmdLine.push_back(L'"');
-      std::wstring argWide = string_utils::utf8ToWide(arg);
-      std::copy(argWide.begin(), argWide.end(), std::back_inserter(cmdLine));
+         cmdLine.push_back('"');
+      std::copy(arg.begin(), arg.end(), std::back_inserter(cmdLine));
       if (quot)
-         cmdLine.push_back(L'"');
+         cmdLine.push_back('"');
    }
-   cmdLine.push_back(L'\0');
+   cmdLine.push_back('\0');
 
    // specify custom environment if requested
    DWORD dwFlags = 0;
-   LPVOID lpEnv = nullptr;
+   LPVOID lpEnv = NULL;
    std::vector<wchar_t> envBlock;
    if (options_.environment)
    {
       const Options& env = options_.environment.get();
-      for (const Option& envVar : env)
+      BOOST_FOREACH(const Option& envVar, env)
       {
          std::wstring key = string_utils::utf8ToWide(envVar.first);
          std::wstring value = string_utils::utf8ToWide(envVar.second);
@@ -507,7 +482,7 @@ Error ChildProcess::run()
       si.dwFlags |= STARTF_USESHOWWINDOW;
       si.wShowWindow = SW_HIDE;
    }
-   else if (options_.detachProcess || options_.terminateChildren)
+   else if (options_.detachProcess)
    {
       dwFlags |= DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP;
       si.dwFlags |= STARTF_USESHOWWINDOW;
@@ -517,33 +492,31 @@ Error ChildProcess::run()
    if (options_.breakawayFromJob)
       dwFlags |= CREATE_BREAKAWAY_FROM_JOB;
 
-   std::wstring workingDir;
-   if (!options_.workingDir.isEmpty())
+   std::string workingDir;
+   if (!options_.workingDir.empty())
    {
-      workingDir = string_utils::utf8ToWide(
-            options_.workingDir.getAbsolutePathNative());
+      workingDir = string_utils::utf8ToSystem(
+            options_.workingDir.absolutePathNative());
    }
 
    // Start the child process.
    PROCESS_INFORMATION pi;
-   ::ZeroMemory(&pi, sizeof(PROCESS_INFORMATION));
-   BOOL success = ::CreateProcessW(
-     exeWide.c_str(), // Process
+   ::ZeroMemory( &pi, sizeof(PROCESS_INFORMATION));
+   BOOL success = ::CreateProcess(
+     exe_.c_str(),    // Process
      &(cmdLine[0]),   // Command line
-     nullptr,         // Process handle not inheritable
-     nullptr,         // Thread handle not inheritable
+     NULL,            // Process handle not inheritable
+     NULL,            // Thread handle not inheritable
      TRUE,            // Set handle inheritance to TRUE
      dwFlags,         // Creation flags
      lpEnv,           // Environment block
                       // Use parent's starting directory
-     workingDir.empty() ? nullptr : workingDir.c_str(),
+     workingDir.empty() ? NULL : workingDir.c_str(),
      &si,             // Pointer to STARTUPINFO structure
-     &pi);            // Pointer to PROCESS_INFORMATION structure
+     &pi );   // Pointer to PROCESS_INFORMATION structure
 
    if (!success)
-   {
-      return LAST_SYSTEM_ERROR();
-   }
+      return systemError(::GetLastError(), ERROR_LOCATION);
 
    // close thread handle on exit
    CloseHandleOnExitScope closeThread(&pi.hThread, ERROR_LOCATION);
@@ -577,7 +550,7 @@ Error SyncChildProcess::waitForExit(int* pExitStatus)
    {
       if (result == WAIT_FAILED)
       {
-         return LAST_SYSTEM_ERROR();
+         return systemError(::GetLastError(), ERROR_LOCATION);
       }
       else
       {
@@ -592,9 +565,7 @@ Error SyncChildProcess::waitForExit(int* pExitStatus)
       // get exit code
       DWORD dwStatus;
       if (!::GetExitCodeProcess(pImpl_->hProcess, &dwStatus))
-      {
-         return LAST_SYSTEM_ERROR();
-      }
+         return systemError(::GetLastError(), ERROR_LOCATION);
 
       *pExitStatus = dwStatus;
       return Success();
@@ -686,9 +657,9 @@ void AsyncChildProcess::poll()
       pAsyncImpl_->pSubprocPoll_.reset(new ChildProcessSubprocPoll(
          pImpl_->pid,
          kResetRecentDelay, kCheckSubprocDelay, kCheckCwdDelay,
-         options().reportHasSubprocs ? core::system::getSubprocesses : nullptr,
+         options().reportHasSubprocs ? core::system::getSubprocesses : NULL,
          options().subprocWhitelist,
-         options().trackCwd ? core::system::currentWorkingDir : nullptr));
+         options().trackCwd ? core::system::currentWorkingDir : NULL));
 
       if (callbacks_.onStarted)
          callbacks_.onStarted(*this);
@@ -698,13 +669,12 @@ void AsyncChildProcess::poll()
    // call onContinue
    if (callbacks_.onContinue)
    {
-      if (!callbacks_.onContinue(*this) && !pImpl_->terminated)
+      if (!callbacks_.onContinue(*this))
       {
-         // terminate the process
+         // terminate the proces
          Error error = terminate();
          if (error)
             LOG_ERROR(error);
-         pImpl_->terminated = true;
       }
    }
 
@@ -748,9 +718,7 @@ void AsyncChildProcess::poll()
          // get the exit status
          DWORD dwStatus;
          if (!::GetExitCodeProcess(pImpl_->hProcess, &dwStatus))
-         {
-            LOG_ERROR(LAST_SYSTEM_ERROR());
-         }
+            LOG_ERROR(systemError(::GetLastError(), ERROR_LOCATION));
          exitStatus = dwStatus;
       }
 
@@ -760,7 +728,7 @@ void AsyncChildProcess::poll()
          Error error;
          if (result == WAIT_FAILED)
          {
-            error = LAST_SYSTEM_ERROR();
+            error = systemError(::GetLastError(), ERROR_LOCATION);
          }
          else
          {
@@ -803,7 +771,7 @@ void AsyncChildProcess::poll()
 
 bool AsyncChildProcess::exited()
 {
-   return pImpl_->hProcess == nullptr;
+   return pImpl_->hProcess == NULL;
 }
 
 } // namespace system

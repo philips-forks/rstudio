@@ -1,7 +1,7 @@
 /*
  * ChunkDataWidget.java
  *
- * Copyright (C) 2009-20 by RStudio, PBC
+ * Copyright (C) 2009-16 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -14,8 +14,6 @@
  */
 package org.rstudio.studio.client.workbench.views.source.editors.text;
 
-import org.rstudio.studio.client.rmarkdown.model.NotebookFrameMetadata;
-
 import com.google.gwt.core.client.JavaScriptObject;
 import com.google.gwt.core.client.ScriptInjector;
 import com.google.gwt.dom.client.Element;
@@ -26,15 +24,12 @@ import com.google.gwt.user.client.ui.SimplePanel;
 public class ChunkDataWidget extends SimplePanel
                              implements EditorThemeListener
 {
-   public ChunkDataWidget(JavaScriptObject data, NotebookFrameMetadata metadata,
-                          ChunkOutputSize chunkOutputSize)
+   public ChunkDataWidget(JavaScriptObject data, ChunkOutputSize chunkOutputSize)
    {
       data_ = data;
-      metadata_ = metadata;
       chunkOutputSize_ = chunkOutputSize;
 
-      if (chunkOutputSize_ == ChunkOutputSize.Full)
-      {
+      if (chunkOutputSize_ == ChunkOutputSize.Full) {
          getElement().getStyle().setWidth(100, Unit.PCT);
 
          getElement().getStyle().setProperty("display", "-ms-flexbox");
@@ -54,7 +49,6 @@ public class ChunkDataWidget extends SimplePanel
       if (pagedTableExists()) {
          pagedTable_ = showDataOutputNative(
             data_,
-            metadata_.getSummary(),
             getElement(),
             chunkOutputSize_ == ChunkOutputSize.Full);
 
@@ -73,9 +67,8 @@ public class ChunkDataWidget extends SimplePanel
 
    public static void injectPagedTableResources()
    {
-      if (injectStyleElement("rmd_data/pagedtable.css", "pagedtable-css")) {
-         ScriptInjector.fromUrl("rmd_data/pagedtable.js").inject();
-      }
+      injectStyleElement("rmd_data/pagedtable.css", "pagedtable-css");
+      ScriptInjector.fromUrl("rmd_data/pagedtable.js").inject();
    }
    
    @Override
@@ -113,7 +106,7 @@ public class ChunkDataWidget extends SimplePanel
       }
    }
 
-   private static final native boolean injectStyleElement(String url, String id) /*-{
+   private static final native void injectStyleElement(String url, String id) /*-{
       var linkElement = $doc.getElementById(id);
       if (linkElement === null) {
          linkElement = $doc.createElement("link");
@@ -122,10 +115,7 @@ public class ChunkDataWidget extends SimplePanel
          linkElement.setAttribute("rel", "stylesheet");
          
          $doc.getElementsByTagName("head")[0].appendChild(linkElement);
-         return true;
       }
-
-      return false;
    }-*/;
 
    private final native boolean pagedTableExists() /*-{
@@ -133,7 +123,7 @@ public class ChunkDataWidget extends SimplePanel
    }-*/;
 
    private final native JavaScriptObject showDataOutputNative(JavaScriptObject data, 
-         JavaScriptObject metadata, Element parent, boolean fullSize) /*-{
+         Element parent, boolean fullSize) /*-{
       var pagedTable = $doc.createElement("div");
       pagedTable.setAttribute("data-pagedtable", "false");
 
@@ -154,7 +144,6 @@ public class ChunkDataWidget extends SimplePanel
          data.options.rows.max = null;
          data.options.columns.max = null;
       }
-      data.metadata = metadata;
 
       pagedTableSource.appendChild($doc.createTextNode(JSON.stringify(data)))
       pagedTable.appendChild(pagedTableSource);
@@ -210,6 +199,5 @@ public class ChunkDataWidget extends SimplePanel
    
    private JavaScriptObject pagedTable_ = null;
    private final JavaScriptObject data_;
-   private final NotebookFrameMetadata metadata_;
    private final ChunkOutputSize chunkOutputSize_;
 }

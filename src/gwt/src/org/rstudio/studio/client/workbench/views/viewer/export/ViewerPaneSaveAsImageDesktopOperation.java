@@ -1,7 +1,7 @@
 /*
  * ViewerPaneSaveAsImageDesktopOperation.java
  *
- * Copyright (C) 2009-18 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -16,7 +16,6 @@
 package org.rstudio.studio.client.workbench.views.viewer.export;
 
 import org.rstudio.core.client.Rectangle;
-import org.rstudio.core.client.StringUtil;
 import org.rstudio.core.client.files.FileSystemItem;
 import org.rstudio.core.client.widget.Operation;
 import org.rstudio.core.client.widget.OperationWithInput;
@@ -44,15 +43,15 @@ public class ViewerPaneSaveAsImageDesktopOperation implements SavePlotAsImageOpe
                {
                   // perform the export
                   Desktop.getFrame().exportPageRegionToFile(
-                        StringUtil.notNull(targetPath.getPath()), 
-                        StringUtil.notNull(format), 
+                        targetPath.getPath(), 
+                        format, 
                         viewerRect.getLeft(),
                         viewerRect.getTop(),
                         viewerRect.getWidth(),
                         viewerRect.getHeight());
                     
                   if (viewAfterSave) 
-                     Desktop.getFrame().showFile(StringUtil.notNull(targetPath.getPath()));
+                     Desktop.getFrame().showFile(targetPath.getPath());
                }
             },
             onCompleted

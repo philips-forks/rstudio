@@ -1,7 +1,7 @@
 /*
  * DataImportOptionsCsv.java
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-16 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -15,8 +15,6 @@
 
 package org.rstudio.studio.client.workbench.views.environment.dataimport;
 
-import com.google.gwt.aria.client.Roles;
-import org.rstudio.core.client.MessageDisplay;
 import org.rstudio.core.client.MessageDisplay.PromptWithOptionResult;
 import org.rstudio.core.client.widget.Operation;
 import org.rstudio.core.client.widget.OperationWithInput;
@@ -207,7 +205,7 @@ public class DataImportOptionsUiCsv extends DataImportOptionsUi
                   "Other Delimiter",
                   "Please enter a single character delimiter.",
                   "",
-                  MessageDisplay.INPUT_REQUIRED_TEXT,
+                  false,
                   "",
                   false,
                   new ProgressOperationWithInput<PromptWithOptionResult>()
@@ -288,8 +286,7 @@ public class DataImportOptionsUiCsv extends DataImportOptionsUi
       naListBox_.addChangeHandler(changeHandler);
       commentListBox_.addChangeHandler(changeHandler);
       skipTextBox_.addValueChangeHandler(valueChangeHandler);
-
-      Roles.getButtonRole().setAriaLabelProperty(localeButton_.getElement(), "Configure Locale");
+      
       localeButton_.addClickHandler(new ClickHandler() {
          public void onClick(ClickEvent event) {
             new DataImportOptionsUiCsvLocale(

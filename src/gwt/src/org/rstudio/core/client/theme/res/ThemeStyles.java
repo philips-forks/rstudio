@@ -1,7 +1,7 @@
 /*
  * ThemeStyles.java
  *
- * Copyright (C) 2009-20 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -50,17 +50,18 @@ public interface ThemeStyles extends CssResource
           
    String closeTabButton();
 
-   String visuallyHidden();
+   String fixedWidthFont();
+   
    String tabLayout();
    String tabLayoutLeft();
-   String rstheme_tabLayoutCenter();
+   String tabLayoutCenter();
    String tabLayoutRight();
    String dirtyTab();
    String dirtyTabIndicator();
    String docTabLabel();
 
    String toolbar();
-   String rstheme_secondaryToolbar();
+   String secondaryToolbar();
    String secondaryToolbarPanel();
    String globalToolbar();
    String desktopGlobalToolbar();
@@ -68,7 +69,6 @@ public interface ThemeStyles extends CssResource
    String webHeaderBarCommandsProjectMenu();
    String toolbarButton();
    String noLabel();
-   String popupButton();
    String toolbarButtonPushed();
    String emptyProjectMenu();
    String menuSubheader();
@@ -105,7 +105,7 @@ public interface ThemeStyles extends CssResource
 
    String left();
    String right();
-   String rstheme_center();
+   String center();
 
    String minimizedWindow();
 
@@ -131,17 +131,13 @@ public interface ThemeStyles extends CssResource
    String environmentDataFrameCol();
    String environmentFunctionCol();
 
-   String filterMatch();
-
    String odd();
    
    String showFile();
    String showFileFixed();
-   String showFilePreFixed();
    
    String fileUploadPanel();
    String fileUploadField();
-   String fileUploadLabel();
    String fileUploadTipLabel();
    
    String fileList();
@@ -149,7 +145,6 @@ public interface ThemeStyles extends CssResource
    String locatorPanel();
 
    String multiPodUtilityArea();
-   String rstheme_multiPodUtilityTabArea();
 
    String tabOverflowPopup();   
    
@@ -185,7 +180,7 @@ public interface ThemeStyles extends CssResource
    String logoAnchor();
 
    String windowFrameObject();
-   String rstheme_minimizedWindowObject();
+   String minimizedWindowObject();
    String windowFrameWidget();
 
    String consoleOnlyWindowFrame();
@@ -195,7 +190,7 @@ public interface ThemeStyles extends CssResource
    String consoleMaximizeLayout();
 
    String tallerToolbarWrapper();
-   String rstheme_toolbarWrapper();
+   String toolbarWrapper();
    String webGlobalToolbarWrapper();
    String desktopGlobalToolbarWrapper();
 
@@ -205,13 +200,7 @@ public interface ThemeStyles extends CssResource
    String terminalClearButton();
    String refreshToolbarButton();
 
-   String dataTableColumnWidget();
-
    String tabIcon();
    
    String menuCheckable();
-   
-   String noLogo();
-   
-   String launcherJobRunButton();
 }

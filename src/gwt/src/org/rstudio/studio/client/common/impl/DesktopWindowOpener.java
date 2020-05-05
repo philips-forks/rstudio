@@ -1,7 +1,7 @@
 /*
  * DesktopWindowOpener.java
  *
- * Copyright (C) 2009-18 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -15,7 +15,6 @@
 package org.rstudio.studio.client.common.impl;
 
 import org.rstudio.core.client.Point;
-import org.rstudio.core.client.StringUtil;
 import org.rstudio.studio.client.application.Desktop;
 import org.rstudio.studio.client.common.GlobalDisplay;
 import org.rstudio.studio.client.common.GlobalDisplay.NewWindowOptions;
@@ -33,7 +32,7 @@ public class DesktopWindowOpener extends WebWindowOpener
       // open externally if we have a protocol and aren't an app url
       if (hasProtocol(url) && !isAppUrl(url))
       {
-         Desktop.getFrame().browseUrl(StringUtil.notNull(url));
+         Desktop.getFrame().browseUrl(url);
 
          assert options.getCallback() == null;
       }
@@ -62,11 +61,11 @@ public class DesktopWindowOpener extends WebWindowOpener
                                     int height,
                                     boolean showLocation)
    {
-      Desktop.getFrame().prepareForNamedWindow(StringUtil.notNull(options.getName()),
+      Desktop.getFrame().prepareForNamedWindow(options.getName(),
             options.allowExternalNavigation(),
-            options.showDesktopToolbar(), () ->
-               super.openWebMinimalWindow(globalDisplay, url, options, width, 
-                                          height, showLocation));
+            options.showDesktopToolbar());
+      super.openWebMinimalWindow(globalDisplay, url, options, width, 
+                                 height, showLocation);
    }
 
    @Override
@@ -77,8 +76,8 @@ public class DesktopWindowOpener extends WebWindowOpener
                                  int height,
                                  boolean showLocation)
    {
-      Desktop.getFrame().openMinimalWindow(StringUtil.notNull(options.getName()),
-                                           StringUtil.notNull(url),
+      Desktop.getFrame().openMinimalWindow(options.getName(),
+                                           url,
                                            width,
                                            height);
    }
@@ -103,9 +102,9 @@ public class DesktopWindowOpener extends WebWindowOpener
          y = pos.getY();
       }
 
-      Desktop.getFrame().prepareForSatelliteWindow(StringUtil.notNull(windowName), x, y, 
-            width, height, ()-> 
-         super.openSatelliteWindow(globalDisplay, mode, width, height, options));
+      Desktop.getFrame().prepareForSatelliteWindow(windowName, x, y,
+                                                   width, height);
+      super.openSatelliteWindow(globalDisplay, mode, width, height, options);
    }
    
    @Override

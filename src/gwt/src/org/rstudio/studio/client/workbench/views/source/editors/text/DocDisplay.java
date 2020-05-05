@@ -1,7 +1,7 @@
 /*
  * DocDisplay.java
  *
- * Copyright (C) 2009-20 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -14,15 +14,12 @@
  */
 package org.rstudio.studio.client.workbench.views.source.editors.text;
 
-import java.util.function.BiPredicate;
 import org.rstudio.core.client.Rectangle;
-import org.rstudio.core.client.command.KeySequence;
 
 import java.util.List;
 
-import org.rstudio.core.client.events.HasContextMenuHandlers;
+import org.rstudio.core.client.command.KeyboardShortcut.KeySequence;
 import org.rstudio.core.client.js.JsMap;
-import org.rstudio.core.client.patch.TextChange;
 import org.rstudio.studio.client.common.debugging.model.Breakpoint;
 import org.rstudio.studio.client.common.filetypes.TextFileType;
 import org.rstudio.studio.client.server.Void;
@@ -37,7 +34,6 @@ import org.rstudio.studio.client.workbench.views.source.editors.text.ace.AceComm
 import org.rstudio.studio.client.workbench.views.source.editors.text.ace.AceFold;
 import org.rstudio.studio.client.workbench.views.source.editors.text.ace.Anchor;
 import org.rstudio.studio.client.workbench.views.source.editors.text.ace.LineWidget;
-import org.rstudio.studio.client.workbench.views.source.editors.text.ace.Marker;
 import org.rstudio.studio.client.workbench.views.source.editors.text.ace.Mode.InsertChunkInfo;
 import org.rstudio.studio.client.workbench.views.source.editors.text.ace.Position;
 import org.rstudio.studio.client.workbench.views.source.editors.text.ace.Range;
@@ -48,7 +44,6 @@ import org.rstudio.studio.client.workbench.views.source.editors.text.ace.TokenIt
 import org.rstudio.studio.client.workbench.views.source.editors.text.ace.spelling.CharClassifier;
 import org.rstudio.studio.client.workbench.views.source.editors.text.ace.spelling.TokenPredicate;
 import org.rstudio.studio.client.workbench.views.source.editors.text.cpp.CppCompletionContext;
-import org.rstudio.studio.client.workbench.views.source.editors.text.events.ActiveScopeChangedEvent;
 import org.rstudio.studio.client.workbench.views.source.editors.text.events.BreakpointMoveEvent;
 import org.rstudio.studio.client.workbench.views.source.editors.text.events.BreakpointSetEvent;
 import org.rstudio.studio.client.workbench.views.source.editors.text.events.CommandClickEvent;
@@ -69,7 +64,6 @@ import org.rstudio.studio.client.workbench.views.source.events.SaveFileHandler;
 import com.google.gwt.core.client.JavaScriptObject;
 import com.google.gwt.core.client.JsArray;
 import com.google.gwt.core.client.JsArrayString;
-import com.google.gwt.event.dom.client.BlurHandler;
 import com.google.gwt.event.dom.client.FocusHandler;
 import com.google.gwt.event.dom.client.HasFocusHandlers;
 import com.google.gwt.event.dom.client.HasKeyDownHandlers;
@@ -79,7 +73,6 @@ import com.google.gwt.event.shared.HandlerRegistration;
 import com.google.gwt.user.client.ui.IsWidget;
 import com.google.gwt.user.client.ui.Widget;
 
-import org.rstudio.studio.client.workbench.views.source.events.ScrollYEvent;
 import org.rstudio.studio.client.workbench.views.source.model.DirtyState;
 import org.rstudio.studio.client.workbench.views.source.model.RnwCompletionContext;
 import org.rstudio.studio.client.workbench.views.source.model.SourcePosition;
@@ -88,7 +81,6 @@ public interface DocDisplay extends HasValueChangeHandlers<Void>,
                                     HasFoldChangeHandlers,
                                     HasLineWidgetsChangedHandlers,
                                     IsWidget,
-                                    HasContextMenuHandlers,
                                     HasFocusHandlers,
                                     HasKeyDownHandlers,
                                     HasRenderFinishedHandlers,
@@ -111,19 +103,18 @@ public interface DocDisplay extends HasValueChangeHandlers<Void>,
    void syncDiagnosticsPrefs();
    void setRnwCompletionContext(RnwCompletionContext rnwContext);
    void setCppCompletionContext(CppCompletionContext cppContext);
-   void setRCompletionContext(CompletionContext rContext);
+   void setRCompletionContext(RCompletionContext rContext);
    String getCode();
    JsArrayString getLines();
    JsArrayString getLines(int startRow, int endRow);
    void setCode(String code, boolean preserveCursorPosition);
    void insertCode(String code, boolean blockMode);
-   void applyChanges(TextChange[] changes);
    void focus();
    boolean isFocused();
    void print();
    void codeCompletion();
    void goToHelp();
-   void goToDefinition();
+   void goToFunctionDefinition();
    String getSelectionValue();
    String getCurrentLine();
    String getCurrentLineUpToCursor();
@@ -183,9 +174,7 @@ public interface DocDisplay extends HasValueChangeHandlers<Void>,
    void setShowLineNumbers(boolean on);
    void setUseSoftTabs(boolean on);
    void setUseWrapMode(boolean on);
-   boolean getUseWrapMode();
    void setTabSize(int tabSize);
-   void autoDetectIndentation(boolean on);
    void setShowPrintMargin(boolean on);
    void setPrintMarginColumn(int column);
    void setShowInvisibles(boolean show);
@@ -230,7 +219,6 @@ public interface DocDisplay extends HasValueChangeHandlers<Void>,
 
    HandlerRegistration addAttachHandler(AttachEvent.Handler handler);
    HandlerRegistration addEditorFocusHandler(FocusHandler handler);
-   HandlerRegistration addEditorBlurHandler(BlurHandler handler);
    HandlerRegistration addCommandClickHandler(CommandClickEvent.Handler handler);
    HandlerRegistration addFindRequestedHandler(FindRequestedEvent.Handler handler);
    HandlerRegistration addCursorChangedHandler(CursorChangedHandler handler);
@@ -240,7 +228,6 @@ public interface DocDisplay extends HasValueChangeHandlers<Void>,
 
    boolean isScopeTreeReady(int row);
    HandlerRegistration addScopeTreeReadyHandler(ScopeTreeReadyEvent.Handler handler);
-   HandlerRegistration addActiveScopeChangedHandler(ActiveScopeChangedEvent.Handler handler);
    
    Position getCursorPosition();
    void setCursorPosition(Position position);
@@ -293,7 +280,7 @@ public interface DocDisplay extends HasValueChangeHandlers<Void>,
    Scope getCurrentSection();
    ScopeFunction getFunctionAtPosition(Position position, boolean allowAnonymous);
    Scope getSectionAtPosition(Position position);
-   boolean hasCodeModelScopeTree();
+   boolean hasScopeTree();
    JsArray<Scope> getScopeTree();
    InsertChunkInfo getInsertChunkInfo();
 
@@ -308,7 +295,6 @@ public interface DocDisplay extends HasValueChangeHandlers<Void>,
    
    void addCursorAbove();
    void addCursorBelow();
-   void editLinesFromStart();
 
    HandlerRegistration addUndoRedoHandler(UndoRedoHandler handler);
    JavaScriptObject getCleanStateToken();
@@ -373,8 +359,6 @@ public interface DocDisplay extends HasValueChangeHandlers<Void>,
       (BreakpointSetEvent.Handler handler);
    HandlerRegistration addBreakpointMoveHandler
       (BreakpointMoveEvent.Handler handler);
-   HandlerRegistration addScrollYHandler
-      (ScrollYEvent.Handler handler);
    void addOrUpdateBreakpoint(Breakpoint breakpoint);
    void removeBreakpoint(Breakpoint breakpoint);
    void removeAllBreakpoints();
@@ -386,8 +370,6 @@ public interface DocDisplay extends HasValueChangeHandlers<Void>,
    void clearLint();
    void removeMarkersAtCursorPosition();
    void removeMarkersOnCursorLine();
-   void removeMarkers(BiPredicate<AceAnnotation, Marker> predicate);
-   void removeMarkersAtWord(String word);
    
    void beginCollabSession(CollabEditStartParams params, DirtyState dirtyState);
    boolean hasActiveCollabSession();
@@ -404,14 +386,6 @@ public interface DocDisplay extends HasValueChangeHandlers<Void>,
    long getLastModifiedTime();
    long getLastCursorChangedTime();
    
-   void moveLinesUp();
-   void moveLinesDown();
-   void expandToLine();
-   void copyLinesDown();
-   void joinLines();
-   void removeLine();
-
-   void blockIndent();
    void blockOutdent();
    void splitIntoLines();
    
@@ -435,6 +409,7 @@ public interface DocDisplay extends HasValueChangeHandlers<Void>,
    void setDragEnabled(boolean enabled);
    
    boolean isSnippetsTabStopManagerActive();
+   boolean onInsertSnippet();
 
    void addLineWidget(LineWidget widget);
    void removeLineWidget(LineWidget widget);
@@ -459,5 +434,4 @@ public interface DocDisplay extends HasValueChangeHandlers<Void>,
    void goToLineEnd();
    
    void toggleTokenInfo();
-   void setTextInputAriaLabel(String label);
 }

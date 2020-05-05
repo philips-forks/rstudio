@@ -1,7 +1,7 @@
 /*
  * CodeCompletion.cpp
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -18,7 +18,7 @@
 #include <iostream>
 
 #include <core/Debug.hpp>
-#include <shared_core/Error.hpp>
+#include <core/Error.hpp>
 #include <core/FileSerializer.hpp>
 #include <core/system/Process.hpp>
 #include <core/RegexUtils.hpp>
@@ -176,9 +176,9 @@ void discoverTranslationUnitIncludePaths(const FilePath& filePath,
 {
    std::vector<std::string> args =
          rCompilationDatabase().compileArgsForTranslationUnit(
-            filePath.getAbsolutePathNative(), false);
+            filePath.absolutePathNative(), false);
    
-   for (const std::string& arg : args)
+   BOOST_FOREACH(const std::string& arg, args)
    {
       if (boost::algorithm::starts_with(arg, "-I"))
       {
@@ -191,8 +191,6 @@ void discoverTranslationUnitIncludePaths(const FilePath& filePath,
       }
    }
 }
-
-} // end anonymous namespace
 
 void discoverSystemIncludePaths(std::vector<std::string>* pIncludePaths)
 {
@@ -211,45 +209,28 @@ void discoverSystemIncludePaths(std::vector<std::string>* pIncludePaths)
    
    // add Rtools to PATH if necessary
    core::system::Options environment;
-   core::system::environment(&environment);
-
    std::string warning;
    module_context::addRtoolsToPathIfNecessary(&environment, &warning);
    processOptions.environment = environment;
    
+   // resolve R CMD location for shell command
+   FilePath rBinDir;
+   Error error = module_context::rBinDir(&rBinDir);
+   if (error)
+   {
+      LOG_ERROR(error);
+      return;
+   }
+   
+   shell_utils::ShellCommand rCmd = module_context::rCmd(rBinDir);
+   
    // get the CXX compiler by asking R
    std::string compilerPath;
-
-#ifdef _WIN32
    {
-      core::system::ProcessResult result;
-      Error error = core::system::runCommand("where.exe gcc.exe", processOptions, &result);
-      if (error)
-         LOG_ERROR(error);
-      else if (result.exitStatus != EXIT_SUCCESS)
-         LOG_ERROR_MESSAGE("Error querying CXX compiler: " + result.stdOut);
-      else
-         compilerPath = string_utils::trimWhitespace(result.stdOut);
-   }
-#else
-   {
-      Error error;
-      
-      // resolve R CMD location for shell command
-      FilePath rBinDir;
-      error = module_context::rBinDir(&rBinDir);
-      if (error)
-      {
-         LOG_ERROR(error);
-         return;
-      }
-
-      shell_utils::ShellCommand rCmd = module_context::rCmd(rBinDir);
-
       core::system::ProcessResult result;
       rCmd << "config";
       rCmd << "CXX";
-      error = core::system::runCommand(rCmd, processOptions, &result);
+      Error error = core::system::runCommand(rCmd, processOptions, &result);
       if (error)
          LOG_ERROR(error);
       else if (result.exitStatus != EXIT_SUCCESS)
@@ -257,42 +238,8 @@ void discoverSystemIncludePaths(std::vector<std::string>* pIncludePaths)
       else
          compilerPath = string_utils::trimWhitespace(result.stdOut);
    }
-#endif
-
    if (compilerPath.empty())
       return;
-
-   // it is likely that R is configured to use a compiler that exists
-   // on the PATH; however, when invoked through 'runCommand()' this
-   // can fail unless we explicitly find and resolve that path. also
-   // note that one can configure CXX with multiple arguments
-   // (e.g. as 'g++ -std=c++17') so we must also tear off only the
-   // compiler name. we hence assume that the supplemental arguments
-   // to CXX do not influence the compiler include paths.
-#ifndef _WIN32
-   {
-       std::string compilerName = compilerPath;
-       std::size_t index = compilerPath.find(' ');
-       if (index != std::string::npos)
-       {
-           compilerName = compilerPath.substr(0, index);
-       }
-       else
-       {
-           compilerName = compilerPath;
-       }
-
-       core::system::ProcessResult result;
-       std::vector<std::string> args = { compilerName };
-       Error error = core::system::runProgram("/usr/bin/which", args, "", processOptions, &result);
-       if (error)
-          LOG_ERROR(error);
-       else if (result.exitStatus != EXIT_SUCCESS)
-          LOG_ERROR_MESSAGE("Error qualifying CXX compiler path: " + result.stdOut);
-       else
-          compilerPath = string_utils::trimWhitespace(result.stdOut);
-   }
-#endif
    
    // ask the compiler what the system include paths are (note that both
    // gcc and clang accept the same command)
@@ -300,7 +247,7 @@ void discoverSystemIncludePaths(std::vector<std::string>* pIncludePaths)
    {
       core::system::ProcessResult result;
       std::string cmd = compilerPath + " -E -x c++ - -v < " kDevNull;
-
+      
       Error error = core::system::runCommand(cmd, processOptions, &result);
       if (error)
          LOG_ERROR(error);
@@ -349,18 +296,16 @@ void discoverSystemIncludePaths(std::vector<std::string>* pIncludePaths)
             includePaths.end());
 }
 
-namespace {
-
 void discoverRelativeIncludePaths(const FilePath& filePath,
                                   const std::string& parentDir,
                                   std::vector<std::string>* pIncludePaths)
 {
    // Construct the directory in which to search for includes
-   FilePath targetPath = filePath.getParent().completePath(parentDir);
+   FilePath targetPath = filePath.parent().complete(parentDir);
    if (!targetPath.exists())
       return;
    
-   pIncludePaths->push_back(targetPath.getAbsolutePath());
+   pIncludePaths->push_back(targetPath.absolutePath());
 }
 
 json::Object jsonHeaderCompletionResult(const std::string& name,
@@ -410,28 +355,28 @@ Error getHeaderCompletionsImpl(const std::string& token,
    std::set<std::string> discoveredEntries;
    json::Array completionsJson;
    
-   for (const std::string& path : includePaths)
+   BOOST_FOREACH(const std::string& path, includePaths)
    {
       FilePath includePath(path);
       if (!includePath.exists())
          continue;
       
-      FilePath targetPath = includePath.completePath(parentDir);
+      FilePath targetPath = includePath.complete(parentDir);
       if (!targetPath.exists())
          continue;
       
       std::vector<FilePath> children;
-      Error error = targetPath.getChildren(children);
+      Error error = targetPath.children(&children);
       if (error)
          LOG_ERROR(error);
       
-      for (const FilePath& childPath : children)
+      BOOST_FOREACH(const FilePath& childPath, children)
       {
-         std::string name = childPath.getFilename();
+         std::string name = childPath.filename();
          if (discoveredEntries.count(name))
             continue;
          
-         std::string extension = childPath.getExtensionLowerCase();
+         std::string extension = childPath.extensionLowerCase();
          if (!(extension == ".h" || extension == ".hpp" || extension == ""))
             continue;
          
@@ -439,7 +384,7 @@ Error getHeaderCompletionsImpl(const std::string& token,
          {
             int type = childPath.isDirectory() ? kCompletionDirectory : kCompletionFile;
             completionsJson.push_back(jsonHeaderCompletionResult(name,
-                                                                 childPath.getAbsolutePath(),
+                                                                 childPath.absolutePath(),
                                                                  type));
          }
          
@@ -526,7 +471,7 @@ Error getCppCompletions(const core::json::JsonRpcRequest& request,
       return getHeaderCompletions(line, filePath, docId, request, pResponse);
 
    // get the translation unit and do the code completion
-   std::string filename = filePath.getAbsolutePath();
+   std::string filename = filePath.absolutePath();
    TranslationUnit tu = rSourceIndex().getTranslationUnit(filename);
 
    if (!tu.empty())
@@ -558,10 +503,10 @@ Error getCppCompletions(const core::json::JsonRpcRequest& request,
             std::string typedText = result.getTypedText();
 
             // if we have the same typed text then just ammend previous result
-            if ((typedText == lastTypedText) && !completionsJson.isEmpty())
+            if ((typedText == lastTypedText) && !completionsJson.empty())
             {
-               json::Object res = completionsJson.getBack().getObject();
-               json::Array text = res["text"].getArray();
+               json::Object& res = completionsJson.back().get_obj();
+               json::Array& text = res["text"].get_array();
                text.push_back(friendlyCompletionText(result));
             }
             else
@@ -574,7 +519,7 @@ Error getCppCompletions(const core::json::JsonRpcRequest& request,
       }
 
       json::Object resultJson;
-      resultJson["completions"] = completionsJson.clone();
+      resultJson["completions"] = completionsJson;
       pResponse->setResult(resultJson);
    }
 

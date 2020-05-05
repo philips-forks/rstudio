@@ -1,7 +1,7 @@
 /*
  * IgnoreDialog.java
  *
- * Copyright (C) 2009-20 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -14,8 +14,6 @@
  */
 package org.rstudio.studio.client.common.vcs.ignore;
 
-import com.google.gwt.aria.client.Roles;
-import org.rstudio.core.client.ElementIds;
 import org.rstudio.core.client.widget.CaptionWithHelp;
 import org.rstudio.core.client.widget.DirectoryChooserTextBox;
 import org.rstudio.core.client.widget.ModalDialogBase;
@@ -42,27 +40,22 @@ public class IgnoreDialog extends ModalDialogBase
    @Inject
    public IgnoreDialog()
    {
-      super(Roles.getDialogRole());
       dirChooser_ = new DirectoryChooserTextBox("Directory:", 
                                                 "", 
-                                                ElementIds.TextBoxButtonId.VCS_IGNORE,
                                                 null);
       dirChooser_.addStyleName(RES.styles().dirChooser());
+      
+      ignoresCaption_ = new CaptionWithHelp("Ignore:",
+                                             "Specifying ignored files");
+      ignoresCaption_.setIncludeVersionInfo(false);
+      ignoresCaption_.addStyleName(RES.styles().ignoresCaption());
       
       editor_ = new AceEditor();
       editor_.setUseWrapMode(false);
       editor_.setShowLineNumbers(false);
-      editor_.setTabAlwaysMovesFocus();
-      editor_.setTextInputAriaLabel("Ignored files");
       
-      ignoresCaption_ = new CaptionWithHelp("Ignore:",
-                                             "Specifying ignored files",
-                                             editor_.getWidget());
-      ignoresCaption_.setIncludeVersionInfo(false);
-      ignoresCaption_.addStyleName(RES.styles().ignoresCaption());
-
       saveButton_ = new ThemedButton("Save", (ClickHandler)null); 
-      addButton(saveButton_, ElementIds.DIALOG_OK_BUTTON);
+      addButton(saveButton_);
       addCancelButton();
       setButtonAlignment(HasHorizontalAlignment.ALIGN_RIGHT);
       
@@ -171,7 +164,7 @@ public class IgnoreDialog extends ModalDialogBase
    }
    
    @Override
-   protected void focusInitialControl()
+   protected void onDialogShown()
    {
       editor_.focus();
    }
@@ -189,7 +182,7 @@ public class IgnoreDialog extends ModalDialogBase
       Styles styles();
    }
    
-   static Resources RES = (Resources)GWT.create(Resources.class);
+   static Resources RES = (Resources)GWT.create(Resources.class) ;
    public static void ensureStylesInjected()
    {
       RES.styles().ensureInjected();
@@ -197,7 +190,7 @@ public class IgnoreDialog extends ModalDialogBase
 
    private final DirectoryChooserTextBox dirChooser_;
    private final CaptionWithHelp ignoresCaption_;
-   private final AceEditor editor_;
+   private final AceEditor editor_ ;
    private final ThemedButton saveButton_;
    private final ProgressIndicator progressIndicator_;
   

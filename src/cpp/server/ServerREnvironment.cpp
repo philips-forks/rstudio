@@ -1,7 +1,7 @@
 /*
  * ServerREnvironment.cpp
  *
- * Copyright (C) 2009-12 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -15,12 +15,10 @@
 
 #include "ServerREnvironment.hpp"
 
-#include <shared_core/Error.hpp>
+#include <core/Error.hpp>
 #include <core/Log.hpp>
 #include <core/Thread.hpp>
 #include <core/r_util/REnvironment.hpp>
-
-#include <server_core/RVersionsScanner.hpp>
 
 #include <server/ServerOptions.hpp>
 #include <server/ServerUriHandlers.hpp>
@@ -33,45 +31,42 @@ namespace r_environment {
   
 namespace {
 
-boost::mutex s_versionMutex;
+// system R version detected during intialization
+core::r_util::RVersion s_systemVersion;
+
+// fallback version to use if no R environment is detected
+core::r_util::RVersion s_fallbackVersion;
 
 // R version detected during initialization (either the system
 // R version or the provided fallback)
 core::r_util::RVersion s_rVersion;
 
-boost::shared_ptr<RVersionsScanner> s_scanner;
 
-} // anonymous namespace
-
-void initializeScanner()
-{
-   s_scanner.reset(
-            new RVersionsScanner(true,
-                                 options().rsessionWhichR(),
-                                 options().rldpathPath(),
-                                 options().rsessionLdLibraryPath()));
 }
 
 bool initialize(std::string* pErrMsg)
 {
-   if (!s_scanner)
-      initializeScanner();
+   // attempt to detect system R version
+   bool detected = detectSystemRVersion(&s_rVersion, pErrMsg);
 
-   // if we already have a cached version (such as multi version setting it)
-   // then simply return success
-   if (!s_rVersion.empty())
+   // if we didn't detect then use fallback if possible
+   if (!detected && hasFallbackVersion())
    {
-      return true;
+      s_rVersion = s_fallbackVersion;
+      detected = true;
    }
 
-   // otherwise, we have no cached version (no multi version)
-   // detect it ourselves
-   bool detected = s_scanner->detectSystemRVersion(&s_rVersion, pErrMsg);
+   // return status
    return detected;
 }
 
 core::r_util::RVersion rVersion()
 {
+   // make a copy protected by a mutex just to be on the safest
+   // possible side (the copy is cheap and we're not sure what
+   // universal guarantees about multi-threaded read access to
+   // std::vector are)
+   static boost::mutex s_versionMutex ;
    LOCK_MUTEX(s_versionMutex)
    {
       return s_rVersion;
@@ -82,23 +77,76 @@ core::r_util::RVersion rVersion()
    return r_util::RVersion();
 }
 
-void setRVersion(const r_util::RVersion& version)
+bool hasFallbackVersion()
 {
-   LOCK_MUTEX(s_versionMutex)
+   return !s_fallbackVersion.empty();
+}
+
+void setFallbackVersion(const core::r_util::RVersion& version)
+{
+   s_fallbackVersion = version;
+}
+
+bool detectSystemRVersion(core::r_util::RVersion* pVersion,
+                          std::string* pErrMsg)
+{
+   // return cached version if we have it
+   if (!s_systemVersion.empty())
    {
-      s_rVersion = version;
+      *pVersion = s_systemVersion;
+      return true;
    }
-   END_LOCK_MUTEX
+
+   // check for which R override
+   FilePath rWhichRPath;
+   std::string whichROverride = server::options().rsessionWhichR();
+   if (!whichROverride.empty())
+      rWhichRPath = FilePath(whichROverride);
+
+   // if it's a directory then see if we can find the script
+   if (rWhichRPath.isDirectory())
+   {
+      FilePath rScriptPath = rWhichRPath.childPath("bin/R");
+      if (rScriptPath.exists())
+         rWhichRPath = rScriptPath;
+   }
+
+   // attempt to detect R version
+   bool result = detectRVersion(rWhichRPath, pVersion, pErrMsg);
+
+   // if we detected it then cache it
+   if (result)
+      s_systemVersion = *pVersion;
+
+   // return result
+   return result;
 }
 
 bool detectRVersion(const core::FilePath& rScriptPath,
                     core::r_util::RVersion* pVersion,
                     std::string* pErrMsg)
 {
-   if (!s_scanner)
-      initializeScanner();
+   // determine rLdPaths script location
+   FilePath rLdScriptPath(server::options().rldpathPath());
+   std::string ldLibraryPath = server::options().rsessionLdLibraryPath();
 
-   return s_scanner->detectRVersion(rScriptPath, pVersion, pErrMsg);
+   std::string rDetectedScriptPath;
+   std::string rVersion;
+   core::r_util::EnvironmentVars environment;
+   bool result = r_util::detectREnvironment(
+                                     rScriptPath,
+                                     rLdScriptPath,
+                                     ldLibraryPath,
+                                     &rDetectedScriptPath,
+                                     &rVersion,
+                                     &environment,
+                                     pErrMsg);
+   if (result)
+   {
+      *pVersion = core::r_util::RVersion(rVersion, environment);
+   }
+
+   return result;
 }
 
 } // namespace r_environment

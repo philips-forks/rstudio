@@ -1,7 +1,7 @@
 /*
  * DependencyManager.java
  *
- * Copyright (C) 2009-20 by RStudio, PBC
+ * Copyright (C) 2009-15 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -29,25 +29,18 @@ import org.rstudio.core.client.widget.ProgressIndicator;
 import org.rstudio.studio.client.application.events.EventBus;
 import org.rstudio.studio.client.common.GlobalDisplay;
 import org.rstudio.studio.client.common.GlobalProgressDelayer;
-import org.rstudio.studio.client.common.Value;
+import org.rstudio.studio.client.common.console.ConsoleProcess;
+import org.rstudio.studio.client.common.console.ProcessExitEvent;
 import org.rstudio.studio.client.common.dependencies.events.InstallShinyEvent;
 import org.rstudio.studio.client.common.dependencies.model.Dependency;
-import org.rstudio.studio.client.common.dependencies.model.DependencyList;
 import org.rstudio.studio.client.common.dependencies.model.DependencyServerOperations;
 import org.rstudio.studio.client.server.ServerError;
 import org.rstudio.studio.client.server.ServerRequestCallback;
-import org.rstudio.studio.client.workbench.commands.Commands;
-import org.rstudio.studio.client.workbench.model.Session;
-import org.rstudio.studio.client.workbench.views.console.events.ConsoleActivateEvent;
-import org.rstudio.studio.client.workbench.views.jobs.events.JobUpdatedEvent;
-import org.rstudio.studio.client.workbench.views.jobs.model.JobConstants;
-import org.rstudio.studio.client.workbench.views.jobs.model.JobUpdate;
 import org.rstudio.studio.client.workbench.views.packages.events.PackageStateChangedEvent;
 import org.rstudio.studio.client.workbench.views.packages.events.PackageStateChangedHandler;
+import org.rstudio.studio.client.workbench.views.vcs.common.ConsoleProgressDialog;
 
 import com.google.gwt.core.client.JsArray;
-import com.google.gwt.core.client.JsArrayString;
-import com.google.gwt.event.shared.HandlerRegistration;
 import com.google.gwt.user.client.Command;
 import com.google.inject.Inject;
 import com.google.inject.Singleton;
@@ -61,25 +54,22 @@ public class DependencyManager implements InstallShinyEvent.Handler,
       DependencyRequest(
             String progressCaptionIn,
             String userActionIn,
-            String contextIn,
             CommandWith2Args<String,CommandWithArg<Boolean>> userPromptIn,
-            List<Dependency> dependenciesIn,
+            Dependency[] dependenciesIn,
             boolean silentEmbeddedUpdateIn,
             CommandWithArg<Boolean> onCompleteIn)
       {
          progressCaption = progressCaptionIn;
          userAction = userActionIn;
          userPrompt = userPromptIn;
-         context = contextIn;
          dependencies = dependenciesIn;
          silentEmbeddedUpdate = silentEmbeddedUpdateIn;
          onComplete = onCompleteIn;
       }
       String progressCaption;
       String userAction;
-      String context;
       CommandWith2Args<String,CommandWithArg<Boolean>> userPrompt;
-      List<Dependency> dependencies;
+      Dependency[] dependencies;
       boolean silentEmbeddedUpdate;
       CommandWithArg<Boolean> onComplete;
    }
@@ -87,17 +77,12 @@ public class DependencyManager implements InstallShinyEvent.Handler,
    @Inject
    public DependencyManager(GlobalDisplay globalDisplay,
                             DependencyServerOperations server,
-                            EventBus eventBus,
-                            Session session,
-                            Commands commands)
+                            EventBus eventBus)
    {
       globalDisplay_ = globalDisplay;
       server_ = server;
       satisfied_ = new ArrayList<Dependency>();
       requestQueue_ = new LinkedList<DependencyRequest>();
-      session_ = session;
-      commands_ = commands;
-      events_ = eventBus;
       
       eventBus.addHandler(InstallShinyEvent.TYPE, this);
       eventBus.addHandler(PackageStateChangedEvent.TYPE, this);
@@ -105,12 +90,11 @@ public class DependencyManager implements InstallShinyEvent.Handler,
    
    public void withDependencies(String progressCaption,
         CommandWith2Args<String,CommandWithArg<Boolean>> userPrompt,
-        List<Dependency> dependencies,
+        Dependency[] dependencies, 
         boolean silentEmbeddedUpdate,
         CommandWithArg<Boolean> onComplete)
    {
       withDependencies(progressCaption,
-                       null,
                        null,
                        userPrompt,
                        dependencies,
@@ -120,79 +104,16 @@ public class DependencyManager implements InstallShinyEvent.Handler,
    
    public void withDependencies(String progressCaption,
                                 String userAction,
-                                String context,
-                                List<Dependency> dependencies,
+                                Dependency[] dependencies, 
                                 boolean silentEmbeddedUpdate,
                                 final CommandWithArg<Boolean> onComplete)
    {
       withDependencies(progressCaption, 
                        userAction, 
-                       context,
                        null, 
                        dependencies, 
                        silentEmbeddedUpdate,
                        onComplete);
-   }
-   
-   public void withRoxygen(String progressCaption, String userAction, final Command command)
-   {
-      withDependencies(
-            progressCaption,
-            userAction,
-            getFeatureDescription("roxygen"),
-            getFeatureDependencies("roxygen"),
-            false,
-            succeeded -> { if (succeeded) command.execute(); });
-   }
-   
-   public void withThemes(String userAction, final Command command)
-   {
-      withDependencies(
-         "Converting Theme",
-         userAction,
-         getFeatureDescription("theme_conversion"),
-         getFeatureDependencies("theme_conversion"),
-         true,
-         succeeded ->
-         {
-            if (succeeded)
-               command.execute();
-         });
-   }
-   
-   public void withR2D3(String userAction, final Command command)
-   {
-      withDependencies(
-        "R2D3",
-         userAction,
-         getFeatureDescription("r2d3"),
-         getFeatureDependencies("r2d3"),
-         true,
-         succeeded ->
-         {
-            if (succeeded)
-               command.execute();
-         });
-   }
-   
-   public void withRPlumber(String userAction, final Command command)
-   {
-      withDependencies(
-        "Plumber",
-         userAction,
-         getFeatureDescription("plumber"),
-         getFeatureDependencies("plumber"),
-         true,
-         new CommandWithArg<Boolean>()
-        {
-           @Override
-           public void execute(Boolean succeeded)
-           {
-              if (succeeded)
-                 command.execute();
-           }
-        }
-      );
    }
 
    public void withPackrat(String userAction, final Command command)
@@ -200,8 +121,9 @@ public class DependencyManager implements InstallShinyEvent.Handler,
       withDependencies(
          "Packrat",
          userAction,
-         getFeatureDescription("packrat"),
-         getFeatureDependencies("packrat"),
+         new Dependency[] {
+            Dependency.cranPackage("packrat", "0.4.8-1", true)
+         },
          false,
          new CommandWithArg<Boolean>()
          {
@@ -214,34 +136,30 @@ public class DependencyManager implements InstallShinyEvent.Handler,
          });
    }
    
-   public void withRenv(String userAction, final CommandWithArg<Boolean> onSuccess)
-   {
-      withDependencies(
-            "renv",
-            userAction,
-            getFeatureDescription("renv"),
-            getFeatureDependencies("renv"),
-            false,
-            onSuccess);
-   }
-   
    public void withRSConnect(String userAction, 
          boolean requiresRmarkdown,
          CommandWith2Args<String, CommandWithArg<Boolean>> userPrompt, 
          final CommandWithArg<Boolean> onCompleted)
    {
       // build dependency array
-      List<Dependency> deps = getFeatureDependencies("rsconnect");
+      ArrayList<Dependency> deps = new ArrayList<Dependency>();
+      deps.add(Dependency.cranPackage("digest", "0.6"));
+      deps.add(Dependency.cranPackage("RCurl", "1.95"));
+      deps.add(Dependency.cranPackage("RJSONIO", "1.0"));
+      deps.add(Dependency.cranPackage("PKI", "0.1"));
+      deps.add(Dependency.cranPackage("rstudioapi", "0.5"));
+      deps.add(Dependency.cranPackage("yaml", "2.1.5"));
       if (requiresRmarkdown)
-         deps.addAll(getFeatureDependencies("rmarkdown"));
+         deps.addAll(rmarkdownDependencies());
+      deps.add(Dependency.cranPackage("packrat", "0.4.8-1", true));
+      deps.add(Dependency.embeddedPackage("rsconnect"));
       
       withDependencies(
         "Publishing",
         userAction,
-        getFeatureDescription("rsconnect"),
         userPrompt,
-        deps,
-        true, // silently update any embedded packages needed (none at present)
+        deps.toArray(new Dependency[deps.size()]),
+        true, // we want the embedded rsconnect package to be updated if needed
         onCompleted
       );
    }
@@ -254,13 +172,19 @@ public class DependencyManager implements InstallShinyEvent.Handler,
    public void withRMarkdown(String progressCaption, String userAction, 
          final Command command)
    {
-     withRMarkdown(
+     withDependencies(
         progressCaption,
         userAction, 
-        succeeded ->
+        rmarkdownDependenciesArray(), 
+        true, // we want to update to the embedded version if needed
+        new CommandWithArg<Boolean>()
         {
-           if (succeeded)
-              command.execute();
+         @Override
+         public void execute(Boolean succeeded)
+         {
+            if (succeeded)
+               command.execute();
+         }
         }
      );
    }
@@ -271,27 +195,38 @@ public class DependencyManager implements InstallShinyEvent.Handler,
      withDependencies(
         progressCaption,
         userAction, 
-        getFeatureDescription("rmarkdown"),
-        getFeatureDependencies("rmarkdown"),
-        true, // we want to update to the embedded version if needed
-        succeeded -> 
-        {
-           if (succeeded)
-           {
-              // if we successfully installed the latest R Markdown version,
-              // update the session cache of package information.
-              session_.getSessionInfo().setKnitParamsAvailable(true);
-              session_.getSessionInfo().setRMarkdownPackageAvailable(true);
-              session_.getSessionInfo().setKnitWorkingDirAvailable(true);
-              session_.getSessionInfo().setPptAvailable(true);
-              
-              // restore removed commands
-              commands_.knitWithParameters().restore();
-           }
-           command.execute(succeeded);
-        });
+        rmarkdownDependenciesArray(), 
+        true, 
+        command);
    }
 
+   public static List<Dependency> rmarkdownDependencies()
+   {
+      ArrayList<Dependency> deps = new ArrayList<Dependency>();
+      deps.add(Dependency.cranPackage("evaluate", "0.8"));
+      deps.add(Dependency.cranPackage("digest", "0.6"));
+      deps.add(Dependency.cranPackage("highr", "0.3"));
+      deps.add(Dependency.cranPackage("markdown", "0.7"));
+      deps.add(Dependency.cranPackage("stringr", "0.6"));
+      deps.add(Dependency.cranPackage("yaml", "2.1.5"));
+      deps.add(Dependency.cranPackage("Rcpp", "0.11.5"));
+      deps.add(Dependency.cranPackage("htmltools", "0.3.5"));
+      deps.add(Dependency.cranPackage("caTools", "1.14"));
+      deps.add(Dependency.cranPackage("bitops", "1.0-6"));
+      deps.add(Dependency.cranPackage("knitr", "1.14"));
+      deps.add(Dependency.cranPackage("jsonlite", "0.9.19"));
+      deps.add(Dependency.cranPackage("base64enc", "0.1-3"));
+      deps.add(Dependency.cranPackage("rprojroot", "1.0"));
+      deps.add(Dependency.cranPackage("rmarkdown", "1.6"));
+      return deps;
+   }
+   
+   public static Dependency[] rmarkdownDependenciesArray()
+   {
+      List<Dependency> deps = rmarkdownDependencies();
+      return deps.toArray(new Dependency[deps.size()]);
+   }
+ 
    public void withShiny(final String userAction, final Command command)
    {
       // create user prompt command
@@ -331,7 +266,7 @@ public class DependencyManager implements InstallShinyEvent.Handler,
        withDependencies(
           "Checking installed packages",
           userPrompt,
-          getFeatureDependencies("shiny"),
+          shinyDependenciesArray(),
           true,
           new CommandWithArg<Boolean>()
           {
@@ -347,11 +282,15 @@ public class DependencyManager implements InstallShinyEvent.Handler,
    
    public void withShinyAddins(final Command command)
    {
-      withDependencies(
+      // define dependencies
+      ArrayList<Dependency> deps = shinyDependencies(); // htmltools version
+      deps.add(Dependency.cranPackage("miniUI", "0.1.1", true));
+      deps.add(Dependency.cranPackage("rstudioapi", "0.5", true));
+      
+      withDependencies(   
         "Checking installed packages",
         "Executing addins", 
-        getFeatureDescription("shiny_addins"),
-        getFeatureDependencies("shiny_addins"),
+        deps.toArray(new Dependency[deps.size()]),
         false,
         new CommandWithArg<Boolean>()
         {
@@ -365,58 +304,33 @@ public class DependencyManager implements InstallShinyEvent.Handler,
      );
    }
    
+   private Dependency[] shinyDependenciesArray()
+   {
+      ArrayList<Dependency> deps = shinyDependencies();
+      return deps.toArray(new Dependency[deps.size()]);
+   }
+
+   private ArrayList<Dependency> shinyDependencies()
+         {
+      ArrayList<Dependency> deps = new ArrayList<Dependency>();
+      deps.add(Dependency.cranPackage("Rcpp", "0.11.5"));
+      deps.add(Dependency.cranPackage("httpuv", "1.3.3"));
+      deps.add(Dependency.cranPackage("mime", "0.3"));
+      deps.add(Dependency.cranPackage("jsonlite", "0.9.19"));
+      deps.add(Dependency.cranPackage("xtable", "1.7"));
+      deps.add(Dependency.cranPackage("digest", "0.6"));
+      deps.add(Dependency.cranPackage("R6", "2.0"));
+      deps.add(Dependency.cranPackage("sourcetools", "0.1.5"));
+      deps.add(Dependency.cranPackage("htmltools", "0.3.5"));
+      deps.add(Dependency.cranPackage("shiny", "0.13", true));
+      return deps;
+         }
+   
    @Override
    public void onInstallShiny(InstallShinyEvent event)
    {
       withShiny(event.getUserAction(), 
                 new Command() { public void execute() {}});
-   }
-   
-   public void withReticulate(final String progressCaption,
-                              final String userPrompt,
-                              final Command command)
-   {
-      withDependencies(
-            progressCaption,
-            userPrompt,
-            getFeatureDescription("reticulate"),
-            getFeatureDependencies("reticulate"),
-            true,
-            new CommandWithArg<Boolean>()
-            {
-               @Override
-               public void execute(Boolean succeeded)
-               {
-                  if (succeeded)
-                     command.execute();
-               }
-            });
-   }
-   
-   public void withStan(final String progressCaption,
-                        final String userPrompt,
-                        final Command command)
-   {
-      withDependencies(
-            progressCaption,
-            userPrompt,
-            getFeatureDescription("stan"),
-            getFeatureDependencies("stan"),
-            true,
-            (Boolean success) -> { if (success) command.execute(); });
-   }
-   
-   public void withTinyTeX(final String progressCaption,
-                           final String userPrompt,
-                           final Command command)
-   {
-      withDependencies(
-            progressCaption,
-            userPrompt,
-            getFeatureDescription("tinytex"),
-            getFeatureDependencies("tinytex"),
-            true,
-            (Boolean success) -> { if (success) command.execute(); });
    }
    
    @Override
@@ -434,8 +348,7 @@ public class DependencyManager implements InstallShinyEvent.Handler,
      withDependencies(
         "Preparing Import from CSV",
         userAction, 
-        getFeatureDescription("import_csv"),
-        getFeatureDependencies("import_csv"),
+        dataImportCsvDependenciesArray(), 
         false,
         new CommandWithArg<Boolean>()
         {
@@ -447,6 +360,20 @@ public class DependencyManager implements InstallShinyEvent.Handler,
            }
         }
      );
+   }
+   
+   private ArrayList<Dependency> dataImportCsvDependencies()
+   {
+      ArrayList<Dependency> deps = new ArrayList<Dependency>();
+      deps.add(Dependency.cranPackage("readr", "0.2.2"));
+      deps.add(Dependency.cranPackage("Rcpp", "0.11.5"));
+      return deps;
+   }
+   
+   private Dependency[] dataImportCsvDependenciesArray()
+   {
+      ArrayList<Dependency> deps = dataImportCsvDependencies();
+      return deps.toArray(new Dependency[deps.size()]);
    }
    
    public void withDataImportSAV(String userAction, final Command command)
@@ -454,8 +381,7 @@ public class DependencyManager implements InstallShinyEvent.Handler,
      withDependencies(
         "Preparing Import from SPSS, SAS and Stata",
         userAction, 
-        getFeatureDescription("import_sav"),
-        getFeatureDependencies("import_sav"),
+        dataImportSavDependenciesArray(), 
         false,
         new CommandWithArg<Boolean>()
         {
@@ -469,13 +395,26 @@ public class DependencyManager implements InstallShinyEvent.Handler,
      );
    }
    
+   private ArrayList<Dependency> dataImportSavDependencies()
+   {
+      ArrayList<Dependency> deps = new ArrayList<Dependency>();
+      deps.add(Dependency.cranPackage("haven", "0.2.0"));
+      deps.add(Dependency.cranPackage("Rcpp", "0.11.5"));
+      return deps;
+   }
+   
+   private Dependency[] dataImportSavDependenciesArray()
+   {
+      ArrayList<Dependency> deps = dataImportSavDependencies();
+      return deps.toArray(new Dependency[deps.size()]);
+   }
+
    public void withDataImportXLS(String userAction, final Command command)
    {
      withDependencies(
         "Preparing Import from Excel",
         userAction, 
-        getFeatureDescription("import_xls"),
-        getFeatureDependencies("import_xls"),
+        dataImportXlsDependenciesArray(), 
         false,
         new CommandWithArg<Boolean>()
         {
@@ -489,13 +428,26 @@ public class DependencyManager implements InstallShinyEvent.Handler,
      );
    }
    
+   private ArrayList<Dependency> dataImportXlsDependencies()
+   {
+      ArrayList<Dependency> deps = new ArrayList<Dependency>();
+      deps.add(Dependency.cranPackage("readxl", "0.1.0"));
+      deps.add(Dependency.cranPackage("Rcpp", "0.11.5"));
+      return deps;
+   }
+   
+   private Dependency[] dataImportXlsDependenciesArray()
+   {
+      ArrayList<Dependency> deps = dataImportXlsDependencies();
+      return deps.toArray(new Dependency[deps.size()]);
+   }
+
    public void withDataImportXML(String userAction, final Command command)
    {
      withDependencies(
         "Preparing Import from XML",
         userAction, 
-        getFeatureDescription("import_xml"),
-        getFeatureDependencies("import_xml"),
+        dataImportXmlDependenciesArray(), 
         false,
         new CommandWithArg<Boolean>()
         {
@@ -509,13 +461,25 @@ public class DependencyManager implements InstallShinyEvent.Handler,
      );
    }
    
+   private ArrayList<Dependency> dataImportXmlDependencies()
+   {
+      ArrayList<Dependency> deps = new ArrayList<Dependency>();
+      deps.add(Dependency.cranPackage("xml2", "0.1.2"));
+      return deps;
+   }
+   
+   private Dependency[] dataImportXmlDependenciesArray()
+   {
+      ArrayList<Dependency> deps = dataImportXmlDependencies();
+      return deps.toArray(new Dependency[deps.size()]);
+   }
+
    public void withDataImportJSON(String userAction, final Command command)
    {
      withDependencies(
         "Preparing Import from JSON",
         userAction, 
-        getFeatureDescription("import_json"),
-        getFeatureDependencies("import_json"),
+        dataImportJsonDependenciesArray(), 
         false,
         new CommandWithArg<Boolean>()
         {
@@ -527,6 +491,19 @@ public class DependencyManager implements InstallShinyEvent.Handler,
            }
         }
      );
+   }
+   
+   private ArrayList<Dependency> dataImportJsonDependencies()
+   {
+      ArrayList<Dependency> deps = new ArrayList<Dependency>();
+      deps.add(Dependency.cranPackage("jsonlite", "0.9.19"));
+      return deps;
+   }
+   
+   private Dependency[] dataImportJsonDependenciesArray()
+   {
+      ArrayList<Dependency> deps = dataImportJsonDependencies();
+      return deps.toArray(new Dependency[deps.size()]);
    }
 
    public void withDataImportJDBC(String userAction, final Command command)
@@ -534,8 +511,7 @@ public class DependencyManager implements InstallShinyEvent.Handler,
      withDependencies(
         "Preparing Import from JDBC",
         userAction, 
-        getFeatureDescription("import_jdbc"),
-        getFeatureDependencies("import_jdbc"),
+        dataImportJdbcDependenciesArray(), 
         false,
         new CommandWithArg<Boolean>()
         {
@@ -549,13 +525,26 @@ public class DependencyManager implements InstallShinyEvent.Handler,
      );
    }
    
+   private ArrayList<Dependency> dataImportJdbcDependencies()
+   {
+      ArrayList<Dependency> deps = new ArrayList<Dependency>();
+      deps.add(Dependency.cranPackage("RJDBC", "0.2-5"));
+      deps.add(Dependency.cranPackage("rJava", "0.4-15"));
+      return deps;
+   }
+   
+   private Dependency[] dataImportJdbcDependenciesArray()
+   {
+      ArrayList<Dependency> deps = dataImportJdbcDependencies();
+      return deps.toArray(new Dependency[deps.size()]);
+   }
+
    public void withDataImportODBC(String userAction, final Command command)
    {
      withDependencies(
         "Preparing Import from ODBC",
         userAction, 
-        getFeatureDescription("import_odbc"),
-        getFeatureDependencies("import_odbc"),
+        dataImportOdbcDependenciesArray(), 
         false,
         new CommandWithArg<Boolean>()
         {
@@ -567,6 +556,19 @@ public class DependencyManager implements InstallShinyEvent.Handler,
            }
         }
      );
+   }
+   
+   private ArrayList<Dependency> dataImportOdbcDependencies()
+   {
+      ArrayList<Dependency> deps = new ArrayList<Dependency>();
+      deps.add(Dependency.cranPackage("RODBC", "1.3-12"));
+      return deps;
+   }
+   
+   private Dependency[] dataImportOdbcDependenciesArray()
+   {
+      ArrayList<Dependency> deps = dataImportOdbcDependencies();
+      return deps.toArray(new Dependency[deps.size()]);
    }
 
    public void withDataImportMongo(String userAction, final Command command)
@@ -574,8 +576,7 @@ public class DependencyManager implements InstallShinyEvent.Handler,
      withDependencies(
         "Preparing Import from Mongo DB",
         userAction, 
-        getFeatureDescription("import_mongo"),
-        getFeatureDependencies("import_mongo"),
+        dataImportMongoDependenciesArray(), 
         false,
         new CommandWithArg<Boolean>()
         {
@@ -589,13 +590,34 @@ public class DependencyManager implements InstallShinyEvent.Handler,
      );
    }
    
+   private ArrayList<Dependency> dataImportMongoDependencies()
+   {
+      ArrayList<Dependency> deps = new ArrayList<Dependency>();
+      deps.add(Dependency.cranPackage("mongolite", "0.8"));
+      deps.add(Dependency.cranPackage("jsonlite", "0.9.19"));
+      return deps;
+   }
+   
+   private Dependency[] dataImportMongoDependenciesArray()
+   {
+      ArrayList<Dependency> deps = dataImportMongoDependencies();
+      return deps.toArray(new Dependency[deps.size()]);
+   }
+
    public void withProfvis(String userAction, final Command command)
    {
      withDependencies(
         "Preparing Profiler",
         userAction, 
-        getFeatureDescription("profvis"),
-        getFeatureDependencies("profvis"),
+        new Dependency[] {
+           Dependency.cranPackage("stringr", "0.6"),
+           Dependency.cranPackage("jsonlite", "0.9.19"),
+           Dependency.cranPackage("htmltools", "0.3"),
+           Dependency.cranPackage("yaml", "2.1.5"),
+           Dependency.cranPackage("htmlwidgets", "0.6", true),
+           Dependency.cranPackage("profvis", "0.3.2", true)
+          
+        }, 
         true, // update profvis if needed
         new CommandWithArg<Boolean>()
         {
@@ -617,8 +639,7 @@ public class DependencyManager implements InstallShinyEvent.Handler,
      withDependencies(
         "Preparing Connection",
         connectionName, 
-        "Database Connectivity",
-        connectionPackageDependencies(packageName, packageVersion), 
+        connectionPackageDependenciesArray(packageName, packageVersion), 
         false,
         new CommandWithArg<Boolean>()
         {
@@ -631,162 +652,20 @@ public class DependencyManager implements InstallShinyEvent.Handler,
         }
      );
    }
-
-   public void withKeyring(final Command command)
-   {
-     withDependencies(
-        "Preparing Keyring",
-        "Using keyring", 
-        getFeatureDescription("keyring"),
-        getFeatureDependencies("keyring"),
-        true, // update keyring if needed
-        new CommandWithArg<Boolean>()
-        {
-           @Override
-           public void execute(Boolean succeeded)
-           {
-              if (succeeded)
-                 command.execute();
-           }
-        }
-     );
-   }
    
-   public void withOdbc(final Command command, final String name)
-   {
-     withDependencies(
-        "Preparing " + name,
-        "Using " + name, 
-        getFeatureDescription("odbc"),
-        getFeatureDependencies("odbc"),
-        true, // update odbc if needed
-        new CommandWithArg<Boolean>()
-        {
-           @Override
-           public void execute(Boolean succeeded)
-           {
-              if (succeeded)
-                 command.execute();
-           }
-        }
-     );
-   }
-
-   public void withTestPackage(final Command command, boolean useTestThat)
-   {
-      List<Dependency> dependencies = new ArrayList<Dependency>();
-      String message;
-      if (useTestThat)
-      {
-         dependencies.addAll(getFeatureDependencies("testthat"));
-         message = "Using testthat";
-      }
-      else
-      {
-         dependencies.addAll(getFeatureDependencies("shinytest"));
-         message = "Using shinytest";
-      }
-
-      withDependencies(
-         "Preparing Tests",
-         message, 
-         "Testing Tools",
-         dependencies, 
-         true, // update package if needed
-         new CommandWithArg<Boolean>()
-         {
-            @Override
-            public void execute(Boolean succeeded)
-            {
-               if (succeeded) {
-                  command.execute();
-               }
-            }
-         }
-      );
-   }
-
-   public void withDBI(String userAction, final Command command)
-   {
-      withDependencies(
-        "DBI",
-         userAction,
-         getFeatureDescription("dbi"),
-         getFeatureDependencies("dbi"),
-         true,
-         new CommandWithArg<Boolean>()
-        {
-           @Override
-           public void execute(Boolean succeeded)
-           {
-              if (succeeded)
-                 command.execute();
-           }
-        }
-      );
-   }
-
-   public void withRSQLite(String userAction, final Command command)
-   {
-      withDependencies(
-        "RSQLite",
-         userAction,
-         getFeatureDescription("rsqlite"),
-         getFeatureDependencies("rsqlite"),
-         true,
-         new CommandWithArg<Boolean>()
-        {
-           @Override
-           public void execute(Boolean succeeded)
-           {
-              if (succeeded)
-                 command.execute();
-           }
-        }
-      );
-   }
-   
-   public void withTutorialDependencies(final Command command)
-   {
-      withDependencies(
-            "Starting tutorial",
-            "Starting a tutorial",
-            getFeatureDescription("tutorial"),
-            getFeatureDependencies("tutorial"),
-            true,
-            (Boolean succeeded) ->
-            {
-               if (succeeded)
-                  command.execute();
-            });
-   }
-   
-   public void withRagg(String userAction, final CommandWithArg<Boolean> command)
-   {
-      withDependencies(
-            "AGG",
-            "Using the AGG renderer",
-            getFeatureDescription("ragg"),
-            getFeatureDependencies("ragg"),
-            true,
-            command);
-   }
-   
-   private ArrayList<Dependency> connectionPackageDependencies(
-              String packageName,
-              String packageVersion)
+   private Dependency[] connectionPackageDependenciesArray(String packageName,
+                                                           String packageVersion)
    {
     ArrayList<Dependency> deps = new ArrayList<Dependency>();
       deps.add(Dependency.cranPackage(packageName, packageVersion));
 
-      return deps;
+      return deps.toArray(new Dependency[deps.size()]);
    }
    
    private void withDependencies(String progressCaption,
          final String userAction,
-         final String context,
          final CommandWith2Args<String,CommandWithArg<Boolean>> userPrompt,
-         List<Dependency> dependencies, 
+         Dependency[] dependencies, 
          final boolean silentEmbeddedUpdate,
          final CommandWithArg<Boolean> onComplete)
    {
@@ -796,15 +675,14 @@ public class DependencyManager implements InstallShinyEvent.Handler,
       // results, all such duplicate requests will return simultaneously, fed
       // by a single RPC)
       requestQueue_.add(new DependencyRequest(progressCaption, userAction, 
-            context, userPrompt, dependencies, silentEmbeddedUpdate, 
+            userPrompt, dependencies, silentEmbeddedUpdate, 
             new CommandWithArg<Boolean>()
             {
                @Override
                public void execute(Boolean arg)
                {
                   // complete the user action, if any
-                  if (onComplete != null)
-                     onComplete.execute(arg);
+                  onComplete.execute(arg);
 
                   // process the next request in the queue
                   processingQueue_ = false;
@@ -826,26 +704,25 @@ public class DependencyManager implements InstallShinyEvent.Handler,
    {
       // convert dependencies to JsArray, excluding satisfied dependencies
       final JsArray<Dependency> deps = JsArray.createArray().cast();
-      for (Dependency dep: req.dependencies)
+      for (int i = 0; i < req.dependencies.length; i++)
       {
          boolean satisfied = false;
          for (Dependency d: satisfied_)
          {
-            if (dep.isEqualTo(d))
+            if (req.dependencies[i].isEqualTo(d))
             {
                satisfied = true;
                break;
             }
          }
          if (!satisfied)
-            deps.push(dep);
+            deps.push(req.dependencies[i]);
       }
       
       // if no unsatisfied dependencies were found, we're done already
       if (deps.length() == 0)
       {
-         if (req.onComplete != null)
-            req.onComplete.execute(true);
+         req.onComplete.execute(true);
          return;
       }
 
@@ -870,8 +747,7 @@ public class DependencyManager implements InstallShinyEvent.Handler,
             // if we've satisfied all dependencies then execute the command
             if (unsatisfiedDeps.length() == 0)
             {
-               if (req.onComplete != null)
-                  req.onComplete.execute(true);
+               req.onComplete.execute(true);
                return;
             }
             
@@ -903,8 +779,7 @@ public class DependencyManager implements InstallShinyEvent.Handler,
                      unsatisfiedVersions + "\n" +
                      "Check that getOption(\"repos\") refers to a CRAN " + 
                      "repository that contains the needed package versions.");
-               if (req.onComplete != null)
-                  req.onComplete.execute(false);
+               req.onComplete.execute(false);
             }
             else
             {
@@ -918,8 +793,7 @@ public class DependencyManager implements InstallShinyEvent.Handler,
                      // bail if user didn't confirm
                      if (!confirmed)
                      {
-                        if (req.onComplete != null)
-                           req.onComplete.execute(false);
+                        req.onComplete.execute(false);
                         return;
                      }
 
@@ -934,7 +808,6 @@ public class DependencyManager implements InstallShinyEvent.Handler,
                         newArray.set(i, unsatisfiedDeps.get(i));
                      }
                      installDependencies(
-                           req.context,
                            newArray, 
                            req.silentEmbeddedUpdate, 
                            req.onComplete);
@@ -966,71 +839,46 @@ public class DependencyManager implements InstallShinyEvent.Handler,
          public void onError(ServerError error)
          {
             progress.onError(error.getUserMessage());
-            if (req.onComplete != null)
-               req.onComplete.execute(false);
+            req.onComplete.execute(false);
          }
       });
       
    }
    
-   private void installDependencies(final String context,
-                                    final JsArray<Dependency> dependencies,
+   private void installDependencies(final JsArray<Dependency> dependencies,
                                     final boolean silentEmbeddedUpdate,
                                     final CommandWithArg<Boolean> onComplete)
    {
-    
-      // Command to run when dependency installation is complete
-      CommandWithArg<Boolean> onCompletion = satisfied ->
-      {
-         // Confirmed: dependencies are in place. Switch
-         // away from the Jobs tab to put the user back in
-         // context.
-         if (satisfied)
-         {
-            events_.fireEvent(new ConsoleActivateEvent(false));
-         }
-         
-         onComplete.execute(satisfied);
-      };
-
       server_.installDependencies(
-         context,
          dependencies, 
-         new ServerRequestCallback<String>() {
+         new ServerRequestCallback<ConsoleProcess>() {
+   
             @Override
-            public void onResponseReceived(String jobId)
+            public void onResponseReceived(ConsoleProcess proc)
             {   
-               // Hold handler registration so we can clean it up when finished
-               final Value<HandlerRegistration> reg = new Value<HandlerRegistration>(null);
-               reg.setValue(events_.addHandler(JobUpdatedEvent.TYPE, event ->
-               {
-                  // Ensure the update is for this job
-                  JobUpdate update = event.getData();
-                  if (update.job.id != jobId)
-                     return;
-                  
-                  if (update.job.state == JobConstants.STATE_SUCCEEDED)
+               final ConsoleProgressDialog dialog = 
+                     new ConsoleProgressDialog(proc, server_);
+               dialog.showModal();
+   
+               proc.addProcessExitHandler(
+                  new ProcessExitEvent.Handler()
                   {
-                     // If the job succeeded, check to be sure our dependencies
-                     // are now satisfied
-                     ifDependenciesSatisifed(dependencies, 
-                           silentEmbeddedUpdate, 
-                           onCompletion);
-
-                     // Remove handler so we don't get notified on another job
-                     // completion.
-                     reg.getValue().removeHandler();
-                  }
-                  else if (update.job.state == JobConstants.STATE_FAILED ||
-                           update.job.state == JobConstants.STATE_CANCELLED)
-                  {
-                     // If the job failed, or was cancelled, we're done
-                     if (onComplete != null)
-                        onComplete.execute(false);
-                     reg.getValue().removeHandler();
-                  }
-               }));
-            }
+                     @Override
+                     public void onProcessExit(ProcessExitEvent event)
+                     {
+                        ifDependenciesSatisifed(dependencies, 
+                              silentEmbeddedUpdate, 
+                              new CommandWithArg<Boolean>(){
+                           @Override
+                           public void execute(Boolean succeeded)
+                           {
+                              dialog.hide();
+                              onComplete.execute(succeeded);
+                           }
+                        });     
+                     }
+                  }); 
+            } 
 
             @Override
             public void onError(ServerError error)
@@ -1039,8 +887,7 @@ public class DependencyManager implements InstallShinyEvent.Handler,
                globalDisplay_.showErrorMessage(
                      "Dependency installation failed",
                      error.getUserMessage());
-               if (onComplete != null)
-                  onComplete.execute(false);
+               onComplete.execute(false);
             }
          });
    }
@@ -1056,8 +903,7 @@ public class DependencyManager implements InstallShinyEvent.Handler,
            @Override
            public void onResponseReceived(JsArray<Dependency> dependencies)
            {
-              if (onComplete != null)
-                 onComplete.execute(dependencies.length() == 0);
+              onComplete.execute(dependencies.length() == 0);
            }
 
            @Override
@@ -1067,8 +913,7 @@ public class DependencyManager implements InstallShinyEvent.Handler,
               globalDisplay_.showErrorMessage(
                     "Could not determine available packages",
                     error.getUserMessage());
-              if (onComplete != null)
-                 onComplete.execute(false);
+              onComplete.execute(false);
            }
         });
    }
@@ -1204,60 +1049,9 @@ public class DependencyManager implements InstallShinyEvent.Handler,
       }
    }
    
-   /**
-    * Retrieves a user-friendly name for an IDE feature that requires
-    * dependencies
-    * 
-    * @param feature The identifier of the IDE feature.
-    * @return A string with a user-friendly name for the feature.
-    */
-   private String getFeatureDescription(String feature)
-   {
-      return session_.getSessionInfo().getPackageDependencies()
-            .getFeatureDescription(feature);
-   }
-
-   /**
-    * Retrieves a list of R package dependencies for an IDE feature.
-    * 
-    * @param feature The identifier of the IDE feature.
-    * @return An array of R packages the feature depends on.
-    */
-   private ArrayList<Dependency> getFeatureDependencies(String feature)
-   {
-      // The list of R package dependencies to return
-      ArrayList<Dependency> dependencies = new ArrayList<Dependency>();
-
-      // Read a list of package dependencies for this feature
-      DependencyList list = session_.getSessionInfo().getPackageDependencies();
-      JsArrayString packages = list.getFeatureDependencies(feature);
-      
-      // Find the metadata for each package (where we should install it from,
-      // what version we need, etc.)
-      for (int i = 0; i < packages.length(); i++)
-      {
-         Dependency dep = list.getPackage(packages.get(i));
-         if (dep == null)
-         {
-            Debug.logWarning("No dependency record found for package '" + 
-                             packages.get(i) + "' (required by feature '" +
-                             feature + "')");
-            continue;
-         }
-         dep.setName(packages.get(i));
-         dependencies.add(dep);
-      }
-      
-      // Return the completed list
-      return dependencies;
-   }
-   
    private boolean processingQueue_ = false;
    private final LinkedList<DependencyRequest> requestQueue_;
    private final GlobalDisplay globalDisplay_;
    private final DependencyServerOperations server_;
    private final ArrayList<Dependency> satisfied_;
-   private final Session session_;
-   private final Commands commands_;
-   private final EventBus events_;
 }

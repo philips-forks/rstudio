@@ -1,7 +1,7 @@
 /*
  * SetupChunkOptionsPopupPanel.java
  *
- * Copyright (C) 2009-12 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -23,7 +23,7 @@ import org.rstudio.core.client.Debug;
 import org.rstudio.core.client.StringUtil;
 import org.rstudio.core.client.js.JsObject;
 import org.rstudio.core.client.js.JsUtil;
-import org.rstudio.core.client.widget.Toggle;
+import org.rstudio.core.client.widget.TriStateCheckBox;
 import org.rstudio.studio.client.RStudioGinjector;
 import org.rstudio.studio.client.common.codetools.CodeToolsServerOperations;
 import org.rstudio.studio.client.server.ServerError;
@@ -73,12 +73,17 @@ public class SetupChunkOptionsPopupPanel extends ChunkOptionsPopupPanel
       for (int i = row; i < max; i++)
       {
          String line = display_.getLine(i);
-         if (line == "```")
+         if (line.equals("```"))
             return i;
       }
       
       return -1;
       
+   }
+   
+   private String trueString(boolean value)
+   {
+      return value ? "TRUE" : "FALSE";
    }
    
    private void addParam(Map<String, String> options, String name)
@@ -88,21 +93,11 @@ public class SetupChunkOptionsPopupPanel extends ChunkOptionsPopupPanel
    }
    
    private void addCheckboxParam(Map<String, String> options,
-                                 Toggle toggle,
+                                 TriStateCheckBox checkBox,
                                  String name)
    {
-      switch (toggle.getState())
-      {
-      case INDETERMINATE:
-         options.remove(name);
-         break;
-      case OFF:
-         options.put(name, "FALSE");
-         break;
-      case ON:
-         options.put(name, "TRUE");
-         break;
-      }
+      if (!checkBox.isIndeterminate())
+         options.put(name, trueString(checkBox.isChecked()));
    }
    
    private void addTextBoxParam(Map<String, String> options,
@@ -138,7 +133,7 @@ public class SetupChunkOptionsPopupPanel extends ChunkOptionsPopupPanel
             break;
          
          Position startPos = iterator.getCurrentTokenPosition();
-         if (token.getValue() != "opts_chunk")
+         if (!token.getValue().equals("opts_chunk"))
             continue;
          
          Position knitrPrefixPos = findKnitrPrefix(iterator.clone());
@@ -146,15 +141,15 @@ public class SetupChunkOptionsPopupPanel extends ChunkOptionsPopupPanel
             startPos = knitrPrefixPos;
          
          token = iterator.stepForward();
-         if (token.getValue() != "$")
+         if (!token.getValue().equals("$"))
             continue;
          
          token = iterator.stepForward();
-         if (token.getValue() != "set")
+         if (!token.getValue().equals("set"))
             continue;
          
          token = iterator.stepForward();
-         if (token.getValue() != "(")
+         if (!token.getValue().equals("("))
             continue;
          
          if (!iterator.fwdToMatchingToken())

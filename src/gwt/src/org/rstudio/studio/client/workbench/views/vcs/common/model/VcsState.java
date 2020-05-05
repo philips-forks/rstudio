@@ -1,7 +1,7 @@
 /*
  * VcsState.java
  *
- * Copyright (C) 2009-12 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -106,7 +106,7 @@ public abstract class VcsState
             {
                for (int i = 0; i < status_.size(); i++)
                {
-                  if (status.getRawPath() == status_.get(i).getRawPath())
+                  if (status.getRawPath().equals(status_.get(i).getRawPath()))
                   {
                      if (StringUtil.notNull(status.getStatus()).trim().length() == 0)
                         status_.remove(i);

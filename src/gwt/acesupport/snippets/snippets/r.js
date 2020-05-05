@@ -1,7 +1,7 @@
 /*
  * r.js
  *
- * Copyright (C) 2009-15 by RStudio, PBC
+ * Copyright (C) 2009-15 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -155,42 +155,10 @@ var snippets = [
    },
 
    /* Utilities */
+
    {
       name: "ts",
       content: '`r paste("#", date(), "------------------------------\\n")`'
-   },
-
-   /* Shiny */
-   {
-      name: "shinyapp",
-      content: [
-         'library(shiny)',
-         '',
-         'ui <- fluidPage(',
-         '  ${0}',
-         ')',
-         '',
-         'server <- function(input, output, session) {',
-         '  ',
-         '}',
-         '',
-         'shinyApp(ui, server)'
-      ].join("\n")
-   },
-   {
-      name: "shinymod",
-      content: [
-         '${1:name}_UI <- function(id) {',
-         '  ns <- NS(id)',
-         '  tagList(',
-         '    ${0}',
-         '  )',
-         '}',
-         '',
-         '${1:name} <- function(input, output, session) {',
-         '  ',
-         '}'
-      ].join("\n")
    }
 ];
 

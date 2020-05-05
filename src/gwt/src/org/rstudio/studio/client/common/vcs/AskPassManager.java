@@ -1,7 +1,7 @@
 /*
  * AskPassManager.java
  *
- * Copyright (C) 2009-12 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -15,7 +15,6 @@
 package org.rstudio.studio.client.common.vcs;
 
 import org.rstudio.core.client.Debug;
-import org.rstudio.core.client.MessageDisplay;
 import org.rstudio.core.client.StringUtil;
 import org.rstudio.core.client.MessageDisplay.PromptWithOptionResult;
 import org.rstudio.core.client.widget.Operation;
@@ -66,7 +65,7 @@ public class AskPassManager
                 !satelliteManager.satelliteWindowExists(targetWindow))
                return true;
             
-            // otherwise don't handle
+            // othewise don't handle
             else
                return false;
          }
@@ -79,21 +78,10 @@ public class AskPassManager
             
             askpassPending_ = true;
             
-            String prompt = e.getPrompt();
-            
-            String title = "Password";
-            int dialogType = MessageDisplay.INPUT_PASSWORD;
-            if (prompt.toLowerCase().indexOf("username") != -1)
-            {
-               title = "Username";
-               dialogType = MessageDisplay.INPUT_USERNAME;
-            }
-            
-            globalDisplay.promptForTextWithOption(
-                  title,
-                  prompt,
+            globalDisplay.promptForPassword(
+                  "Password",
+                  e.getPrompt(),
                   "",
-                  dialogType,
                   e.getRememberPasswordPrompt(),
                   rememberByDefault_,
                   new ProgressOperationWithInput<PromptWithOptionResult>()
@@ -126,10 +114,6 @@ public class AskPassManager
                                  public void onFailure(ServerError error)
                                  {
                                     Debug.logError(error);
-
-                                    server.askpassCompleted(
-                                       null, false,
-                                       new SimpleRequestCallback<Void>());
                                  }
                               });
                      }

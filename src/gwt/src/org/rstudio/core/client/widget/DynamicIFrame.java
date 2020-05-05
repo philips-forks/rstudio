@@ -1,7 +1,7 @@
 /*
  * DynamicIFrame.java
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -24,32 +24,22 @@ import org.rstudio.core.client.dom.WindowEx;
 
 public abstract class DynamicIFrame extends Frame
 {
-   /**
-    * @param title iframe a11y title
-    * @param url
-    */
-   public DynamicIFrame(String title, String url)
+   public DynamicIFrame(String url)
    {
       super(url);
       url_ = url;
-      setTitle(title);
       pollForLoad();
    }
-
-   /**
-    * @param title iframe a11y title
-    */
-   public DynamicIFrame(String title)
+   
+   public DynamicIFrame()
    {
       url_ = null;
-      setTitle(title);
       pollForLoad();
    }
    
    @Override
    public void setUrl(String url)
    {
-      retryInterval_ = 0;
       url_ = url;
       super.setUrl(url);
       pollForLoad();
@@ -86,8 +76,7 @@ public abstract class DynamicIFrame extends Frame
          {
             if (loadFrame.execute()) 
             {
-               if (retryInterval_ < 500) retryInterval_ += 50;
-               Scheduler.get().scheduleFixedDelay(loadFrame, retryInterval_);
+               Scheduler.get().scheduleFixedDelay(loadFrame, 50);
             }
          }
       });
@@ -111,5 +100,4 @@ public abstract class DynamicIFrame extends Frame
    protected abstract void onFrameLoaded();
 
    private String url_;
-   private int retryInterval_ = 0;
 }

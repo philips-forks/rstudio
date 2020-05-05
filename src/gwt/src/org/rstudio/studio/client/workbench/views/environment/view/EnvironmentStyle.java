@@ -1,7 +1,7 @@
 /*
  * EnvironmentStyle.java
  *
- * Copyright (C) 2009-17 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -22,7 +22,6 @@ interface EnvironmentStyle extends CssResource
    int headerRowHeight();
    String expandCol();
    String nameCol();
-   String resizeCol();
    String valueCol();
    String clickableCol();
    String detailRow();
@@ -36,6 +35,7 @@ interface EnvironmentStyle extends CssResource
    String widthSettingRow();
    String decoratedValueCol();
    String environmentPanel();
+   String filterMatch();
    String environmentPane();
    String fillHeight();
 }

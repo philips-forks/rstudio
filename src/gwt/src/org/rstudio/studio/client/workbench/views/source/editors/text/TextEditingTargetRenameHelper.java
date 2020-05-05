@@ -90,7 +90,7 @@ public class TextEditingTargetRenameHelper
                break;
             
             String functionName = clone.currentValue();
-            if (functionName != "function")
+            if (!functionName.equals("function"))
                return renameFunctionArgument(functionName, argName);
          }
       }
@@ -129,12 +129,12 @@ public class TextEditingTargetRenameHelper
             ScopeFunction scopeFn = (ScopeFunction) scope;
             
             String fnName = scopeFn.getFunctionName();
-            if (fnName == targetValue)
+            if (fnName.equals(targetValue))
                return renameVariablesInScope(scope, targetValue, targetType);
             
             JsArrayString fnArgs = scopeFn.getFunctionArgs();
             for (int i = 0; i < fnArgs.length(); i++)
-               if (fnArgs.get(i) == targetValue)
+               if (fnArgs.get(i).equals(targetValue))
                   return renameVariablesInScope(scope, targetValue, targetType);
          }
          
@@ -189,7 +189,7 @@ public class TextEditingTargetRenameHelper
                 cursor.peekBwd(1).isValidForFunctionCall())
             {
                String currentFunctionName = cursor.peekBwd(1).getValue();
-               renaming = currentFunctionName == functionName;
+               renaming = currentFunctionName.equals(functionName);
                functionNames.push(functionName);
                pushState(STATE_FUNCTION_CALL);
             }
@@ -205,7 +205,7 @@ public class TextEditingTargetRenameHelper
             if (cursor.valueEquals(")") && !functionNames.empty())
             {
                functionNames.pop();
-               renaming = !functionNames.empty() && functionNames.peek() == functionName;
+               renaming = !functionNames.empty() && functionNames.peek().equals(functionName);
             }
          }
          
@@ -313,7 +313,7 @@ public class TextEditingTargetRenameHelper
          if (cursor.currentPosition().isAfterOrEqualTo(endPos))
             break;
          
-         if (cursor.currentValue() == targetValue)
+         if (cursor.currentValue().equals(targetValue))
          {
             // Skip 'protected' names. These are names that have been overwritten
             // either as assignments, or exist as names to newly defined functions.
@@ -335,7 +335,7 @@ public class TextEditingTargetRenameHelper
             //
             //    bar <- bar + 1; foo(bar = bar)
             //    ~~~    ~~~                ~~~
-            if (peekState() == STATE_FUNCTION_CALL && cursor.nextValue() == "=")
+            if (peekState() == STATE_FUNCTION_CALL && cursor.nextValue().equals("="))
                continue;
             
             // Don't rename argument names in function definitions.
@@ -355,9 +355,9 @@ public class TextEditingTargetRenameHelper
                 editor_.getScopeAtPosition(cursor.currentPosition()) != scope)
             {
                String prevValue = cursor.peekBwd(1).getValue();
-               if (prevValue == "(" ||
-                   prevValue == "," ||
-                   prevValue == "=")
+               if (prevValue.equals("(") ||
+                   prevValue.equals(",") ||
+                   prevValue.equals("="))
                {
                   continue;
                }

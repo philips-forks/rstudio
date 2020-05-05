@@ -1,7 +1,7 @@
 /*
  * Settings.cpp
  *
- * Copyright (C) 2009-12 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -15,9 +15,11 @@
 
 #include <core/Settings.hpp>
 
+#include <boost/lexical_cast.hpp>
+
 #include <core/Log.hpp>
-#include <shared_core/FilePath.hpp>
-#include <shared_core/SafeConvert.hpp>
+#include <core/FilePath.hpp>
+#include <core/SafeConvert.hpp>
 #include <core/FileSerializer.hpp>
 
 namespace rstudio {
@@ -42,7 +44,7 @@ Error Settings::initialize(const FilePath& filePath)
    {
       // we don't consider file-not-found and error because it is a 
       // common initialization case
-      if (error != systemError(boost::system::errc::no_such_file_or_directory, ErrorLocation()))
+      if (error.code() != boost::system::errc::no_such_file_or_directory)
       {
          error.addProperty("settings-file", settingsFile_);
          return error ;
@@ -102,7 +104,7 @@ int Settings::getInt(const std::string& name, int defaultValue) const
    if (value.empty())
        return defaultValue ;
    else
-       return safe_convert::stringTo<int>(value, defaultValue);
+       return boost::lexical_cast<int>(value);
 }
 
 double Settings::getDouble(const std::string& name, double defaultValue) const
@@ -111,7 +113,7 @@ double Settings::getDouble(const std::string& name, double defaultValue) const
    if (value.empty())
        return defaultValue ;
    else
-      return safe_convert::stringTo<double>(value, defaultValue);
+       return boost::lexical_cast<double>(value);
 }
 
 bool Settings::getBool(const std::string& name, bool defaultValue) const
@@ -120,7 +122,7 @@ bool Settings::getBool(const std::string& name, bool defaultValue) const
    if (value.empty())
       return defaultValue ;
    else
-      return safe_convert::stringTo<bool>(value, defaultValue);
+      return boost::lexical_cast<bool>(value);
 }   
    
 void Settings::forEach(const boost::function<void(const std::string&,

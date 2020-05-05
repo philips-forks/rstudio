@@ -1,7 +1,7 @@
 /*
  * NamedPipeAsyncClient.hpp
  *
- * Copyright (C) 2009-18 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -21,8 +21,8 @@
 #include <boost/asio/io_service.hpp>
 #include <boost/asio/windows/stream_handle.hpp>
 
-#include <shared_core/Error.hpp>
-#include <shared_core/FilePath.hpp>
+#include <core/Error.hpp>
+#include <core/FilePath.hpp>
 
 #include <core/http/AsyncClient.hpp>
 
@@ -67,21 +67,21 @@ private:
       {
          // connect to named pipe
          HANDLE hPipe = ::CreateFileA(
-                  pipeName_.c_str(),      // pipe name
+                  pipeName_.c_str(),		// pipe name
                   GENERIC_READ |          // allow reading
                   GENERIC_WRITE,          // allow writing
                   0,                      // no sharing
-                  nullptr,                // default security attributes
+                  NULL,                   // default security attributes
                   OPEN_EXISTING,          // opens existing
                   FILE_FLAG_OVERLAPPED |  // allow overlapped io
                   SECURITY_SQOS_PRESENT | // custom security attribs
                   SECURITY_IDENTIFICATION,// impersonate identity only
-                  nullptr);               // no template file
+                  NULL);               	// no template file
 
          // handle connection error if necessary)
          if (hPipe == INVALID_HANDLE_VALUE)
          {
-            handleConnectionError(LAST_SYSTEM_ERROR());
+            handleConnectionError(systemError(::GetLastError(),ERROR_LOCATION));
             return;
          }
 
@@ -96,16 +96,14 @@ private:
 
    // detect when we've got the whole response and force a
    // response + close of the socket
-   // note we do not do this if we are streaming chunked encoding
    virtual bool stopReadingAndRespond()
    {
-      return !chunkedEncoding_ &&
-             (response_.body().length() >= response_.contentLength());
+      return response_.body().length() >= response_.contentLength();
    }
 
    virtual bool isShutdownError(const boost::system::error_code& ec)
    {
-      if (ec.category() == boost::system::system_category() &&
+      if (ec.category() == boost::system::get_system_category() &&
           (ec.value() == ERROR_PIPE_NOT_CONNECTED) )
       {
          return true;

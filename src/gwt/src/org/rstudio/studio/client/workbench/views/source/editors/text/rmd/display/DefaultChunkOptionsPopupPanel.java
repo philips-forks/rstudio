@@ -1,17 +1,3 @@
-/*
- * DefaultChunkOptionsPopupPanel.java
- *
- * Copyright (C) 2009-19 by RStudio, PBC
- *
- * Unless you have received this program directly from RStudio pursuant
- * to the terms of a commercial license agreement with RStudio, then
- * this program is licensed to you under the terms of version 3 of the
- * GNU Affero General Public License. This program is distributed WITHOUT
- * ANY EXPRESS OR IMPLIED WARRANTY, INCLUDING THOSE OF NON-INFRINGEMENT,
- * MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE. Please refer to the
- * AGPL (http://www.gnu.org/licenses/agpl-3.0.txt) for more details.
- *
- */
 package org.rstudio.studio.client.workbench.views.source.editors.text.rmd.display;
 
 import com.google.gwt.user.client.Command;
@@ -24,7 +10,6 @@ import org.rstudio.core.client.regex.Match;
 import org.rstudio.core.client.regex.Pattern;
 import org.rstudio.studio.client.workbench.views.source.editors.text.ace.Position;
 import org.rstudio.studio.client.workbench.views.source.editors.text.ace.Range;
-import org.rstudio.studio.client.workbench.views.source.editors.text.rmd.ChunkContextUi;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -110,13 +95,13 @@ public class DefaultChunkOptionsPopupPanel extends ChunkOptionsPopupPanel
    
    private Pair<String, String> getChunkHeaderBounds(String modeId)
    {
-      if (modeId == "mode/rmarkdown")
+      if (modeId.equals("mode/rmarkdown"))
          return new Pair<String, String>("```{", "}");
-      else if (modeId == "mode/sweave")
+      else if (modeId.equals("mode/sweave"))
          return new Pair<String, String>("<<", ">>=");
-      else if (modeId == "mode/rhtml")
+      else if (modeId.equals("mode/rhtml"))
          return new Pair<String, String>("<!--", "");
-      else if (modeId == "mode/c_cpp")
+      else if (modeId.equals("mode/c_cpp"))
          return new Pair<String, String>("/***", "");
       
       return null;
@@ -125,7 +110,7 @@ public class DefaultChunkOptionsPopupPanel extends ChunkOptionsPopupPanel
    private String extractChunkPreamble(String extractedChunkHeader,
                                        String modeId)
    {
-      if (modeId == "mode/sweave")
+      if (modeId.equals("mode/sweave"))
          return "";
       
       int firstSpaceIdx = extractedChunkHeader.indexOf(' ');
@@ -142,16 +127,49 @@ public class DefaultChunkOptionsPopupPanel extends ChunkOptionsPopupPanel
       return label;
    }
    
+   private String extractChunkLabel(String extractedChunkHeader)
+   {
+      // if there are no spaces within the chunk header,
+      // there cannot be a label
+      int firstSpaceIdx = extractedChunkHeader.indexOf(' ');
+      if (firstSpaceIdx == -1)
+         return "";
+      
+      // find the indices of the first '=' and ',' characters
+      int firstEqualsIdx = extractedChunkHeader.indexOf('=');
+      int firstCommaIdx  = extractedChunkHeader.indexOf(',');
+      
+      // if we found neither an '=' nor a ',', then the label
+      // must be all the text following the first space
+      if (firstEqualsIdx == -1 && firstCommaIdx == -1)
+         return extractedChunkHeader.substring(firstSpaceIdx + 1).trim();
+      
+      // if we found an '=' before we found a ',' (or we didn't find
+      // a ',' at all), that implies a chunk header like:
+      //
+      //    ```{r message=TRUE, echo=FALSE}
+      //
+      // and so there is no label.
+      if (firstCommaIdx == -1)
+         return "";
+         
+      if (firstEqualsIdx != -1 && firstEqualsIdx < firstCommaIdx)
+         return "";
+      
+      // otherwise, the text from the first space to that comma gives the label
+      return extractedChunkHeader.substring(firstSpaceIdx + 1, firstCommaIdx).trim();
+   }
+   
    private void parseChunkHeader(String line, HashMap<String, String> chunkOptions)
    {
       String modeId = display_.getModeId();
       
       Pattern pattern = null;
-      if (modeId == "mode/rmarkdown")
+      if (modeId.equals("mode/rmarkdown"))
          pattern = RegexUtil.RE_RMARKDOWN_CHUNK_BEGIN;
-      else if (modeId == "mode/sweave")
+      else if (modeId.equals("mode/sweave"))
          pattern = RegexUtil.RE_SWEAVE_CHUNK_BEGIN;
-      else if (modeId == "mode/rhtml")
+      else if (modeId.equals("mode/rhtml"))
          pattern = RegexUtil.RE_RHTML_CHUNK_BEGIN;
       
       if (pattern == null) return;
@@ -162,9 +180,9 @@ public class DefaultChunkOptionsPopupPanel extends ChunkOptionsPopupPanel
       String extracted = match.getGroup(1);
       chunkPreamble_ = extractChunkPreamble(extracted, modeId);
       
-      String chunkLabel = ChunkContextUi.extractChunkLabel(extracted);
+      String chunkLabel = extractChunkLabel(extracted);
       if (!StringUtil.isNullOrEmpty(chunkLabel))
-         tbChunkLabel_.setText(chunkLabel);
+         tbChunkLabel_.setText(extractChunkLabel(extracted));
       
       // if we had a chunk label, then we want to navigate our cursor to
       // the first comma in the chunk header; otherwise, we start at the

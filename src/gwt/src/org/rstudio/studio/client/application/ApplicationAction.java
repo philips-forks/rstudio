@@ -1,7 +1,7 @@
 /*
  * ApplicationAction.java
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -35,11 +35,6 @@ public class ApplicationAction
    public static String addAction(String url, String action)
    {
       return URIUtils.addQueryParam(url, ACTION_PARAMETER, action);  
-   }
-   
-   public static String addLauncherFlag(String url)
-   {
-      return URIUtils.addQueryParam(url, LAUNCHER_PARAMETER, "1");
    }
    
    public static boolean hasAction()
@@ -77,14 +72,7 @@ public class ApplicationAction
       return StringUtil.notNull(
           Window.Location.getParameter(ID_PARAMETER));
    }
-
-   public static boolean isLauncherSession()
-   {
-      String flag = StringUtil.notNull(
-            Window.Location.getParameter(LAUNCHER_PARAMETER));
-      return flag.equals("1");
-   }
-  
+   
    public static String getQueryStringWithoutAction()
    {
       return ApplicationUtils.getRemainingQueryString(getActionParameters());
@@ -97,7 +85,7 @@ public class ApplicationAction
     
    private static boolean isAction(String action)
    {
-      return action == getAction();
+      return action.equals(getAction());
    }
    
    private static String getAction()
@@ -108,14 +96,13 @@ public class ApplicationAction
    
    private static List<String> getActionParameters()
    {
-      ArrayList<String> params = new ArrayList<>();
+      ArrayList<String> params = new ArrayList<String>();
       params.add(ACTION_PARAMETER);
       params.add(ID_PARAMETER);
-      params.add(LAUNCHER_PARAMETER);
       return params;
    }
    
    private static final String ACTION_PARAMETER = "action";
    private static final String ID_PARAMETER = "id";
-   private static final String LAUNCHER_PARAMETER = "launcher";
+   
 }

@@ -1,7 +1,7 @@
 /*
  * SessionConsoleProcessInfo.hpp
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-17 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -18,9 +18,8 @@
 #include <boost/circular_buffer.hpp>
 #include <boost/enable_shared_from_this.hpp>
 
-#include <shared_core/FilePath.hpp>
-#include <core/json/JsonRpc.hpp>
-#include <core/system/Process.hpp>
+#include <core/FilePath.hpp>
+#include <core/json/Json.hpp>
 #include <core/system/Types.hpp>
 
 #include <session/SessionTerminalShell.hpp>
@@ -46,6 +45,7 @@ enum ChannelMode
 {
    Rpc = 0,
    Websocket = 1,
+   NamedPipe = 2,
 };
 
 enum AutoCloseMode
@@ -53,13 +53,6 @@ enum AutoCloseMode
    DefaultAutoClose = 0, // obey user preference
    AlwaysAutoClose = 1, // always auto-close
    NeverAutoClose = 2, // never auto-close
-   CleanExitAutoClose = 3, // auto-close only if shell returned zero exit code
-};
-
-enum SerializationMode
-{
-   ClientSerialization = 0, // serialize for front-end client
-   PersistentSerialization = 1  // serialize for persistent storage
 };
 
 extern const int kDefaultMaxOutputLines;
@@ -85,7 +78,7 @@ public:
          const std::string& title,
          const std::string& handle,
          int terminalSequence,
-         TerminalShell::ShellType shellType,
+         TerminalShell::TerminalShellType shellType,
          bool altBufferActive,
          const core::FilePath& cwd,
          int cols, int rows, bool zombie, bool trackEnv);
@@ -96,7 +89,7 @@ public:
          InteractionMode mode,
          int maxOutputLines = kDefaultMaxOutputLines);
 
-   virtual ~ConsoleProcessInfo() = default;
+   virtual ~ConsoleProcessInfo() {}
 
    // Caption is shown on terminal tabs, e.g. Terminal 1
    void setCaption(std::string& caption) { caption_ = caption; }
@@ -127,7 +120,7 @@ public:
    int getMaxOutputLines() const { return maxOutputLines_; }
 
    void setShowOnOutput(bool showOnOutput) { showOnOutput_ = showOnOutput; }
-   bool getShowOnOutput() const { return showOnOutput_; }
+   int getShowOnOutput() const { return showOnOutput_; }
 
    // Buffer output in case client disconnects/reconnects and needs
    // to recover some history.
@@ -151,8 +144,8 @@ public:
    bool getHasChildProcs() const { return childProcs_; }
 
    // What type of shell is this child process running in?
-   TerminalShell::ShellType getShellType() const { return shellType_; }
-   void setShellType(TerminalShell::ShellType type) { shellType_ = type; }
+   TerminalShell::TerminalShellType getShellType() const { return shellType_; }
+   void setShellType(TerminalShell::TerminalShellType type) { shellType_ = type; }
 
    // Type of channel for communicating input/output with client
    ChannelMode getChannelMode() const { return channelMode_; }
@@ -196,39 +189,37 @@ public:
    void setTrackEnv(bool trackEnv) { trackEnv_ = trackEnv; }
    bool getTrackEnv() const { return trackEnv_; }
 
-   core::json::Object toJson(SerializationMode serialMode) const;
-   static boost::shared_ptr<ConsoleProcessInfo> fromJson(const core::json::Object& obj);
+   core::json::Object toJson() const;
+   static boost::shared_ptr<ConsoleProcessInfo> fromJson(core::json::Object& obj);
 
    static std::string loadConsoleProcessMetadata();
    static void deleteOrphanedLogs(bool (*validHandle)(const std::string&));
    static void saveConsoleProcesses(const std::string& metadata);
    static void loadConsoleEnvironment(const std::string& handle, core::system::Options* pEnv);
 
-   static AutoCloseMode closeModeFromPref(std::string prefValue);
-
 private:
    std::string caption_;
    std::string title_;
    std::string handle_;
-   int terminalSequence_ = kNoTerminal;
-   bool allowRestart_ = false;
-   InteractionMode interactionMode_ = InteractionNever;
-   int maxOutputLines_ = kDefaultMaxOutputLines;
-   bool showOnOutput_ = false;
-   boost::circular_buffer<char> outputBuffer_ {kOutputBufferSize};
+   int terminalSequence_;
+   bool allowRestart_;
+   InteractionMode interactionMode_;
+   int maxOutputLines_;
+   bool showOnOutput_;
+   boost::circular_buffer<char> outputBuffer_;
    boost::optional<int> exitCode_;
-   bool childProcs_ = true;
-   bool altBufferActive_ = false;
-   TerminalShell::ShellType shellType_ = TerminalShell::ShellType::Default;
-   ChannelMode channelMode_ = Rpc;
+   bool childProcs_;
+   bool altBufferActive_;
+   TerminalShell::TerminalShellType shellType_;
+   ChannelMode channelMode_;
    std::string channelId_;
    core::FilePath cwd_;
-   int cols_ = core::system::kDefaultCols;
-   int rows_ = core::system::kDefaultRows;
-   bool restarted_ = false;
-   AutoCloseMode autoClose_ = DefaultAutoClose;
-   bool zombie_ = false;
-   bool trackEnv_ = false;
+   int cols_;
+   int rows_;
+   bool restarted_;
+   AutoCloseMode autoClose_;
+   bool zombie_;
+   bool trackEnv_;
 };
 
 } // namespace console_process

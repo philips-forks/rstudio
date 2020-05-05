@@ -1,7 +1,7 @@
 /*
  * RegexUtils.cpp
  *
- * Copyright (C) 2009-12 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -16,7 +16,6 @@
 #include <core/RegexUtils.hpp>
 
 #include <vector>
-#include <sstream>
 
 #include <boost/regex.hpp>
 #include <boost/algorithm/string.hpp>

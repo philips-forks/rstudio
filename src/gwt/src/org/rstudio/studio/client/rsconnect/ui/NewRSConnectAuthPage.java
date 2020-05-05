@@ -1,20 +1,5 @@
-/*
- * NewRSConnectAuthPage.java
- *
- * Copyright (C) 2009-18 by RStudio, PBC
- *
- * Unless you have received this program directly from RStudio pursuant
- * to the terms of a commercial license agreement with RStudio, then
- * this program is licensed to you under the terms of version 3 of the
- * GNU Affero General Public License. This program is distributed WITHOUT
- * ANY EXPRESS OR IMPLIED WARRANTY, INCLUDING THOSE OF NON-INFRINGEMENT,
- * MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE. Please refer to the
- * AGPL (http://www.gnu.org/licenses/agpl-3.0.txt) for more details.
- *
- */
 package org.rstudio.studio.client.rsconnect.ui;
 
-import org.rstudio.core.client.StringUtil;
 import org.rstudio.core.client.resources.ImageResource2x;
 import org.rstudio.core.client.widget.OperationWithInput;
 import org.rstudio.core.client.widget.ProgressIndicator;
@@ -124,9 +109,17 @@ public class NewRSConnectAuthPage
       });
    }
 
+
    @Override
    public void onWindowClosed(WindowClosedEvent event)
    {
+      if (event.getName().equals(AUTH_WINDOW_NAME))
+      {
+         waitingForAuth_.setValue(false, true);
+         
+         // check to see if the user successfully authenticated
+         onAuthCompleted();
+      }
    }
    
    @Override
@@ -211,6 +204,13 @@ public class NewRSConnectAuthPage
                         result_.setAuthUser(user);
                         waitingForAuth_.setValue(false, true);
                         
+                        if (Desktop.isDesktop())
+                        {
+                           // on the desktop, we can close the window by name
+                           Desktop.getFrame().closeNamedWindow(
+                                 AUTH_WINDOW_NAME);
+                        }
+                       
                         onUserAuthVerified();
                      }
 
@@ -226,7 +226,6 @@ public class NewRSConnectAuthPage
       }, 1000);
    }
 
-   @SuppressWarnings("unused")
    private void onAuthCompleted()
    {
       server_.getUserFromToken(result_.getServerInfo().getUrl(), 
@@ -311,19 +310,20 @@ public class NewRSConnectAuthPage
                   contents_.showWaiting();
                   
                   // prepare a new window with the auth URL loaded
-                  if (Desktop.hasDesktopFrame())
-                  {
-                     Desktop.getFrame().browseUrl(StringUtil.notNull(result_.getPreAuthToken().getClaimUrl()));
-                  }
-                  else
+                  if (canSpawnAuthenticationWindow())
                   {
                      NewWindowOptions options = new NewWindowOptions();
+                     options.setName(AUTH_WINDOW_NAME);
                      options.setAllowExternalNavigation(true);
                      options.setShowDesktopToolbar(false);
                      display_.openWebMinimalWindow(
                            result_.getPreAuthToken().getClaimUrl(),
                            false, 
                            700, 800, options);
+                  }
+                  else
+                  {
+                     Desktop.getFrame().browseUrl(result_.getPreAuthToken().getClaimUrl());
                   }
                   
                   // close the window automatically when authentication finishes
@@ -366,6 +366,17 @@ public class NewRSConnectAuthPage
       });
    }
    
+   private boolean canSpawnAuthenticationWindow()
+   {
+      if (!Desktop.isDesktop())
+         return true;
+      
+      if (Desktop.getFrame().isCentOS())
+         return false;
+      
+      return true;
+   }
+   
    private OperationWithInput<Boolean> setOkButtonVisible_;
    
    private NewRSConnectAccountResult result_;
@@ -375,4 +386,6 @@ public class NewRSConnectAuthPage
    private Value<Boolean> waitingForAuth_ = new Value<Boolean>(false);
    private boolean runningAuthCompleteCheck_ = false;
    private ProgressIndicator wizardIndicator_;
+
+   public final static String AUTH_WINDOW_NAME = "rstudio_rsconnect_auth";
 }

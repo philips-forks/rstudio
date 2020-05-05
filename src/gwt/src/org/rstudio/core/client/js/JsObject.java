@@ -1,7 +1,7 @@
 /*
  * JsObject.java
  *
- * Copyright (C) 2009-12 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -37,32 +37,11 @@ public class JsObject extends JavaScriptObject
       return typeof(this[key]);
    }-*/;
 
-   /***
-    * Gets a JavaScriptObject type from the object.
-    * 
-    * @param key The name of the key.
-    * @return The JavaScriptObject for the given key.
-    */
    public final native <T extends JavaScriptObject> T getObject(String key) /*-{
       return this[key];
    }-*/;
 
-   /***
-    * Gets any element from the object, as any type. Useful primarily for
-    * casting elements to JsType objects, which do not have a base type.
-    * 
-    * @param key The name of the key.
-    * @return The element for the given key.
-    */
-   public final native <T> T getElement(String key) /*-{
-      return this[key];
-   }-*/;
-
    public final native void setObject(String key, JavaScriptObject value) /*-{
-      this[key] = value;
-   }-*/;
-
-   public final native <T> void setElement(String key, T value) /*-{
       this[key] = value;
    }-*/;
 
@@ -99,7 +78,7 @@ public class JsObject extends JavaScriptObject
 
    public final Integer getInteger(String key)
    {
-      if (!hasKey(key) || getValueType(key) != "number")
+      if (!hasKey(key) || !getValueType(key).equals("number"))
          return null;
       return _getInteger(key);
    }
@@ -122,14 +101,9 @@ public class JsObject extends JavaScriptObject
 
    public final Double getDouble(String key)
    {
-      if (!hasKey(key) || getValueType(key) != "number")
+      if (!hasKey(key) || !getValueType(key).equals("number"))
          return null;
       return _getDouble(key);
-   }
-   
-   public final Double getDbl(String key)
-   {
-      return getDouble(key);
    }
 
    public final native double _getDouble(String key) /*-{
@@ -150,14 +124,9 @@ public class JsObject extends JavaScriptObject
 
    public final Boolean getBoolean(String key)
    {
-      if (!hasKey(key) || getValueType(key) != "boolean")
+      if (!hasKey(key) || !getValueType(key).equals("boolean"))
          return null;
       return _getBoolean(key);
-   }
-   
-   public final Boolean getBool(String key)
-   {
-      return getBoolean(key);
    }
 
    public final native boolean _getBoolean(String key) /*-{
@@ -173,10 +142,6 @@ public class JsObject extends JavaScriptObject
    }
 
    public final native void _setBoolean(String key, boolean value) /*-{
-      this[key] = value;
-   }-*/;
-   
-   public final native void setJSO(String key, JavaScriptObject value) /*-{
       this[key] = value;
    }-*/;
    

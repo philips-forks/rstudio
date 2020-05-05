@@ -1,7 +1,7 @@
 /*
  * SessionHttpMethods.hpp
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-17 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -22,23 +22,19 @@
 #include "SessionUriHandlers.hpp"
 #include "SessionDirs.hpp"
 #include "SessionRpc.hpp"
-#include "http/SessionTcpIpHttpConnectionListener.hpp"
 
 #include "session-config.h"
 
 #include <boost/algorithm/string.hpp>
+#include <boost/foreach.hpp>
 
 #include <core/gwt/GwtLogHandler.hpp>
 #include <core/gwt/GwtFileHandler.hpp>
 
-#include <shared_core/json/Json.hpp>
+#include <core/json/Json.hpp>
 #include <core/json/JsonRpc.hpp>
 
-#include <core/system/Crypto.hpp>
-
 #include <core/text/TemplateFilter.hpp>
-
-#include <core/http/CSRFToken.hpp>
 
 #include <r/RExec.hpp>
 #include <r/session/RSession.hpp>
@@ -52,10 +48,6 @@
 #include <session/SessionPersistentState.hpp>
 #include <session/SessionScopes.hpp>
 #include <session/projects/SessionProjects.hpp>
-
-#ifdef RSTUDIO_SERVER
-#include <server_core/sessions/SessionSignature.hpp>
-#endif
 
 using namespace rstudio::core;
 
@@ -109,14 +101,6 @@ bool parseAndValidateJsonRpcConnection(
    if (error)
    {
       ptrConnection->sendJsonRpcError(error);
-      return false;
-   }
-
-   // check for valid CSRF headers in server mode 
-   if (options().programMode() == kSessionProgramModeServer && 
-       !core::http::validateCSRFHeaders(ptrConnection->request(), options().iFrameLegacyCookies()))
-   {
-      ptrConnection->sendJsonRpcError(Error(json::errc::Unauthorized, ERROR_LOCATION));
       return false;
    }
 
@@ -174,26 +158,7 @@ bool isMethod(boost::shared_ptr<HttpConnection> ptrConnection,
 Error startHttpConnectionListener()
 {
    initializeHttpConnectionListener();
-   Error error = httpConnectionListener().start();
-   if (error)
-      return error;
-
-   if (options().standalone())
-   {
-      // log the endpoint to which we have bound to so other services can discover us
-      TcpIpHttpConnectionListener& listener =
-            static_cast<TcpIpHttpConnectionListener&>(httpConnectionListener());
-
-      boost::asio::ip::tcp::endpoint endpoint = listener.getLocalEndpoint();
-      std::cout << "Listener bound to address " << endpoint.address().to_string()
-                << " port " << endpoint.port() << std::endl;
-
-      // set the standalone port so rpostback and others know how to
-      // connect back into the session process
-      core::system::setenv(kRSessionStandalonePortNumber, safe_convert::numberToString(endpoint.port()));
-   }
-
-   return Success();
+   return httpConnectionListener().start();
 }
 
 bool isTimedOut(const boost::posix_time::ptime& timeoutTime)
@@ -229,7 +194,7 @@ bool isTimedOut(const boost::posix_time::ptime& timeoutTime)
 
 bool isWaitForMethodUri(const std::string& uri)
 {
-   for (const std::string& methodName : s_waitForMethodNames)
+   BOOST_FOREACH(const std::string& methodName, s_waitForMethodNames)
    {
       if (isMethod(uri, methodName))
          return true;
@@ -331,42 +296,6 @@ bool registeredWaitForMethod(const std::string& method,
                         pRequest);
 }
 
-bool verifyRequestSignature(const core::http::Request& request)
-{
-#ifndef RSTUDIO_SERVER
-   // signatures only supported in server mode - requires a dependency
-   // on server_core, which is only available to server platforms
-   return true;
-#else
-   // only verify signatures if we are in standalone mode and
-   // we are explicitly configured to verify signatures
-   if (!options().verifySignatures() || !options().standalone())
-      return true;
-
-   // determine which signing key pair to use
-   // we use an automatically generated key for postback requests
-   // (since we do not have access to the private key of rserver)
-   std::string signingKey = options().signingKey();
-   if (request.headerValue("X-Session-Postback") == "1")
-      signingKey = options().sessionRsaPublicKey();
-
-   // ensure specified signature is valid
-   // note: we do not validate the signing username if we are running in a root container
-   Error error = !core::system::effectiveUserIsRoot() ?
-                    server_core::sessions::verifyRequestSignature(signingKey, core::system::username(), request) :
-                    server_core::sessions::verifyRequestSignature(signingKey, request);
-
-   if (error)
-   {
-      LOG_ERROR(error);
-      return false;
-   }
-
-   return true;
-#endif
-}
-
-
 } // anonymous namespace
 
 namespace module_context
@@ -450,17 +379,6 @@ bool waitForMethod(const std::string& method,
             // note that we timed out
             suspend::setSuspendedFromTimeout(true);
 
-            if (!options().timeoutSuspend())
-            {
-               // configuration dictates that we should quit the
-               // session instead of suspending when timeout occurs
-               //
-               // the conditions for the quit must be the same as those
-               // for a regular suspend
-               rstudio::r::session::quit(false, EXIT_SUCCESS); // does not return
-               return false;
-            }
-
             // attempt to suspend (does not return if it succeeds)
             if (!suspend::suspendSession(false))
             {
@@ -493,16 +411,6 @@ bool waitForMethod(const std::string& method,
 
       if (ptrConnection)
       {
-         // ensure request signature is valid
-         if (!verifyRequestSignature(ptrConnection->request()))
-         {
-            LOG_ERROR_MESSAGE("Invalid signature for request URI " + ptrConnection->request().uri());
-            core::http::Response response;
-            response.setError(http::status::Unauthorized, "Invalid message signature");
-            ptrConnection->sendResponse(response);
-            continue;
-         }
-
          // check for client_init
          if ( isMethod(ptrConnection, kClientInit) )
          {
@@ -572,20 +480,18 @@ void handleConnection(boost::shared_ptr<HttpConnection> ptrConnection,
    // check for a uri handler registered by a module
    const core::http::Request& request = ptrConnection->request();
    std::string uri = request.uri();
-   boost::optional<core::http::UriAsyncHandlerFunctionVariant> uriHandler =
+   core::http::UriAsyncHandlerFunction uriHandler = 
      uri_handlers::handlers().handlerFor(uri);
 
    if (uriHandler) // uri handler
    {
-      core::http::visitHandler(uriHandler.get(),
-                               request,
-                               boost::bind(endHandleConnection,
-                                           ptrConnection,
-                                           connectionType,
-                                           _1));
-
       // r code may execute - ensure session is initialized
       init::ensureSessionInitialized();
+
+      uriHandler(request, boost::bind(endHandleConnection,
+                                      ptrConnection,
+                                      connectionType,
+                                      _1));
    }
    else if (isJsonRpcRequest(ptrConnection)) // check for json-rpc
    {
@@ -634,7 +540,7 @@ void handleConnection(boost::shared_ptr<HttpConnection> ptrConnection,
                if (switchToProject != kProjectNone)
                {
                   FilePath projFile = module_context::resolveAliasedPath(switchToProject);
-                  if (projFile.getParent().exists() && !projFile.exists())
+                  if (projFile.parent().exists() && !projFile.exists())
                   {
                      Error error = r_util::writeProjectFile(
                               projFile,
@@ -645,43 +551,38 @@ void handleConnection(boost::shared_ptr<HttpConnection> ptrConnection,
                   }
                }
 
-               // update project and working dir
-               using namespace module_context;
-               if (switchToProject == kProjectNone)
-               {
-                  // update the project and working dir
-                  activeSession().setProject(kProjectNone);
-                  activeSession().setWorkingDir(
-                    createAliasedPath(dirs::getDefaultWorkingDirectory()));
-               }
-               else
-               {
-                  FilePath projFile = module_context::resolveAliasedPath(switchToProject);
-                  std::string projDir = createAliasedPath(projFile.getParent());
-                  activeSession().setProject(projDir);
-                  activeSession().setWorkingDir(projDir);
-               }
-
                if (options().switchProjectsWithUrl())
                {
+                  using namespace module_context;
+
+                  std::string projDir;
                   r_util::SessionScope scope;
                   if (switchToProject == kProjectNone)
                   {
                      scope = r_util::SessionScope::projectNone(
                                           options().sessionScope().id());
+
+                     // update the project and working dir
+                     activeSession().setProject(kProjectNone);
+                     activeSession().setWorkingDir(
+                       createAliasedPath(dirs::getDefaultWorkingDirectory()));
                   }
                   else
                   {
                      // extract the directory (aliased)
                      using namespace module_context;
                      FilePath projFile = module_context::resolveAliasedPath(switchToProject);
-                     std::string projDir = createAliasedPath(projFile.getParent());
+                     projDir = createAliasedPath(projFile.parent());
                      scope = r_util::SessionScope::fromProject(
                               projDir,
                               options().sessionScope().id(),
                               filePathToProjectId(options().userScratchPath(),
                                    FilePath(options().getOverlayOption(
                                                kSessionSharedStoragePath))));
+
+                     // update the project and working dir
+                     activeSession().setProject(projDir);
+                     activeSession().setWorkingDir(projDir);
                   }
 
                   // set next session url
@@ -698,16 +599,15 @@ void handleConnection(boost::shared_ptr<HttpConnection> ptrConnection,
                if (json::isType<json::Object>(switchToVersionJson))
                {
                   using namespace module_context;
-                  std::string version, rHome, label;
+                  std::string version, rHome;
                   Error error = json::readObject(
-                                            switchToVersionJson.getObject(),
-                                            "version", version,
-                                            "r_home", rHome,
-                                            "label", label);
+                                            switchToVersionJson.get_obj(),
+                                            "version", &version,
+                                            "r_home", &rHome);
                   if (!error)
                   {
                      // set version for active session
-                     activeSession().setRVersion(version, rHome, label);
+                     activeSession().setRVersion(version, rHome);
 
                      // if we had a project directory as well then
                      // set it's version (this is necessary because
@@ -715,16 +615,14 @@ void handleConnection(boost::shared_ptr<HttpConnection> ptrConnection,
                      if (switchToProject != kProjectNone)
                      {
                         FilePath projFile = resolveAliasedPath(switchToProject);
-                        std::string projDir = createAliasedPath(projFile.getParent());
+                        std::string projDir = createAliasedPath(projFile.parent());
                         RVersionSettings verSettings(
                                             options().userScratchPath(),
                                             FilePath(options().getOverlayOption(
                                                   kSessionSharedStoragePath)));
                         verSettings.setProjectLastRVersion(projDir,
-                                                           module_context::sharedProjectScratchPath(),
                                                            version,
-                                                           rHome,
-                                                           label);
+                                                           rHome);
                      }
                  }
                  else
@@ -734,7 +632,7 @@ void handleConnection(boost::shared_ptr<HttpConnection> ptrConnection,
 
             // exit status
             int status = switchToProject.empty() ? EXIT_SUCCESS : EX_CONTINUE;
-            
+
             // acknowledge request & quit session
             json::JsonRpcResponse response;
             response.setResult(true);
@@ -789,7 +687,7 @@ void handleConnection(boost::shared_ptr<HttpConnection> ptrConnection,
    else
    {
       core::http::Response response;
-      response.setNotFoundError(request);
+      response.setNotFoundError(request.uri());
       ptrConnection->sendResponse(response);
    }
 }
@@ -802,7 +700,7 @@ WaitResult startHttpConnectionListenerWithTimeout()
    // available; therefore, retry connection, but only for address_in_use error
    if (!error)
        return WaitResult(WaitSuccess, Success());
-   else if (error != boost::system::error_code(boost::system::errc::address_in_use, boost::system::generic_category()))
+   else if (error.code() != boost::system::errc::address_in_use)
       return WaitResult(WaitError, error);
    else
       return WaitResult(WaitContinue, error);
@@ -821,7 +719,7 @@ void registerGwtHandlers()
 
    // establish progress handler
    FilePath wwwPath(options.wwwLocalPath());
-   FilePath progressPagePath = wwwPath.completePath("progress.htm");
+   FilePath progressPagePath = wwwPath.complete("progress.htm");
    module_context::registerUriHandler(
          "/progress",
           boost::bind(text::handleTemplateRequest, progressPagePath, _1, _2));
@@ -829,18 +727,8 @@ void registerGwtHandlers()
    // initialize gwt symbol maps
    gwt::initializeSymbolMaps(options.wwwSymbolMapsPath());
 
-   // declare program mode in JS init block (for GWT boot time access)
-   std::string initJs = "window.program_mode = \"" + options.programMode() + "\";\n";
-
    // set default handler
-   s_defaultUriHandler = gwt::fileHandlerFunction(options.wwwLocalPath(),
-                                                  options.useSecureCookies(),
-                                                  options.iFrameEmbedding(),
-                                                  options.legacyCookies(),
-                                                  options.iFrameLegacyCookies(),
-                                                  "/",
-                                                  http::UriFilterFunction(),
-                                                  initJs);
+   s_defaultUriHandler = gwt::fileHandlerFunction(options.wwwLocalPath(), "/");
 }
 
 std::string nextSessionUrl()

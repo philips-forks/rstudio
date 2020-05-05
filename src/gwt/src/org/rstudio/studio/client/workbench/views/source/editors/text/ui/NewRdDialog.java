@@ -1,7 +1,7 @@
 /*
  * NewRdDialog.java
  *
- * Copyright (C) 2009-20 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -12,12 +12,11 @@
  * AGPL (http://www.gnu.org/licenses/agpl-3.0.txt) for more details.
  *
  */
+
+
 package org.rstudio.studio.client.workbench.views.source.editors.text.ui;
 
 
-import com.google.gwt.aria.client.Roles;
-import org.rstudio.core.client.widget.FormListBox;
-import org.rstudio.core.client.widget.FormTextBox;
 import org.rstudio.core.client.widget.ModalDialog;
 import org.rstudio.core.client.widget.OperationWithInput;
 import org.rstudio.studio.client.RStudioGinjector;
@@ -25,6 +24,8 @@ import org.rstudio.studio.client.RStudioGinjector;
 import com.google.gwt.core.client.GWT;
 import com.google.gwt.uibinder.client.UiBinder;
 import com.google.gwt.uibinder.client.UiField;
+import com.google.gwt.user.client.ui.ListBox;
+import com.google.gwt.user.client.ui.TextBox;
 import com.google.gwt.user.client.ui.Widget;
 
 public class NewRdDialog extends ModalDialog<NewRdDialog.Result>
@@ -48,7 +49,7 @@ public class NewRdDialog extends ModalDialog<NewRdDialog.Result>
    
    public NewRdDialog(OperationWithInput<Result> operation)
    {
-      super("New R Documentation File", Roles.getDialogRole(), operation);
+      super("New R Documentation File", operation);
       mainWidget_ = GWT.<Binder>create(Binder.class).createAndBindUi(this);
       
    }
@@ -60,7 +61,7 @@ public class NewRdDialog extends ModalDialog<NewRdDialog.Result>
    }
    
    @Override
-   protected void focusInitialControl()
+   protected void onDialogShown()
    {
       txtName_.setFocus(true);
    }
@@ -94,9 +95,9 @@ public class NewRdDialog extends ModalDialog<NewRdDialog.Result>
 
    
    @UiField
-   FormTextBox txtName_;
+   TextBox txtName_;
    @UiField
-   FormListBox listDocType_;
+   ListBox listDocType_;
    
    private Widget mainWidget_; 
 }

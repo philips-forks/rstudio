@@ -1,20 +1,5 @@
-/*
- * CheckableMenuItem.java
- *
- * Copyright (C) 2009-19 by RStudio, PBC
- *
- * Unless you have received this program directly from RStudio pursuant
- * to the terms of a commercial license agreement with RStudio, then
- * this program is licensed to you under the terms of version 3 of the
- * GNU Affero General Public License. This program is distributed WITHOUT
- * ANY EXPRESS OR IMPLIED WARRANTY, INCLUDING THOSE OF NON-INFRINGEMENT,
- * MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE. Please refer to the
- * AGPL (http://www.gnu.org/licenses/agpl-3.0.txt) for more details.
- *
- */
 package org.rstudio.core.client.widget;
 
-import com.google.gwt.aria.client.Roles;
 import org.rstudio.core.client.command.AppCommand;
 import org.rstudio.core.client.resources.ImageResource2x;
 import org.rstudio.core.client.theme.res.ThemeResources;
@@ -30,26 +15,17 @@ public abstract class CheckableMenuItem extends MenuItem
 {
    public CheckableMenuItem()
    {
-      this("", false, false);
+      this("", false);
    }
 
    public CheckableMenuItem(String label)
    {
-      this (label, false, false);
+      this (label, false);
    }
 
    public CheckableMenuItem(String label, boolean html)
    {
-      this(label, html, false);
-   }
-
-   public CheckableMenuItem(String label, boolean html, boolean checked)
-   {
-      super(label, 
-            html,
-            Roles.getMenuitemcheckboxRole(),
-            checked, 
-            (Scheduler.ScheduledCommand)null);
+      super(label, html, (Scheduler.ScheduledCommand)null);
       if (!html)
          setHTML(getHTMLContent());
       setScheduledCommand(new ScheduledCommand()
@@ -60,17 +36,14 @@ public abstract class CheckableMenuItem extends MenuItem
             onInvoked();
          }
       });
-      setChecked(checked);
    }
 
    public void onStateChanged()
    {
       setHTML(getHTMLContent());
-      setChecked(isChecked());
    }
 
    public abstract String getLabel();
-   public String getShortcut() { return ""; }
    public abstract boolean isChecked();
    public abstract void onInvoked();
    
@@ -80,7 +53,7 @@ public abstract class CheckableMenuItem extends MenuItem
             isChecked() ? 
                   new ImageResource2x(ThemeResources.INSTANCE.menuCheck2x()) :
                   null,
-            getLabel(), getShortcut(), ThemeStyles.INSTANCE.menuCheckable());
+            getLabel(), "", ThemeStyles.INSTANCE.menuCheckable());
       
    }
 }

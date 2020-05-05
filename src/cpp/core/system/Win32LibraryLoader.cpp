@@ -1,7 +1,7 @@
 /*
  * Win32LibraryLoader.cpp
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -17,7 +17,7 @@
 
 #include <windows.h>
 
-#include <shared_core/Error.hpp>
+#include <core/Error.hpp>
 
 namespace rstudio {
 namespace core {
@@ -28,17 +28,17 @@ namespace {
 std::string getLastErrorMessage()
 {
    LPVOID lpMsgBuf;
-   auto lastErr = ::GetLastError();
+   DWORD dw = ::GetLastError();
 
    DWORD length = ::FormatMessage(
        FORMAT_MESSAGE_ALLOCATE_BUFFER |
        FORMAT_MESSAGE_FROM_SYSTEM |
        FORMAT_MESSAGE_IGNORE_INSERTS,
-       nullptr,
-       lastErr,
+       NULL,
+       dw,
        MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
        (LPTSTR) &lpMsgBuf,
-       0, nullptr );
+       0, NULL );
 
    if (length != 0)
    {
@@ -57,11 +57,11 @@ std::string getLastErrorMessage()
 Error loadLibrary(const std::string& libPath, void** ppLib)
 {
    // use
-   *ppLib = nullptr;
-   *ppLib = (void*)::LoadLibraryEx(libPath.c_str(), nullptr, 0);
-   if (*ppLib == nullptr)
+   *ppLib = NULL;
+   *ppLib = (void*)::LoadLibraryEx(libPath.c_str(), NULL, 0);
+   if (*ppLib == NULL)
    {
-      Error error = LAST_SYSTEM_ERROR();
+      Error error = systemError(::GetLastError(), ERROR_LOCATION);
       error.addProperty("dlerror", libPath + " - " + getLastErrorMessage());
       return error;
    }
@@ -73,11 +73,11 @@ Error loadLibrary(const std::string& libPath, void** ppLib)
 
 Error loadSymbol(void* pLib, const std::string& name, void** ppSymbol)
 {
-   *ppSymbol = nullptr;
+   *ppSymbol = NULL;
    *ppSymbol = (void*)::GetProcAddress((HINSTANCE)pLib, name.c_str());
-   if (*ppSymbol == nullptr)
+   if (*ppSymbol == NULL)
    {
-      Error error = LAST_SYSTEM_ERROR();
+      Error error = systemError(::GetLastError(), ERROR_LOCATION);
       error.addProperty("dlerror", name + " - " + getLastErrorMessage());
       return error;
    }
@@ -91,7 +91,7 @@ Error closeLibrary(void* pLib)
 {
    if (!::FreeLibrary((HMODULE)pLib))
    {
-      Error error = LAST_SYSTEM_ERROR();
+      Error error = systemError(::GetLastError(), ERROR_LOCATION);
       error.addProperty("dlerror", getLastErrorMessage());
       return error;
    }

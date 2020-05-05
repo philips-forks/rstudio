@@ -1,7 +1,7 @@
 /*
  * JsVector.java
  *
- * Copyright (C) 2009-17 by RStudio, PBC
+ * Copyright (C) 2009-17 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -171,30 +171,15 @@ public class JsVector<T> extends JavaScriptObject
       return shift(defaultValue());
    }
    
-   private final native T shift(T defaultValue)
-   /*-{
-      return this.shift() || defaultValue;
-   }-*/;
-   
    public final int size()
    {
       return length();
    }
    
-   public final native JsVector<T> slice(int begin, int end)
+   private final native T shift(T defaultValue)
    /*-{
-      return this.slice(begin, end);
+      return this.shift() || defaultValue;
    }-*/;
-   
-   public final JsVector<T> slice(int begin)
-   {
-      return slice(begin, length());
-   }
-   
-   public final JsVector<T> slice()
-   {
-      return slice(0, length());
-   }
    
    public final native void splice(int start, int deleteCount, JsVector<T> vector)
    /*-{

@@ -1,7 +1,7 @@
 /*
  * SafeHtmlUtil.java
  *
- * Copyright (C) 2009-12 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -125,45 +125,6 @@ public class SafeHtmlUtil
                 .append("; ");
       }
       return SafeHtmlUtils.fromTrustedString(builder.toString());
-   }
-   
-   /**
-    * Appends text to a SafeHtmlBuilder with search matches highlighted.
-    * 
-    * @param sb The SafeHtmlBuilder to append the search match to
-    * @param haystack The text to append. 
-    * @param needle The text to search for and highlight.
-    * @param matchClass The CSS class to assign to matches.
-    */
-   public static void highlightSearchMatch(SafeHtmlBuilder sb, String haystack, 
-                                           String needle, String matchClass)
-   {
-      // do nothing if we weren't given a string
-      if (StringUtil.isNullOrEmpty(haystack))
-         return;
-      
-      // if we have a needle to search for, and it exists, highlight it
-      boolean hasMatch = false;
-      if (!StringUtil.isNullOrEmpty(needle))
-      {
-         int idx = haystack.toLowerCase().indexOf(needle);
-         if (idx >= 0)
-         {
-            hasMatch = true;
-            sb.appendEscaped(haystack.substring(0, idx));
-            sb.appendHtmlConstant(
-                  "<span class=\"" + matchClass + "\">");
-            sb.appendEscaped(haystack.substring(idx, 
-                  idx + needle.length()));
-            sb.appendHtmlConstant("</span>");
-            sb.appendEscaped(haystack.substring(idx + needle.length(), 
-                  haystack.length()));
-         }
-      }
-      
-      // needle not found; append text directly
-      if (!hasMatch)
-         sb.appendEscaped(haystack);
    }
 }
 

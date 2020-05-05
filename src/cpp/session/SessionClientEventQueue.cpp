@@ -1,7 +1,7 @@
 /*
  * SessionClientEventQueue.cpp
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -17,9 +17,12 @@
 
 #include "modules/SessionConsole.hpp"
 
+#include <boost/foreach.hpp>
+
+
 #include <core/BoostThread.hpp>
 #include <core/Thread.hpp>
-#include <shared_core/json/Json.hpp>
+#include <core/json/Json.hpp>
 #include <core/StringUtils.hpp>
 
 #include <r/session/RConsoleActions.hpp>
@@ -30,12 +33,12 @@ namespace rstudio {
 namespace session {
  
 namespace {
-ClientEventQueue* s_pClientEventQueue = nullptr;
+ClientEventQueue* s_pClientEventQueue = NULL;
 }
 
 void initializeClientEventQueue()
 {
-   BOOST_ASSERT(s_pClientEventQueue == nullptr);
+   BOOST_ASSERT(s_pClientEventQueue == NULL);
    s_pClientEventQueue = new ClientEventQueue();
 }
 
@@ -77,14 +80,14 @@ void ClientEventQueue::add(const ClientEvent& event)
       // console output is batched up for compactness/efficiency.
       if (event.type() == client_events::kConsoleWriteOutput)
       {
-         if (event.data().getType() == json::Type::STRING)
-            pendingConsoleOutput_ += event.data().getString();
+         if (event.data().type() == json::StringType)
+            pendingConsoleOutput_ += event.data().get_str();
       }
       else if (event.type() == client_events::kConsoleWriteError &&
-               event.data().getType() == json::Type::STRING)
+               event.data().type() == json::StringType)
       {
          flushPendingConsoleOutput();
-         enqueueClientOutputEvent(event.type(), event.data().getString());
+         enqueueClientOutputEvent(event.type(), event.data().get_str());
       }
       else
       {

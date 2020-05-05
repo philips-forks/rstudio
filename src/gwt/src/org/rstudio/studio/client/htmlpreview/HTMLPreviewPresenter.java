@@ -1,7 +1,7 @@
 /*
  * HTMLPreviewPresenter.java
  *
- * Copyright (C) 2009-12 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -15,8 +15,6 @@
 package org.rstudio.studio.client.htmlpreview;
 
 import org.rstudio.core.client.BrowseCap;
-import org.rstudio.core.client.HtmlMessageListener;
-import org.rstudio.core.client.URIUtils;
 import org.rstudio.core.client.command.CommandBinder;
 import org.rstudio.core.client.command.Handler;
 import org.rstudio.core.client.command.KeyboardShortcut;
@@ -96,8 +94,7 @@ public class HTMLPreviewPresenter implements IsWidget
                                FileDialogs fileDialogs,
                                RemoteFileSystemContext fileSystemContext,
                                HTMLPreviewServerOperations server,
-                               Provider<FileExport> pFileExport,
-                               HtmlMessageListener htmlMessageListener)
+                               Provider<FileExport> pFileExport)
    {
       view_ = view;
       globalDisplay_ = globalDisplay;
@@ -106,7 +103,6 @@ public class HTMLPreviewPresenter implements IsWidget
       fileDialogs_ = fileDialogs;
       fileSystemContext_ = fileSystemContext;
       pFileExport_ = pFileExport;
-      htmlMessageListener_ = htmlMessageListener;
       
       binder.bind(commands, this);  
       
@@ -192,18 +188,6 @@ public class HTMLPreviewPresenter implements IsWidget
                String url = result.getPreviewURL();
                if (!url.startsWith("http"))
                   url = server_.getApplicationURL(url);
-
-               url = URIUtils.addQueryParam(url,
-                                            "capabilities",
-                                            String.valueOf(1 << 0));
-         
-               url = URIUtils.addQueryParam(url,
-                                            "host",
-                                            htmlMessageListener_.getOriginDomain());
-               
-               htmlMessageListener_.allowOpenOnLoad();
-               htmlMessageListener_.setUrl(url);
-
                view_.showPreview(
                   url,
                   result,
@@ -369,6 +353,4 @@ public class HTMLPreviewPresenter implements IsWidget
    private final RemoteFileSystemContext fileSystemContext_;
    private final HTMLPreviewServerOperations server_;
    private final Provider<FileExport> pFileExport_;
-   
-   private HtmlMessageListener htmlMessageListener_;
 }

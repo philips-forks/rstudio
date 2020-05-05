@@ -1,7 +1,7 @@
 /*
  * HelpServerOperations.java
  *
- * Copyright (C) 2009-12 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -32,17 +32,15 @@ public interface HelpServerOperations
    void showHelpTopic(String topic, String pkgName, int type);
 
    void search(String query, 
-               ServerRequestCallback<JsArrayString> requestCallback);
+               ServerRequestCallback<JsArrayString> requestCallback) ;
    
    void getCustomHelp(String helpHandler,
-                      String topic,
-                      String source,
-                      String language,
-                      ServerRequestCallback<HelpInfo.Custom> requestCallback);
+         String topic, 
+         String source,
+         ServerRequestCallback<HelpInfo.Custom> requestCallback);
    
    void getCustomParameterHelp(String helpHandler,
                                String source,
-                               String language,
                                ServerRequestCallback<HelpInfo.Custom> requestCallback);
    
    void showCustomHelpTopic(String helpHandler, String topic, String source);

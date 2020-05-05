@@ -1,7 +1,7 @@
 #
 # SessionPackages.R
 #
-# Copyright (C) 2009-19 by RStudio, PBC
+# Copyright (C) 2009-12 by RStudio, Inc.
 #
 # Unless you have received this program directly from RStudio pursuant
 # to the terms of a commercial license agreement with RStudio, then
@@ -12,16 +12,6 @@
 # AGPL (http://www.gnu.org/licenses/agpl-3.0.txt) for more details.
 #
 #
-
-# cached URLs for package NEWS files
-.rs.setVar("packageNewsURLsEnv", new.env(parent = emptyenv()))
-
-# cached information on available R packages
-.rs.setVar("availablePackagesEnv", new.env(parent = emptyenv()))
-
-# for asynchronous requests on available package information,
-# map the repository string to the directory containing produced output
-.rs.setVar("availablePackagesPendingEnv", new.env(parent = emptyenv()))
 
 # a vectorized function that takes any number of paths and aliases the home
 # directory in those paths (i.e. "/Users/bob/foo" => "~/foo"), leaving any 
@@ -64,20 +54,20 @@ if (identical(as.character(Sys.info()["sysname"]), "Darwin") &&
    
    notifyPackageLoaded <- function(pkgname, ...)
    {
-      .Call("rs_packageLoaded", pkgname, PACKAGE = "(embedding)")
-
-      # when a package is loaded, it can register S3 methods which replace overrides we've
-      # attached manually; take this opportunity to reattach them.
-      .rs.reattachS3Overrides()
+      .Call("rs_packageLoaded", pkgname)
    }
 
    notifyPackageUnloaded <- function(pkgname, ...)
    {
-      .Call("rs_packageUnloaded", pkgname, PACKAGE = "(embedding)")
+      .Call("rs_packageUnloaded", pkgname)
    }
    
-   pkgNames <-
+   # NOTE: `list.dirs()` was introduced with R 2.13 but was buggy until 3.0
+   # (the 'full.names' argument was not properly respected)
+   pkgNames <- if (getRversion() >= "3.0.0")
       base::list.dirs(.libPaths(), full.names = FALSE, recursive = FALSE)
+   else
+      .packages(TRUE)
    
    sapply(pkgNames, function(packageName)
    {
@@ -119,10 +109,7 @@ if (identical(as.character(Sys.info()["sysname"]), "Darwin") &&
                                                                 repos = getOption("repos"),
                                                                 ...) 
    {
-      if (missing(pkgs))
-         return(utils::install.packages())
-      
-      if (!.Call("rs_canInstallPackages", PACKAGE = "(embedding)"))
+      if (!.Call("rs_canInstallPackages"))
       {
         stop("Package installation is disabled in this version of RStudio",
              call. = FALSE)
@@ -157,10 +144,10 @@ if (identical(as.character(Sys.info()["sysname"]), "Darwin") &&
       # do housekeeping after we execute the original
       on.exit({
          .rs.updatePackageEvents()
-         .Call("rs_packageLibraryMutated", PACKAGE = "(embedding)")
+         .Call("rs_packageLibraryMutated")
          .rs.restorePreviousPath()
       })
-      
+
       # call original
       original(pkgs, lib, repos, ...)
    })
@@ -174,7 +161,7 @@ if (identical(as.character(Sys.info()["sysname"]), "Darwin") &&
                                                                ...) 
    {
       # do housekeeping after we execute the original
-      on.exit(.Call("rs_packageLibraryMutated", PACKAGE = "(embedding)"))
+      on.exit(.Call("rs_packageLibraryMutated"))
                          
       # call original
       original(pkgs, lib, ...) 
@@ -183,12 +170,12 @@ if (identical(as.character(Sys.info()["sysname"]), "Darwin") &&
 
 .rs.addFunction( "addRToolsToPath", function()
 {
-    .Call("rs_addRToolsToPath", PACKAGE = "(embedding)")
+    .Call("rs_addRToolsToPath")
 })
 
 .rs.addFunction( "restorePreviousPath", function()
 {
-    .Call("rs_restorePreviousPath", PACKAGE = "(embedding)")
+    .Call("rs_restorePreviousPath")
 })
 
 .rs.addFunction( "uniqueLibraryPaths", function()
@@ -286,143 +273,57 @@ if (identical(as.character(Sys.info()["sysname"]), "Darwin") &&
       .rs.initDefaultUserLibrary()
 })
 
-.rs.addFunction("lastCharacterIs", function(value, ending) {
-   identical(tail(strsplit(value, "")[[1]], n = 1), ending)
-})
-
 .rs.addFunction("listInstalledPackages", function()
 {
-   # get the CRAN repository URL, and remove a trailing slash if required
-   repos <- getOption("repos")
-   cran <- if ("CRAN" %in% names(repos))
-      repos[["CRAN"]]
-   else
-      .Call("rs_rstudioCRANReposUrl", PACKAGE = "(embedding)")
+   # calculate unique libpaths
+   uniqueLibPaths <- .rs.uniqueLibraryPaths()
+
+   # get packages
+   x <- suppressWarnings(library(lib.loc=uniqueLibPaths))
+   x <- x$results[x$results[, 1] != "base", , drop=FALSE]
    
-   # trim trailing slashes if necessary
-   cran <- gsub("/*", "", cran)
+   # extract/compute required fields 
+   pkgs.name <- x[, 1]
+   pkgs.library <- x[, 2]
+   pkgs.desc <- x[, 3]
+   pkgs.url <- file.path("help/library",
+                         pkgs.name, 
+                         "html", 
+                         "00Index.html")
+   loaded.pkgs <- .rs.pathPackage()
+   pkgs.loaded <- !is.na(match(normalizePath(
+                                  paste(pkgs.library,pkgs.name, sep="/")),
+                               loaded.pkgs))
    
-   # helper function for extracting information from a package's
-   # DESCRIPTION file
-   readPackageInfo <- function(pkgPath) {
-      
-      # attempt to read package metadata
-      desc <- .rs.tryCatch({
-         metapath <- file.path(pkgPath, "Meta", "package.rds")
-         metadata <- readRDS(metapath)
-         as.list(metadata$DESCRIPTION)
-      })
-      
-      # if that failed, try reading the DESCRIPTION
-      if (inherits(desc, "error"))
-         desc <- read.dcf(file.path(pkgPath, "DESCRIPTION"), all = TRUE)
-      
-      # attempt to infer an appropriate URL for this package
-      if (identical(as.character(desc$Priority), "base")) {
-         source <- "Base"
-         url <- ""
-      } else if (!is.null(desc$URL)) {
-         source <- "Custom"
-         url <- strsplit(desc$URL, "\\s*,\\s*")[[1]][[1]]
-      } else if ("biocViews" %in% names(desc)) {
-         source <- "Bioconductor"
-         url <- sprintf("https://www.bioconductor.org/packages/release/bioc/html/%s.html", desc$Package)
-      } else if (identical(desc$Repository, "CRAN")) {
-         source <- "CRAN"
-         url <- sprintf("%s/package=%s", cran, desc$Package)
-      } else if (!is.null(desc$GithubRepo)) {
-         source <- "GitHub"
-         url <- sprintf("https://github.com/%s/%s", desc$GithubUsername, desc$GithubRepo)
-      } else {
-         source <- "Unknown"
-         url <- sprintf("%s/package=%s", cran, desc$Package)
-      }
-      
-      list(
-         Package     = .rs.nullCoalesce(desc$Package, "[Unknown]"),
-         LibPath     = dirname(pkgPath),
-         Version     = .rs.nullCoalesce(desc$Version, "[Unknown]"),
-         Title       = .rs.nullCoalesce(desc$Title, "[No description available]"),
-         Source      = source,
-         BrowseUrl   = utils::URLencode(url)
-      )
-      
-   }
-   
-   # to be called if our attempt to read the package DESCRIPTION file failed
-   # for some reason
-   emptyPackageInfo <- function(pkgPath) {
-      
-      package <- basename(pkgPath)
-      libPath <- dirname(pkgPath)
-      
-      list(
-         Package   = package,
-         LibPath   = libPath,
-         Version   = "[Unknown]",
-         Title     = "[Failed to read package metadata]",
-         Source    = "Unknown",
-         BrowseUrl = ""
-      )
-      
-   }
-   
-   # now, find packages. we'll only include packages that have
-   # a Meta folder. note that the pseudo-package 'translations'
-   # lives in the R system library, and has a DESCRIPTION file,
-   # but cannot be loaded as a regular R package.
-   packagePaths <- list.files(.rs.uniqueLibraryPaths(), full.names = TRUE)
-   hasMeta <- file.exists(file.path(packagePaths, "Meta"))
-   packagePaths <- packagePaths[hasMeta]
-   
-   # now, iterate over these to generate the requisite package
-   # information and combine into a data.frame
-   parts <- lapply(packagePaths, function(pkgPath) {
-      
-      tryCatch(
-         readPackageInfo(pkgPath),
-         error = function(e) emptyPackageInfo(pkgPath)
-      )
-      
+
+   # build up vector of package versions
+   instPkgs <- as.data.frame(installed.packages(), stringsAsFactors=F)
+   pkgs.version <- sapply(seq_along(pkgs.name), function(i){
+     .rs.packageVersion(pkgs.name[[i]], pkgs.library[[i]], instPkgs)
    })
    
-   # combine into a data.frame
-   info <- .rs.rbindList(parts)
-   
-   # find which packages are currently attached (be careful to handle
-   # cases where package is installed into multiple libraries)
-   #
-   # we suppress warnings here as 'find.packages(.packages())' can warn
-   # if a package that is attached is no longer actually installed
-   loaded <- suppressWarnings(
-      normalizePath(file.path(info$LibPath, info$Package), winslash = "/", mustWork = FALSE) %in%
-      normalizePath(find.package(.packages(), quiet = TRUE), winslash = "/", mustWork = FALSE)
-   )
-   
-   # extract fields relevant to us
-   packages <- data.frame(
-      name             = info$Package,
-      library          = .rs.createAliasedPath(info$LibPath),
-      library_absolute = info$LibPath,
-      library_index    = match(info$LibPath, .libPaths(), nomatch = 0L),
-      version          = info$Version,
-      desc             = info$Title,
-      loaded           = loaded,
-      source           = info$Source,
-      browse_url       = info$BrowseUrl,
-      check.rows       = TRUE,
-      stringsAsFactors = FALSE
-   )
-   
+   # alias library paths for the client
+   pkgs.library <- .rs.createAliasedPath(pkgs.library)
+
+   # return data frame sorted by name
+   packages = data.frame(name=pkgs.name,
+                         library=pkgs.library,
+                         version=pkgs.version,
+                         desc=pkgs.desc,
+                         url=pkgs.url,
+                         loaded=pkgs.loaded,
+                         check.rows = TRUE,
+                         stringsAsFactors = FALSE)
+
    # sort and return
-   packages[order(packages$name), ]
+   packages[order(packages$name),]
 })
 
-.rs.addJsonRpcHandler("get_package_install_context", function()
+.rs.addJsonRpcHandler( "get_package_install_context", function()
 {
    # cran mirror configured
    repos = getOption("repos")
-   cranMirrorConfigured <- !is.null(repos) && !any(repos == "@CRAN@")
+   cranMirrorConfigured <- !is.null(repos) && repos != "@CRAN@"
    
    # selected repository names (assume an unnamed repo == CRAN)
    selectedRepositoryNames <- names(repos)
@@ -504,172 +405,49 @@ if (identical(as.character(Sys.info()["sysname"]), "Darwin") &&
    rbind(rstudioDF, cranDF)
 })
 
-.rs.addJsonRpcHandler("get_cran_actives", function()
-{
-   data.frame(name = names(getOption("repos")),
-              host = "",
-              url = as.character(getOption("repos")),
-              country = "",
-              ok = TRUE,
-              stringsAsFactors = FALSE)
-})
-
 .rs.addJsonRpcHandler( "init_default_user_library", function()
 {
   .rs.initDefaultUserLibrary()
 })
 
-.rs.addJsonRpcHandler("check_for_package_updates", function()
+
+.rs.addJsonRpcHandler( "check_for_package_updates", function()
 {
    # get updates writeable libraries and convert to a data frame
-   updates <- as.data.frame(
-      utils::old.packages(lib.loc = .rs.writeableLibraryPaths()),
-      stringsAsFactors = FALSE
-   )
+   updates <- as.data.frame(utils::old.packages(lib.loc =
+                                          .rs.writeableLibraryPaths()),
+                            stringsAsFactors = FALSE)
    row.names(updates) <- NULL
    
    # see which ones are from CRAN and add a news column for them
    # NOTE: defend against length-one repos with no name set
    repos <- getOption("repos")
-   cranRep <- if ("CRAN" %in% names(repos))
-      repos["CRAN"]
+   if ("CRAN" %in% names(repos))
+      cranRep <- repos["CRAN"]
    else
-      c(CRAN = repos[[1]])
-   
-   data.frame(
-      packageName = updates$Package,
-      libPath     = updates$LibPath,
-      installed   = updates$Installed,
-      available   = updates$ReposVer,
-      stringsAsFactors = FALSE
-   )
-   
-})
+      cranRep <- c(CRAN = repos[[1]])
+   cranRepLen <- nchar(cranRep)
+   isFromCRAN <- cranRep == substr(updates$Repository, 1, cranRepLen)
+   hasNEWS    <- file.exists(vapply(updates$Package, function(x) system.file("NEWS", package = x), character(1L)))
+   newsURL <- character(nrow(updates))
+   if (substr(cranRep, cranRepLen, cranRepLen) != "/")
+      cranRep <- paste(cranRep, "/", sep="")
 
-.rs.addJsonRpcHandler("get_package_news_url", function(packageName, libraryPath)
-{
-   # first, check if we've already discovered a NEWS link
-   cache <- .rs.packageNewsURLsEnv
-   entry <- file.path(libraryPath, packageName)
-   if (exists(entry, envir = cache))
-      return(get(entry, envir = cache))
+   newsURL[isFromCRAN] <- paste(cranRep,
+                                "web/packages/",
+                                updates$Package,
+                                ifelse(hasNEWS, "/NEWS", "/news.html"),
+                                sep = "")[isFromCRAN]
    
-   # determine an appropriate CRAN URL
-   repos <- getOption("repos")
-   cran <- if ("CRAN" %in% names(repos))
-      repos[["CRAN"]]
-   else if (length(repos))
-      repos[[1]]
-   else
-      .Call("rs_rstudioCRANReposUrl", PACKAGE = "(embedding)")
-   cran <- gsub("/*$", "", cran)
-   
-   # check to see if this package was from Bioconductor. if so, we'll need
-   # to construct a more appropriate url
-   desc <- .rs.tryCatch(.rs.readPackageDescription(file.path(libraryPath, packageName)))
-   prefix <- if (inherits(desc, "error") || !"biocViews" %in% names(desc))
-      file.path(cran, "web/packages")
-   else
-      "https://bioconductor.org/packages/release/bioc/news"
-   
-   # the set of candidate URLs -- we use the presence of a NEWS or NEWS.md
-   # to help us prioritize the order of checking.
-   #
-   # in theory, the current-installed package might not have NEWS at all, but
-   # the latest released version might have it after all, so checking the
-   # current installed package is just a heuristic and won't be accurate
-   # 100% of the time
-   pkgPath <- file.path(libraryPath, packageName)
-   candidates <- if (file.exists(file.path(pkgPath, "NEWS.md"))) {
-      c("news/news.html", "news.html", "NEWS", "ChangeLog")
-   } else if (file.exists(file.path(pkgPath, "NEWS"))) {
-      c("NEWS", "news/news.html", "news.html", "ChangeLog")
-   } else {
-      c("news/news.html", "news.html", "NEWS", "ChangeLog")
-   }
-   
-   
-   # we do some special handling for 'curl'
-   isCurl <- identical(getOption("download.file.method"), "curl")
-   if (isCurl) {
-      
-      download.file.extra <- getOption("download.file.extra")
-      on.exit(options(download.file.extra = download.file.extra), add = TRUE)
-      
-      # guard against NULL, empty extra
-      extra <- if (length(download.file.extra))
-         download.file.extra
-      else
-         ""
-      
-      # add in some extra flags for nicer download output
-      addons <- c()
-      
-      # follow redirects if necessary
-      hasLocation <-
-         grepl("\b-L\b", extra) ||
-         grepl("\b--location\b", extra)
-      
-      if (!hasLocation)
-         addons <- c(addons, "-L")
-      
-      # fail on 404
-      hasFail <-
-         grepl("\b-f\b", extra) ||
-         grepl("\b--fail\b", extra)
-      
-      if (!hasFail)
-         addons <- c(addons, "-f")
-      
-      # don't print error output to the console
-      hasSilent <-
-         grepl("\b-s\b", extra) ||
-         grepl("\b--silent\b", extra)
-      
-      if (!hasSilent)
-         addons <- c(addons, "-s")
-      
-      if (nzchar(extra))
-         extra <- paste(extra, paste(addons, collapse = " "))
-      else
-         extra <- paste(addons, collapse = " ")
-      
-      options(download.file.extra = extra)
-   }
-   
-   # timeout a bit more quickly when forming web requests
-   timeout <- getOption("timeout")
-   on.exit(options(timeout = timeout), add = TRUE)
-   options(timeout = 4L)
-   
-   for (candidate in candidates) {
-      
-      url <- file.path(prefix, packageName, candidate)
-      
-      # attempt to download the file (note that R preserves curl's printing of errors
-      # to the console with 'quiet = TRUE' so we disable it there)
-      destfile <- tempfile()
-      on.exit(unlink(destfile), add = TRUE)
-      status <- .rs.tryCatch(download.file(url, destfile = destfile, quiet = !isCurl, mode = "wb"))
-      
-      # handle explicit errors
-      if (is.null(status) || inherits(status, "error"))
-         next
-      
-      # check for success status
-      if (identical(status, 0L)) {
-         cache[[entry]] <- .rs.scalar(url)
-         return(.rs.scalar(url))
-      }
-   }
-   
-   # we failed to figure out the NEWS url; provide our first candidate
-   # as the best guess
-   fmt <- "Failed to infer appropriate NEWS URL: using '%s' as best-guess candidate"
-   warning(sprintf(fmt, candidates[[1]]))
-   
-   # return that URL
-   .rs.scalar(candidates[[1]])
+   updates <- data.frame(packageName = updates$Package,
+                         libPath = updates$LibPath,
+                         installed = updates$Installed,
+                         available = updates$ReposVer,
+                         newsUrl = newsURL,
+                         stringsAsFactors = FALSE)
+                       
+                       
+   return (updates)
 })
 
 .rs.addFunction("packagesLoaded", function(pkgs) {
@@ -761,7 +539,7 @@ if (identical(as.character(Sys.info()["sysname"]), "Darwin") &&
 
 .rs.addFunction("enqueLoadedPackageUpdates", function(installCmd)
 {
-   .Call("rs_enqueLoadedPackageUpdates", installCmd, PACKAGE = "(embedding)")
+   .Call("rs_enqueLoadedPackageUpdates", installCmd)
 })
 
 .rs.addJsonRpcHandler("loaded_package_updates_required", function(pkgs)
@@ -776,12 +554,12 @@ if (identical(as.character(Sys.info()["sysname"]), "Darwin") &&
 
 .rs.addFunction("getCachedAvailablePackages", function(contribUrl)
 {
-   .Call("rs_getCachedAvailablePackages", contribUrl, PACKAGE = "(embedding)")
+   .Call("rs_getCachedAvailablePackages", contribUrl)
 })
 
 .rs.addFunction("downloadAvailablePackages", function(contribUrl)
 {
-   .Call("rs_downloadAvailablePackages", contribUrl, PACKAGE = "(embedding)")
+   .Call("rs_downloadAvailablePackages", contribUrl)
 })
 
 .rs.addJsonRpcHandler("package_skeleton", function(packageName,
@@ -1008,7 +786,7 @@ if (identical(as.character(Sys.info()["sysname"]), "Darwin") &&
          #
          # Some useful keyboard shortcuts for package authoring:
          #
-         #   Install Package:           \'%s\'
+         #   Build and Reload Package:  \'%s\'
          #   Check Package:             \'%s\'
          #   Test Package:              \'%s\'
          
@@ -1152,7 +930,7 @@ if (identical(as.character(Sys.info()["sysname"]), "Darwin") &&
    names <- names(DESCRIPTION)
    values <- unlist(DESCRIPTION)
    text <- paste(names, ": ", values, sep = "", collapse = "\n")
-   cat(text, file = file.path(packageDirectory, "DESCRIPTION"), sep = "\n")
+   cat(text, file = file.path(packageDirectory, "DESCRIPTION"))
    
    cat(NAMESPACE, file = file.path(packageDirectory, "NAMESPACE"), sep = "\n")
    
@@ -1161,7 +939,7 @@ if (identical(as.character(Sys.info()["sysname"]), "Darwin") &&
       paste(packageName, ".Rproj", sep = "")
    )
    
-   if (!.Call("rs_writeProjectFile", RprojPath, PACKAGE = "(embedding)"))
+   if (!.Call("rs_writeProjectFile", RprojPath))
       return(.rs.error("Failed to create package .Rproj file"))
    
    # Ensure new packages get AutoAppendNewLine + StripTrailingWhitespace
@@ -1174,8 +952,8 @@ if (identical(as.character(Sys.info()["sysname"]), "Darwin") &&
       Rproj <- c(Rproj, "AutoAppendNewline: Yes")
    
    stripTrailingWhitespace <- grep("StripTrailingWhitespace:", Rproj, fixed = TRUE)
-   if (length(stripTrailingWhitespace))
-      Rproj[stripTrailingWhitespace] <- "StripTrailingWhitespace: Yes"
+   if (length(appendNewLineIndex))
+      Rproj[appendNewLineIndex] <- "StripTrailingWhitespace: Yes"
    else
       Rproj <- c(Rproj, "StripTrailingWhitespace: Yes")
    
@@ -1184,7 +962,7 @@ if (identical(as.character(Sys.info()["sysname"]), "Darwin") &&
    # NOTE: this file is not always generated (e.g. people who have implicitly opted
    # into using devtools won't need the template file)
    if (file.exists(file.path(packageDirectory, "R", "hello.R")))
-      .Call("rs_addFirstRunDoc", RprojPath, "R/hello.R", PACKAGE = "(embedding)")
+      .Call("rs_addFirstRunDoc", RprojPath, "R/hello.R")
 
    ## NOTE: This must come last to ensure the other package
    ## infrastructure bits have been generated; otherwise
@@ -1195,7 +973,7 @@ if (identical(as.character(Sys.info()["sysname"]), "Darwin") &&
    {
       Rcpp::compileAttributes(packageDirectory)
       if (file.exists(file.path(packageDirectory, "src/rcpp_hello.cpp")))
-         .Call("rs_addFirstRunDoc", RprojPath, "src/rcpp_hello.cpp", PACKAGE = "(embedding)")
+         .Call("rs_addFirstRunDoc", RprojPath, "src/rcpp_hello.cpp")
    }
    
    .rs.success()
@@ -1380,344 +1158,4 @@ if (identical(as.character(Sys.info()["sysname"]), "Darwin") &&
    
    # delegate to 'setInternet2'
    utils::setInternet2(value)
-})
-
-.rs.addFunction("availablePackages", function()
-{
-   # short-circuit for empty repositories case
-   repos <- getOption("repos")
-   if (length(repos) == 0) {
-      value <- available.packages()
-      attr(value, "time") <- Sys.time()
-      return(list(state = "CACHED", value = value))
-   }
-   
-   # figure out the current state. possibilities:
-   #
-   # - STALE:    we need to request available packages
-   # - PENDING:  another process is requesting packages
-   # - CACHED:   available packages ready in cache
-   #
-   reposString <- paste(deparse(repos), collapse = " ")
-   state <- .rs.availablePackagesState(reposString)
-   value <- switch(
-      state,
-      STALE   = .rs.onAvailablePackagesStale(reposString),
-      PENDING = .rs.onAvailablePackagesPending(reposString),
-      CACHED  = .rs.onAvailablePackagesCached(reposString),
-      NULL
-   )
-   
-   list(state = state, value = value)
-})
-
-.rs.addFunction("availablePackagesState", function(reposString)
-{
-   # do we have a cache entry?
-   entry <- .rs.availablePackagesEnv[[reposString]]
-   if (!is.null(entry)) {
-      
-      # verify the cache entry is not stale
-      time <- attr(entry, "time", exact = TRUE)
-      elapsed <- difftime(Sys.time(), time, units = "secs")
-      limit <- as.numeric(Sys.getenv("R_AVAILABLE_PACKAGES_CACHE_CONTROL_MAX_AGE", 3600))
-      
-      if (elapsed > limit)
-         return("STALE")
-      else
-         return("CACHED")
-   }
-   
-   # do we have a pending dir? if none, we're stale
-   dir <- .rs.availablePackagesPendingEnv[[reposString]]
-   if (is.null(dir))
-      return("STALE")
-   
-   # is the directory old? if so, assume the prior R process launched
-   # to produce available.packages crashed or similar
-   info <- file.info(dir)
-   time <- info$mtime
-   
-   # in some cases, mtime may not be available -- in that case, fall
-   # back to the time that was serialized when the process was launched
-   #
-   # https://github.com/rstudio/rstudio/issues/4312
-   #
-   # if all-else fails, just use the current time. this effectively means
-   # that we will never mark the directory as 'stale', which means that
-   # the dependency discovery feature may not work -- but at this point
-   # there's not much else we can do
-   if (is.na(time)) {
-      time <- .rs.tryCatch(readRDS(file.path(dir, "time.rds")))
-      if (inherits(time, "error"))
-         time <- Sys.time()
-   }
-   
-   # check to see if the directory is 'stale'
-   diff <- difftime(Sys.time(), time, units = "secs")
-   if (diff > 120)
-      return("STALE")
-   
-   # we have a directory, and it's not too old -- we're waiting
-   # for a new process to finish
-   return("PENDING")
-})
-
-.rs.addFunction("onAvailablePackagesStale", function(reposString)
-{
-   # evict a stale cache entry (if any)
-   .rs.availablePackagesEnv[[reposString]] <- NULL
-   
-   # defend against '@CRAN@' within the repositories, as this will
-   # cause R to present the user with an interactive prompt when
-   # invoking 'contrib.url()'
-   repos <- getOption("repos")
-   repos <- repos[repos != "@CRAN@"]
-   
-   # check and see if R has already queried available packages;
-   # if so we can ask R for available packages as it will use
-   # the cache
-   paths <- vapply(repos, function(url) {
-      sprintf("%s/repos_%s.rds", 
-              tempdir(), 
-              URLencode(contrib.url(url), TRUE)
-   )
-   }, FUN.VALUE = character(1))
-   
-   if (all(file.exists(paths))) {
-      
-      # request available packages
-      packages <- if (getRversion() >= "3.5")
-         available.packages(max_repo_cache_age = Inf)
-      else
-         available.packages()
-      
-      # note accessed time
-      attr(packages, "time") <- Sys.time()
-      
-      # add it to the cache
-      .rs.availablePackagesEnv[[reposString]] <- packages
-      
-      # we're done!
-      packages
-   }
-   
-   # prepare directory for discovery of available packages
-   dir <- tempfile("rstudio-available-packages-")
-   dir.create(dir, showWarnings = FALSE)
-   .rs.availablePackagesPendingEnv[[reposString]] <- dir
-   
-   # mtime may be unreliable (or access could fail in some cases) so
-   # instead serialize the current time to a file rather than relying on OS
-   saveRDS(Sys.time(), file = file.path(dir, "time.rds"))
-   
-   # move there
-   owd <- setwd(dir)
-   on.exit(setwd(owd), add = TRUE)
-   
-   # define our helper script that will download + save available.packages
-   template <- .rs.trimCommonIndent('
-      options(repos = %s, pkgType = %s)
-      packages <- available.packages()
-      attr(packages, "time") <- Sys.time()
-      saveRDS(packages, file = "packages.rds")
-   ')
-   
-   script <- sprintf(
-      template,
-      .rs.deparse(getOption("repos")),
-      .rs.deparse(getOption("pkgType"))
-   )
-   
-   # fire off the process
-   .rs.runAsyncRProcess(
-      script,
-      onCompleted = function(exitStatus) {
-         
-         # bail on error (don't log since this might occur
-         # for reasons not actionable by the user; e.g. restarting
-         # the R session while a lookup is happening)
-         if (exitStatus)
-            return()
-         
-         available <- .rs.onAvailablePackagesReady(reposString)
-         data <- list(
-            ready = .rs.scalar(TRUE),
-            packages = rownames(available)
-         )
-         .rs.enqueClientEvent("available_packages_ready", data)
-      }
-   )
-   
-   # NULL indicates we don't have available packages yet
-   return(NULL)
-   
-})
-
-.rs.addFunction("onAvailablePackagesPending", function(reposString)
-{
-   # nothing to do here
-   invisible(NULL)
-})
-
-.rs.addFunction("onAvailablePackagesReady", function(reposString)
-{
-   # get the directory and read packages.rds
-   dir <- .rs.availablePackagesPendingEnv[[reposString]]
-   rds <- file.path(dir, "packages.rds")
-   
-   # attempt to read the database and add it to the cache
-   packages <- .rs.tryCatch(readRDS(rds))
-   if (!inherits(packages, "error"))
-      .rs.availablePackagesEnv[[reposString]] <- packages
-   
-   # remove state directory and mark as no longer pending
-   unlink(dir, recursive = TRUE)
-   .rs.availablePackagesPendingEnv[[reposString]] <- NULL
-   
-   # we're done!
-   packages
-})
-
-.rs.addFunction("onAvailablePackagesCached", function(reposString)
-{
-   .rs.availablePackagesEnv[[reposString]]
-})
-
-.rs.addFunction("parseSecondaryReposIni", function(conf) {
-   entries <- .rs.readIniFile(conf)
-   repos <- list()
-
-   for (entryName in names(entries)) {
-     repo <- list(
-        name  = .rs.scalar(trimws(entryName)),
-        url = .rs.scalar(trimws(entries[[entryName]])),
-        host = .rs.scalar("Custom"),
-        country = .rs.scalar("")
-     )
-
-     if (identical(tolower(as.character(repo$name)), "cran")) {
-        repo$name <- .rs.scalar("CRAN")
-        repos <- append(list(repo), repos, 1)
-     } else {
-        repos[[length(repos) + 1]] <- repo
-     }
-   }
-
-   repos
-})
-
-.rs.addFunction("parseSecondaryReposJson", function(conf) {
-   lines <- readLines(conf)
-   repos <- list()
-
-   entries <- .rs.fromJSON(paste(lines, collpse = "\n"))
-
-   for (entry in entries) {
-      url <- if (is.null(entry$url)) "" else url
-
-      repo <- list(
-         name  = .rs.scalar(entry$name),
-         url = .rs.scalar(url),
-         host = .rs.scalar("Custom"),
-         country = .rs.scalar("")
-      )
-
-      if (identical(tolower(as.character(repo$name)), "cran")) {
-         repo$name <- .rs.scalar("CRAN")
-         repos <- append(list(repo), repos, 1)
-      } else {
-         repos[[length(repos) + 1]] <- repo
-      }
-   }
-
-   repos
-})
-
-.rs.addFunction("getSecondaryRepos", function(cran = getOption("repos")[[1]], custom = TRUE) {
-   result <- list(
-      repos = list()
-   )
-   
-   rCranReposUrl <- .Call("rs_getCranReposUrl", PACKAGE = "(embedding)")
-   isDefault <- identical(rCranReposUrl, NULL) || nchar(rCranReposUrl) == 0
-
-   if (isDefault) {
-      slash <- if (.rs.lastCharacterIs(cran, "/")) "" else "/"
-      rCranReposUrl <- paste(slash, "../../__api__/repos", sep = "")
-   }
-   else {
-      custom <- TRUE
-   }
-
-   if (.rs.startsWith(rCranReposUrl, "..") ||
-       .rs.startsWith(rCranReposUrl, "/..")) {
-      rCranReposUrl <- .rs.completeUrl(cran, rCranReposUrl)
-   }
-
-   if (custom) {
-      conf <- tempfile(fileext = ".conf")
-      
-      result <- tryCatch({
-         download.file(
-            rCranReposUrl,
-            conf,
-            method = "curl",
-            extra = "-H 'Accept: text/ini'",
-            quiet = TRUE
-         )
-         
-         result$repos <- .rs.parseSecondaryReposIni(conf)
-         if (length(result$repos) == 0) {
-            result$repos <- .rs.parseSecondaryReposJson(conf)
-         }
-
-         result
-      }, error = function(e) {
-         list(
-            error = .rs.scalar(
-               paste(
-                  "Failed to process repos list from ",
-                  rCranReposUrl, ". ", e$message, ".", sep = ""
-               )
-            )
-         )
-      })
-   }
-
-   result
-})
-
-.rs.addJsonRpcHandler("get_secondary_repos", function(cran, custom) {
-   .rs.getSecondaryRepos(cran, custom)
-})
-
-.rs.addFunction("appendSlashIfNeeded", function(url) {
-   slash <- if (.rs.lastCharacterIs(url, "/")) "" else "/"
-   paste(url, slash, sep = "")
-})
-
-.rs.addJsonRpcHandler("validate_cran_repo", function(url) {
-   packagesFile <- tempfile(fileext = ".gz")
-   
-   tryCatch({
-      download.file(
-         .rs.completeUrl(.rs.appendSlashIfNeeded(url), "src/contrib/PACKAGES.gz"),
-         packagesFile,
-         quiet = TRUE
-      )
-
-      .rs.scalar(TRUE)
-   }, error = function(e) {
-      .rs.scalar(FALSE)
-   })
-})
-
-.rs.addJsonRpcHandler("is_package_installed", function(package, version)
-{
-   installed <- if (is.null(version))
-      .rs.isPackageInstalled(package)
-   else
-      .rs.isPackageVersionInstalled(package, version)
-   .rs.scalar(installed)
 })

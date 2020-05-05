@@ -1,7 +1,7 @@
 /*
  * RGraphicsPlotManager.hpp
  *
- * Copyright (C) 2009-12 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -22,12 +22,12 @@
 #include <boost/utility.hpp>
 #include <boost/shared_ptr.hpp>
 #include <boost/function.hpp>
+#include <boost/signal.hpp>
 #include <boost/regex.hpp>
 #include <boost/circular_buffer.hpp>
 
-#include <core/BoostSignals.hpp>
-#include <shared_core/Error.hpp>
-#include <shared_core/FilePath.hpp>
+#include <core/Error.hpp>
+#include <core/FilePath.hpp>
 
 #include <r/session/RGraphics.hpp>
 
@@ -45,10 +45,10 @@ PlotManager& plotManager();
 
 struct GraphicsDeviceEvents
 {
-   RSTUDIO_BOOST_SIGNAL<void (SEXP)> onNewPage; 
-   RSTUDIO_BOOST_SIGNAL<void ()> onDrawing;
-   RSTUDIO_BOOST_SIGNAL<void ()> onResized;
-   RSTUDIO_BOOST_SIGNAL<void ()> onClosed;
+   boost::signal<void (SEXP)> onNewPage; 
+   boost::signal<void ()> onDrawing;
+   boost::signal<void ()> onResized;
+   boost::signal<void ()> onClosed;
 };
 
 class PlotManipulatorManager;
@@ -110,7 +110,7 @@ public:
    
    virtual void clear();
 
-   virtual RSTUDIO_BOOST_SIGNAL<void ()>& onShowManipulator() ;
+   virtual boost::signal<void ()>& onShowManipulator() ;
    virtual void setPlotManipulatorValues(const core::json::Object& values);
    virtual void manipulatorPlotClicked(int x, int y);
 

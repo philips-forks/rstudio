@@ -1,7 +1,7 @@
 /*
  * DataTable.java
  *
- * Copyright (C) 2009-20 by RStudio, PBC
+ * Copyright (C) 2009-15 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -17,18 +17,16 @@ package org.rstudio.studio.client.dataviewer;
 
 import java.util.ArrayList;
 
-import com.google.gwt.user.client.ui.Widget;
-import org.rstudio.core.client.CommandWith2Args;
-import org.rstudio.core.client.command.ShortcutManager;
 import org.rstudio.core.client.dom.IFrameElementEx;
 import org.rstudio.core.client.dom.WindowEx;
-import org.rstudio.core.client.events.NativeKeyDownEvent;
 import org.rstudio.core.client.resources.ImageResource2x;
 import org.rstudio.core.client.theme.res.ThemeStyles;
-import org.rstudio.core.client.widget.*;
+import org.rstudio.core.client.widget.LatchingToolbarButton;
+import org.rstudio.core.client.widget.RStudioFrame;
+import org.rstudio.core.client.widget.SearchWidget;
+import org.rstudio.core.client.widget.Toolbar;
+import org.rstudio.core.client.widget.ToolbarLabel;
 
-import com.google.gwt.dom.client.Element;
-import com.google.gwt.dom.client.NativeEvent;
 import com.google.gwt.event.dom.client.ClickEvent;
 import com.google.gwt.event.dom.client.ClickHandler;
 import com.google.gwt.event.logical.shared.ValueChangeEvent;
@@ -51,8 +49,6 @@ public class DataTable
    {
       filterButton_ = new LatchingToolbarButton(
               "Filter",
-              ToolbarButton.NoTitle,
-              false, /* textIndicatesState */
               new ImageResource2x(DataViewerResources.INSTANCE.filterIcon2x()),
               new ClickHandler() {
                  public void onClick(ClickEvent event)
@@ -72,11 +68,7 @@ public class DataTable
       toolbar.addLeftWidget(filterButton_);
       filterButton_.setVisible(!isPreview);
 
-      colsSeparator_ = toolbar.addLeftSeparator();
-      colsSeparator_.setVisible(false);
-      addColumnControls(toolbar);
-
-      searchWidget_ = new SearchWidget("Search data table", new SuggestOracle() {
+      searchWidget_ = new SearchWidget(new SuggestOracle() {
          @Override
          public void requestSuggestions(Request request, Callback callback)
          {
@@ -105,120 +97,11 @@ public class DataTable
          toolbar.addRightWidget(label);
       }
    }
-
-   private ClickHandler[] getColumnViewClickHandlers() {
-      ClickHandler handlers[] = {
-         new ClickHandler()
-         {
-            @Override
-            public void onClick(ClickEvent event)
-            {
-               firstColumnPage();
-            }
-         },
-         new ClickHandler()
-         {
-            @Override
-            public void onClick(ClickEvent event)
-            {
-               prevColumnPage();
-            }
-         },
-         new ClickHandler()
-         {
-            @Override
-            public void onClick(ClickEvent event)
-            {
-               nextColumnPage();
-            }
-         },
-         new ClickHandler()
-         {
-            @Override
-            public void onClick(ClickEvent event)
-            {
-               lastColumnPage();
-            }
-         }
-      };
-
-      return handlers;
-   }
-   private void addColumnControls(Toolbar toolbar)
-   {
-      colsLabel_ = new ToolbarLabel("Cols:");
-      colsLabel_.addStyleName(ThemeStyles.INSTANCE.toolbarInfoLabel());
-      colsLabel_.setVisible(false);
-      toolbar.addLeftWidget(colsLabel_);
-
-      ClickHandler[] clickHandlers = getColumnViewClickHandlers();
-      SimpleButton columnButton;
-      columnViewButtons_ = new ArrayList<>();
-
-      for (int i = 0; i < COLUMN_VIEW_BUTTONS.length; i++)
-      {
-         columnButton = new SimpleButton(COLUMN_VIEW_BUTTONS[i], true);
-         columnButton.addClickHandler(clickHandlers[i]);
-         columnButton.setVisible(false);
-         toolbar.addLeftWidget(columnButton);
-         columnViewButtons_.add(columnButton);
-
-         if (i == 1)
-         {
-            columnTextWidget_ = new DataTableColumnWidget(this::setOffsetAndMaxColumns);
-            columnTextWidget_.setVisible(false);
-            toolbar.addLeftWidget(columnTextWidget_);
-         }
-      }
-   }
-
-   private void setColumnControlVisibility(boolean visible)
-   {
-      colsSeparator_.setVisible(visible);
-      colsLabel_.setVisible(visible);
-      for (int i = 0; i < COLUMN_VIEW_BUTTONS.length; i++)
-      {
-         columnViewButtons_.get(i).setVisible(visible);
-      }
-      columnTextWidget_.setVisible(visible);
-   }
-
-   private CommandWith2Args<Integer, Integer> getDataTableColumnCallback()
-   {
-      return (offset, max) ->
-      {
-         // This is super weird but the type coming in is throwing crazy exceptions if
-         // we treat it like a normal Integer. This cast-cleaning seems to fix it.
-         int off = Integer.parseInt("" + offset) + 1;
-         int mx = Integer.parseInt("" + max) + off - 1;
-         columnTextWidget_.setValue(off + " - " + mx);
-
-         setColumnControlVisibility(isLimitedColumnFrame());
-      };
-   }
-
+   
    private WindowEx getWindow()
    {
       IFrameElementEx frameEl = (IFrameElementEx) host_.getDataTableFrame().getElement().cast();
       return frameEl.getContentWindow();
-   }
-   
-   public void addKeyDownHandler()
-   {
-      addKeyDownHandlerImpl(getWindow().getDocument().getBody());
-   }
-   
-   private final native void addKeyDownHandlerImpl(Element body)
-   /*-{
-      var self = this;
-      body.addEventListener("keydown", $entry(function(event) {
-         self.@org.rstudio.studio.client.dataviewer.DataTable::onKeyDown(*)(event);
-      }));
-   }-*/;
-   
-   private void onKeyDown(NativeEvent event)
-   {
-      ShortcutManager.INSTANCE.onKeyDown(new NativeKeyDownEvent(event));
    }
 
    public boolean setFilterUIVisible(boolean visible)
@@ -226,30 +109,20 @@ public class DataTable
       return setFilterUIVisible(getWindow(), visible);
    }
    
-   public void setDataViewerCallback(CommandWith2Args<Integer, Integer> dataCallback)
+   public void refreshData(boolean structureChanged, boolean sizeChanged)
    {
-      setDataViewerCallback(getWindow(), dataCallback);
-   }
-   
-   public void setListViewerCallback(CommandWith2Args<Integer, Integer> listCallback)
-   {
-      setListViewerCallback(getWindow(), listCallback);
-   }
+      // if the structure of the data changed, the old search/filter data is
+      // discarded, as it may no longer be applicable to the data's new shape.
+      if (structureChanged)
+      {
+         filtered_= false;
+         if (searchWidget_ != null)
+            searchWidget_.setText("", false);
+         if (filterButton_ != null)
+            filterButton_.setLatched(false);
+      }
 
-   public void setColumnFrameCallback()
-   {
-      setColumnFrameCallback(getWindow(), getDataTableColumnCallback());
-   }
-
-   public void refreshData()
-   {
-      filtered_= false;
-      if (searchWidget_ != null)
-         searchWidget_.setText("", false);
-      if (filterButton_ != null)
-         filterButton_.setLatched(false);
-
-      refreshData(getWindow());
+      refreshData(getWindow(), structureChanged, sizeChanged);
    }
    
    public void onActivate()
@@ -270,17 +143,17 @@ public class DataTable
       }
    }
 
-   private boolean isLimitedColumnFrame() { return isLimitedColumnFrame(getWindow()); }
-
    private static final native boolean setFilterUIVisible (WindowEx frame, boolean visible) /*-{
       if (frame && frame.setFilterUIVisible)
          return frame.setFilterUIVisible(visible);
       return false;
    }-*/;
-
-   private static final native void refreshData(WindowEx frame) /*-{
+   
+   private static final native void refreshData(WindowEx frame, 
+         boolean structureChanged,
+         boolean sizeChanged) /*-{
       if (frame && frame.refreshData)
-         frame.refreshData();
+         frame.refreshData(structureChanged, sizeChanged);
    }-*/;
 
    private static final native void applySearch(WindowEx frame, String text) /*-{
@@ -298,95 +171,8 @@ public class DataTable
          frame.onDeactivate();
    }-*/;
 
-   private static final native boolean isLimitedColumnFrame(WindowEx frame) /*-{
-       if (frame && frame.isLimitedColumnFrame)
-           return frame.isLimitedColumnFrame();
-       return false;
-   }-*/;
-
-   private void nextColumnPage()
-   {
-      nextColumnPage(getWindow());
-   }
-   private void prevColumnPage()
-   {
-      prevColumnPage(getWindow());
-   }
-   private void firstColumnPage()
-   {
-      firstColumnPage(getWindow());
-   }
-   private void lastColumnPage()
-   {
-      lastColumnPage(getWindow());
-   }
-   private void setOffsetAndMaxColumns(int offset, int max)
-   {
-      setOffsetAndMaxColumns(getWindow(), offset, max);
-   }
-
-   private static final native void nextColumnPage(WindowEx frame) /*-{
-      if (frame && frame.nextColumnPage)
-          frame.nextColumnPage();
-   }-*/;
-   private static final native void prevColumnPage(WindowEx frame) /*-{
-       if (frame && frame.prevColumnPage)
-           frame.prevColumnPage();
-   }-*/;
-   private static final native void firstColumnPage(WindowEx frame) /*-{
-       if (frame && frame.firstColumnPage)
-           frame.firstColumnPage();
-   }-*/;
-   private static final native void lastColumnPage(WindowEx frame) /*-{
-       if (frame && frame.lastColumnPage)
-           frame.lastColumnPage();
-   }-*/;
-
-   private static final native void setOffsetAndMaxColumns(WindowEx frame, int offset, int max) /*-{
-       if (frame && frame.setOffsetAndMaxColumns) {
-           frame.setOffsetAndMaxColumns(offset, max);
-       }
-   }-*/;
-   private static final native void setDataViewerCallback(
-      WindowEx frame,
-      CommandWith2Args<Integer, Integer> dataCallback) /*-{
-      frame.setOption(
-         "dataViewerCallback", 
-         $entry(function(row, col) {
-            dataCallback.@org.rstudio.core.client.CommandWith2Args::execute(Ljava/lang/Object;Ljava/lang/Object;)(row, col);
-         }));
-   }-*/;
-   
-   private static final native void setListViewerCallback(
-      WindowEx frame,
-      CommandWith2Args<Integer, Integer> listCallback) /*-{
-      frame.setOption(
-         "listViewerCallback", 
-         $entry(function(row, col) {
-            listCallback.@org.rstudio.core.client.CommandWith2Args::execute(Ljava/lang/Object;Ljava/lang/Object;)(row, col);
-         }));
-   }-*/;
-
-   private static final native void setColumnFrameCallback( WindowEx frame, CommandWith2Args<Integer, Integer> columnFrameCallback) /*-{
-      frame.setOption(
-         "columnFrameCallback",
-         $entry(function(offset, max) {
-            columnFrameCallback.@org.rstudio.core.client.CommandWith2Args::execute(Ljava/lang/Object;Ljava/lang/Object;)(offset, max);
-         }));
-   }-*/;
    private Host host_;
    private LatchingToolbarButton filterButton_;
-   private DataTableColumnWidget columnTextWidget_;
-   private Widget colsSeparator_;
-   private ToolbarLabel colsLabel_;
-   private ArrayList<SimpleButton> columnViewButtons_;
    private SearchWidget searchWidget_;
    private boolean filtered_ = false;
-
-   private static String COLUMN_VIEW_BUTTONS[] = {
-      "<i class=\"icon-angle-double-left \"></i>",
-      "<i class=\"icon-angle-left \"></i>",
-      "<i class=\"icon-angle-right \"></i>",
-      "<i class=\"icon-angle-double-right \"></i>"
-   };
 }

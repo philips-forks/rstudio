@@ -1,7 +1,7 @@
 /*
  * SessionClientEventService.cpp
  *
- * Copyright (C) 2009-18 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -19,7 +19,7 @@
 
 #include <core/BoostThread.hpp>
 #include <core/Log.hpp>
-#include <shared_core/Error.hpp>
+#include <core/Error.hpp>
 #include <core/BoostErrors.hpp>
 #include <core/Thread.hpp>
 #include <core/system/System.hpp>
@@ -45,8 +45,8 @@ const int kLastChanceWaitSeconds = 4;
 
 bool hasEventIdLessThanOrEqualTo(const json::Value& event, int targetId)
 {
-   const json::Object& eventJSON = event.getObject();
-   int eventId = (*eventJSON.find("id")).getValue().getInt();
+   const json::Object& eventJSON = event.get_obj();
+   int eventId = eventJSON.find("id")->second.get_int();
    return eventId <= targetId;
 }
          
@@ -103,7 +103,7 @@ void ClientEventService::stop()
          serviceThread_.detach();
       }
    }
-   catch(const boost::thread_interrupted&)
+   catch(const boost::thread_interrupted& e)
    {
       // the main thread is the one who calls stop() and it should 
       // NEVER be interrupted for any reason
@@ -156,7 +156,7 @@ bool ClientEventService::havePendingClientEvents()
 {
    LOCK_MUTEX(mutex_)
    {
-      return !clientEvents_.isEmpty();
+      return !clientEvents_.empty();
    }
    END_LOCK_MUTEX
 
@@ -304,7 +304,7 @@ void ClientEventService::run()
                }
            }
          }
-         catch(const boost::thread_interrupted&)
+         catch(const boost::thread_interrupted& e)
          {
             // set flag so we terminate on the next accept loop iteration
             stopServer = true ;

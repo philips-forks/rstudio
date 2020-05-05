@@ -1,7 +1,7 @@
 /*
  * RJson.cpp
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -47,12 +47,11 @@
 */
 
 #include <iostream>
-#include <gsl/gsl>
 
 #define R_INTERNAL_FUNCTIONS
 #include <r/RJson.hpp>
 
-#include <shared_core/Error.hpp>
+#include <core/Error.hpp>
 #include <core/StringUtils.hpp>
 
 #include <r/RSexp.hpp>
@@ -197,9 +196,9 @@ bool isNamedList(SEXP listSEXP)
    Error error = sexp::getNames(listSEXP, &fieldNames);
    if (error)
       return false ;
-   int nameCount = gsl::narrow_cast<int>(std::count_if(fieldNames.begin(),
-                                         fieldNames.end(),
-                                         &core::string_utils::stringNotEmpty));
+   int nameCount = std::count_if(fieldNames.begin(), 
+                                 fieldNames.end(),
+                                 &core::string_utils::stringNotEmpty);
    if (nameCount != listLength)
       return false;   
    
@@ -248,7 +247,7 @@ Error jsonObjectFromListElement(SEXP listSEXP,
       }
       
       // add it to the json object
-      jsonObject[fieldNames[gsl::narrow_cast<size_t>(f)]] = fieldValue;
+      jsonObject[fieldNames[f]] = fieldValue;
    }
    
    // set value and return success
@@ -293,14 +292,7 @@ Error jsonObjectFromList(SEXP listSEXP, core::json::Value* pValue)
 // and returned true for this list (validates a name for each element)
 //   
 Error jsonObjectArrayFromDataFrame(SEXP listSEXP, core::json::Value* pValue)
-{
-   // handle empty-list case up-front
-   if (Rf_length(listSEXP) == 0)
-   {
-      *pValue = core::json::Array();
-      return Success();
-   }
-   
+{      
    // get the names of the list elements
    std::vector<std::string> fieldNames ;
    Error error = sexp::getNames(listSEXP, &fieldNames);

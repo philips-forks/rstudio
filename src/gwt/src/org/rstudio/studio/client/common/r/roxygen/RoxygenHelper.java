@@ -1,7 +1,7 @@
 /*
  * RoxygenHelper.java
  *
- * Copyright (C) 2009-15 by RStudio, PBC
+ * Copyright (C) 2009-15 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -82,13 +82,13 @@ public class RoxygenHelper
       {
          String enclosingScope = findEnclosingScope(cursor);
          
-         if (enclosingScope == "setClass")
+         if (enclosingScope.equals("setClass"))
             insertRoxygenSkeletonS4Class(cursor);
-         else if (enclosingScope == "setGeneric")
+         else if (enclosingScope.equals("setGeneric"))
             insertRoxygenSkeletonSetGeneric(cursor);
-         else if (enclosingScope == "setMethod")
+         else if (enclosingScope.equals("setMethod"))
             insertRoxygenSkeletonSetMethod(cursor);
-         else if (enclosingScope == "setRefClass")
+         else if (enclosingScope.equals("setRefClass"))
             insertRoxygenSkeletonSetRefClass(cursor);
             
          if (enclosingScope != null)
@@ -128,7 +128,7 @@ public class RoxygenHelper
       if (!clone.moveToNextToken())
          return null;
       
-      if (clone.currentValue() != "(")
+      if (!clone.currentValue().equals("("))
          return null;
       
       if (!clone.fwdToMatchingToken())
@@ -341,7 +341,7 @@ public class RoxygenHelper
          return cursor.currentValue();
       }
          
-      while (cursor.currentValue() ==")")
+      while (cursor.currentValue().equals(")"))
          if (!cursor.moveToPreviousToken())
             return null;
       

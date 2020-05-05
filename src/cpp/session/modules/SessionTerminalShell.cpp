@@ -1,7 +1,7 @@
 /*
  * SessionTerminalShell.cpp
  *
- * Copyright (C) 2009-20 by RStudio, PBC
+ * Copyright (C) 2009-17 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -15,15 +15,15 @@
 
 #include <session/SessionTerminalShell.hpp>
 
+#include <boost/foreach.hpp>
+
 #include <core/Algorithm.hpp>
 #include <core/system/System.hpp>
-#include <core/StringUtils.hpp>
+#include <core/Log.hpp>
+#include <core/Error.hpp>
 
-#include <session/SessionModuleContext.hpp>
+#include <session/SessionUserSettings.hpp>
 #include "SessionGit.hpp"
-#include <session/prefs/UserPrefs.hpp>
-#include <shared_core/FilePath.hpp>
-#include <core/FileUtils.hpp>
 
 namespace rstudio {
 namespace session {
@@ -32,7 +32,7 @@ namespace console_process {
 namespace {
 
 void addShell(const core::FilePath& expectedPath,
-              TerminalShell::ShellType type,
+              TerminalShell::TerminalShellType type,
               const std::string& title,
               std::vector<std::string> args,
               std::vector<TerminalShell>* pShells,
@@ -42,77 +42,92 @@ void addShell(const core::FilePath& expectedPath,
       pShells->push_back(TerminalShell(type, title, expectedPath, args));
 }
 
-void scanPosixShells(std::vector<TerminalShell>* pShells)
-{
-   bool foundZsh = false;
-   core::FilePath shellsFile("/etc/shells");
-   if (shellsFile.exists())
-   {
-      std::string shells = core::file_utils::readFile(shellsFile);
-      std::vector<std::string> lines;
-      boost::algorithm::split(lines, shells, boost::algorithm::is_any_of("\n"));
-      for (const std::string& line : lines)
-      {
-         std::string trimmedLine = core::string_utils::trimWhitespace(line);
-
-         // skip comments and empty lines
-         if (trimmedLine.empty() || (trimmedLine.size() > 0 && trimmedLine.at(0) == '#'))
-            continue;
-
-         if (!foundZsh && boost::algorithm::ends_with(trimmedLine, "/zsh"))
-         {
-            foundZsh = true;
-            std::vector<std::string> args;
-            args.emplace_back("-l"); // act like a login shell
-            args.emplace_back("-g"); // don't add commands with leading space to history
-            addShell(core::FilePath(trimmedLine), TerminalShell::ShellType::PosixZsh,
-                     "Zsh", args, pShells);
-         }
-      }
-   }
-}
-
 void scanAvailableShells(std::vector<TerminalShell>* pShells)
 {
 #ifdef _WIN32
+   // On Vista and above virtual directories allow processes to get at both
+   // 32 and 64-bit system binaries (cmd.exe and powershell.exe).
+   //
+   // * On a 32-bit OS, %windir%\system32 contains 32-bit, and there are
+   //   no 64-bit bins.
+   //
+   // * On a 64-bit OS, a 32-bit process sees 32-bit bins in %windir%\system32,
+   //   and 64-bit bins in %windir%\sysnative.
+   //
+   // * On a 64-bit OS, a 64-bit process sees 32-bit bins in %windir%\syswow64,
+   //   and 64-bit bins in %windir%\system32.
+
    std::vector<std::string> args;
 
-   const std::string sys32("system32\\");
-   const std::string cmd("cmd.exe");
-   const std::string ps("WindowsPowerShell\\v1.0\\powershell.exe");
-   const std::string bash("bash.exe");
-   const std::string pscore("PowerShell\\6\\pwsh.exe");
-
-   std::string windir;
-   core::Error err = core::system::expandEnvironmentVariables("%windir%\\", &windir);
-   if (err)
+   if (!core::system::isVistaOrLater())
    {
-      LOG_ERROR(err);
-      return;
+      // Below Vista, just use %comspec%
+      addShell(core::system::expandComSpec(),
+               TerminalShell::Cmd32, "Command Prompt", args, pShells);
    }
-   std::string progfiles;
-   err = core::system::expandEnvironmentVariables("%ProgramFiles%\\", &progfiles);
-   if (err)
+   else
    {
-      LOG_ERROR(err);
-      return;
+      const std::string sysnative("sysnative\\");
+      const std::string sys32("system32\\");
+      const std::string wow64("syswow64\\");
+      const std::string cmd("cmd.exe");
+      const std::string ps("WindowsPowerShell\\v1.0\\powershell.exe");
+      const std::string bash("bash.exe");
+
+      std::string windir;
+      core::Error err = core::system::expandEnvironmentVariables("%windir%\\", &windir);
+      if (err)
+      {
+         LOG_ERROR(err);
+         return;
+      }
+
+      addShell(getGitBashShell(), TerminalShell::GitBash, "Git Bash", args, pShells);
+
+      core::FilePath cmd32;
+      core::FilePath cmd64;
+      core::FilePath ps32;
+      core::FilePath ps64;
+      core::FilePath bashWSL; // Windows Subsystem for Linux
+
+      if (core::system::isWin64())
+      {
+         if (core::system::isCurrentProcessWin64())
+         {
+            cmd32 = core::FilePath(windir + wow64 + cmd);
+            cmd64 = core::FilePath(windir + sys32 + cmd);
+            ps32 = core::FilePath(windir + wow64 + ps);
+            ps64 = core::FilePath(windir + sys32 + ps);
+            bashWSL = core::FilePath(windir + sys32 + bash);
+         }
+         else
+         {
+            cmd32 = core::FilePath(windir + sys32 + cmd);
+            cmd64 = core::FilePath(windir + sysnative + cmd);
+            ps32 = core::FilePath(windir + sys32 + ps);
+            ps64 = core::FilePath(windir + sysnative + ps);
+            bashWSL = core::FilePath(windir + sysnative + bash);
+         }
+      }
+      else // 32-bit windows
+      {
+         cmd32 = core::FilePath(windir + sys32 + cmd);
+         ps32 = core::FilePath(windir + sys32 + ps);
+      }
+
+      addShell(cmd32, TerminalShell::Cmd32, "Command Prompt (32-bit)", args, pShells);
+      addShell(cmd64, TerminalShell::Cmd64, "Command Prompt (64-bit)", args, pShells);
+      addShell(ps32, TerminalShell::PS32, "Windows PowerShell (32-bit)", args, pShells);
+      addShell(ps64, TerminalShell::PS64, "Windows PowerShell (64-bit)", args, pShells);
+
+      // Is there a better way to detect WSL? This will match any 64-bit
+      // bash.exe found in same location as the WSL bash.
+      if (core::system::isWin64())
+      {
+         addShell(bashWSL, TerminalShell::WSLBash,
+                  "Bash (Windows Subsystem for Linux)", args, pShells);
+      }
    }
-
-   addShell(getGitBashShell(), TerminalShell::ShellType::GitBash, "Git Bash", args, pShells);
-
-   core::FilePath cmd64 = core::FilePath(windir + sys32 + cmd);
-   core::FilePath ps64 = core::FilePath(windir + sys32 + ps);
-   core::FilePath bashWSL = core::FilePath(windir + sys32 + bash);
-   core::FilePath psCore = core::FilePath(progfiles + pscore);
-
-   addShell(cmd64, TerminalShell::ShellType::Cmd64, "Command Prompt", args, pShells);
-   addShell(ps64, TerminalShell::ShellType::PS64, "Windows PowerShell", args, pShells);
-   addShell(psCore, TerminalShell::ShellType::PSCore, "PowerShell Core", args, pShells);
-
-   // Is there a better way to detect WSL? This will match any 64-bit
-   // bash.exe found in same location as the WSL bash.
-   addShell(bashWSL, TerminalShell::ShellType::WSLBash,
-            "Bash (Windows Subsystem for Linux)", args, pShells);
 #endif
 
    // If nothing found add standard shell (%comspec% on Windows, Bash on Posix)
@@ -125,11 +140,7 @@ void scanAvailableShells(std::vector<TerminalShell>* pShells)
       }
    }
 
-   // Additional Posix Shells
 #ifndef _WIN32
-   scanPosixShells(pShells);
-#endif
-
    // Add user-selectable shell command option
    TerminalShell customShell;
    if (AvailableTerminalShells::getCustomShell(&customShell))
@@ -138,6 +149,7 @@ void scanAvailableShells(std::vector<TerminalShell>* pShells)
                customShell.args, pShells,
                false /*checkPathExists*/);
    }
+#endif // !_WIN32
 }
 
 } // anonymous namespace
@@ -145,110 +157,41 @@ void scanAvailableShells(std::vector<TerminalShell>* pShells)
 core::json::Object TerminalShell::toJson() const
 {
    core::json::Object resultJson;
-   resultJson["type"] = getShellId(type);
+   resultJson["type"] = type;
    resultJson["name"] = name;
    return resultJson;
 }
 
 // keep in sync with TerminalShellInfo::getShellName in client code
-std::string TerminalShell::getShellName(ShellType type)
+std::string TerminalShell::getShellName(TerminalShellType type)
 {
    switch (type)
    {
-   case ShellType::Default:
+   case DefaultShell:
       return "Default";
-   case ShellType::GitBash:
+   case GitBash:
       return "Git Bash";
-   case ShellType::WSLBash:
+   case WSLBash:
       return "WSL";
-   case ShellType::Cmd32:
-   case ShellType::Cmd64:
-      return "Command Prompt";
-   case ShellType::PS32:
-   case ShellType::PS64:
-      return "PowerShell";
-   case ShellType::PSCore:
-      return "PowerShell Core";
-   case ShellType::PosixBash:
+   case Cmd32:
+      return "Command Prompt (32-bit)";
+   case Cmd64:
+      return "Command Prompt (64-bit)";
+   case PS32:
+      return "PowerShell (32-bit)";
+   case PS64:
+      return "PowerShell (64-bit)";
+   case PosixBash:
       return "Bash";
-   case ShellType::CustomShell:
+   case CustomShell:
       return "Custom";
-   case ShellType::NoShell:
+   case NoShell:
       return "User command";
-   case ShellType::PosixZsh:
-      return "Zsh";
-   }
-   return "Unknown";
-}
-
-// keep in sync with values supported by terminalCreate "shellType" argument in 
-// rstudioapi and rs_terminalCreate
-TerminalShell::ShellType TerminalShell::shellTypeFromString(const std::string& str)
-{
-   std::string typeStr = core::string_utils::toLower(str);
-   if (typeStr == kWindowsTerminalShellWinCmd)
-   {
-      return TerminalShell::ShellType::Cmd64;
-   }
-   else if (typeStr == kWindowsTerminalShellWinPs)
-   {
-      return TerminalShell::ShellType::PS64;
-   }
-   else if (typeStr == kWindowsTerminalShellPsCore)
-   {
-      return TerminalShell::ShellType::PSCore;
-   }
-   else if (typeStr == kWindowsTerminalShellWinGitBash)
-   {
-      return TerminalShell::ShellType::GitBash;
-   }
-   else if (typeStr == kWindowsTerminalShellWinWslBash)
-   {
-      return TerminalShell::ShellType::WSLBash;
-   }
-   else if (typeStr == kWindowsTerminalShellCustom)
-   {
-      return TerminalShell::ShellType::CustomShell;
-   }
-   else if (typeStr == kPosixTerminalShellZsh)
-   {
-      return TerminalShell::ShellType::PosixZsh;
-   }
-   else // implicitly includes "default"
-   {
-      return TerminalShell::ShellType::Default;
+   default:
+      return "Unknown";
    }
 }
 
-std::string TerminalShell::getShellId(ShellType type)
-{
-   switch(type)
-   {
-      case TerminalShell::ShellType::Default:
-         return kWindowsTerminalShellDefault;
-      case TerminalShell::ShellType::Cmd32:
-      case TerminalShell::ShellType::Cmd64:
-         return kWindowsTerminalShellWinCmd;
-      case TerminalShell::ShellType::PS32:
-      case TerminalShell::ShellType::PS64:
-         return kWindowsTerminalShellWinPs;
-      case TerminalShell::ShellType::PSCore:
-         return kWindowsTerminalShellPsCore;
-      case TerminalShell::ShellType::GitBash:
-         return kWindowsTerminalShellWinGitBash;
-      case TerminalShell::ShellType::WSLBash:
-         return kWindowsTerminalShellWinWslBash;
-      case TerminalShell::ShellType::CustomShell:
-         return kWindowsTerminalShellCustom;
-      case TerminalShell::ShellType::PosixBash:
-         return kPosixTerminalShellBash;
-      case TerminalShell::ShellType::NoShell:
-         return kPosixTerminalShellNone;
-      case TerminalShell::ShellType::PosixZsh:
-         return kPosixTerminalShellZsh;
-   }
-   return kWindowsTerminalShellDefault;
-}
 AvailableTerminalShells::AvailableTerminalShells()
 {
    scanAvailableShells(&shells_);
@@ -256,19 +199,19 @@ AvailableTerminalShells::AvailableTerminalShells()
 
 void AvailableTerminalShells::toJson(core::json::Array* pArray) const
 {
-   for (const auto& shell : shells_)
+   BOOST_FOREACH(const TerminalShell& shell, shells_)
    {
       pArray->push_back(shell.toJson());
    }
 }
 
-bool AvailableTerminalShells::getInfo(TerminalShell::ShellType type,
+bool AvailableTerminalShells::getInfo(TerminalShell::TerminalShellType type,
                                       TerminalShell* pShellInfo) const
 {
-   if (type == TerminalShell::ShellType::Default)
+   if (type == TerminalShell::DefaultShell)
    {
-      type = prefs::userPrefs().defaultTerminalShellValue();
-      if (type == TerminalShell::ShellType::Default)
+      type = userSettings().defaultTerminalShellValue();
+      if (type == TerminalShell::DefaultShell)
       {
          // Preference never set; pick first one available
          if (!shells_.empty())
@@ -277,7 +220,7 @@ bool AvailableTerminalShells::getInfo(TerminalShell::ShellType type,
          }
       }
    }
-   for (const auto& shell : shells_)
+   BOOST_FOREACH(const TerminalShell& shell, shells_)
    {
       if (shell.type == type)
       {
@@ -291,10 +234,10 @@ bool AvailableTerminalShells::getInfo(TerminalShell::ShellType type,
 core::FilePath getGitBashShell()
 {
    core::FilePath gitExePath = modules::git::detectedGitExePath();
-   if (!gitExePath.isEmpty())
+   if (!gitExePath.empty())
    {
       core::FilePath gitBashPath =
-            gitExePath.getParent().getParent().completePath("usr/bin/bash.exe");
+            gitExePath.parent().parent().complete("usr/bin/bash.exe");
       if (gitBashPath.exists())
          return gitBashPath;
       else
@@ -308,14 +251,22 @@ bool AvailableTerminalShells::getSystemShell(TerminalShell* pShellInfo)
 {
 #ifdef _WIN32
    pShellInfo->path = core::system::expandComSpec();
-   pShellInfo->type = TerminalShell::ShellType::Cmd64;
-   pShellInfo->name = "Command Prompt";
+   if (core::system::isWin64())
+   {
+      pShellInfo->type = TerminalShell::Cmd64;
+      pShellInfo->name = "Command Prompt (64-bit)";
+   }
+   else
+   {
+      pShellInfo->type = TerminalShell::Cmd32;
+      pShellInfo->name = "Command Prompt (32-bit)";
+   }
 #else
    pShellInfo->name = "Bash";
-   pShellInfo->type = TerminalShell::ShellType::PosixBash;
+   pShellInfo->type = TerminalShell::PosixBash;
    pShellInfo->path = core::FilePath("/usr/bin/env");
-   pShellInfo->args.emplace_back("bash");
-   pShellInfo->args.emplace_back("-l"); // act like a login shell
+   pShellInfo->args.push_back("bash");
+   pShellInfo->args.push_back("-l"); // act like a login shell
 #endif
    return true;
 }
@@ -323,15 +274,14 @@ bool AvailableTerminalShells::getSystemShell(TerminalShell* pShellInfo)
 bool AvailableTerminalShells::getCustomShell(TerminalShell* pShellInfo)
 {
    pShellInfo->name = "Custom";
-   pShellInfo->type = TerminalShell::ShellType::CustomShell;
-   pShellInfo->path = module_context::resolveAliasedPath(
-         prefs::userPrefs().customShellCommand());
+   pShellInfo->type = TerminalShell::CustomShell;
+   pShellInfo->path = userSettings().customShellCommand();
 
    // arguments are space separated, currently no way to represent a literal space
    std::vector<std::string> args;
-   if (!prefs::userPrefs().customShellOptions().empty())
+   if (!userSettings().customShellOptions().empty())
    {
-      args = core::algorithm::split(prefs::userPrefs().customShellOptions(), " ");
+      args = core::algorithm::split(userSettings().customShellOptions(), " ");
    }
    pShellInfo->args = args;
    return true;

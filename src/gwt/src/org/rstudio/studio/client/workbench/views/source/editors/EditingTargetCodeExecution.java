@@ -1,7 +1,7 @@
 /*
  * EditingTargetCodeExecution.java
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-16 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -16,29 +16,24 @@
 package org.rstudio.studio.client.workbench.views.source.editors;
 
 import org.rstudio.core.client.StringUtil;
-import org.rstudio.core.client.files.FileSystemItem;
 import org.rstudio.core.client.regex.Pattern;
 import org.rstudio.studio.client.RStudioGinjector;
 import org.rstudio.studio.client.application.events.EventBus;
-import org.rstudio.studio.client.common.filetypes.DocumentMode;
 import org.rstudio.studio.client.common.mathjax.MathJaxUtil;
 import org.rstudio.studio.client.rmarkdown.events.SendToChunkConsoleEvent;
 import org.rstudio.studio.client.workbench.commands.Commands;
-import org.rstudio.studio.client.workbench.prefs.model.UserPrefs;
+import org.rstudio.studio.client.workbench.prefs.model.UIPrefs;
+import org.rstudio.studio.client.workbench.prefs.model.UIPrefsAccessor;
 import org.rstudio.studio.client.workbench.views.console.events.ConsoleExecutePendingInputEvent;
 import org.rstudio.studio.client.workbench.views.console.events.SendToConsoleEvent;
-import org.rstudio.studio.client.workbench.views.jobs.events.JobRunSelectionEvent;
-import org.rstudio.studio.client.workbench.views.jobs.events.LauncherJobRunSelectionEvent;
 import org.rstudio.studio.client.workbench.views.source.editors.text.DocDisplay;
 import org.rstudio.studio.client.workbench.views.source.editors.text.DocDisplay.AnchoredSelection;
 import org.rstudio.studio.client.workbench.views.source.editors.text.Scope;
 import org.rstudio.studio.client.workbench.views.source.editors.text.TextEditingTarget;
 import org.rstudio.studio.client.workbench.views.source.editors.text.ace.Mode.InsertChunkInfo;
-import org.rstudio.studio.client.workbench.views.source.model.SourceServerOperations;
 import org.rstudio.studio.client.workbench.views.source.editors.text.ace.Position;
 import org.rstudio.studio.client.workbench.views.source.editors.text.ace.Range;
 import org.rstudio.studio.client.workbench.views.source.editors.text.ace.Token;
-import org.rstudio.studio.client.workbench.views.terminal.events.CreateNewTerminalEvent;
 import org.rstudio.studio.client.workbench.views.terminal.events.SendToTerminalEvent;
 
 import com.google.inject.Inject;
@@ -76,15 +71,11 @@ public class EditingTargetCodeExecution
    }
    
    @Inject
-   void initialize(EventBus events,
-                   UserPrefs prefs,
-                   Commands commands,
-                   SourceServerOperations server)
+   void initialize(EventBus events, UIPrefs prefs, Commands commands)
    {
       events_ = events;
       prefs_ = prefs;
       commands_ = commands;
-      server_ = server;
    }
    
    public void executeSelection(boolean consoleExecuteWhenNotFocused,
@@ -124,19 +115,8 @@ public class EditingTargetCodeExecution
          else
          {
             // if no selection, follow UI pref to see what to execute
-            // (Python code is always submitted line-by-line for now as
-            // we need special code to understand Python code structure still)
-            if (DocumentMode.isCursorInPythonMode(docDisplay_))
-            {
-               selectionRange = Range.fromPoints(
-                     Position.create(row, 0),
-                     Position.create(row, docDisplay_.getLength(row)));
-            }
-            else
-            {
-               selectionRange = getRangeFromBehavior(
-                     prefs_.executionBehavior().getValue());
-            }
+            selectionRange = getRangeFromBehavior(
+                  prefs_.executionBehavior().getValue());
          }
          
          // if we failed to discover a range, bail
@@ -163,18 +143,7 @@ public class EditingTargetCodeExecution
       // advance if there is no current selection
       if (noSelection && moveCursorAfter)
       {
-         if (DocumentMode.isCursorInPythonMode(docDisplay_))
-         {
-            // don't skip empty / blank lines when executing Python line-by-line
-            Position nextPos = Position.create(
-                  docDisplay_.getCursorPosition().getRow() + 1,
-                  0);
-            docDisplay_.setCursorPosition(nextPos);
-         }
-         else
-         {
-            moveCursorAfterExecution(selectionRange, true);
-         }
+         moveCursorAfterExecution(selectionRange, true);
       }
    }
    
@@ -184,23 +153,6 @@ public class EditingTargetCodeExecution
             true,
             null,
             false);
-   }
-   
-   public void runSelectionAsJob(boolean useJobLauncher)
-   {
-      Range selectionRange = docDisplay_.getSelectionRange();
-      boolean noSelection = selectionRange.isEmpty();
-      if (noSelection)
-      {
-         // nothing to execute; don't guess
-         return;
-      }
-      String code = codeExtractor_.extractCode(docDisplay_, selectionRange);
-      String targetPath = target_ == null ? null : target_.getPath();
-      if (useJobLauncher)
-         events_.fireEvent(new LauncherJobRunSelectionEvent(targetPath, code));
-      else
-         events_.fireEvent(new JobRunSelectionEvent(targetPath, code));
    }
    
    public void executeRange(Range range)
@@ -231,28 +183,7 @@ public class EditingTargetCodeExecution
          moveCursorAfterExecution(selectionRange, skipBlankLines);
       }
    }
-
-   public void openNewTerminalHere()
-   {
-      if (target_ == null)
-         return;
-      if (StringUtil.isNullOrEmpty(target_.getPath()))
-         return;
-      FileSystemItem file = FileSystemItem.createFile(target_.getPath());
-      events_.fireEvent(new CreateNewTerminalEvent(file.getParentPathString()));
-   }
-
-   public void sendFilenameToTerminal()
-   {
-      if (target_ == null)
-         return;
-      String filename = target_.getPath();
-      if (StringUtil.isNullOrEmpty(filename))
-         filename = target_.getName().getValue();
-      if (!StringUtil.isNullOrEmpty(filename))
-         events_.fireEvent(new SendToTerminalEvent(filename, true /*focus terminal*/));
-   }
-
+   
    public void profileSelection()
    {
       // allow console a chance to execute code if we aren't focused
@@ -278,27 +209,20 @@ public class EditingTargetCodeExecution
                commands_.executeCodeWithoutFocus().getId()));
          return;
       }
-
+      
       executeSelection(consoleExecuteWhenNotFocused, moveCursorAfter, functionWrapper, false);
    }
    
    private void executeRange(Range range, String functionWrapper, boolean onlyUseConsole)
    {
       String code = codeExtractor_.extractCode(docDisplay_, range);
-      String language = "R";
      
       setLastExecuted(range.getStart(), range.getEnd());
       
-      // trim intelligently (don't trim blank lines for Python
-      // since those lines could signal the end of a block)
-      if (!DocumentMode.isSelectionInPythonMode(docDisplay_))
-      {
-         code = StringUtil.trimBlankLines(code);
-      }
-      else
-      {
-         language = "Python";
-      }
+      // trim intelligently
+      code = code.trim();
+      if (code.length() == 0)
+         code = "\n";
       
       // strip roxygen off the beginning of lines
       if (isRoxygenExampleRange(range))
@@ -326,12 +250,9 @@ public class EditingTargetCodeExecution
       
       // send to console
       events_.fireEvent(new SendToConsoleEvent(
-                                  code,
-                                  language,
-                                  true,
-                                  true,
-                                  prefs_.focusConsoleAfterExec().getValue(),
-                                  false));
+                                  code, 
+                                  true, 
+                                  prefs_.focusConsoleAfterExec().getValue()));
    }
    
    public void executeBehavior(String executionBehavior)
@@ -358,7 +279,7 @@ public class EditingTargetCodeExecution
          endRowLimit = scope.getEnd().getRow() - 1;
       }
   
-      if (executionBehavior == UserPrefs.EXECUTION_BEHAVIOR_STATEMENT)
+      if (executionBehavior == UIPrefsAccessor.EXECUTE_STATEMENT)
       {
          // no scope to guard region, check the document itself to find
          // the region to execute
@@ -381,7 +302,7 @@ public class EditingTargetCodeExecution
          }
          range.getStart().setRow(startRow);
       }
-      else if (executionBehavior == UserPrefs.EXECUTION_BEHAVIOR_PARAGRAPH)
+      else if (executionBehavior == UIPrefsAccessor.EXECUTE_PARAGRAPH)
       {
          range = docDisplay_.getParagraph(
                docDisplay_.getCursorPosition(), startRowLimit, endRowLimit);
@@ -549,9 +470,7 @@ public class EditingTargetCodeExecution
    
    // Injected ----
    private EventBus events_;
-   private UserPrefs prefs_;
+   private UIPrefs prefs_;
    private Commands commands_;
-   @SuppressWarnings("unused")
-   private SourceServerOperations server_;
 }
 

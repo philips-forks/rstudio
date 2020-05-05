@@ -1,7 +1,7 @@
 /*
  * SessionRnwWeave.cpp
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -16,6 +16,7 @@
 #include "SessionRnwWeave.hpp"
 
 #include <boost/utility.hpp>
+#include <boost/foreach.hpp>
 #include <boost/format.hpp>
 
 #include <boost/algorithm/string/split.hpp>
@@ -30,10 +31,9 @@
 #include <r/RJson.hpp>
 #include <r/session/RSessionUtils.hpp>
 
+#include <session/SessionUserSettings.hpp>
 #include <session/projects/SessionProjects.hpp>
 #include <session/SessionModuleContext.hpp>
-
-#include <session/prefs/UserPrefs.hpp>
 
 #include "SessionRnwConcordance.hpp"
 #include "SessionCompilePdfSupervisor.hpp"
@@ -139,7 +139,7 @@ public:
       for (std::size_t i=0; i<lines.size(); i++)
       {
          if (regex_utils::match(lines[i], match, re))
-            chunkLineNumbers.push_back(gsl::narrow_cast<int>(i) + 1);
+            chunkLineNumbers.push_back(i+1);
       }
 
       // determine chunk number and error message
@@ -267,7 +267,7 @@ public:
                                     const std::string& driver) const
    {
       std::string format = "require(knitr); ";
-      if (prefs::userPrefs().alwaysEnableRnwConcordance())
+      if (userSettings().alwaysEnableRnwCorcordance())
          format += "opts_knit$set(concordance = TRUE); ";
       format += "knit('%1%'";
       std::string cmd = boost::str(boost::format(format) % file);
@@ -393,7 +393,7 @@ public:
    boost::shared_ptr<RnwWeave> findTypeIgnoreCase(const std::string& name)
                                                                         const
    {
-      for (boost::shared_ptr<RnwWeave> weaveType : weaveTypes_)
+      BOOST_FOREACH(boost::shared_ptr<RnwWeave> weaveType, weaveTypes_)
       {
          if (boost::algorithm::iequals(weaveType->name(), name))
             return weaveType;
@@ -416,7 +416,7 @@ const RnwWeaveRegistry& weaveRegistry()
 std::string weaveTypeForFile(const core::tex::TexMagicComments& magicComments)
 {
    // first see if the file contains an rnw weave magic comment
-   for (const core::tex::TexMagicComment& mc : magicComments)
+   BOOST_FOREACH(const core::tex::TexMagicComment& mc, magicComments)
    {
       if (boost::algorithm::iequals(mc.scope(), "rnw") &&
           boost::algorithm::iequals(mc.variable(), "weave"))
@@ -429,12 +429,12 @@ std::string weaveTypeForFile(const core::tex::TexMagicComments& magicComments)
    if (projects::projectContext().hasProject())
       return projects::projectContext().config().defaultSweaveEngine;
    else
-      return prefs::userPrefs().defaultSweaveEngine();
+      return userSettings().defaultSweaveEngine();
 }
 
 std::string driverForFile(const core::tex::TexMagicComments& magicComments)
 {
-   for (const core::tex::TexMagicComment& mc : magicComments)
+   BOOST_FOREACH(const core::tex::TexMagicComment& mc, magicComments)
    {
       if (boost::algorithm::iequals(mc.scope(), "rnw") &&
           boost::algorithm::iequals(mc.variable(), "driver"))
@@ -521,15 +521,15 @@ void runWeave(const core::FilePath& rnwPath,
    if (error)
    {
       LOG_ERROR(error);
-      onCompleted(Result::error(error.getSummary()));
+      onCompleted(Result::error(error.summary()));
       return;
    }
 
    // R exe path differs by platform
 #ifdef _WIN32
-   FilePath rBinPath = rBin.completePath("Rterm.exe");
+   FilePath rBinPath = rBin.complete("Rterm.exe");
 #else
-   FilePath rBinPath = rBin.completePath("R");
+   FilePath rBinPath = rBin.complete("R");
 #endif
 
    // determine the active sweave engine
@@ -544,7 +544,7 @@ void runWeave(const core::FilePath& rnwPath,
    if (pRnwWeave)
    {
       std::vector<std::string> args = pRnwWeave->commandArgs(
-                                                         rnwPath.getFilename(),
+                                                         rnwPath.filename(),
                                                          encoding,
                                                          driver);
 
@@ -553,14 +553,14 @@ void runWeave(const core::FilePath& rnwPath,
                rBinPath,
                args,
                core::system::Options(),
-               rnwPath.getParent(),
+               rnwPath.parent(),
                onOutput,
                boost::bind(onWeaveProcessExit,
                                  pRnwWeave, _1, _2, rnwPath, onCompleted));
       if (error)
       {
          LOG_ERROR(error);
-         onCompleted(Result::error(error.getSummary()));
+         onCompleted(Result::error(error.summary()));
       }
    }
    else
@@ -585,7 +585,8 @@ core::json::Array supportedTypes()
 {
    // query for list of supported types
    json::Array array;
-   for (boost::shared_ptr<RnwWeave> pRnwWeave : weaveRegistry().weaveTypes())
+   BOOST_FOREACH(boost::shared_ptr<RnwWeave> pRnwWeave,
+                 weaveRegistry().weaveTypes())
    {
       json::Object object;
       object["name"] = pRnwWeave->name();
@@ -601,7 +602,8 @@ core::json::Array supportedTypes()
 void getTypesInstalledStatus(json::Object* pObj)
 {
    // query for status of all rnw weave types
-   for (boost::shared_ptr<RnwWeave> pRnwWeave : weaveRegistry().weaveTypes())
+   BOOST_FOREACH(boost::shared_ptr<RnwWeave> pRnwWeave,
+                 weaveRegistry().weaveTypes())
    {
       std::string n = string_utils::toLower(pRnwWeave->name() + "_installed");
       (*pObj)[n] = pRnwWeave->isInstalled();

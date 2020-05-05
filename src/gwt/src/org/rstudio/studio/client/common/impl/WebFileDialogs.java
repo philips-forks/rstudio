@@ -1,7 +1,7 @@
 /*
  * WebFileDialogs.java
  *
- * Copyright (C) 2009-12 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -62,18 +62,6 @@ public class WebFileDialogs implements FileDialogs
                         boolean canChooseDirectories,
                         ProgressOperationWithInput<FileSystemItem> operation)
    {
-      openFile(caption, label, fsContext, initialFilePath, filter, canChooseDirectories, true, operation);
-   }
-      
-   public void openFile(String caption,
-                        String label,
-                        FileSystemContext fsContext,
-                        FileSystemItem initialFilePath,
-                        String filter,
-                        boolean canChooseDirectories,
-                        boolean focusOwner,
-                        ProgressOperationWithInput<FileSystemItem> operation)
-   {
       OpenFileDialog dialog = new OpenFileDialog(caption,
                                                  label,
                                                  fsContext,
@@ -118,18 +106,6 @@ public class WebFileDialogs implements FileDialogs
                         boolean forceDefaultExtension,
                         ProgressOperationWithInput<FileSystemItem> operation)
    {
-      saveFile(caption, buttonLabel, fsContext, initialFilePath, defaultExtension, forceDefaultExtension, true, operation);
-   }
-   
-   public void saveFile(String caption,
-                        String buttonLabel,
-                        FileSystemContext fsContext,
-                        FileSystemItem initialFilePath,
-                        String defaultExtension,
-                        boolean forceDefaultExtension,
-                        boolean focusOwner,
-                        ProgressOperationWithInput<FileSystemItem> operation)
-   {
       SaveFileDialog dialog = new SaveFileDialog(caption,
                                                  buttonLabel,
                                                  fsContext,
@@ -154,16 +130,6 @@ public class WebFileDialogs implements FileDialogs
                             String label,
                             FileSystemContext fsContext,
                             FileSystemItem initialDir,
-                            ProgressOperationWithInput<FileSystemItem> operation)
-   {
-      chooseFolder(caption, label, fsContext, initialDir, true, operation);
-   }
-   
-   public void chooseFolder(String caption,
-                            String label,
-                            FileSystemContext fsContext,
-                            FileSystemItem initialDir,
-                            boolean focusOwner,
                             ProgressOperationWithInput<FileSystemItem> operation)
    {
       ChooseFolderDialog2 dialog = new ChooseFolderDialog2(caption,

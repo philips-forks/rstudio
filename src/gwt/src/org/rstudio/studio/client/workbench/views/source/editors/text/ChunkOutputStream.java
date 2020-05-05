@@ -1,7 +1,7 @@
 /*
  * ChunkOutputStream.java
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-17 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -27,15 +27,12 @@ import org.rstudio.core.client.widget.PreWidget;
 import org.rstudio.studio.client.RStudioGinjector;
 import org.rstudio.studio.client.common.debugging.model.UnhandledError;
 import org.rstudio.studio.client.common.debugging.ui.ConsoleError;
-import org.rstudio.studio.client.common.satellite.Satellite;
 import org.rstudio.studio.client.rmarkdown.model.NotebookFrameMetadata;
 import org.rstudio.studio.client.rmarkdown.model.NotebookHtmlMetadata;
 import org.rstudio.studio.client.rmarkdown.model.NotebookPlotMetadata;
 import org.rstudio.studio.client.rmarkdown.model.RmdChunkOutputUnit;
-import org.rstudio.studio.client.workbench.prefs.model.UserPrefs;
-import org.rstudio.studio.client.workbench.prefs.model.UserState;
+import org.rstudio.studio.client.workbench.prefs.model.UIPrefs;
 import org.rstudio.studio.client.workbench.views.source.editors.text.rmd.ChunkOutputUi;
-import org.rstudio.studio.client.workbench.views.source.editors.text.themes.AceTheme;
 
 import com.google.gwt.core.client.JavaScriptObject;
 import com.google.gwt.core.client.JsArray;
@@ -45,7 +42,6 @@ import com.google.gwt.dom.client.Style.Overflow;
 import com.google.gwt.dom.client.Style.Position;
 import com.google.gwt.dom.client.Style.Unit;
 import com.google.gwt.user.client.Command;
-import com.google.gwt.user.client.Event;
 import com.google.gwt.user.client.ui.FlowPanel;
 import com.google.gwt.user.client.ui.Image;
 import com.google.gwt.user.client.ui.Widget;
@@ -101,11 +97,6 @@ public class ChunkOutputStream extends FlowPanel
    public void showConsoleOutput(JsArray<JsArrayEx> output)
    {
       initializeOutput(RmdChunkOutputUnit.TYPE_TEXT);
-      
-      // track number of newlines in output
-      int newlineCount = 0;
-      int maxCount = Satellite.isCurrentWindowSatellite() ? 10000 : 2000;
-      
       for (int i = 0; i < output.length(); i++)
       {
          // the first element is the output, and the second is the text; if we
@@ -135,17 +126,6 @@ public class ChunkOutputStream extends FlowPanel
             }
 
             vconsole_.submit(outputText, classOfOutput(outputType));
-         }
-         
-         // avoid hanging the IDE by displaying too much output
-         // https://github.com/rstudio/rstudio/issues/5518
-         newlineCount += StringUtil.countMatches(outputText, '\n');
-         if (newlineCount >= maxCount)
-         {
-            vconsole_.submit(
-                  "\n[Output truncated]",
-                  classOfOutput(ChunkConsolePage.CONSOLE_ERROR));
-            break;
          }
       }
    }
@@ -219,10 +199,10 @@ public class ChunkOutputStream extends FlowPanel
          url += "?";
 
       if (knitrFigure) {
-         url += "viewer_pane=1&capabilities=1";
+         url += "viewer_pane=1";
       }
 
-      final ChunkOutputFrame frame = new ChunkOutputFrame("Chunk HTML Output Frame");
+      final ChunkOutputFrame frame = new ChunkOutputFrame();
 
       if (chunkOutputSize_ == ChunkOutputSize.Default) {
          if (knitrFigure) {
@@ -272,26 +252,25 @@ public class ChunkOutputStream extends FlowPanel
             }
             
             onHeightChanged();
-         }
+         };
       });
 
       themeColors_ = ChunkOutputWidget.getEditorColors();
-      
-      afterRender_ = () -> 
+      afterRender_ = new Command()
       {
-         ChunkHtmlPage.syncThemeTextColor(themeColors_, frame.getDocument().getBody());
+         @Override
+         public void execute()
+         {
+            if (themeColors_ != null) {
+               Element body = frame.getDocument().getBody();
+               
+               Style bodyStyle = body.getStyle();
+               bodyStyle.setColor(themeColors_.foreground);
+            }
+         }
       };
 
-      // when the frame loads, sync its text color -- note that a frame may load
-      // more than once as it's reloaded if gets moved around in the DOM
-      Event.sinkEvents(frame.getElement(), Event.ONLOAD);
-      Event.setEventListener(frame.getElement(), e ->
-      {
-         if (Event.ONLOAD == e.getTypeInt())
-         {
-            afterRender_.execute();
-         }
-      });
+      frame.runAfterRender(afterRender_);
    }
 
    @Override
@@ -328,12 +307,9 @@ public class ChunkOutputStream extends FlowPanel
          flushQueuedErrors();
       }
       
-      UserState state =  RStudioGinjector.INSTANCE.getUserState();
-      ConsoleError error = new ConsoleError(err, 
-            AceTheme.getThemeErrorClass(state.theme().getValue().cast()),
+      UIPrefs prefs =  RStudioGinjector.INSTANCE.getUIPrefs();
+      ConsoleError error = new ConsoleError(err, prefs.getThemeErrorClass(), 
             this, null);
-
-      UserPrefs prefs =  RStudioGinjector.INSTANCE.getUserPrefs();
       error.setTracebackVisible(prefs.autoExpandErrorTracebacks().getValue());
 
       add(error);
@@ -354,7 +330,7 @@ public class ChunkOutputStream extends FlowPanel
          NotebookFrameMetadata metadata, int ordinal)
    {
       metadata_.put(ordinal, metadata);
-      addWithOrdinal(new ChunkDataWidget(data, metadata, chunkOutputSize_), ordinal);
+      addWithOrdinal(new ChunkDataWidget(data, chunkOutputSize_), ordinal);
    }
 
    @Override
@@ -463,20 +439,6 @@ public class ChunkOutputStream extends FlowPanel
             return true;
          }
       }
-      return false;
-   }
-   
-   @Override
-   public boolean hasHtmlWidgets()
-   {
-      for (Widget w: this)
-      {
-         if (w instanceof ChunkOutputFrame)
-         {
-            return true;
-         }
-      }
-      
       return false;
    }
    
@@ -612,8 +574,7 @@ public class ChunkOutputStream extends FlowPanel
    private String classOfOutput(int type)
    {
       if (type == ChunkConsolePage.CONSOLE_ERROR)
-         return AceTheme.getThemeErrorClass(
-               RStudioGinjector.INSTANCE.getUserState().theme().getValue().cast());
+        return RStudioGinjector.INSTANCE.getUIPrefs().getThemeErrorClass();
       else if (type == ChunkConsolePage.CONSOLE_INPUT)
         return "ace_keyword";
       return null;
@@ -674,7 +635,7 @@ public class ChunkOutputStream extends FlowPanel
          console_.getElement().setInnerHTML("");
       }
       if (vconsole_ == null)
-         vconsole_ = RStudioGinjector.INSTANCE.getVirtualConsoleFactory().create(console_.getElement());
+         vconsole_ = new VirtualConsole(console_.getElement());
       else
          vconsole_.clear();
 

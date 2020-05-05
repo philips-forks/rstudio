@@ -1,7 +1,7 @@
 /*
  * ProjectCompilePdfPreferencesPane.java
  *
- * Copyright (C) 2009-20 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -14,10 +14,8 @@
  */
 package org.rstudio.studio.client.projects.ui.prefs;
 
-import org.rstudio.core.client.ElementIds;
 import org.rstudio.core.client.files.FileSystemItem;
 import org.rstudio.core.client.prefs.PreferencesDialogBaseResources;
-import org.rstudio.core.client.prefs.RestartRequirement;
 import org.rstudio.core.client.resources.ImageResource2x;
 import org.rstudio.core.client.widget.HelpButton;
 import org.rstudio.core.client.widget.ProgressIndicator;
@@ -40,7 +38,7 @@ public class ProjectCompilePdfPreferencesPane extends ProjectPreferencesPane
    @Inject
    public ProjectCompilePdfPreferencesPane()
    {
-      addHeader("PDF Generation");
+      addHeader("Program defaults");
         
       defaultSweaveEngine_ = new RnwWeaveSelectWidget();
       add(defaultSweaveEngine_);  
@@ -48,7 +46,7 @@ public class ProjectCompilePdfPreferencesPane extends ProjectPreferencesPane
       defaultLatexProgram_ = new LatexProgramSelectWidget();
       add(defaultLatexProgram_);
       
-      addHeader("PDF Preview");
+      addHeader("PDF preview");
       
       rootDoc_ = new RootDocumentChooser();
       nudgeRight(rootDoc_);
@@ -83,13 +81,13 @@ public class ProjectCompilePdfPreferencesPane extends ProjectPreferencesPane
    }
 
    @Override
-   public RestartRequirement onApply(RProjectOptions options)
+   public boolean onApply(RProjectOptions options)
    {
       RProjectConfig config = options.getConfig();
       config.setDefaultSweaveEngine(defaultSweaveEngine_.getValue());
       config.setDefaultLatexProgram(defaultLatexProgram_.getValue());
       config.setRootDocument(rootDoc_.getText().trim());
-      return new RestartRequirement();
+      return false;
    }
    
    private void addHeader(String caption)
@@ -106,12 +104,10 @@ public class ProjectCompilePdfPreferencesPane extends ProjectPreferencesPane
    {
       public RootDocumentChooser()
       {
-         super("Compile PDF root document:", 
+         super("Compile PDF root document", 
                "(Current Document)", 
                "Browse...", 
-               new HelpButton("pdf_root_document", "Get help on Compile PDF root document"),
-               ElementIds.TextBoxButtonId.PDF_ROOT,
-               true,
+               new HelpButton("pdf_root_document"),
                null);
          
          // allow user to set the value to empty string

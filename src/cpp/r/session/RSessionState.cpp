@@ -1,7 +1,7 @@
 /*
  * RSessionState.cpp
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -16,12 +16,12 @@
 #include <r/session/RSessionState.hpp>
 
 #include <algorithm>
-#include <unordered_set>
 
 #include <boost/function.hpp>
+#include <boost/foreach.hpp>
 
-#include <shared_core/Error.hpp>
-#include <shared_core/FilePath.hpp>
+#include <core/Error.hpp>
+#include <core/FilePath.hpp>
 #include <core/Settings.hpp>
 #include <core/Version.hpp>
 #include <core/Log.hpp>
@@ -78,7 +78,7 @@ bool s_isCompatibleSessionState = true;
 
 Error saveLibPaths(const FilePath& libPathsFile)
 {
-   std::string file = string_utils::utf8ToSystem(libPathsFile.getAbsolutePath());
+   std::string file = string_utils::utf8ToSystem(libPathsFile.absolutePath());
    return r::exec::RFunction(".rs.saveLibPaths", file).call();
 }
 
@@ -87,7 +87,7 @@ Error restoreLibPaths(const FilePath& libPathsFile)
    if (!libPathsFile.exists())
       return Success();
 
-   std::string file = string_utils::utf8ToSystem(libPathsFile.getAbsolutePath());
+   std::string file = string_utils::utf8ToSystem(libPathsFile.absolutePath());
    return r::exec::RFunction(".rs.restoreLibPaths", file).call();
 }
 
@@ -124,7 +124,7 @@ Error saveRVersion(const FilePath& filePath)
    return Success();
 }
 
-Error saveEnvironmentVars(const FilePath& envFile, const std::string& envVarBlacklist)
+Error saveEnvironmentVars(const FilePath& envFile)
 {
    // remove then create settings file
    Error error = envFile.removeIfExists();
@@ -135,18 +135,13 @@ Error saveEnvironmentVars(const FilePath& envFile, const std::string& envVarBlac
    if (error)
       return error;
 
-   // build set of blacklisted environment variables
-   std::vector<std::string> envBlacklist(core::algorithm::split(envVarBlacklist, ":"));
-   std::unordered_set<std::string> blacklist(envBlacklist.begin(), envBlacklist.end());
-
    // get environment and write it to the file
    core::system::Options env;
    core::system::environment(&env);
    envSettings.beginUpdate();
-   for (const core::system::Option& var : env)
+   BOOST_FOREACH(const core::system::Option& var, env)
    {
-      if (blacklist.count(var.first) == 0)
-         envSettings.set(var.first, var.second);
+      envSettings.set(var.first, var.second);
    }
    envSettings.endUpdate();
 
@@ -161,37 +156,6 @@ void setEnvVar(const std::string& name, const std::string& value)
 
    // don't overwrite route lock if already supplied (may change on resume)
    if (name == "RSTUDIO_SESSION_ROUTE" && !core::system::getenv(name).empty())
-      return;
-
-   // don't restore program mode value (should be set by session main initialization)
-   if (name == "RSTUDIO_PROGRAM_MODE" && !core::system::getenv(name).empty())
-      return;
-
-   // don't restore the version of this session (should be set by main session initialization)
-   if (name == "RSTUDIO_VERSION" && !core::system::getenv(name).empty())
-      return;
-
-   // don't restore socket path environment variables (should be set by main session initialization)
-   if (name == "RS_SERVER_RPC_SOCKET_PATH" && !core::system::getenv(name).empty())
-      return;
-
-   if (name == "RS_SERVER_TMP_DIR" && !core::system::getenv(name).empty())
-      return;
-
-   if (name == "RS_SERVER_LOCAL_SOCKET_PATH" && !core::system::getenv(name).empty())
-      return;
-
-   if (name == "RS_MONITOR_SOCKET_PATH" && !core::system::getenv(name).empty())
-      return;
-
-   if (name == "RS_SESSION_TMP_DIR" && !core::system::getenv(name).empty())
-      return;
-
-   // don't restore misc launcher environment that is set when the session is launched
-   if (name == "RSTUDIO_STANDALONE_PORT" && !core::system::getenv(name).empty())
-      return;
-
-   if (name == "RSTUDIO_SESSION_RSA_PRIVATE_KEY" && !core::system::getenv(name).empty())
       return;
 
    core::system::setenv(name, value);
@@ -250,11 +214,11 @@ void reportError(const std::string& action,
    core::log::logError(serializationError, location);
    
    // notify end-user
-   std::string report = message + ": " + error.getMessage() + "\n";
+   std::string report = message + ": " + error.code().message() + "\n";
    if (reportFunction)
       reportFunction(report.c_str());
    else
-      REprintf("%s", report.c_str());
+      REprintf(report.c_str());
 }
 
 struct ErrorRecorder
@@ -308,7 +272,7 @@ void initSaveContext(const FilePath& statePath,
    }
 
    // init session settings
-   error = pSettings->initialize(statePath.completePath(kSettingsFile));
+   error = pSettings->initialize(statePath.complete(kSettingsFile));
    if (error)
    {
       reportError(kSaving, kSettingsFile, error, ERROR_LOCATION);
@@ -321,7 +285,7 @@ void saveWorkingContext(const FilePath& statePath,
                         bool* pSaved)
 {
    // save history
-   FilePath historyPath = statePath.completePath(kHistoryFile);
+   FilePath historyPath = statePath.complete(kHistoryFile);
    Error error = consoleHistory().saveToFile(historyPath);
    if (error)
    {
@@ -339,7 +303,7 @@ void saveWorkingContext(const FilePath& statePath,
    pSettings->set(kWorkingDirectory, workingDirectory);
 
    // save console actions
-   FilePath consoleActionsPath = statePath.completePath(kConsoleActionsFile);
+   FilePath consoleActionsPath = statePath.complete(kConsoleActionsFile);
    error = consoleActions().saveToFile(consoleActionsPath);
    if (error)
    {
@@ -355,8 +319,7 @@ void saveWorkingContext(const FilePath& statePath,
 bool save(const FilePath& statePath,
           bool serverMode,
           bool excludePackages,
-          bool disableSaveCompression,
-          const std::string& envVarSaveBlacklist)
+          bool disableSaveCompression)
 {
    // initialize context
    Settings settings;
@@ -371,7 +334,7 @@ bool save(const FilePath& statePath,
    settings.set(kRProfileOnRestore, !excludePackages || packratModeOn);
    
    // save r version
-   Error error = saveRVersion(statePath.completePath(kRVersion));
+   Error error = saveRVersion(statePath.complete(kRVersion));
    if (error)
    {
       reportError(kSaving, kRVersion, error, ERROR_LOCATION);
@@ -379,7 +342,7 @@ bool save(const FilePath& statePath,
    }
 
    // save environment variables
-   error = saveEnvironmentVars(statePath.completePath(kEnvironmentVars), envVarSaveBlacklist);
+   error = saveEnvironmentVars(statePath.complete(kEnvironmentVars));
    if (error)
    {
       reportError(kSaving, kEnvironmentVars, error, ERROR_LOCATION);
@@ -399,7 +362,7 @@ bool save(const FilePath& statePath,
    }
    else
    {
-      error = graphics::plotManager().serialize(statePath.completePath(kPlotsDir));
+      error = graphics::plotManager().serialize(statePath.complete(kPlotsDir));
       if (error)
       {
          reportError(kSaving, kPlotsDir, error, ERROR_LOCATION);
@@ -413,7 +376,7 @@ bool save(const FilePath& statePath,
    saveDevMode(&settings);
 
    // save libpaths
-   error = saveLibPaths(statePath.completePath(kLibPathsFile));
+   error = saveLibPaths(statePath.complete(kLibPathsFile));
    if (error)
    {
       reportError(kSaving, kLibPathsFile, error, ERROR_LOCATION);
@@ -421,7 +384,7 @@ bool save(const FilePath& statePath,
    }
 
    // save options 
-   error = r::options::saveOptions(statePath.completePath(kOptionsFile));
+   error = r::options::saveOptions(statePath.complete(kOptionsFile));
    if (error)
    {
       reportError(kSaving, kOptionsFile, error, ERROR_LOCATION);
@@ -512,7 +475,7 @@ bool getBoolSetting(const core::FilePath& statePath,
                     bool defaultValue)
 {
    Settings settings ;
-   Error error = settings.initialize(statePath.completePath(kSettingsFile));
+   Error error = settings.initialize(statePath.complete(kSettingsFile));
    if (error)
    {
       LOG_ERROR(error);
@@ -549,7 +512,7 @@ Error deferredRestore(const FilePath& statePath, bool serverMode)
    }
    else
    {
-      FilePath plotsDir = statePath.completePath(kPlotsDir);
+      FilePath plotsDir = statePath.complete(kPlotsDir);
       if (plotsDir.exists())
          return graphics::plotManager().deserialize(plotsDir);
       else
@@ -565,7 +528,7 @@ bool validateRestoredRVersion(const FilePath& filePath)
    
    // assume we're okay if no file exists
    if (!filePath.exists())
-      return !!Success();
+      return Success();
    
    // read version from file
    std::string suspendedRVersion;
@@ -573,7 +536,7 @@ bool validateRestoredRVersion(const FilePath& filePath)
             filePath,
             &suspendedRVersion);
    if (error)
-      return !!error;
+      return error;
    suspendedRVersion = core::string_utils::trimWhitespace(suspendedRVersion);
    s_suspendedRVersion = suspendedRVersion;
    
@@ -581,7 +544,7 @@ bool validateRestoredRVersion(const FilePath& filePath)
    std::string activeRVersion;
    error = RFunction(".rs.rVersionString").call(&activeRVersion);
    if (error)
-      return !!error;
+      return error;
    activeRVersion = core::string_utils::trimWhitespace(activeRVersion);
    s_activeRVersion = activeRVersion;
    
@@ -609,16 +572,16 @@ bool restore(const FilePath& statePath,
    
    // detect incompatible r version (don't restore some parts of session state
    // in this case as it could cause a crash on startup)
-   s_isCompatibleSessionState = validateRestoredRVersion(statePath.completePath(kRVersion));
+   s_isCompatibleSessionState = validateRestoredRVersion(statePath.complete(kRVersion));
    
    // init session settings (used below)
    Settings settings ;
-   error = settings.initialize(statePath.completePath(kSettingsFile));
+   error = settings.initialize(statePath.complete(kSettingsFile));
    if (error)
       reportError(kRestoring, kSettingsFile, error, ERROR_LOCATION, er);
    
    // restore console actions
-   FilePath consoleActionsPath = statePath.completePath(kConsoleActionsFile);
+   FilePath consoleActionsPath = statePath.complete(kConsoleActionsFile);
    error = consoleActions().loadFromFile(consoleActionsPath);
    if (error)
       reportError(kRestoring, kConsoleActionsFile, error, ERROR_LOCATION, er);
@@ -631,7 +594,7 @@ bool restore(const FilePath& statePath,
       reportError(kRestoring, kWorkingDirectory, error, ERROR_LOCATION, er);
    
    // restore options
-   FilePath optionsPath = statePath.completePath(kOptionsFile);
+   FilePath optionsPath = statePath.complete(kOptionsFile);
    if (optionsPath.exists())
    {
       error = r::options::restoreOptions(optionsPath);
@@ -645,7 +608,7 @@ bool restore(const FilePath& statePath,
       bool packratModeOn = settings.getBool(kPackratModeOn, false);
       if (!packratModeOn)
       {
-         error = restoreLibPaths(statePath.completePath(kLibPathsFile));
+         error = restoreLibPaths(statePath.complete(kLibPathsFile));
          if (error)
             reportError(kRestoring, kLibPathsFile, error, ERROR_LOCATION, er);
       }
@@ -663,13 +626,13 @@ bool restore(const FilePath& statePath,
    client_metrics::restore(settings);
 
    // restore history
-   FilePath historyFilePath = statePath.completePath(kHistoryFile);
+   FilePath historyFilePath = statePath.complete(kHistoryFile);
    error = consoleHistory().loadFromFile(historyFilePath, false);
    if (error)
       reportError(kRestoring, kHistoryFile, error, ERROR_LOCATION, er);
 
    // restore environment vars
-   error = restoreEnvironmentVars(statePath.completePath(kEnvironmentVars));
+   error = restoreEnvironmentVars(statePath.complete(kEnvironmentVars));
    if (error)
       reportError(kRestoring, kEnvironmentVars, error, ERROR_LOCATION, er);
 

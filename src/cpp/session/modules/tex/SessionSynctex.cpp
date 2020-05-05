@@ -1,7 +1,7 @@
 /*
  * SessionSynctex.cpp
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -15,8 +15,8 @@
 
 #include "SessionSynctex.hpp"
 
-#include <shared_core/Error.hpp>
-#include <shared_core/FilePath.hpp>
+#include <core/Error.hpp>
+#include <core/FilePath.hpp>
 #include <core/Exec.hpp>
 
 #include <core/json/JsonRpc.hpp>
@@ -52,7 +52,7 @@ json::Value toJson(const FilePath& pdfFile,
       pdfJson["width"] = pdfLoc.width();
       pdfJson["height"] = pdfLoc.height();
       pdfJson["from_click"] = fromClick;
-      return std::move(pdfJson);
+      return pdfJson;
    }
    else
    {
@@ -68,7 +68,7 @@ json::Value toJson(const core::tex::SourceLocation& srcLoc)
       srcJson["file"] = module_context::createAliasedPath(srcLoc.file());
       srcJson["line"] = srcLoc.line();
       srcJson["column"] = srcLoc.column();
-      return std::move(srcJson);
+      return srcJson;
    }
    else
    {
@@ -80,8 +80,7 @@ void applyForwardConcordance(const FilePath& mainFile,
                              core::tex::SourceLocation* pLoc)
 {
    // skip if this isn't an Rnw
-   if (pLoc->file().getExtensionLowerCase() != ".rnw" && 
-       pLoc->file().getExtensionLowerCase() != ".rtex")
+   if (pLoc->file().extensionLowerCase() != ".rnw")
       return;
 
    // try to read concordance
@@ -181,10 +180,10 @@ Error rpcApplyForwardConcordance(const json::JsonRpcRequest& request,
    int line, column;
    bool fromClick;
    error = json::readObject(sourceLocation,
-                                  "file", file,
-                                  "line", line,
-                                  "column", column,
-                                  "from_click", fromClick);
+                                  "file", &file,
+                                  "line", &line,
+                                  "column", &column,
+                                  "from_click", &fromClick);
    if (error)
       return error;
 
@@ -256,13 +255,11 @@ Error synctexInverseSearch(const json::JsonRpcRequest& request,
          // top of the user-visible content (in case the page is
          // scrolled down from the top)
          core::tex::PdfLocation contLoc = synctex.topOfPageContent(page);
-         x = std::max(static_cast<float>(x), contLoc.x());
-         y = std::max(static_cast<float>(y), contLoc.y());
+         x = std::max((float)x, contLoc.x());
+         y = std::max((float)y, contLoc.y());
       }
 
-      core::tex::PdfLocation pdfLocation(page,
-            static_cast<float>(x), static_cast<float>(y),
-            static_cast<float>(width), static_cast<float>(height));
+      core::tex::PdfLocation pdfLocation(page, x, y, width, height);
 
       core::tex::SourceLocation srcLoc = synctex.inverseSearch(pdfLocation);
       applyInverseConcordance(&srcLoc);
@@ -314,10 +311,10 @@ Error forwardSearch(const FilePath& rootFile,
    int line, column;
    bool fromClick;
    Error error = json::readObject(sourceLocation,
-                                  "file", file,
-                                  "line", line,
-                                  "column", column,
-                                  "from_click", fromClick);
+                                  "file", &file,
+                                  "line", &line,
+                                  "column", &column,
+                                  "from_click", &fromClick);
    if (error)
       return error;
 
@@ -325,7 +322,7 @@ Error forwardSearch(const FilePath& rootFile,
    FilePath inputFile = module_context::resolveAliasedPath(file);
 
    // determine pdf
-   FilePath pdfFile = rootFile.getParent().completePath(rootFile.getStem() + ".pdf");
+   FilePath pdfFile = rootFile.parent().complete(rootFile.stem() + ".pdf");
 
    core::tex::Synctex synctex;
    if (synctex.parse(pdfFile))

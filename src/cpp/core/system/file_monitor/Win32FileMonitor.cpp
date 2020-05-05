@@ -1,7 +1,7 @@
 /*
  * Win32FileMonitor.cpp
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -19,11 +19,10 @@
 
 #include <memory>
 
-#include <boost/algorithm/string.hpp>
 #include <boost/algorithm/string/trim.hpp>
 #include <boost/algorithm/string/classification.hpp>
 
-#include <shared_core/FilePath.hpp>
+#include <core/FilePath.hpp>
 
 #include <core/system/FileScanner.hpp>
 #include <core/system/System.hpp>
@@ -46,9 +45,9 @@ class FileEventContext : boost::noncopyable
 public:
    FileEventContext()
       : recursive(false),
-        hDirectory(nullptr),
+        hDirectory(NULL),
         readDirChangesPending(false),
-        hRestartTimer(nullptr),
+        hRestartTimer(NULL),
         restartCount(0)
    {
       receiveBuffer.resize(kBuffSize);
@@ -87,40 +86,34 @@ public:
 
 void safeCloseHandle(HANDLE hObject, const ErrorLocation& location)
 {
-   if (hObject != nullptr)
+   if (hObject != NULL)
    {
       if (!::CloseHandle(hObject))
-      {
-         LOG_ERROR(LAST_SYSTEM_ERROR());
-      }
+         LOG_ERROR(systemError(::GetLastError(), location));
    }
 }
 
 void cleanupContext(FileEventContext* pContext)
 {
-   if (pContext->hDirectory != nullptr)
+   if (pContext->hDirectory != NULL)
    {
       if (!::CancelIo(pContext->hDirectory))
-      {
-         LOG_ERROR(LAST_SYSTEM_ERROR());
-      }
+         LOG_ERROR(systemError(::GetLastError(), ERROR_LOCATION));
 
       safeCloseHandle(pContext->hDirectory, ERROR_LOCATION);
 
-      pContext->hDirectory = nullptr;
+      pContext->hDirectory = NULL;
    }
 
-   if (pContext->hRestartTimer != nullptr)
+   if (pContext->hRestartTimer != NULL)
    {
       // make sure timer APC is never called after a cleanupContext
       if (!::CancelWaitableTimer(pContext->hRestartTimer))
-      {
-         LOG_ERROR(LAST_SYSTEM_ERROR());
-      }
+         LOG_ERROR(systemError(::GetLastError(), ERROR_LOCATION));
 
       safeCloseHandle(pContext->hRestartTimer, ERROR_LOCATION);
 
-      pContext->hRestartTimer = nullptr;
+      pContext->hRestartTimer = NULL;
    }
 
    // delete pContext only if there are no read dir changes operations
@@ -139,12 +132,12 @@ void ensureLongFilePath(FilePath* pFilePath)
 {
    // get the filename, if it is 12 characters or less and it contains
    // a "~" then it may be a short file name. in that case do the conversion
-   std::string filename = pFilePath->getFilename();
+   std::string filename = pFilePath->filename();
    if (filename.length() <= 12 && filename.find('~') != std::string::npos)
    {
       const std::size_t kBuffSize = (MAX_PATH*2) + 1;
       char buffer[kBuffSize];
-      if (::GetLongPathName(pFilePath->getAbsolutePath().c_str(),
+      if (::GetLongPathName(pFilePath->absolutePath().c_str(),
                             buffer,
                             kBuffSize) > 0)
       {
@@ -169,13 +162,13 @@ void processFileChange(DWORD action,
    // does for any reason we want to prevent it from interfering
    // with the logic below (which assumes a child path)
    if (filePath.isDirectory() &&
-      (filePath.getAbsolutePath() == pTree->begin()->absolutePath()))
+      (filePath.absolutePath() == pTree->begin()->absolutePath()))
    {
       return;
    }
 
    // get an iterator to this file's parent
-   FileInfo parentFileInfo = FileInfo(filePath.getParent());
+   FileInfo parentFileInfo = FileInfo(filePath.parent());
    tree<FileInfo>::iterator parentIt = impl::findFile(pTree->begin(),
                                                       pTree->end(),
                                                       parentFileInfo);
@@ -255,7 +248,7 @@ void processFileChanges(FileEventContext* pContext,
       std::wstring name(fileNotify.FileName,
                         fileNotify.FileNameLength/sizeof(wchar_t));
       removeTrailingSlash(&name);
-      FilePath filePath(pContext->rootPath.getAbsolutePathW() + L"\\" + name);
+      FilePath filePath(pContext->rootPath.absolutePathW() + L"\\" + name);
 
       // ensure this is a long file name (docs say it could be short or long!)
       // (note that the call to GetLongFileNameW will fail if the file has
@@ -303,12 +296,12 @@ bool isRecoverableByRestart(const Error& error)
    return
       // undocumented return value that indicates we should do a restart
       // (see: http://blogs.msdn.com/b/oldnewthing/archive/2011/08/12/10195186.aspx)
-      error.getCode() == ERROR_NOTIFY_ENUM_DIR ||
+      error.code().value() == ERROR_NOTIFY_ENUM_DIR ||
 
       // error which some users have observed occuring if a network
       // volume is being monitored and there are too many simultaneous
       // reads and writes
-      error.getCode() == ERROR_TOO_MANY_CMDS;
+      error.code().value() == ERROR_TOO_MANY_CMDS;
 }
 
 Error readDirectoryChanges(FileEventContext* pContext);
@@ -353,7 +346,7 @@ VOID CALLBACK restartMonitoringApcProc(LPVOID lpArg, DWORD, DWORD)
 
    // close the timer handle
    safeCloseHandle(pContext->hRestartTimer, ERROR_LOCATION);
-   pContext->hRestartTimer = nullptr;
+   pContext->hRestartTimer = NULL;
 
    // attempt the restart
    restartMonitoring(pContext);
@@ -363,10 +356,10 @@ VOID CALLBACK restartMonitoringApcProc(LPVOID lpArg, DWORD, DWORD)
 void enqueRestartMonitoring(FileEventContext* pContext)
 {
    // create the restart timer (1 second from now)
-   pContext->hRestartTimer = ::CreateWaitableTimer(nullptr, true, nullptr);
-   if (pContext->hRestartTimer == nullptr)
+   pContext->hRestartTimer = ::CreateWaitableTimer(NULL, true, NULL);
+   if (pContext->hRestartTimer == NULL)
    {
-      Error error = LAST_SYSTEM_ERROR();
+      Error error = systemError(::GetLastError(), ERROR_LOCATION);
       terminateWithMonitoringError(pContext, error);
       return;
    }
@@ -388,7 +381,7 @@ void enqueRestartMonitoring(FileEventContext* pContext)
 
    if (!success)
    {
-      Error error = LAST_SYSTEM_ERROR();
+      Error error = systemError(::GetLastError(), ERROR_LOCATION);
       terminateWithMonitoringError(pContext, error);
    }
 }
@@ -435,7 +428,7 @@ VOID CALLBACK FileChangeCompletionRoutine(DWORD dwErrorCode,									// completi
    // make sure the root path still exists (if it doesn't then bail)
    if (!pContext->rootPath.exists())
    {
-      Error error = fileNotFoundError(pContext->rootPath.getAbsolutePath(),
+      Error error = fileNotFoundError(pContext->rootPath.absolutePath(),
                                       ERROR_LOCATION);
       terminateWithMonitoringError(pContext, error);
       return;
@@ -477,7 +470,7 @@ Error readDirectoryChanges(FileEventContext* pContext)
    DWORD dwBytes = 0;
    if(!::ReadDirectoryChangesW(pContext->hDirectory,
                                &(pContext->receiveBuffer[0]),
-                               static_cast<DWORD>(pContext->receiveBuffer.size()),
+                               pContext->receiveBuffer.size(),
                                pContext->recursive ? TRUE : FALSE,
                                FILE_NOTIFY_CHANGE_FILE_NAME |
                                FILE_NOTIFY_CHANGE_DIR_NAME |
@@ -486,7 +479,7 @@ Error readDirectoryChanges(FileEventContext* pContext)
                                &(pContext->overlapped),
                                &FileChangeCompletionRoutine))
    {
-      return LAST_SYSTEM_ERROR();
+      return systemError(::GetLastError(), ERROR_LOCATION);
    }
    else
    {
@@ -512,23 +505,24 @@ Handle registerMonitor(const core::FilePath& filePath,
 
    // save the wide absolute path (notifications only come in wide strings)
    // strip any trailing slash for predictable append semantics
-   std::wstring wpath = filePath.getAbsolutePathW();
+   std::wstring wpath = filePath.absolutePathW();
    removeTrailingSlash(&wpath);
    pContext->rootPath = FilePath(wpath);
    pContext->recursive = recursive;
 
    // open the directory
    pContext->hDirectory = ::CreateFileW(
-                     filePath.getAbsolutePathW().c_str(),
+                     filePath.absolutePathW().c_str(),
                      FILE_LIST_DIRECTORY,
                      FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
-                     nullptr,
+                     NULL,
                      OPEN_EXISTING,
                      FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OVERLAPPED,
-                     nullptr);
+                     NULL);
    if (pContext->hDirectory == INVALID_HANDLE_VALUE)
    {
-      callbacks.onRegistrationError(LAST_SYSTEM_ERROR());
+      callbacks.onRegistrationError(
+                     systemError(::GetLastError(),ERROR_LOCATION));
       return Handle();
    }
 

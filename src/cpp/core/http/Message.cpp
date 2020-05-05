@@ -1,7 +1,7 @@
 /*
  * Message.cpp
  *
- * Copyright (C) 2009-12 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -22,20 +22,15 @@
 #include <boost/function.hpp>
 #include <boost/asio/buffer.hpp>
 
-#include <shared_core/SafeConvert.hpp>
+#include <core/SafeConvert.hpp>
 
 namespace rstudio {
 namespace core {
 namespace http {
   
 // encodings
-const char * const kGzipEncoding = "gzip";
-const char * const kDeflateEncoding = "deflate";
-
-// transfer encodings
-const char * const kTransferEncoding = "Transfer-Encoding";
-const char * const kChunkedTransferEncoding = "chunked";
-
+const char * const kGzipEncoding = "gzip";     
+   
 void Message::setHttpVersion(int httpVersionMajor, int httpVersionMinor) 
 {
    httpVersionMajor_ = httpVersionMajor ;
@@ -52,7 +47,7 @@ std::string Message::contentType() const
    return headerValue("Content-Type") ;
 }
 
-uintmax_t Message::contentLength() const
+std::size_t Message::contentLength() const
 {
    std::string value = headerValue("Content-Length");
    if (value.empty())
@@ -61,7 +56,7 @@ uintmax_t Message::contentLength() const
    return safe_convert::stringTo<std::size_t>(value, 0);
 }
 
-void Message::setContentLength(uintmax_t contentLength)
+void Message::setContentLength(int contentLength)
 {
    setHeader("Content-Length", contentLength);
 }
@@ -129,11 +124,6 @@ void Message::setHeader(const std::string& name, int value)
    setHeader(name, safe_convert::numberToString(value));
 }
 
-void Message::setHeader(const std::string& name, uintmax_t value)
-{
-   setHeader(name, safe_convert::numberToString(value));
-}
-
 void Message::replaceHeader(const std::string& name, const std::string& value) 
 {
    Header hdr ;
@@ -188,46 +178,31 @@ std::vector<boost::asio::const_buffer> Message::toBuffers(
    // buffers to return
    std::vector<boost::asio::const_buffer> buffers ;
 
-   // headers
-   std::vector<boost::asio::const_buffer> headerBuffs =
-         headerBuffers(overrideHeader);
-   buffers.insert(buffers.end(), headerBuffs.begin(), headerBuffs.end());
-
-   // body
-   buffers.push_back(boost::asio::buffer(body_)) ;
-
-   // return the buffers
-   return buffers ;
-}
-
-std::vector<boost::asio::const_buffer> Message::headerBuffers(
-                                          const Header& overrideHeader) const
-{
-   // buffers to return
-   std::vector<boost::asio::const_buffer> buffers ;
-
    // call subclass to append first line
    appendFirstLineBuffers(buffers) ;
    buffers.push_back(boost::asio::buffer(CrLf)) ;
 
    // copy override header (for stable storage)
    overrideHeader_ = overrideHeader;
-
+   
    // headers
-   for (Headers::const_iterator
+   for (Headers::const_iterator 
         it = headers_.begin(); it != headers_.end(); ++it)
    {
       // add the header if it isn't being overriden
       if (it->name != overrideHeader_.name)
          appendHeader(*it, &buffers);
    }
-
+   
    // add override header
    if (!overrideHeader_.empty())
       appendHeader(overrideHeader_, &buffers);
 
    // empty line
    buffers.push_back(boost::asio::buffer(CrLf)) ;
+
+   // body
+   buffers.push_back(boost::asio::buffer(body_)) ;
 
    // return the buffers
    return buffers ;

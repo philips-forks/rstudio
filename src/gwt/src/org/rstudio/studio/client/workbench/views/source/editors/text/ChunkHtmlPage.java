@@ -1,7 +1,7 @@
 /*
  * ChunkHtmlPage.java
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-16 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -14,7 +14,6 @@
  */
 package org.rstudio.studio.client.workbench.views.source.editors.text;
 
-import org.rstudio.core.client.StringUtil;
 import org.rstudio.core.client.widget.FixedRatioWidget;
 import org.rstudio.studio.client.rmarkdown.model.NotebookHtmlMetadata;
 import org.rstudio.studio.client.workbench.views.source.editors.text.rmd.ChunkOutputUi;
@@ -24,7 +23,6 @@ import com.google.gwt.dom.client.Element;
 import com.google.gwt.dom.client.Style;
 import com.google.gwt.dom.client.Style.Unit;
 import com.google.gwt.user.client.Command;
-import com.google.gwt.user.client.Event;
 import com.google.gwt.user.client.Timer;
 import com.google.gwt.user.client.ui.Widget;
 
@@ -52,9 +50,9 @@ public class ChunkHtmlPage extends ChunkOutputPage
          url += "&";
       else
          url += "?";
-      url += "viewer_pane=1&capabilities=1";
+      url += "viewer_pane=1";
 
-      frame_ = new ChunkOutputFrame("Chunk HTML Page Output Frame");
+      frame_ = new ChunkOutputFrame();
       
       if (chunkOutputSize != ChunkOutputSize.Full) {
          content_ = new FixedRatioWidget(frame_, 
@@ -89,7 +87,7 @@ public class ChunkHtmlPage extends ChunkOutputPage
             };
 
             frameFinishLoadTimer.schedule(100);
-         }
+         };
       });
 
       afterRender_ = new Command() {
@@ -99,31 +97,18 @@ public class ChunkHtmlPage extends ChunkOutputPage
             Element body = frame_.getDocument().getBody();
 
             Style bodyStyle = body.getStyle();
+      
             bodyStyle.setPadding(0, Unit.PX);
             bodyStyle.setMargin(0, Unit.PX);
 
-            syncThemeTextColor(themeColors_, body);
+            if (themeColors_ != null)
+            {
+               bodyStyle.setColor(themeColors_.foreground);
+            }
          }
       };
 
-      Event.sinkEvents(frame_.getElement(), Event.ONLOAD);
-      Event.setEventListener(frame_.getElement(), e ->
-      {
-         if (Event.ONLOAD == e.getTypeInt() && themeColors_ != null)
-         {
-            afterRender_.execute();
-         }
-      });
-   }
-   
-   public static void syncThemeTextColor(Colors themeColors, Element body)
-   {
-      Style bodyStyle = body.getStyle();
-      if (StringUtil.isNullOrEmpty(bodyStyle.getBackgroundColor()) &&
-          StringUtil.isNullOrEmpty(body.getClassName()))
-      {
-         bodyStyle.setColor(themeColors.foreground);
-      }
+      frame_.runAfterRender(afterRender_);
    }
       
    @Override

@@ -1,7 +1,7 @@
 /*
  * NewConnectionSnippetHost.java
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-17 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -15,36 +15,24 @@
 
 package org.rstudio.studio.client.workbench.views.connections.ui;
 
+
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
-import java.util.Random;
 
-import org.rstudio.core.client.Debug;
-import org.rstudio.core.client.ElementIds;
 import org.rstudio.core.client.StringUtil;
-import org.rstudio.core.client.resources.ImageResource2x;
-import org.rstudio.core.client.theme.res.ThemeResources;
-import org.rstudio.core.client.widget.FormLabel;
-import org.rstudio.core.client.widget.LayoutGrid;
 import org.rstudio.core.client.widget.MessageDialog;
 import org.rstudio.core.client.widget.Operation;
 import org.rstudio.core.client.widget.OperationWithInput;
 import org.rstudio.core.client.widget.ProgressIndicator;
 import org.rstudio.core.client.widget.ThemedButton;
-import org.rstudio.core.client.widget.images.MessageDialogImages;
 import org.rstudio.studio.client.RStudioGinjector;
-import org.rstudio.studio.client.application.events.EventBus;
 import org.rstudio.studio.client.common.DelayedProgressRequestCallback;
-import org.rstudio.studio.client.common.GlobalDisplay;
 import org.rstudio.studio.client.server.ServerError;
-import org.rstudio.studio.client.server.ServerRequestCallback;
-import org.rstudio.studio.client.workbench.views.connections.events.NewConnectionWizardRequestCloseEvent;
 import org.rstudio.studio.client.workbench.views.connections.model.ConnectionOptions;
-import org.rstudio.studio.client.workbench.views.connections.model.ConnectionUninstallResult;
 import org.rstudio.studio.client.workbench.views.connections.model.ConnectionsServerOperations;
-import org.rstudio.studio.client.workbench.views.connections.model.NewConnectionInfo;
+import org.rstudio.studio.client.workbench.views.connections.model.NewConnectionContext.NewConnectionInfo;
 import org.rstudio.studio.client.workbench.views.connections.res.NewConnectionSnippetHostResources;
 
 import com.google.gwt.core.client.GWT;
@@ -58,11 +46,10 @@ import com.google.gwt.resources.client.ClientBundle;
 import com.google.gwt.resources.client.CssResource;
 import com.google.gwt.safehtml.shared.SafeHtmlBuilder;
 import com.google.gwt.user.client.ui.Composite;
+import com.google.gwt.user.client.ui.Grid;
 import com.google.gwt.user.client.ui.HTML;
-import com.google.gwt.user.client.ui.HasAlignment;
 import com.google.gwt.user.client.ui.HasVerticalAlignment;
 import com.google.gwt.user.client.ui.HorizontalPanel;
-import com.google.gwt.user.client.ui.Image;
 import com.google.gwt.user.client.ui.Label;
 import com.google.gwt.user.client.ui.TextArea;
 import com.google.gwt.user.client.ui.TextBox;
@@ -74,13 +61,9 @@ import com.google.inject.Inject;
 public class NewConnectionSnippetHost extends Composite
 {
    @Inject
-   private void initialize(ConnectionsServerOperations server,
-                           GlobalDisplay globalDisplay,
-                           EventBus eventBus)
+   private void initialize(ConnectionsServerOperations server)
    {
       server_ = server;
-      globalDisplay_ = globalDisplay;
-      eventBus_ = eventBus;
    }
 
    public void onBeforeActivate(Operation operation, NewConnectionInfo info)
@@ -110,38 +93,12 @@ public class NewConnectionSnippetHost extends Composite
       info_ = info;
       
       parametersPanel_.clear();
-      
-      int maxRows = 4;
-      
-      if (!StringUtil.isNullOrEmpty(info.getWarning())) {
-         maxRows--;
-         
-         HorizontalPanel warningPanel = new HorizontalPanel();
-         
-         warningPanel.addStyleName(RES.styles().warningPanel());
-         Image warningImage = new Image(new ImageResource2x(ThemeResources.INSTANCE.warningSmall2x()));
-         warningImage.addStyleName(RES.styles().warningImage());
-         warningImage.setAltText(MessageDialogImages.DIALOG_WARNING_TEXT);
-         warningPanel.add(warningImage);
-         
-         Label label = new Label();
-         label.setText(info.getWarning());
-         label.addStyleName(RES.styles().warningLabel());
-         warningPanel.add(label);
-         warningPanel.setCellWidth(label, "100%");
-
-         parametersPanel_.add(warningPanel);
-         parametersPanel_.setCellHeight(warningPanel,"25px");
-         parametersPanel_.setCellWidth(warningPanel,"100%");
-      }
-      
-      parametersPanel_.add(createParameterizedUI(info, maxRows));
+      parametersPanel_.add(createParameterizedUI(info));
 
       snippetParts_ = parseSnippet(info.getSnippet());
       updateCodePanel();
       
-      if (operation != null)
-         operation.execute();
+      operation.execute();
    }
 
    private ArrayList<NewConnectionSnippetParts> parseSnippet(String input) {
@@ -181,6 +138,8 @@ public class NewConnectionSnippetHost extends Composite
 
       return parts;
    }
+   
+   private static int maxRows_ = 4;
 
    private void showSuccess()
    {
@@ -195,7 +154,7 @@ public class NewConnectionSnippetHost extends Composite
             verticalPanel
             );
 
-      dlg.addButton("OK", ElementIds.DIALOG_OK_BUTTON, new Operation() {
+      dlg.addButton("OK", new Operation() {
          @Override
          public void execute()
          {
@@ -220,7 +179,7 @@ public class NewConnectionSnippetHost extends Composite
             verticalPanel
             );
 
-      dlg.addButton("OK", ElementIds.DIALOG_OK_BUTTON, new Operation() {
+      dlg.addButton("OK", new Operation() {
          @Override
          public void execute()
          {
@@ -230,11 +189,11 @@ public class NewConnectionSnippetHost extends Composite
       dlg.showModal();
    }
    
-   private LayoutGrid createParameterizedUI(final NewConnectionInfo info, int maxRows)
+   private Grid createParameterizedUI(final NewConnectionInfo info)
    {
       final ArrayList<NewConnectionSnippetParts> snippetParts = parseSnippet(info.getSnippet());
       int visibleRows = snippetParts.size();
-      int visibleParams = Math.min(visibleRows, maxRows);
+      int visibleParams = Math.min(visibleRows, maxRows_);
       
       // If we have a field that shares the first row, usually port:
       boolean hasSecondaryHeaderField = false;
@@ -244,14 +203,14 @@ public class NewConnectionSnippetHost extends Composite
          hasSecondaryHeaderField = true;
       }
 
-      boolean showAdvancedButton = visibleRows > maxRows;
-      visibleRows = Math.min(visibleRows, maxRows);
+      boolean showAdvancedButton = visibleRows > maxRows_;
+      visibleRows = Math.min(visibleRows, maxRows_);
 
       visibleParams = Math.min(visibleParams, snippetParts.size());
       final ArrayList<NewConnectionSnippetParts> secondarySnippetParts = 
             new ArrayList<NewConnectionSnippetParts>(snippetParts.subList(visibleParams, snippetParts.size()));
 
-      final LayoutGrid connGrid = new LayoutGrid(visibleRows + 1, 4);
+      final Grid connGrid = new Grid(visibleRows + 1, 4);
       connGrid.addStyleName(RES.styles().grid());
 
       if (visibleRows > 0) {
@@ -268,7 +227,7 @@ public class NewConnectionSnippetHost extends Composite
          connGrid.getRowFormatter().setStyleName(idxRow, RES.styles().gridRow());
          
          final String key = snippetParts.get(idxParams).getKey();
-         FormLabel label = new FormLabel(key + ":");
+         Label label = new Label(key + ":");
          label.addStyleName(RES.styles().label());
          connGrid.setWidget(idxRow, 0, label);
          connGrid.getRowFormatter().setVerticalAlign(idxRow, HasVerticalAlignment.ALIGN_TOP);
@@ -285,7 +244,7 @@ public class NewConnectionSnippetHost extends Composite
 
          if (visibleRows == 1) {
             TextArea textarea = new TextArea();
-            textarea.setVisibleLines(maxRows + 2);
+            textarea.setVisibleLines(7);
             textarea.addStyleName(RES.styles().textarea());
             textarea.setText(snippetParts.get(idxParams).getValue());
             connGrid.setWidget(idxRow, 1, textarea);
@@ -297,7 +256,6 @@ public class NewConnectionSnippetHost extends Composite
             textbox.addStyleName(textboxStyle);
             textboxBase = textbox;
          }
-         label.setFor(textboxBase);
          
          connGrid.setWidget(idxRow, 1, textboxBase);
          
@@ -368,16 +326,10 @@ public class NewConnectionSnippetHost extends Composite
          }
       });
 
-      uninstallButton_ = makeUninstallButton();
-
-      if (info.getHasInstaller()) {
-         buttonsPanel.add(uninstallButton_);
-         buttonsPanel.setCellHorizontalAlignment(uninstallButton_, HasAlignment.ALIGN_RIGHT);
-         buttonsPanel.setCellWidth(uninstallButton_, "100%");
-      }
+      buttonsPanel.add(testButton);
 
       if (showAdvancedButton) {
-         ThemedButton optionsButton = new ThemedButton("Options...", new ClickHandler() {
+         ThemedButton optionsButton = new ThemedButton("Advanced Options...", new ClickHandler() {
             public void onClick(ClickEvent event) {
                new NewConnectionSnippetDialog(
                   new OperationWithInput<HashMap<String, String>>() {
@@ -398,17 +350,15 @@ public class NewConnectionSnippetHost extends Composite
 
          buttonsPanel.add(optionsButton);
       }
-      
-      buttonsPanel.add(testButton);
-      buttonsPanel.setCellHorizontalAlignment(testButton, HasAlignment.ALIGN_RIGHT);
 
       connGrid.getRowFormatter().setStyleName(visibleRows, RES.styles().lastRow());
 
 
-      connGrid.getCellFormatter().getElement(visibleRows, 1).setAttribute("colspan", "3");
-      connGrid.getCellFormatter().getElement(visibleRows, 2).removeFromParent();
-      connGrid.getCellFormatter().getElement(visibleRows, 2).removeFromParent();
-      connGrid.setWidget(visibleRows, 1, buttonsPanel);
+      connGrid.getCellFormatter().getElement(visibleRows, 0).setAttribute("colspan", "4");
+      connGrid.getCellFormatter().getElement(visibleRows, 1).removeFromParent();
+      connGrid.getCellFormatter().getElement(visibleRows, 1).removeFromParent();
+      connGrid.getCellFormatter().getElement(visibleRows, 1).removeFromParent();
+      connGrid.setWidget(visibleRows, 0, buttonsPanel);
 
       return connGrid;
    }
@@ -416,15 +366,6 @@ public class NewConnectionSnippetHost extends Composite
    private void updateCodePanel()
    {
       String input = info_.getSnippet();
-
-      // replace random fields
-      String previousInput = "";
-      Random random = new Random();
-      while (previousInput != input) {
-         previousInput = input;
-         input = input.replaceFirst(patternRandNumber_, Integer.toString(random.nextInt(10000)));
-      }
-
       RegExp regExp = RegExp.compile(pattern_, "g");
       
       StringBuilder builder = new StringBuilder();     
@@ -475,13 +416,13 @@ public class NewConnectionSnippetHost extends Composite
       
       parametersPanel_ = new VerticalPanel();
       parametersPanel_.addStyleName(RES.styles().parametersPanel());
-      container.add(parametersPanel_);
+      container.add(parametersPanel_);        
       
-      // add the code panel
+      // add the code panel     
       codePanel_ = new ConnectionCodePanel();
       codePanel_.addStyleName(RES.styles().dialogCodePanel());
 
-      LayoutGrid codeGrid = new LayoutGrid(1, 1);
+      Grid codeGrid = new Grid(1, 1);
       codeGrid.addStyleName(RES.styles().codeGrid());
       codeGrid.setCellPadding(0);
       codeGrid.setCellSpacing(0);
@@ -489,92 +430,6 @@ public class NewConnectionSnippetHost extends Composite
       container.add(codeGrid);
      
       return container;
-   }
-
-   private ThemedButton makeUninstallButton()
-   {
-      // newConnectionSnippetHostResources_.trashImage()
-      ThemedButton button = new ThemedButton("Uninstall...", new ClickHandler()
-      {
-         @Override
-         public void onClick(ClickEvent arg0)
-         {  
-            globalDisplay_.showYesNoMessage(
-               MessageDialog.QUESTION,
-               "Uninstall " + info_.getName() + " Driver", 
-               "Uninstall the " + info_.getName() + " driver by removing files and registration entries?",
-                  false,
-                  new Operation() 
-                  {
-                     @Override
-                     public void execute()
-                     {
-                        server_.uninstallOdbcDriver(
-                        info_.getName(), 
-                        new ServerRequestCallback<ConnectionUninstallResult>() {
-
-                           @Override
-                           public void onResponseReceived(ConnectionUninstallResult result)
-                           {
-                              Operation dismissOperation = new Operation()
-                              {
-                                 @Override
-                                 public void execute()
-                                 {
-                                    eventBus_.fireEvent(new NewConnectionWizardRequestCloseEvent());
-                                 }
-                              };
-                              
-                              if (!StringUtil.isNullOrEmpty(result.getError())) {
-                                 globalDisplay_.showErrorMessage(
-                                    "Uninstallation failed",
-                                    result.getError()
-                                 );
-                              }
-                              else if (!StringUtil.isNullOrEmpty(result.getMessage())) {
-                                 globalDisplay_.showMessage(
-                                    MessageDialog.INFO,
-                                    "Uninstallation complete",
-                                    result.getMessage(),
-                                    dismissOperation
-                                 );
-                              }
-                              else
-                              {
-                                 globalDisplay_.showMessage(
-                                    MessageDialog.INFO,
-                                    "Uninstallation complete",
-                                    "Driver " + info_.getName() + " was successfully uninstalled.",
-                                    dismissOperation
-                                 );
-                              }
-                           } 
-
-                           @Override
-                           public void onError(ServerError error)
-                           {
-                              Debug.logError(error);
-                              globalDisplay_.showErrorMessage(
-                                 "Uninstallation failed",
-                                 error.getUserMessage());
-                           }
-                        });
-                     }
-                  },
-                  new Operation() 
-                  {
-                     @Override
-                     public void execute()
-                     {
-                     }
-                  },
-                  true);
-         }
-      });
-      
-      button.addStyleName(RES.styles().uninstallButton());
-
-      return button;
    }
 
    public ConnectionOptions collectInput()
@@ -614,12 +469,6 @@ public class NewConnectionSnippetHost extends Composite
       String buttonsPanel();
       
       String dialogMessagePanel();
-
-      String uninstallButton();
-      
-      String warningPanel();
-      String warningImage();
-      String warningLabel();
    }
 
    public interface Resources extends ClientBundle
@@ -633,17 +482,6 @@ public class NewConnectionSnippetHost extends Composite
    {
       RES.styles().ensureInjected();
    }
-
-   public void setIntermediateResult(ConnectionOptions result) 
-   {
-      if (result != null) {
-         String intermediate = result.getIntermediateSnippet();
-         if (!StringUtil.isNullOrEmpty(intermediate)) {
-            info_.setSnippet(intermediate);
-            initialize(null, info_);
-         }
-      }
-   }
    
    private ConnectionCodePanel codePanel_;
    private VerticalPanel parametersPanel_;
@@ -656,10 +494,6 @@ public class NewConnectionSnippetHost extends Composite
    HashMap<String, String> partsKeyValues_ = new HashMap<String, String>();
 
    static final String pattern_ = "\\$\\{([0-9]+):([^:=}]+)(=([^:}]*))?(:([^}]+))?\\}";
-   static final String patternRandNumber_ = "\\$\\{#\\}";
    
    private ConnectionsServerOperations server_;
-   private GlobalDisplay globalDisplay_;
-   private ThemedButton uninstallButton_;
-   private EventBus eventBus_;
 }

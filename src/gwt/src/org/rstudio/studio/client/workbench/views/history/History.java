@@ -1,7 +1,7 @@
 /*
  * History.java
  *
- * Copyright (C) 2009-12 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -159,7 +159,7 @@ public class History extends BasePresenter implements SelectionCommitHandler<Voi
                      public void onResponseReceived(
                            RpcObjectList<HistoryEntry> response)
                      {
-                        if (!StringUtil.equals(query, searchQuery_))
+                        if (!query.equals(searchQuery_))
                            return;
 
                         ArrayList<HistoryEntry> entries = toList(response);
@@ -173,7 +173,7 @@ public class History extends BasePresenter implements SelectionCommitHandler<Voi
       {
          String query = event.getValue();
          searchQuery_ = query;
-         if (searchQuery_ == "")
+         if (searchQuery_.equals(""))
          {
             view_.dismissSearchResults();
          }

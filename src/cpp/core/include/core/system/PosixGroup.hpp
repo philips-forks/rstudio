@@ -1,7 +1,7 @@
 /*
  * PosixGroup.hpp
  *
- * Copyright (C) 2009-16 by RStudio, PBC
+ * Copyright (C) 2009-16 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -41,7 +41,7 @@ struct Group
 
 Error groupFromName(const std::string& name, Group* pGroup);
 Error groupFromId(gid_t gid, Group* pGroup);
-Error userGroups(const std::string& userName, std::vector<Group>* pGroups);
+Error addGroup(Group* pGroup);
 
 } // namespace group
 } // namespace system

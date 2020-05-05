@@ -1,7 +1,7 @@
 /*
  * ConnectionId.java
  *
- * Copyright (C) 2009-16 by RStudio, PBC
+ * Copyright (C) 2009-16 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -45,7 +45,7 @@ public class ConnectionId extends JavaScriptObject
    
    public final boolean equalTo(ConnectionId other)
    {
-      return getType() == other.getType() && 
-             getHost() == other.getHost();
+      return getType().equals(other.getType()) && 
+                       getHost().equals(other.getHost());
    }
 }

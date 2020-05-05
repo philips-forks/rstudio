@@ -1,7 +1,7 @@
 /*
  * TermBufferParserTests.cpp
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-17 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -34,7 +34,7 @@ TEST_CASE("Terminal Buffer Mode Parsing")
    SECTION("Empty input")
    {
       std::string input;
-      std::string newStr = core::text::stripSecondaryBuffer(input, nullptr);
+      std::string newStr = core::text::stripSecondaryBuffer(input, NULL);
       CHECK(newStr.empty());
    }
 

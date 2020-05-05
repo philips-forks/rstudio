@@ -1,7 +1,7 @@
 /*
  * SessionExecuteChunkOperation.hpp
  *
- * Copyright (C) 2009-16 by RStudio, PBC
+ * Copyright (C) 2009-16 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -37,10 +37,9 @@ namespace modules {
 namespace rmarkdown {
 namespace notebook {
 
-namespace {
-
 core::shell_utils::ShellCommand shellCommandForEngine(
       const std::string& engine,
+      const core::FilePath& scriptPath,
       const std::map<std::string, std::string>& options)
 {
    using namespace core;
@@ -52,7 +51,7 @@ core::shell_utils::ShellCommand shellCommandForEngine(
    if (options.count("engine.path"))
    {
       std::string path = options.at("engine.path");
-      enginePath = module_context::resolveAliasedPath(path).getAbsolutePath();
+      enginePath = module_context::resolveAliasedPath(path).absolutePath();
    }
    
    ShellCommand command(enginePath);
@@ -61,61 +60,11 @@ core::shell_utils::ShellCommand shellCommandForEngine(
    if (options.count("engine.opts"))
       command << EscapeFilesOnly << options.at("engine.opts") << EscapeAll;
    
+   // pass path to file
+   command << utf8ToSystem(scriptPath.absolutePathNative());
+   
    return command;
 }
-
-std::string scriptPathForShellCommand(
-      const core::FilePath& scriptPath,
-      const std::string& engine,
-      const std::map<std::string, std::string>& chunkOptions)
-{
-   using namespace core;
-
-   auto defaultPath = [&]() {
-       return string_utils::utf8ToSystem(scriptPath.getAbsolutePathNative());
-   };
-
-#ifndef _WIN32
-   return defaultPath();
-#else
-   if (engine == "bash")
-   {
-      std::string bashPath = "bash.exe";
-      if (chunkOptions.count("engine.path"))
-      {
-         FilePath resolvedPath =
-               module_context::resolveAliasedPath(chunkOptions.at("engine.path"));
-         bashPath = resolvedPath.getAbsolutePathNative();
-      }
-
-      system::ProcessOptions options;
-      options.workingDir = scriptPath.getParent();
-
-      system::ProcessResult result;
-      Error error = system::runCommand(
-               bashPath + " --norc --noprofile -c pwd",
-               options,
-               &result);
-      if (error)
-      {
-         LOG_ERROR(error);
-         return defaultPath();
-      }
-
-      std::string path =
-            string_utils::trimWhitespace(result.stdOut) +
-            "/" +
-            scriptPath.getFilename();
-      return string_utils::utf8ToSystem(path);
-   }
-   else
-   {
-      return defaultPath();
-   }
-#endif
-}
-
-} // end anonymous namespace
 
 class ExecuteChunkOperation : boost::noncopyable,
                               public boost::enable_shared_from_this<ExecuteChunkOperation>
@@ -256,7 +205,7 @@ private:
                target);
       
       // write to temporary file (for streaming output)
-      FilePath tempFile = module_context::tempFile("chunk-output-", "txt");
+      FilePath tempFile = module_context::tempFile("chunk-output-", "");
       RemoveOnExitScope scope(tempFile, ERROR_LOCATION);
       notebook::appendConsoleOutput(
                outputType == OUTPUT_STDOUT ? kChunkConsoleOutput : kChunkConsoleError,
@@ -330,24 +279,16 @@ core::Error runChunk(const std::string& docId,
    typedef core::shell_utils::ShellCommand ShellCommand;
    
    // write code to temporary file
-   FilePath scriptPath = module_context::tempFile("chunk-code-", "txt");
+   FilePath scriptPath = module_context::tempFile("chunk-code", "");
    Error error = core::writeStringToFile(scriptPath, code);
    if (error)
    {
       LOG_ERROR(error);
       return error;
    }
-
+   
    // get command
-   ShellCommand command = notebook::shellCommandForEngine(engine, chunkOptions);
-
-   // augment with script path
-   std::string shellScriptPath = scriptPathForShellCommand(
-            scriptPath,
-            engine,
-            chunkOptions);
-
-   command << shellScriptPath;
+   ShellCommand command = notebook::shellCommandForEngine(engine, scriptPath, chunkOptions);
 
    // create process
    boost::shared_ptr<ExecuteChunkOperation> operation =
@@ -371,13 +312,8 @@ core::Error runChunk(const std::string& docId,
    
    // generate process options
    core::system::ProcessOptions options;
-
-   // don't set terminateChildren on win32 as that flag
-   // will force the process to generate a new console window
-#ifndef _WIN32
    options.terminateChildren = true;
-#endif
-
+   
    core::system::Options env;
    core::system::environment(&env);
    
@@ -400,13 +336,13 @@ core::Error runChunk(const std::string& docId,
       // in the same directory -- if it exists, this is a virtual env
       if (enginePath.exists())
       {
-         FilePath activatePath = enginePath.getParent().completeChildPath("activate");
+         FilePath activatePath = enginePath.parent().childPath("activate");
          if (activatePath.exists())
          {
-            FilePath binPath = enginePath.getParent();
-            FilePath venvPath = binPath.getParent();
-            core::system::setenv(&env, "VIRTUAL_ENV", venvPath.getAbsolutePath());
-            core::system::addToPath(&env, binPath.getAbsolutePath(), true);
+            FilePath binPath = enginePath.parent();
+            FilePath venvPath = binPath.parent();
+            core::system::setenv(&env, "VIRTUAL_ENV", venvPath.absolutePath());
+            core::system::addToPath(&env, binPath.absolutePath(), true);
          }
       }
    }

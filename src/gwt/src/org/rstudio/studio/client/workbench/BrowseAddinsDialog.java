@@ -1,7 +1,7 @@
 /*
- * BrowseAddinsDialog.java
+ * ShowAddinsDialog.java
  *
- * Copyright (C) 2009-20 by RStudio, PBC
+ * Copyright (C) 2009-15 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -14,14 +14,11 @@
  */
 package org.rstudio.studio.client.workbench;
 
-import com.google.gwt.aria.client.Roles;
 import com.google.gwt.core.client.GWT;
-import com.google.gwt.core.client.Scheduler;
 import com.google.gwt.dom.client.Style;
 import com.google.gwt.dom.client.Style.Unit;
 import com.google.gwt.event.dom.client.ClickEvent;
 import com.google.gwt.event.dom.client.ClickHandler;
-import com.google.gwt.event.logical.shared.AttachEvent;
 import com.google.gwt.user.cellview.client.ColumnSortEvent;
 import com.google.gwt.user.cellview.client.DataGrid;
 import com.google.gwt.user.cellview.client.TextColumn;
@@ -45,16 +42,11 @@ import org.rstudio.core.client.js.JsUtil;
 import org.rstudio.core.client.theme.RStudioDataGridResources;
 import org.rstudio.core.client.theme.RStudioDataGridStyle;
 import org.rstudio.core.client.widget.FilterWidget;
-import org.rstudio.core.client.widget.FormLabel;
 import org.rstudio.core.client.widget.ModalDialog;
 import org.rstudio.core.client.widget.ModifyKeyboardShortcutsWidget;
 import org.rstudio.core.client.widget.OperationWithInput;
-import org.rstudio.core.client.widget.RStudioDataGrid;
 import org.rstudio.core.client.widget.ThemedButton;
 import org.rstudio.studio.client.RStudioGinjector;
-import org.rstudio.studio.client.application.AriaLiveService;
-import org.rstudio.studio.client.application.events.AriaLiveStatusEvent.Severity;
-import org.rstudio.studio.client.application.events.AriaLiveStatusEvent.Timing;
 import org.rstudio.studio.client.common.HelpLink;
 import org.rstudio.studio.client.workbench.addins.Addins.AddinExecutor;
 import org.rstudio.studio.client.workbench.addins.Addins.RAddin;
@@ -70,7 +62,7 @@ public class BrowseAddinsDialog extends ModalDialog<Command>
 {
    public BrowseAddinsDialog(OperationWithInput<Command> operation)
    {
-      super("Addins", Roles.getDialogRole(), operation);
+      super("Addins", operation);
       RStudioGinjector.INSTANCE.injectMembers(this);
       
       setOkButtonCaption("Execute");
@@ -88,11 +80,6 @@ public class BrowseAddinsDialog extends ModalDialog<Command>
       helpLink_ = new HelpLink("Using RStudio Addins", "rstudio_addins", false);
       helpLink_.getElement().getStyle().setFloat(Style.Float.RIGHT);
       
-      addAttachHandler((AttachEvent event) -> {
-         if (event.isAttached())
-            Scheduler.get().scheduleDeferred(() -> filterWidget_.focus());
-      });
-      
       keyProvider_ = new ProvidesKey<RAddin>()
       {
          @Override
@@ -102,7 +89,7 @@ public class BrowseAddinsDialog extends ModalDialog<Command>
          }
       };
       
-      table_ = new RStudioDataGrid<RAddin>(1000, RES, keyProvider_);
+      table_ = new DataGrid<RAddin>(1000, RES, keyProvider_);
       table_.setWidth("500px");
       table_.setHeight("400px");
       
@@ -121,14 +108,14 @@ public class BrowseAddinsDialog extends ModalDialog<Command>
       
       addColumns();
       
-      dataProvider_ = new ListDataProvider<>();
+      dataProvider_ = new ListDataProvider<RAddin>();
       dataProvider_.addDataDisplay(table_);
       
-      originalData_ = new ArrayList<>();
+      originalData_ = new ArrayList<RAddin>();
       
       // sync to current addins
       addins_ = addinsCommandManager_.getRAddins();
-      List<RAddin> data = new ArrayList<>();
+      List<RAddin> data = new ArrayList<RAddin>();
       for (String key : JsUtil.asIterable(addins_.keys()))
          data.add(addins_.get(key));
       dataProvider_.setList(data);
@@ -146,9 +133,6 @@ public class BrowseAddinsDialog extends ModalDialog<Command>
       }));
       
       FlowPanel headerPanel = new FlowPanel();
-      FormLabel filterLabel = new FormLabel(true, "Filter addins:", filterWidget_.getInputElement());
-      filterLabel.addStyleName(RES.dataGridStyle().filterLabel());
-      headerPanel.add(filterLabel);
       headerPanel.add(filterWidget_);
       headerPanel.add(helpLink_);
       
@@ -169,10 +153,9 @@ public class BrowseAddinsDialog extends ModalDialog<Command>
    }
    
    @Inject
-   private void initialize(AddinsCommandManager addinsCommandManager, AriaLiveService ariaLive)
+   private void initialize(AddinsCommandManager addinsCommandManager)
    {
       addinsCommandManager_ = addinsCommandManager;
-      ariaLive_ = ariaLive;
    }
    
    private void addColumns()
@@ -291,26 +274,21 @@ public class BrowseAddinsDialog extends ModalDialog<Command>
          }
       });
       dataProvider_.setList(data);
-      ariaLive_.announce(AriaLiveService.FILTERED_LIST,
-            "Found " + data.size() + " addins matching " + StringUtil.spacedString(query),
-            Timing.DEBOUNCE, Severity.STATUS);
    }
    
    @Override
    protected Command collectInput()
    {
-      // when we have no selection, assume the user intended to execute
-      // the first command in the list
       if (selection_ == null)
       {
-         List<RAddin> data = dataProvider_.getList();
-         if (!data.isEmpty())
-            selection_ = data.get(0);
+         return new Command()
+         {
+            @Override
+            public void execute()
+            {
+            }
+         };
       }
-      
-      // if we still don't have a selection, just return an empty command
-      if (selection_ == null)
-         return () -> {};
       
       return new ExecuteAddinCommand(
             addins_.get(selection_.getId()),
@@ -345,7 +323,7 @@ public class BrowseAddinsDialog extends ModalDialog<Command>
    {
       Label label = new Label(caption);
       label.getElement().getStyle().setMarginTop(20, Unit.PX);
-      label.getElement().getStyle().setColor("#656565");
+      label.getElement().getStyle().setColor("#888");
       return label;
    }
    
@@ -369,8 +347,7 @@ public class BrowseAddinsDialog extends ModalDialog<Command>
    
    // Injected ----
    private AddinsCommandManager addinsCommandManager_;
-   private AriaLiveService ariaLive_;
-
+   
    // Resources, etc ----
    public interface Resources extends RStudioDataGridResources
    {
@@ -380,7 +357,6 @@ public class BrowseAddinsDialog extends ModalDialog<Command>
    
    public interface Styles extends RStudioDataGridStyle
    {
-      String filterLabel();
    }
    
    private static final Resources RES = GWT.create(Resources.class);

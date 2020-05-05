@@ -1,7 +1,7 @@
 /*
  * SessionConsoleProcessInfo.cpp
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-17 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -15,20 +15,12 @@
 
 #include <session/SessionConsoleProcessInfo.hpp>
 
+#include <core/system/Process.hpp>
 #include <core/system/System.hpp>
 #include <core/text/TermBufferParser.hpp>
 
-#include "session-config.h"
-
-#ifdef RSTUDIO_SERVER
-#include <server_core/UrlPorts.hpp>
-#endif
-
 #include <session/SessionConsoleProcessPersist.hpp>
 #include <session/SessionModuleContext.hpp>
-#include <session/SessionPersistentState.hpp>
-#include <session/SessionOptions.hpp>
-#include <session/prefs/UserPrefs.hpp>
 
 using namespace rstudio::core;
 
@@ -43,6 +35,12 @@ const int kNewTerminal = -1; // new terminal, sequence number yet to be determin
 const size_t kOutputBufferSize = 8192;
 
 ConsoleProcessInfo::ConsoleProcessInfo()
+   : terminalSequence_(kNoTerminal), allowRestart_(false),
+     interactionMode_(InteractionNever), maxOutputLines_(kDefaultMaxOutputLines),
+     showOnOutput_(false), outputBuffer_(kOutputBufferSize), childProcs_(true),
+     altBufferActive_(false), shellType_(TerminalShell::DefaultShell),
+     channelMode_(Rpc), cols_(system::kDefaultCols), rows_(system::kDefaultRows),
+     restarted_(false), autoClose_(DefaultAutoClose), zombie_(false), trackEnv_(false)
 {
    // When we retrieve from outputBuffer, we only want complete lines. Add a
    // dummy \n so we can tell the first line is a complete line.
@@ -59,16 +57,17 @@ ConsoleProcessInfo::ConsoleProcessInfo(
          const std::string& title,
          const std::string& handle,
          const int terminalSequence,
-         TerminalShell::ShellType shellType,
+         TerminalShell::TerminalShellType shellType,
          bool altBufferActive,
          const core::FilePath& cwd,
          int cols, int rows, bool zombie, bool trackEnv)
    : caption_(caption), title_(title), handle_(handle),
      terminalSequence_(terminalSequence), allowRestart_(true),
      interactionMode_(InteractionAlways), maxOutputLines_(kDefaultTerminalMaxOutputLines),
+     showOnOutput_(false), outputBuffer_(kOutputBufferSize), childProcs_(true),
      altBufferActive_(altBufferActive), shellType_(shellType),
-     cwd_(cwd), cols_(cols), rows_(rows),
-     zombie_(zombie), trackEnv_(trackEnv)
+     channelMode_(Rpc), cwd_(cwd), cols_(cols), rows_(rows), restarted_(false),
+     autoClose_(DefaultAutoClose), zombie_(zombie), trackEnv_(trackEnv)
 {
 }
 
@@ -76,7 +75,12 @@ ConsoleProcessInfo::ConsoleProcessInfo(
          const std::string& caption,
          InteractionMode mode,
          int maxOutputLines)
-   : caption_(caption), interactionMode_(mode), maxOutputLines_(maxOutputLines)
+   : caption_(caption), terminalSequence_(kNoTerminal), allowRestart_(false),
+     interactionMode_(mode), maxOutputLines_(maxOutputLines),
+     showOnOutput_(false), outputBuffer_(kOutputBufferSize), childProcs_(true),
+     altBufferActive_(false), shellType_(TerminalShell::DefaultShell),
+     channelMode_(Rpc), cols_(system::kDefaultCols), rows_(system::kDefaultRows),
+     restarted_(false), autoClose_(DefaultAutoClose), zombie_(false), trackEnv_(false)
 {
 }
 
@@ -189,7 +193,7 @@ void ConsoleProcessInfo::deleteEnvFile() const
    console_persist::deleteEnvFile(handle_);
 }
 
-core::json::Object ConsoleProcessInfo::toJson(SerializationMode serialMode) const
+core::json::Object ConsoleProcessInfo::toJson() const
 {
    json::Object result;
    result["handle"] = handle_;
@@ -208,7 +212,7 @@ core::json::Object ConsoleProcessInfo::toJson(SerializationMode serialMode) cons
    result["allow_restart"] = allowRestart_;
    result["title"] = title_;
    result["child_procs"] = childProcs_;
-   result["shell_type"] = TerminalShell::getShellId(shellType_); 
+   result["shell_type"] = static_cast<int>(shellType_);
    result["channel_mode"] = static_cast<int>(channelMode_);
    result["channel_id"] = channelId_;
    result["alt_buffer"] = altBufferActive_;
@@ -220,132 +224,87 @@ core::json::Object ConsoleProcessInfo::toJson(SerializationMode serialMode) cons
    result["zombie"] = zombie_;
    result["track_env"] = trackEnv_;
 
-
-#ifdef RSTUDIO_SERVER
-   // in server mode, we may need to provide the client with an obscured form of the port when
-   // connecting via websockets
-   if (options().programMode() == kSessionProgramModeServer &&
-       serialMode == ClientSerialization &&
-       channelMode_ == Websocket)
-   {
-      auto port = safe_convert::stringTo<int>(channelId_);
-      if (port)
-      {
-         result["channel_id"] = server_core::transformPort(persistentState().portToken(), *port);
-      }
-   }
-#endif
    return result;
 }
 
-boost::shared_ptr<ConsoleProcessInfo> ConsoleProcessInfo::fromJson(const core::json::Object& obj)
+boost::shared_ptr<ConsoleProcessInfo> ConsoleProcessInfo::fromJson(core::json::Object& obj)
 {
    boost::shared_ptr<ConsoleProcessInfo> pProc(new ConsoleProcessInfo());
 
-   Error error = json::getOptionalParam(obj, "handle", std::string(), &pProc->handle_);
-   if (error)
-      LOG_ERROR(error);
+   json::Value handle = obj["handle"];
+   if (!handle.is_null())
+      pProc->handle_ = handle.get_str();
+   json::Value caption = obj["caption"];
+   if (!caption.is_null())
+      pProc->caption_ = caption.get_str();
 
-   error = json::getOptionalParam(obj, "caption", std::string(), &pProc->caption_);
-   if (error)
-      LOG_ERROR(error);
+   json::Value showOnOutput = obj["show_on_output"];
+   if (!showOnOutput.is_null())
+      pProc->showOnOutput_ = showOnOutput.get_bool();
+   else
+      pProc->showOnOutput_ = false;
 
-   error = json::getOptionalParam(obj, "show_on_output", false, &pProc->showOnOutput_);
-   if (error)
-      LOG_ERROR(error);
+   json::Value mode = obj["interaction_mode"];
+   if (!mode.is_null())
+      pProc->interactionMode_ = static_cast<InteractionMode>(mode.get_int());
+   else
+      pProc->interactionMode_ = InteractionNever;
 
-   int mode = 0;
-   error = json::getOptionalParam(obj, "interaction_mode", 0, &mode);
-   if (error)
-      LOG_ERROR(error);
-   pProc->interactionMode_ = static_cast<InteractionMode>(mode);
+   json::Value maxLines = obj["max_output_lines"];
+   if (!maxLines.is_null())
+      pProc->maxOutputLines_ = maxLines.get_int();
+   else
+      pProc->maxOutputLines_ = kDefaultMaxOutputLines;
 
-   error = json::getOptionalParam(obj, "max_output_lines", kDefaultMaxOutputLines, &pProc->maxOutputLines_);
-   if (error)
-      LOG_ERROR(error);
-
-   std::string bufferedOutput;
-   error = json::getOptionalParam(obj, "buffered_output", std::string(), &bufferedOutput);
-   if (error)
-      LOG_ERROR(error);
-   if (!bufferedOutput.empty())
+   json::Value bufferedOutputValue = obj["buffered_output"];
+   if (!bufferedOutputValue.is_null())
    {
+      std::string bufferedOutput = bufferedOutputValue.get_str();
       std::copy(bufferedOutput.begin(), bufferedOutput.end(),
                 std::back_inserter(pProc->outputBuffer_));
    }
+   json::Value exitCode = obj["exit_code"];
+   if (exitCode.is_null())
+      pProc->exitCode_.reset();
+   else
+      pProc->exitCode_.reset(exitCode.get_int());
 
-   error = json::getOptionalParam(obj, "exit_code", &pProc->exitCode_);
-   if (error)
-      LOG_ERROR(error);
+   pProc->terminalSequence_ = obj["terminal_sequence"].get_int();
+   pProc->allowRestart_ = obj["allow_restart"].get_bool();
 
-   error = json::getOptionalParam(obj, "terminal_sequence", 0, &pProc->terminalSequence_);
-   if (error)
-      LOG_ERROR(error);
+   json::Value title = obj["title"];
+   if (!title.is_null())
+      pProc->title_ = title.get_str();
 
-   error = json::getOptionalParam(obj, "allow_restart", false, &pProc->allowRestart_);
-   if (error)
-      LOG_ERROR(error);
-
-   error = json::getOptionalParam(obj, "title", std::string(), &pProc->title_);
-   if (error)
-      LOG_ERROR(error);
-
-   error = json::getOptionalParam(obj, "child_procs", false, &pProc->childProcs_);
-   if (error)
-      LOG_ERROR(error);
-
-   std::string shellType;
-   error = json::getOptionalParam(obj, "shell_type", std::string("default"), &shellType);
-   if (error)
-      LOG_ERROR(error);
-   pProc->shellType_ = TerminalShell::shellTypeFromString(shellType);
-
-   int channelModeInt = 0;
-   error = json::getOptionalParam(obj, "channel_mode", 0, &channelModeInt);
-   if (error)
-      LOG_ERROR(error);
+   pProc->childProcs_ = obj["child_procs"].get_bool();
+   int shellTypeInt = obj["shell_type"].get_int();
+   pProc->shellType_ =
+      static_cast<TerminalShell::TerminalShellType>(shellTypeInt);
+   int channelModeInt = obj["channel_mode"].get_int();
    pProc->channelMode_ = static_cast<ChannelMode>(channelModeInt);
 
-   error = json::getOptionalParam(obj, "channel_id", std::string(), &pProc->channelId_);
-   if (error)
-      LOG_ERROR(error);
+   json::Value channelId = obj["channel_id"];
+   if (!channelId.is_null())
+      pProc->channelId_ = channelId.get_str();
 
-   error = json::getOptionalParam(obj, "alt_buffer", false, &pProc->altBufferActive_);
-   if (error)
-      LOG_ERROR(error);
+   pProc->altBufferActive_ = obj["alt_buffer"].get_bool();
 
-   std::string cwd;
-   error = json::getOptionalParam(obj, "cwd", std::string(), &cwd);
-   if (error)
-      LOG_ERROR(error);
-   if (!cwd.empty())
-      pProc->cwd_ = module_context::resolveAliasedPath(cwd);
+   json::Value cwdValue = obj["cwd"];
+   if (!cwdValue.is_null())
+   {
+      std::string cwd = cwdValue.get_str();
+      if (!cwd.empty())
+         pProc->cwd_ = module_context::resolveAliasedPath(obj["cwd"].get_str());
+   }
 
-   error = json::getOptionalParam(obj, "cols", 0, &pProc->cols_);
-   if (error)
-      LOG_ERROR(error);
+   pProc->cols_ = obj["cols"].get_int();
+   pProc->rows_ = obj["rows"].get_int();
 
-   error = json::getOptionalParam(obj, "rows", 0, &pProc->rows_);
-   if (error)
-      LOG_ERROR(error);
-
-   error = json::getOptionalParam(obj, "restarted", false, &pProc->restarted_);
-   if (error)
-      LOG_ERROR(error);
-
-   int autoCloseInt = 0;
-   error = json::getOptionalParam(obj, "autoclose", 0, &autoCloseInt);
-   if (error)
-      LOG_ERROR(error);
+   pProc->restarted_ = obj["restarted"].get_bool();
+   int autoCloseInt = obj["autoclose"].get_int();
    pProc->autoClose_ = static_cast<AutoCloseMode>(autoCloseInt);
-
-   error = json::getOptionalParam(obj, "zombie", false, &pProc->zombie_);
-   if (error)
-      LOG_ERROR(error);
-
-   error = json::getOptionalParam(obj, "track_env", false, &pProc->trackEnv_);
-   if (error)
-      LOG_ERROR(error);
+   pProc->zombie_ = obj["zombie"].get_bool();
+   pProc->trackEnv_ = obj["track_env"].get_bool();
 
    return pProc;
 }
@@ -373,17 +332,6 @@ void ConsoleProcessInfo::saveConsoleEnvironment(const core::system::Options& env
 void ConsoleProcessInfo::loadConsoleEnvironment(const std::string& handle, core::system::Options* pEnv)
 {
    console_persist::loadConsoleEnvironment(handle, pEnv);
-}
-
-AutoCloseMode ConsoleProcessInfo::closeModeFromPref(std::string prefValue)
-{
-   if (prefValue == kTerminalCloseBehaviorAlways)
-      return AlwaysAutoClose;
-   if (prefValue == kTerminalCloseBehaviorClean)
-      return CleanExitAutoClose;
-   if (prefValue == kTerminalCloseBehaviorNever)
-      return NeverAutoClose;
-   return NeverAutoClose;
 }
 
 } // namespace console_process_info

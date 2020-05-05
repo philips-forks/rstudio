@@ -1,7 +1,7 @@
 /*
  * BaseVcsPresenter.java
  *
- * Copyright (C) 2009-12 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -31,8 +31,6 @@ public abstract class BaseVcsPresenter extends BasePresenter
    public abstract void onVcsShowHistory();
 
    public abstract void onVcsPull();
-   
-   public abstract void onVcsPullRebase();
 
    public abstract void onVcsPush();
    

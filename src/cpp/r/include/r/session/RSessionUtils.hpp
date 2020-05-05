@@ -1,7 +1,7 @@
 /*
  * RSessionUtils.hpp
  *
- * Copyright (C) 2009-12 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -54,40 +54,7 @@ core::FilePath tempFile(const std::string& prefix,
 
 core::FilePath tempDir();
 
-core::FilePath logPath();
-
-core::FilePath rSourcePath();
-
-core::FilePath rHistoryDir();
-
-core::FilePath rEnvironmentDir();
-
-core::FilePath sessionScratchPath();
-
-core::FilePath scopedScratchPath();
-
-core::FilePath clientStatePath();
-
-core::FilePath projectClientStatePath();
-
-core::FilePath startupEnvironmentFilePath();
-
-core::FilePath suspendedSessionPath();
-
-std::string sessionPort();
-
-std::string rCRANUrl();
-
-std::string rCRANSecondary();
-
-bool restoreWorkspace();
-
-bool useInternet2();
-
-bool alwaysSaveHistory();
-
-bool restoreEnvironmentOnResume();
-
+     
 // suppress output in scope
 class SuppressOutputInScope
 {

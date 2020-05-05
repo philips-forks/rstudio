@@ -1,7 +1,7 @@
 /*
  * PresentationDispatcher.java
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -28,12 +28,15 @@ import org.rstudio.studio.client.server.VoidServerRequestCallback;
 import org.rstudio.studio.client.workbench.WorkbenchContext;
 import org.rstudio.studio.client.workbench.commands.Commands;
 import org.rstudio.studio.client.workbench.model.Session;
+import org.rstudio.studio.client.workbench.model.SessionInfo;
 import org.rstudio.studio.client.workbench.views.console.events.SendToConsoleEvent;
 import org.rstudio.studio.client.workbench.views.help.events.ShowHelpEvent;
 import org.rstudio.studio.client.workbench.views.presentation.model.PresentationCommand;
 import org.rstudio.studio.client.workbench.views.presentation.model.PresentationServerOperations;
+import org.rstudio.studio.client.workbench.views.presentation.model.PresentationState;
 
 import com.google.gwt.core.client.JavaScriptObject;
+import com.google.gwt.event.shared.GwtEvent;
 import com.google.gwt.http.client.URL;
 import com.google.inject.Inject;
 
@@ -141,17 +144,17 @@ public class PresentationDispatcher
          String param1, 
          String param2)
    {
-      if (cmdName == "help-doc")
+      if (cmdName.equals("help-doc"))
          performHelpDocCommand(param1, param2);
-      else if (cmdName == "help-topic")
+      else if (cmdName.equals("help-topic"))
          performHelpTopicCommand(param1, param2);
-      else if (cmdName == "console")
+      else if (cmdName.equals("console"))
          performConsoleCommand(params);
-      else if (cmdName == "console-input")
+      else if (cmdName.equals("console-input"))
          performConsoleInputCommand(params);
-      else if (cmdName == "execute")
+      else if (cmdName.equals("execute"))
          performExecuteCommand(params);
-      else if (cmdName == "pause")
+      else if (cmdName.equals("pause"))
          performPauseCommand();
       else 
       {
@@ -163,7 +166,7 @@ public class PresentationDispatcher
 
    protected void fireOpenSourceFileEvent(OpenPresentationSourceFileEvent event) 
    {
-      eventBus_.fireEvent(event);
+      fireEventFromTutorialDirectory(event);
    }
 
 
@@ -217,7 +220,10 @@ public class PresentationDispatcher
 
    private void performConsoleInputCommand(String params)
    {
-      eventBus_.fireEvent(new SendToConsoleEvent(params, true, false, true));
+      fireEventFromTutorialDirectory(new SendToConsoleEvent(params, 
+            true, 
+            false, 
+            true));
    }
 
    private void performExecuteCommand(String params)
@@ -225,6 +231,37 @@ public class PresentationDispatcher
       server_.presentationExecuteCode(params, new VoidServerRequestCallback());
    }
 
+   private void fireEventFromTutorialDirectory(final GwtEvent<?> event)
+   {
+      SessionInfo sessionInfo = session_.getSessionInfo();
+      PresentationState state = sessionInfo.getPresentationState();
+      FileSystemItem projectDir = sessionInfo.getActiveProjectDir();
+      if (state.isTutorial() && (projectDir != null))
+      {
+         if (!workbenchContext_.getCurrentWorkingDir().equalTo(projectDir))
+         {
+            server_.setWorkingDirectory(projectDir.getPath(),
+                  new VoidServerRequestCallback() {
+               @Override
+               protected void onSuccess()
+               {
+                  eventBus_.fireEvent(event);
+               }
+            });
+
+         }
+         else
+         {
+            eventBus_.fireEvent(event);
+         }
+      }
+      else
+      {
+         eventBus_.fireEvent(event);
+      }
+   }
+ 
+       
    protected String getPresentationPath(String file)
    {
       FileSystemItem presentationFile = FileSystemItem.createFile(
@@ -239,7 +276,6 @@ public class PresentationDispatcher
    private final GlobalDisplay globalDisplay_;
    private final Commands commands_;
    private final Session session_;
-   @SuppressWarnings("unused")
    private final WorkbenchContext workbenchContext_;
    
 }

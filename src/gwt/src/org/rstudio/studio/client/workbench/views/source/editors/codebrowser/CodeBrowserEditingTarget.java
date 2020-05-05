@@ -1,7 +1,7 @@
 /*
  * CodeBrowserEditingTarget.java
  *
- * Copyright (C) 2009-20 by RStudio, PBC
+ * Copyright (C) 2009-17 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -23,6 +23,7 @@ import com.google.gwt.event.logical.shared.ValueChangeEvent;
 import com.google.gwt.event.logical.shared.ValueChangeHandler;
 import com.google.gwt.event.shared.GwtEvent;
 import com.google.gwt.event.shared.HandlerRegistration;
+import com.google.gwt.resources.client.ImageResource;
 import com.google.gwt.user.client.Command;
 import com.google.gwt.user.client.ui.HasValue;
 import com.google.gwt.user.client.ui.Widget;
@@ -38,19 +39,20 @@ import org.rstudio.core.client.command.KeyboardShortcut;
 import org.rstudio.core.client.events.EnsureHeightHandler;
 import org.rstudio.core.client.events.EnsureVisibleHandler;
 import org.rstudio.core.client.files.FileSystemContext;
+import org.rstudio.core.client.resources.ImageResource2x;
 import org.rstudio.studio.client.application.events.EventBus;
 import org.rstudio.studio.client.common.GlobalDisplay;
 import org.rstudio.studio.client.common.ReadOnlyValue;
 import org.rstudio.studio.client.common.SimpleRequestCallback;
 import org.rstudio.studio.client.common.Value;
-import org.rstudio.studio.client.common.filetypes.FileIcon;
+import org.rstudio.studio.client.common.filetypes.FileIconResources;
 import org.rstudio.studio.client.common.filetypes.FileType;
 import org.rstudio.studio.client.common.filetypes.FileTypeRegistry;
 import org.rstudio.studio.client.common.filetypes.TextFileType;
 import org.rstudio.studio.client.server.Void;
 import org.rstudio.studio.client.workbench.codesearch.model.SearchPathFunctionDefinition;
 import org.rstudio.studio.client.workbench.commands.Commands;
-import org.rstudio.studio.client.workbench.prefs.model.UserPrefs;
+import org.rstudio.studio.client.workbench.prefs.model.UIPrefs;
 import org.rstudio.studio.client.workbench.ui.FontSizeManager;
 import org.rstudio.studio.client.workbench.views.console.shell.editor.InputEditorSelection;
 import org.rstudio.studio.client.workbench.views.source.SourceWindowManager;
@@ -88,7 +90,6 @@ public class CodeBrowserEditingTarget implements EditingTarget
       void findPrevious();
       void findFromSelection();
       void scrollToLeft();
-      void setAccessibleName(String name);
    }
 
    interface MyBinder extends CommandBinder<Commands, CodeBrowserEditingTarget>
@@ -98,7 +99,7 @@ public class CodeBrowserEditingTarget implements EditingTarget
    public CodeBrowserEditingTarget(SourceServerOperations server,
                                    Commands commands,
                                    EventBus events,
-                                   UserPrefs prefs,
+                                   UIPrefs prefs,
                                    FontSizeManager fontSizeManager,
                                    GlobalDisplay globalDisplay,
                                    DocDisplay docDisplay)
@@ -202,9 +203,6 @@ public class CodeBrowserEditingTarget implements EditingTarget
       {
          docDisplay_.setCode("", false);
       }
-
-      name_.addValueChangeHandler(event -> view_.setAccessibleName(name_.getValue()));
-      name_.fireChangeEvent();
    }
    
    public void showFunction(SearchPathFunctionDefinition functionDef)
@@ -259,21 +257,9 @@ public class CodeBrowserEditingTarget implements EditingTarget
       
       codeExecution_.executeLastCode();
    }
-
-   @Handler
-   void onRunSelectionAsJob()
-   {
-      codeExecution_.runSelectionAsJob(false /*useLauncher*/);
-   }
-
-   @Handler
-   void onRunSelectionAsLauncherJob()
-   {
-      codeExecution_.runSelectionAsJob(true /*useLauncher*/);
-   }
-
-   @Handler
-   void onSendToTerminal()
+   
+   @Handler 
+   void onSendToTerminal() 
    { 
       codeExecution_.sendSelectionToTerminal(false);
    } 
@@ -291,9 +277,9 @@ public class CodeBrowserEditingTarget implements EditingTarget
    } 
    
    @Handler
-   void onGoToDefinition()
+   void onGoToFunctionDefinition()
    {
-      docDisplay_.goToDefinition();
+      docDisplay_.goToFunctionDefinition();
    } 
 
    @Handler
@@ -419,9 +405,9 @@ public class CodeBrowserEditingTarget implements EditingTarget
    
 
    @Override
-   public FileIcon getIcon()
+   public ImageResource getIcon()
    {
-      return FileIcon.CODE_BROWSER_ICON;
+      return new ImageResource2x(FileIconResources.INSTANCE.iconSourceViewer2x());
    }
 
    @Override
@@ -452,12 +438,10 @@ public class CodeBrowserEditingTarget implements EditingTarget
       commands.add(commands_.findPrevious());
       commands.add(commands_.findFromSelection());
       commands.add(commands_.goToHelp());
-      commands.add(commands_.goToDefinition());
+      commands.add(commands_.goToFunctionDefinition());
       commands.add(commands_.executeCode());
       commands.add(commands_.executeCodeWithoutFocus());
       commands.add(commands_.executeLastCode());
-      commands.add(commands_.runSelectionAsJob());
-      commands.add(commands_.runSelectionAsLauncherJob());
       commands.add(commands_.sendToTerminal());
 
       if (SourceWindowManager.isMainSourceWindow())
@@ -480,21 +464,6 @@ public class CodeBrowserEditingTarget implements EditingTarget
    
    @Override
    public void verifyCppPrerequisites()
-   {
-   }
-   
-   @Override
-   public void verifyPythonPrerequisites()
-   {
-   }
-   
-   @Override
-   public void verifyD3Prerequisites()
-   {
-   }
-
-   @Override
-   public void verifyNewSqlPrerequisites()
    {
    }
    
@@ -595,7 +564,7 @@ public class CodeBrowserEditingTarget implements EditingTarget
    @Override
    public boolean isAtSourceRow(SourcePosition position)
    {
-      return getContext() == position.getContext() &&
+      return getContext().equals(position.getContext()) &&
              docDisplay_.isAtSourceRow(position);
    }
    
@@ -623,11 +592,6 @@ public class CodeBrowserEditingTarget implements EditingTarget
    public void forceLineHighlighting()
    {
       docDisplay_.setHighlightSelectedLine(true);
-   }
-   
-   @Override
-   public void setSourceOnSave(boolean sourceOnSave)
-   {  
    }
    
    @Override
@@ -752,7 +716,7 @@ public class CodeBrowserEditingTarget implements EditingTarget
    @Override
    public void endDebugHighlighting()
    {
-      docDisplay_.endDebugHighlighting();
+      docDisplay_.endDebugHighlighting();      
    } 
    
    @Override 
@@ -772,12 +736,6 @@ public class CodeBrowserEditingTarget implements EditingTarget
       return null;
    }
 
-   @Override
-   public String getCurrentStatus()
-   {
-      return "Code Browser displayed";
-   }
-
    // Private methods --------------------------------------------------------
    
    private CodeBrowserContents getContents()
@@ -790,7 +748,7 @@ public class CodeBrowserEditingTarget implements EditingTarget
    
    private void ensureContext(String context, final Command onRestored)
    {
-      if (context != getContext())
+      if (!context.equals(getContext()))
       {
          // get namespace and function
          String[] contextElements = context.split(":::");
@@ -822,17 +780,18 @@ public class CodeBrowserEditingTarget implements EditingTarget
    private SourceDocument doc_;
  
    private final Value<Boolean> dirtyState_ = new Value<Boolean>(false);
-   private ArrayList<HandlerRegistration> releaseOnDismiss_ = new ArrayList<>();
+   private ArrayList<HandlerRegistration> releaseOnDismiss_ =
+         new ArrayList<HandlerRegistration>();
    private final SourceServerOperations server_;
    private final Commands commands_;
    private final EventBus events_;
    private final GlobalDisplay globalDisplay_;
-   private final UserPrefs prefs_;
+   private final UIPrefs prefs_;
    private final FontSizeManager fontSizeManager_;
    private Display view_;
    private HandlerRegistration commandReg_;
    private boolean shownWarningBar_ = false;
-   private final Value<String> name_ = new Value<>("Source Viewer");
+   private final Value<String> name_ = new Value<String>("Source Viewer");  
    private DocDisplay docDisplay_;
    private EditingTargetCodeExecution codeExecution_;
    

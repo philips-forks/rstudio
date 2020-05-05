@@ -1,7 +1,7 @@
 /*
  * MathUtil.java
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -36,19 +36,4 @@ public class MathUtil
          return value;
    }
    
-   /**
-    * Checks if an int value is in a range.
-    * @param value value to check
-    * @param min min value
-    * @param max max value
-    * @return whether value is in the range, inclusively.
-    */
-   public static boolean inRange(int value, int min, int max) {
-       return (value <= max) && (value >= min);
-   }
-
-   public static boolean isEqual(double d1, double d2, double threshold)
-   {
-      return Math.abs(d1 - d2) < threshold;
-   }
 }

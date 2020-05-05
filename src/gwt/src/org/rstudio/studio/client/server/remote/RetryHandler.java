@@ -1,7 +1,7 @@
 /*
  * RetryHandler.java
  *
- * Copyright (C) 2009-12 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -15,15 +15,11 @@
 package org.rstudio.studio.client.server.remote;
 
 import org.rstudio.core.client.jsonrpc.RpcError;
-import org.rstudio.core.client.jsonrpc.RpcRequest;
 
 interface RetryHandler
 {
    // perform the retry 
    void onRetry();
-
-   // retry the operation with a modified request
-   void onModifiedRetry(RpcRequest modifiedRequest);
    
    // will be called with the original error that caused the retry attempt
    // if there is an error involving the retry mechanism itself (e.g. error

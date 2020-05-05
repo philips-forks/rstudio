@@ -1,7 +1,7 @@
 /*
  * NotebookOutput.hpp
  *
- * Copyright (C) 2009-16 by RStudio, PBC
+ * Copyright (C) 2009-16 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -19,7 +19,7 @@
 
 #include <string>
 
-#include <shared_core/json/Json.hpp>
+#include <core/json/Json.hpp>
 
 #define kChunkOutputType     "output_type"
 #define kChunkOutputValue    "output_val"
@@ -117,12 +117,6 @@ core::Error cleanChunkOutput(const std::string& docId,
 core::Error appendConsoleOutput(int chunkConsoleOutputType,
                                 const std::string& output,
                                 const core::FilePath& filePath);
-
-core::Error writeConsoleOutput(int chunkConsoleOutputType,
-                               const std::string& output,
-                               const core::FilePath& filePath,
-                               bool truncate);
-
 
 // send chunk output to client
 void enqueueChunkOutput(const std::string& docId,

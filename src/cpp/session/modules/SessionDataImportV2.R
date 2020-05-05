@@ -1,7 +1,7 @@
 #
 # SessionDataImportV2.R
 #
-# Copyright (C) 2009-17 by RStudio, PBC
+# Copyright (C) 2009-17 by RStudio, Inc.
 #
 # Unless you have received this program directly from RStudio pursuant
 # to the terms of a commercial license agreement with RStudio, then
@@ -216,7 +216,7 @@
                      numeric = "\"numeric\"",
                      date = "\"date\"",
                      character = "\"text\"",
-                     skip = "\"skip\""
+                     skip = "\"blank\""
                   )
                }
             }
@@ -406,8 +406,8 @@
          }
          else if (identical(dataImportOptions$delimiter, " "))
          {
-            functionName <- "read_table2"
-            functionReference <- readr::read_table2
+            functionName <- "read_table"
+            functionReference <- readr::read_table
          }
          else
          {
@@ -660,37 +660,6 @@
    })
 })
 
-.rs.addFunction("prepareViewerData", function(data, maxFactors, maxCols, maxRows) {
-   
-   columns <- list()
-   if (ncol(data)) {
-      columns <- .rs.describeCols(data, maxFactors)
-      if (ncol(data) > maxCols) {
-         columns <- head(columns, maxCols)
-         data <- data[1:maxCols]
-      }
-   }
-   
-   cnames <- names(data)
-   size <- nrow(data)
-
-   if (!identical(maxRows, NULL) && size > maxRows) {
-      data <- head(data, maxRows)
-      size <- nrow(data)
-   }
-
-   if (nrow(data) > 0) {
-      for(i in seq_along(data)) {
-         data[[i]] <- .rs.formatDataColumn(data[[i]], 1, size)
-      }
-   }
-
-   list(
-      data = unname(as.list(data)),
-      columns = columns
-   )
-})
-
 .rs.addJsonRpcHandler("preview_data_import", function(dataImportOptions, maxCols = 100, maxFactors = 64)
 {
    dataImportOptions$importLocation <- .rs.pathRelativeToWorkingDir(dataImportOptions$importLocation)
@@ -795,19 +764,33 @@
          eval(parse(text=importInfo$previewCode))
       )
 
+      columns <- list()
+      if (ncol(data)) {
+         columns <- .rs.describeCols(data, maxFactors)
+         if (ncol(data) > maxCols) {
+            columns <- head(columns, maxCols)
+            data <- data[, maxCols]
+         }
+      }
+      
       parsingErrors <- parsingErrorsFromMode(dataImportOptions$mode, data)
 
-      preparedData <- .rs.prepareViewerData(
-         data,
-         maxFactors = maxFactors,
-         maxCols = maxCols,
-         maxRows = dataImportOptions$maxRows
-      )
+      cnames <- names(data)
+      size <- nrow(data)
+
+      if (!identical(dataImportOptions$maxRows, NULL) && size > dataImportOptions$maxRows) {
+         data <- head(data, dataImportOptions$maxRows)
+         size <- nrow(data)
+      }
+
+      for(i in seq_along(data)) {
+         data[[i]] <- .rs.formatDataColumn(data[[i]], 1, size)
+      }
 
       options <- optionsInfoFromOptions[[dataImportOptions$mode]]()
 
-      return(list(data = preparedData$data,
-                  columns = preparedData$columns,
+      return(list(data = unname(data),
+                  columns = columns,
                   options = options,
                   parsingErrors = parsingErrors,
                   localFiles = importInfo$localFiles))

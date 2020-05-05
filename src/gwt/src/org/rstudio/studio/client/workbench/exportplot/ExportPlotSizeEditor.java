@@ -1,7 +1,7 @@
 /*
  * ExportPlotSizeEditor.java
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -16,6 +16,7 @@ package org.rstudio.studio.client.workbench.exportplot;
 
 import org.rstudio.core.client.Size;
 import org.rstudio.core.client.dom.IFrameElementEx;
+import org.rstudio.core.client.widget.*;
 
 import com.google.gwt.dom.client.Style.Overflow;
 import com.google.gwt.dom.client.Style.Unit;
@@ -34,15 +35,11 @@ import com.google.gwt.user.client.ui.HTML;
 import com.google.gwt.user.client.ui.HasHorizontalAlignment;
 import com.google.gwt.user.client.ui.HasVerticalAlignment;
 import com.google.gwt.user.client.ui.HorizontalPanel;
+import com.google.gwt.user.client.ui.Label;
 import com.google.gwt.user.client.ui.LayoutPanel;
 import com.google.gwt.user.client.ui.TextBox;
 import com.google.gwt.user.client.ui.VerticalPanel;
 import com.google.gwt.user.client.ui.Widget;
-import org.rstudio.core.client.widget.FocusHelper;
-import org.rstudio.core.client.widget.FormLabel;
-import org.rstudio.core.client.widget.GlassPanel;
-import org.rstudio.core.client.widget.ResizeGripper;
-import org.rstudio.core.client.widget.ThemedButton;
 
 public class ExportPlotSizeEditor extends Composite 
 {  
@@ -105,7 +102,7 @@ public class ExportPlotSizeEditor extends Composite
       }
       else
       {
-         optionsPanel = topPanel;
+         optionsPanel = topPanel ;
          optionsPanel.setStylePrimaryName(
                                  resources.styles().horizontalSizeOptions());
          widthAndHeightPanel = topPanel;
@@ -113,9 +110,8 @@ public class ExportPlotSizeEditor extends Composite
       }
           
       // image width
+      widthAndHeightPanel.add(createImageOptionLabel("Width:"));
       widthTextBox_ = createImageSizeTextBox();
-      FormLabel widthLabel = createImageOptionLabel("Width:", widthTextBox_);
-      widthAndHeightPanel.add(widthLabel);
       widthTextBox_.addChangeHandler(new ChangeHandler() {
          @Override
          public void onChange(ChangeEvent event)
@@ -144,9 +140,8 @@ public class ExportPlotSizeEditor extends Composite
      
       // image height
       widthAndHeightPanel.add(new HTML("&nbsp;&nbsp;"));
+      widthAndHeightPanel.add(createImageOptionLabel("Height:"));
       heightTextBox_ = createImageSizeTextBox();
-      FormLabel heightLabel = createImageOptionLabel("Height:", heightTextBox_);
-      widthAndHeightPanel.add(heightLabel);
       heightTextBox_.addChangeHandler(new ChangeHandler() {
          @Override
          public void onChange(ChangeEvent event)
@@ -179,7 +174,8 @@ public class ExportPlotSizeEditor extends Composite
   
       // lock ratio check box
       keepRatioCheckBox_ = new CheckBox();
-      keepRatioCheckBox_.addStyleName(resources.styles().maintainAspectRatioCheckBox());
+      keepRatioCheckBox_.setStylePrimaryName(
+                           resources.styles().maintainAspectRatioCheckBox());
       keepRatioCheckBox_.setValue(keepRatio);
       keepRatioCheckBox_.setText("Maintain aspect ratio");
       optionsPanel.add(keepRatioCheckBox_);
@@ -294,7 +290,7 @@ public class ExportPlotSizeEditor extends Composite
       initialWidth = constrainWidth(initialWidth);
       initialHeight = constrainHeight(initialHeight);
             
-      // initialize text boxes
+      // initialie text boxes
       setWidthTextBox(initialWidth);
       setHeightTextBox(initialHeight);
  
@@ -364,7 +360,7 @@ public class ExportPlotSizeEditor extends Composite
             {
                onReady.execute();
             } 
-         }.schedule(1000);
+         }.schedule(1000);;
       }
       else
       {
@@ -471,9 +467,9 @@ public class ExportPlotSizeEditor extends Composite
                       Window.getClientHeight() - 200);
    }
    
-   private FormLabel createImageOptionLabel(String text, Widget w)
+   private Label createImageOptionLabel(String text)
    {
-      FormLabel label = new FormLabel(text, w);
+      Label label = new Label(text);
       label.setStylePrimaryName(
             ExportPlotResources.INSTANCE.styles().imageOptionLabel());
       return label;
@@ -507,7 +503,7 @@ public class ExportPlotSizeEditor extends Composite
    private final Focusable initialFocusWidget_;
      
    private int lastWidth_;
-   private int lastHeight_;
+   private int lastHeight_ ;
   
    private boolean settingDimenensionInProgress_ = false;
    

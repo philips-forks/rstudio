@@ -1,7 +1,7 @@
 /*
  * REmbeddedPosix.cpp
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -13,11 +13,9 @@
  *
  */
 
-#include <Rversion.h>
-
 #include <r/RExec.hpp>
 
-#include <shared_core/FilePath.hpp>
+#include <core/FilePath.hpp>
 
 #include <boost/date_time/posix_time/posix_time_duration.hpp>
 
@@ -106,11 +104,7 @@ void runEmbeddedR(const core::FilePath& /*rHome*/,    // ignored on posix
    structRstart rp;
    Rstart Rp = &rp;
    R_DefParams(Rp) ;
-#if R_VERSION < R_Version(4, 0, 0)
-   Rp->R_Slave = FALSE;
-#else
-   Rp->R_NoEcho = FALSE;
-#endif
+   Rp->R_Slave = FALSE ;
    Rp->R_Quiet = quiet ? TRUE : FALSE;
    Rp->R_Interactive = TRUE ;
    Rp->SaveAction = defaultSaveAction ;
@@ -120,10 +114,10 @@ void runEmbeddedR(const core::FilePath& /*rHome*/,    // ignored on posix
 
    // redirect console
    R_Interactive = TRUE; // should have also been set by call to Rf_initialize_R
-   R_Consolefile = nullptr;
-   R_Outputfile = nullptr;
+   R_Consolefile = NULL;
+   R_Outputfile = NULL;
    ptr_R_ReadConsole = callbacks.readConsole ;
-   ptr_R_WriteConsole = nullptr; // must set this to NULL for Ex to be called
+   ptr_R_WriteConsole = NULL; // must set this to NULL for Ex to be called
    ptr_R_WriteConsoleEx = callbacks.writeConsoleEx ;
    ptr_R_EditFile = callbacks.editFile ;
    ptr_R_Busy = callbacks.busy;
@@ -168,18 +162,18 @@ namespace event_loop {
 namespace {
 
 // currently installed polled event handler
-void (*s_polledEventHandler)(void) = nullptr;
+void (*s_polledEventHandler)(void) = NULL;
 
 // previously existing polled event handler
-void (*s_oldPolledEventHandler)(void) = nullptr;
+void (*s_oldPolledEventHandler)(void) = NULL;
 
 // function we register with R to implement polled event handler
 void polledEventHandler()
 {
-   if (s_polledEventHandler != nullptr)
+   if (s_polledEventHandler != NULL)
       s_polledEventHandler();
 
-   if (s_oldPolledEventHandler != nullptr)
+   if (s_oldPolledEventHandler != NULL)
       s_oldPolledEventHandler();
 }
 
@@ -247,7 +241,7 @@ bool setupQuartzEventLoop()
          pSetupEventLoop(QCF_SET_PEPTR, 100);
 
          // check that we got the ptr_R_ProcessEvents initialized
-         if (ptr_R_ProcessEvents != nullptr)
+         if (ptr_R_ProcessEvents != NULL)
          {
             return true;
          }
@@ -326,7 +320,7 @@ void initializePolledEventHandler(void (*newPolledEventHandler)(void))
    // preserve old handler and set new one
    s_oldPolledEventHandler = R_PolledEvents;
    R_PolledEvents = polledEventHandler;
-   
+
    // set R_wait_usec
    if (R_wait_usec > 10000 || R_wait_usec == 0)
       R_wait_usec = 10000;
@@ -344,13 +338,13 @@ void initializePolledEventHandler(void (*newPolledEventHandler)(void))
 // disable with a bit more complex control flow)
 void permanentlyDisablePolledEventHandler()
 {
-   s_polledEventHandler = nullptr;
-   s_oldPolledEventHandler = nullptr;
+   s_polledEventHandler = NULL;
+   s_oldPolledEventHandler = NULL;
 }
 
 bool polledEventHandlerInitialized()
 {
-   return s_polledEventHandler != nullptr;
+   return s_polledEventHandler != NULL;
 }
 
 void processEvents()
@@ -360,7 +354,7 @@ void processEvents()
 
    // pickup X11 graphics device events (if any) via X11 input handler
    fd_set* what = R_checkActivity(0,1);
-   if (what != nullptr)
+   if (what != NULL)
       R_runHandlers(R_InputHandlers, what);
 #else
    // check for activity on standard input handlers (but ignore stdin).

@@ -1,7 +1,7 @@
 /*
  * ImportFileSettings.java
  *
- * Copyright (C) 2009-12 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -103,15 +103,15 @@ public class ImportFileSettings
       int score = 0;
       if (isHeader() == other.isHeader())
          score++;
-      if (getRowNames() == other.getRowNames())
+      if (getRowNames().equals(other.getRowNames()))
          score++;
-      if (getSep() == other.getSep())
+      if (getSep().equals(other.getSep()))
          score += 2;
-      if (getDec() == other.getDec())
+      if (getDec().equals(other.getDec()))
          score += 2;
-      if (getQuote() == other.getQuote())
+      if (getQuote().equals(other.getQuote()))
          score++;
-      if (getComment() == other.getComment())
+      if (getComment().equals(other.getComment()))
          score++;
       return score;
    }

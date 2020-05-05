@@ -1,7 +1,7 @@
 /*
  * StringUtilTests.java
  *
- * Copyright (C) 2009-20 by RStudio, PBC
+ * Copyright (C) 2009-17 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -15,11 +15,9 @@
 package org.rstudio.core.client;
 
 import java.util.Date;
-import java.util.List;
-import java.util.ArrayList;
 
-import com.google.gwt.core.client.JavaScriptException;
 import com.google.gwt.junit.client.GWTTestCase;
+
 
 public class StringUtilTests extends GWTTestCase
 {
@@ -35,13 +33,11 @@ public class StringUtilTests extends GWTTestCase
    {
       String orig = null;
       int minWidth = 5;
-      try
+      try 
       {
-         StringUtil.padRight(orig, minWidth);
-         fail("Expected exception to be thrown");
-      } 
-      catch (NullPointerException ex) { }
-      catch (JavaScriptException ex) { }
+    	  StringUtil.padRight(orig, minWidth);
+    	  fail("Expected NullPointerException to be thrown");
+      } catch (NullPointerException ex) { }
    }
 
    public void testPadRightEmptyInput()
@@ -77,10 +73,10 @@ public class StringUtilTests extends GWTTestCase
 
    public void testParseIntNullInput()
    {
-      String input = null;
-      int def = 999;
-      int result = StringUtil.parseInt(input, def);
-      assertEquals(def, result);
+	   String input = null;
+	   int def = 999;
+	   int result = StringUtil.parseInt(input, def);
+	   assertEquals(def, result);
    }
 
    public void testParseIntNonNumericInput()
@@ -124,20 +120,20 @@ public class StringUtilTests extends GWTTestCase
 
    public void testFormatDateNullInput()
    {
-      Date input = null;
-      String expected = "";
-      String result = StringUtil.formatDate(input);
-      assertEquals(expected, result);
+	  Date input = null;
+	  String expected = "";
+	  String result = StringUtil.formatDate(input);
+	  assertEquals(expected, result);
    }
 
    public void testFormatDate()
    {
-      String result = StringUtil.formatDate(new Date());
-   
-      // just check that it's got minimum valid length; don't want to 
-      // mess with timezone awareness to do exact check
-      // MMM d, yyyy, h:mm AM
-      assertTrue(result.length() >= 20);
+	   String result = StringUtil.formatDate(new Date());
+	   
+	   // just check that it's got minimum valid length; don't want to 
+	   // mess with timezone awareness to do exact check
+	   // MMM d, yyyy, h:mm AM
+	   assertTrue(result.length() >= 20);
    }
    
    public void testNewlineCount()
@@ -155,175 +151,272 @@ public class StringUtilTests extends GWTTestCase
       assertEquals(0, StringUtil.newlineCount(input));
    }
 
-   public void testGetAuthorityFromUrl()
-   {
-      String url = "http://rstudio.com/products";
-      assertEquals("rstudio.com", StringUtil.getAuthorityFromUrl(url));
-      
-      url = "https://google.com";
-      assertEquals("google.com", StringUtil.getAuthorityFromUrl(url));
-      
-      url = "8.8.8.8:443/notfound.html";
-      assertEquals("8.8.8.8:443", StringUtil.getAuthorityFromUrl(url));
-   }
-   
    public void testGetHostFromUrl()
    {
-      String url = "8.8.8.8:443/notfound.html";
-      assertEquals("8.8.8.8", StringUtil.getHostFromUrl(url));
+      String url = "http://rstudio.com/products";
+      assertEquals("rstudio.com", StringUtil.getHostFromUrl(url));
       
-      url = "https://localhost:443/";
-      assertEquals("localhost", StringUtil.getHostFromUrl(url));
-
-      url = "https://bakersfield/";
-      assertEquals("bakersfield", StringUtil.getHostFromUrl(url));
-   }
-   
-   public void testStringEquals()
-   {
-      String one_1 = "one";
-      String two_1 = "two";
-      String one_2 = "one";
-      String two_2 = "two";
-      String null_1 = null;
-      String null_2 = null;
+      url = "https://google.com";
+      assertEquals("google.com", StringUtil.getHostFromUrl(url));
       
-      assertTrue(StringUtil.equals(one_1, one_2));
-      assertTrue(StringUtil.equals(one_2, one_1)); 
-      assertTrue(StringUtil.equals(two_1, two_2));
-      assertTrue(StringUtil.equals(two_2, two_1));
-      
-      assertTrue(StringUtil.equals(null_1, null_2));
-      assertTrue(StringUtil.equals(null_2, null_1));
-      
-      assertTrue(StringUtil.equals(one_1, one_1));
-      assertTrue(StringUtil.equals(one_2, one_2));
-      assertTrue(StringUtil.equals(two_1, two_1));
-      assertTrue(StringUtil.equals(two_2, two_2));
-      
-      assertTrue(StringUtil.equals(null_1, null_1));
-      assertTrue(StringUtil.equals(null_2, null_2));
-      
-      assertFalse(StringUtil.equals(one_1, two_1));
-      assertFalse(StringUtil.equals(two_1, one_1));
-      assertFalse(StringUtil.equals(one_2, two_2));
-      assertFalse(StringUtil.equals(two_2, one_2));
-      
-      assertFalse(StringUtil.equals(one_1, null_1));
-      assertFalse(StringUtil.equals(two_1, null_1));
-      assertFalse(StringUtil.equals(one_1, null_1));
-      assertFalse(StringUtil.equals(two_1, null_1));
-      
-      assertFalse(StringUtil.equals(one_2, null_1));
-      assertFalse(StringUtil.equals(two_2, null_1));
-      assertFalse(StringUtil.equals(one_2, null_1));
-      assertFalse(StringUtil.equals(two_2, null_1));
-      
-      assertFalse(StringUtil.equals(null_2, one_1));
-      assertFalse(StringUtil.equals(null_2, two_1));
-      assertFalse(StringUtil.equals(null_2, one_2));
-      assertFalse(StringUtil.equals(null_2, two_2));
-   } 
-   
-   public void testConciseElapsedTime()
-   {
-      String seconds = StringUtil.conciseElaspedTime(35);
-      assertEquals("0:35", seconds);
-
-      String minutes = StringUtil.conciseElaspedTime(66);
-      assertEquals("1:06", minutes);
-
-      String hours = StringUtil.conciseElaspedTime(3606);
-      assertEquals("1:00:06", hours);
-      
-      String days = StringUtil.conciseElaspedTime(180061);
-      assertEquals("2:02:01:01", days);
-   }
-  
-   public void testGetCssIdentifier()
-   {
-      List<Pair<String, String>> testList = new ArrayList<>();
-      testList.add(new Pair<>("4abc_bad",        "_abc_bad"));
-      testList.add(new Pair<>("--verybad",       "_-verybad"));
-      testList.add(new Pair<>("-2badagain?",     "_2badagain_"));
-      testList.add(new Pair<>("great342_-↲",     "great342_-↲"));
-      testList.add(new Pair<>("-_perfectlyfine", "-_perfectlyfine"));
-
-      for (Pair<String, String> td  : testList)
-      {
-         String result = StringUtil.getCssIdentifier(td.first);
-         assertTrue(StringUtil.equals(td.second, result));
-      }
+      url = "8.8.8.8:443/notfound.html";
+      assertEquals("8.8.8.8:443", StringUtil.getHostFromUrl(url));
    }
 
-   public void testEscapeBashPathNoSpecialChars()
-   {
-      String input = "NothingSpecialHere.129,._+@%/-";
-      String expected = input;
-      String result = StringUtil.escapeBashPath(input, true);
-      assertTrue(StringUtil.equals(result, expected));
-   }
-   
-   public void testEscapeBashPathNoSpecialCharsNoTilde()
-   {
-      String input = "NothingSpecialHere.129,._+@%/-";
-      String expected = input;
-      String result = StringUtil.escapeBashPath(input, true);
-      assertTrue(StringUtil.equals(result, expected));
-   }
-   
-   public void testEscapeBashPathSpacesAndEmbeddedTilde()
-   {
-      String input = " ~/Something Special Here. 129, ._ +@%/- ";
-      String expected = "\\ \\~/Something\\ Special\\ Here.\\ 129,\\ ._\\ +@%/-\\ ";
-      String result = StringUtil.escapeBashPath(input, true);
-      assertTrue(StringUtil.equals(result, expected));
-   }
-   
-   public void testEscapeBashPathSpecialAndUnescapedTilde()
-   {
-      String input = "~/Something Special Here! 129, ._ +@%/->";
-      String expected = "~/Something\\ Special\\ Here\\!\\ 129,\\ ._\\ +@%/-\\>";
-      String result = StringUtil.escapeBashPath(input, false);
-      assertTrue(StringUtil.equals(result, expected));
-   }
-   
-   public void testEscapeBashPathSpecialAndEscapedTilde()
-   {
-      String input = "~/Something Special Here! 129, ._ +@%/->";
-      String expected = "\\~/Something\\ Special\\ Here\\!\\ 129,\\ ._\\ +@%/-\\>";
-      String result = StringUtil.escapeBashPath(input, true);
-      assertTrue(StringUtil.equals(result, expected));
-   }
-   
-   public void testIsCharAt()
-   {
-      assertTrue(StringUtil.isCharAt("abcd", 'a', 0));
-      assertTrue(StringUtil.isCharAt("abcd", 'b', 1));
-      assertTrue(StringUtil.isCharAt("abcd", 'c', 2));
-      assertTrue(StringUtil.isCharAt("abcd", 'd', 3));
-   }
-   
-   public void testIsCharAtOOB()
-   {
-      assertFalse(StringUtil.isCharAt("abcd", 'a', -1));
-      assertFalse(StringUtil.isCharAt(null, 'a', 0));
-      assertFalse(StringUtil.isCharAt("012345", '6', 6));
-   }
-   
-   public void testSafeCharAt()
-   {
-      String str = "";
-      
-      assertEquals(StringUtil.charAt(str, 0), '\0');
-      assertEquals(StringUtil.charAt(str, -1), '\0');
-      assertEquals(StringUtil.charAt(str, 100), '\0');
-      
-      str = "abcd";
+   // -----------------------------------------------------------------------
 
-      assertEquals(StringUtil.charAt(str, 0), 'a');
-      assertEquals(StringUtil.charAt(str, 1), 'b');
-      assertEquals(StringUtil.charAt(str, 2), 'c');
-      assertEquals(StringUtil.charAt(str, 3), 'd');
-   }
+   // TODO: Tests for remaining public StringUtil methods
+   //
+   // public static String formatFileSize(long size)
+
+   // -----------------------------------------------------------------------
+
+   // public static String formatElapsedTime(int seconds)
+
+   // -----------------------------------------------------------------------
+
+   // public static String formatFileSize(int size)
+
+   // -----------------------------------------------------------------------
+
+   // public static native int nativeDivide(int num, int denom) 
+
+   // -----------------------------------------------------------------------
+
+   // public static String prettyFormatNumber(double number)
+
+   // -----------------------------------------------------------------------
+
+   // public static String formatGeneralNumber(long number)
+
+   // -----------------------------------------------------------------------
+
+   // public static String formatPercent(double number)
+
+   // -----------------------------------------------------------------------
+
+   // public static Size characterExtent(String text)
+
+   // -----------------------------------------------------------------------
+
+   // public static String chomp(String string)
+
+   // -----------------------------------------------------------------------
+
+   // public static boolean isNullOrEmpty(String val)
+
+   // -----------------------------------------------------------------------
+
+   // public static String textToRLiteral(String value)
+
+   // -----------------------------------------------------------------------
+
+   // public static String toRSymbolName(String name)
+
+   // -----------------------------------------------------------------------
+
+   // public static String notNull(String s)
+
+   // -----------------------------------------------------------------------
+
+   // public static String indent(String str, String indent)
+
+   // -----------------------------------------------------------------------
+
+   // public static String join(String delimiter, String... strings)
+
+   // -----------------------------------------------------------------------
+
+   // public static String join(String[] collection, String delim)
+
+   // -----------------------------------------------------------------------
+
+   // public static String join(Collection<?> collection, String delim)
+
+   // -----------------------------------------------------------------------
+
+   // public static String firstNotNullOrEmpty(String[] strings)
+
+   // -----------------------------------------------------------------------
+
+   // public static String shortPathName(FileSystemItem item, int maxWidth)
+
+   // -----------------------------------------------------------------------
+
+   // public static String shortPathName(FileSystemItem item, String styleName, int maxWidth)
+
+   // -----------------------------------------------------------------------
+
+   // public static Iterable<String> getLineIterator(final String text)
+
+   // -----------------------------------------------------------------------
+
+   // public static String trimBlankLines(String data)
+
+   // -----------------------------------------------------------------------
+
+   // public static String trimLeft(String str)
+
+   // -----------------------------------------------------------------------
+
+   // public static String trimRight(String str)
+
+   // -----------------------------------------------------------------------
+
+   // public static String getCommonPrefix(String[] lines, boolean allowPhantomWhitespace, boolean skipWhitespaceOnlyLines)
+
+   // -----------------------------------------------------------------------
+
+   // public static String pathToTitle(String path)
+
+   // -----------------------------------------------------------------------
+
+   // public static String joinStrings(List<String> strings, String separator)
+
+   // -----------------------------------------------------------------------
+
+   // public static String makeAbsoluteUrl(String inputUrl)
+
+   // -----------------------------------------------------------------------
+
+   // public static String ensureSurroundedWith(String string, char chr)
+
+   // -----------------------------------------------------------------------
+
+   // public static String capitalize(String input)
+
+   // -----------------------------------------------------------------------
+
+   // public static final native String capitalizeAllWords(String input)
+
+   // -----------------------------------------------------------------------
+
+   // public static int countMatches(String line, char chr)
+
+   // -----------------------------------------------------------------------
+
+   // public static String stripRComment(String string)
+
+   // -----------------------------------------------------------------------
+
+   // public static String stripBalancedQuotes(String string)
+
+   // -----------------------------------------------------------------------
+
+   // public static String maskStrings(String string)
+
+   // -----------------------------------------------------------------------
+
+   // public static String maskStrings(String string, char ch)
+
+   // -----------------------------------------------------------------------
+
+   // public static boolean isEndOfLineInRStringState(String string)
+
+   // -----------------------------------------------------------------------
+
+   // public static boolean isSubsequence(String self, String other, boolean caseInsensitive)
+
+   // -----------------------------------------------------------------------
+
+   // public static boolean isSubsequence(String self, String other)
+
+   // -----------------------------------------------------------------------
+
+   // public static List<Integer> subsequenceIndices(String sequence, String query)
+
+   // -----------------------------------------------------------------------
+
+   // public static String getExtension(String string, int dots)
+
+   // -----------------------------------------------------------------------
+
+   // public static String getExtension(String string)
+
+   // -----------------------------------------------------------------------
+
+   // public static String getToken(String string, int pos, String tokenRegex, boolean expandForward, boolean backOverWhitespace)
+
+   // -----------------------------------------------------------------------
+
+   // public static String repeat(String string, int times)
+
+   // -----------------------------------------------------------------------
+
+   // public static ArrayList<Integer> indicesOf(String string, char ch)
+
+   // -----------------------------------------------------------------------
+
+   // public static boolean isWhitespace(String string)
+
+   // -----------------------------------------------------------------------
+
+   // public static boolean isComplementOf(String self, String other)
+
+   // -----------------------------------------------------------------------
+
+   // public static String collapse(Map<String, String> map, String keyValueSeparator, String fieldSeparator)
+
+   // -----------------------------------------------------------------------
+
+   // public static String prettyCamel(String string)
+
+   // -----------------------------------------------------------------------
+
+   // public static native final String escapeRegex(String regexString) 
+
+   // -----------------------------------------------------------------------
+
+   // public static final String getIndent(String line)
+
+   // -----------------------------------------------------------------------
+
+   // public static final String truncate(String string, int targetLength, String suffix)
+
+   // -----------------------------------------------------------------------
+
+   // public static boolean isOneOf(String string, String... candidates)
+
+   // -----------------------------------------------------------------------
+
+   // public static boolean isOneOf(char ch, char... candidates)
+
+   // -----------------------------------------------------------------------
+
+   // public static final String makeRandomId(int length) 
+
+   // -----------------------------------------------------------------------
+
+   // public static String ensureQuoted(String string)
+
+   // -----------------------------------------------------------------------
+
+   // public static String stringValue(String string)
+
+   // -----------------------------------------------------------------------
+
+   // public static final native String encodeURI(String string) 
+
+   // -----------------------------------------------------------------------
+
+   // public static final native String encodeURIComponent(String string) 
+
+   // -----------------------------------------------------------------------
+
+   // public static final native String normalizeNewLines(String string) 
+
+   // -----------------------------------------------------------------------
+
+   // public static final native JsArrayString split(String string, String delimiter)
+
+   // -----------------------------------------------------------------------
+
+   // public static final HashMap<String, String> COMPLEMENTS
+
+   // -----------------------------------------------------------------------
+
+   // public static final native String crc32(String str)
+
+   // -----------------------------------------------------------------------
+
 }

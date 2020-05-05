@@ -1,7 +1,7 @@
 /*
  * NotebookQueueState.java
  *
- * Copyright (C) 2009-16 by RStudio, PBC
+ * Copyright (C) 2009-16 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -504,7 +504,7 @@ public class NotebookQueueState implements NotebookRangeExecutedEvent.Handler,
       // if there is an existing widget just modify it in place
       LineWidget widget = docDisplay_.getLineWidgetForRow(row);
       if (widget != null && 
-          widget.getType() == ChunkDefinition.LINE_WIDGET_TYPE)
+          widget.getType().equals(ChunkDefinition.LINE_WIDGET_TYPE))
       {
          chunkDef = widget.getData();
       }

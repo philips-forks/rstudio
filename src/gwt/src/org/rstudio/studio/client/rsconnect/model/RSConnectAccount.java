@@ -1,7 +1,7 @@
 /*
  * RSConnectAccount.java
  *
- * Copyright (C) 2009-19 by RStudio, PBC
+ * Copyright (C) 2009-15 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -15,9 +15,10 @@
 package org.rstudio.studio.client.rsconnect.model;
 
 import org.rstudio.studio.client.rsconnect.RSConnect;
-import org.rstudio.studio.client.workbench.prefs.model.UserStateAccessor;
 
-public class RSConnectAccount extends UserStateAccessor.PublishAccount
+import com.google.gwt.core.client.JavaScriptObject;
+
+public class RSConnectAccount extends JavaScriptObject
 {
    protected RSConnectAccount() 
    {
@@ -30,6 +31,14 @@ public class RSConnectAccount extends UserStateAccessor.PublishAccount
       };
    }-*/;
    
+   public final native String getName() /*-{
+      return this.name || "";
+   }-*/;
+
+   public final native String getServer() /*-{
+      return this.server || "";
+   }-*/;
+   
    public final boolean isCloudAccount()
    {
       return getServer().compareToIgnoreCase(
@@ -40,7 +49,7 @@ public class RSConnectAccount extends UserStateAccessor.PublishAccount
    {
       if (other == null)
          return false;
-      else return getName()   == other.getName() && 
-                  getServer() == other.getServer();
+      else return getName().equals(other.getName()) && 
+             getServer().equals(other.getServer());
    }
 }

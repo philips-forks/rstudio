@@ -3,7 +3,7 @@
 #
 # install-dependencies-yum
 #
-# Copyright (C) 2009-20 by RStudio, PBC
+# Copyright (C) 2009-12 by RStudio, Inc.
 #
 # Unless you have received this program directly from RStudio pursuant
 # to the terms of a commercial license agreement with RStudio, then
@@ -32,7 +32,11 @@ sudo yum install -y bzip2-devel
 sudo yum install -y zlib-devel
 sudo yum install -y pam-devel
 
-# pandoc dependencies
+# needed by Qt WebKit >= 5
+sudo yum install -y gstreamer-devel
+sudo yum install -y gstreamer-plugins-base-devel
+
+# pandoc depenencies
 sudo yum install -y libffi
 
 # boost
@@ -42,17 +46,9 @@ sudo yum install -y boost-devel
 sudo yum install -y pango-devel
 
 # gwt prereqs
-sudo yum install -y java-1.8.0-openjdk
-sudo yum install -y java-1.8.0-openjdk-devel
+sudo yum install -y java-1.6.0-openjdk 
 sudo yum install -y ant
 sudo yum install -y xml-commons-apis
-
-# required for Qt
-sudo yum install -y libxslt-devel
-sudo yum install -y mesa-libGL-devel
-sudo yum install -y libXScrnSaver-devel
-sudo yum install -y fakeroot
-sudo yum install -y postgresql-devel
 
 # overlay
 if [ -e install-overlay-yum ]
@@ -62,6 +58,20 @@ fi
 
 # common
 cd ../common
-./install-common --install-crashpad-sudo
+./install-common
 cd ../linux
+
+# desktop dependencies (qt)
+if [ "$1" != "--exclude-qt-sdk" ]
+then
+   # required for Qt
+   sudo yum install -y libxslt-devel
+   sudo yum install -y mesa-libGL-devel
+   sudo yum install -y gstreamer-devel
+   sudo yum install -y gstreamer-plugins-base-devel
+
+   # install Qt SDK
+   ./install-qt-sdk
+fi
+
 

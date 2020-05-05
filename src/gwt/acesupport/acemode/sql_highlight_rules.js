@@ -1,7 +1,7 @@
 /*
  * sql_highlight_rules.js
  *
- * Copyright (C) 2015 by RStudio, PBC
+ * Copyright (C) 2015 by RStudio, Inc.
  *
  * The Initial Developer of the Original Code is Jeffrey Arnold
  * Portions created by the Initial Developer are Copyright (C) 2014
@@ -94,7 +94,7 @@ define("mode/sql_highlight_rules", ["require", "exports", "module"], function(re
             regex : "[a-zA-Z_$][a-zA-Z0-9_$]*\\b"
         }, {
             token : "keyword.operator",
-            regex : "\\+|\\-|\\/|\\/\\/|%|<@>|@>|<@|&|\\^|~|<|>|<=|=>|==|!=|<>|=|\\."
+            regex : "\\+|\\-|\\/|\\/\\/|%|<@>|@>|<@|&|\\^|~|<|>|<=|=>|==|!=|<>|="
         }, {
             token : "paren.lparen",
             regex : "[\\(]"

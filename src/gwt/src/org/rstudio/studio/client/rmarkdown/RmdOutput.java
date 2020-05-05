@@ -1,7 +1,7 @@
 /*
  * RmdOutput.java
  *
- * Copyright (C) 2009-18 by RStudio, PBC
+ * Copyright (C) 2009-14 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -17,8 +17,6 @@ package org.rstudio.studio.client.rmarkdown;
 import java.util.Map;
 import java.util.HashMap;
 
-import org.rstudio.core.client.CommandWithArg;
-import org.rstudio.core.client.StringUtil;
 import org.rstudio.core.client.command.CommandBinder;
 import org.rstudio.core.client.dom.WindowEx;
 import org.rstudio.core.client.files.FileSystemItem;
@@ -30,6 +28,7 @@ import org.rstudio.studio.client.RStudioGinjector;
 import org.rstudio.studio.client.application.Desktop;
 import org.rstudio.studio.client.application.events.EventBus;
 import org.rstudio.studio.client.application.events.QuitInitiatedEvent;
+import org.rstudio.studio.client.application.events.QuitInitiatedHandler;
 import org.rstudio.studio.client.application.events.RestartStatusEvent;
 import org.rstudio.studio.client.common.GlobalDisplay;
 import org.rstudio.studio.client.common.SimpleRequestCallback;
@@ -62,9 +61,9 @@ import org.rstudio.studio.client.server.Void;
 import org.rstudio.studio.client.workbench.WorkbenchContext;
 import org.rstudio.studio.client.workbench.commands.Commands;
 import org.rstudio.studio.client.workbench.model.Session;
-import org.rstudio.studio.client.workbench.prefs.events.UserPrefsChangedEvent;
-import org.rstudio.studio.client.workbench.prefs.events.UserPrefsChangedHandler;
-import org.rstudio.studio.client.workbench.prefs.model.UserPrefs;
+import org.rstudio.studio.client.workbench.prefs.events.UiPrefsChangedEvent;
+import org.rstudio.studio.client.workbench.prefs.events.UiPrefsChangedHandler;
+import org.rstudio.studio.client.workbench.prefs.model.UIPrefs;
 import org.rstudio.studio.client.workbench.views.source.SourceBuildHelper;
 import org.rstudio.studio.client.workbench.views.source.events.NotebookRenderFinishedEvent;
 
@@ -89,8 +88,8 @@ public class RmdOutput implements RmdRenderStartedEvent.Handler,
                                   WebsiteFileSavedEvent.Handler,
                                   NotebookRenderFinishedEvent.Handler,
                                   RmdRenderPendingEvent.Handler,
-                                  QuitInitiatedEvent.Handler,
-                                  UserPrefsChangedHandler
+                                  QuitInitiatedHandler,
+                                  UiPrefsChangedHandler
 {
    public interface Binder
    extends CommandBinder<Commands, RmdOutput> {}
@@ -105,7 +104,7 @@ public class RmdOutput implements RmdRenderStartedEvent.Handler,
                     WorkbenchContext workbenchContext,
                     Provider<ViewFilePanel> pViewFilePanel,
                     Binder binder,
-                    UserPrefs prefs,
+                    UIPrefs prefs,
                     PDFViewer pdfViewer,
                     RMarkdownServerOperations server)
    {
@@ -128,16 +127,16 @@ public class RmdOutput implements RmdRenderStartedEvent.Handler,
       eventBus.addHandler(RenderRmdEvent.TYPE, this);
       eventBus.addHandler(RenderRmdSourceEvent.TYPE, this);
       eventBus.addHandler(RestartStatusEvent.TYPE, this);
-      eventBus.addHandler(UserPrefsChangedEvent.TYPE, this);
+      eventBus.addHandler(UiPrefsChangedEvent.TYPE, this);
       eventBus.addHandler(WebsiteFileSavedEvent.TYPE, this);
       eventBus.addHandler(QuitInitiatedEvent.TYPE, this);
       eventBus.addHandler(RmdRenderPendingEvent.TYPE, this);
       eventBus.addHandler(NotebookRenderFinishedEvent.TYPE, this);
 
-      prefs_.rmdViewerType().addValueChangeHandler(new ValueChangeHandler<String>()
+      prefs_.rmdViewerType().addValueChangeHandler(new ValueChangeHandler<Integer>()
       {
          @Override
-         public void onValueChange(ValueChangeEvent<String> e)
+         public void onValueChange(ValueChangeEvent<Integer> e)
          {
             onViewerTypeChanged(e.getValue());
          }
@@ -157,16 +156,14 @@ public class RmdOutput implements RmdRenderStartedEvent.Handler,
    @Override
    public void onRmdRenderStarted(RmdRenderStartedEvent event)
    {
-      if (Desktop.isDesktop())
+      // When a Word document starts rendering, tell the desktop frame 
+      // (if it exists) to get ready; this generally involves closing the 
+      // document in preparation for a refresh
+      if (event.getFormat().getFormatName()
+            .equals(RmdOutputFormat.OUTPUT_WORD_DOCUMENT) &&
+          Desktop.isDesktop())
       {
-         // When an Office document starts rendering, tell the desktop frame 
-         // (if it exists) to get ready; this generally involves closing the 
-         // document in preparation for a refresh
-         String format = event.getFormat().getFormatName();
-         if (StringUtil.equals(format, RmdOutputFormat.OUTPUT_WORD_DOCUMENT))
-            Desktop.getFrame().prepareShowWordDoc();
-         else if (StringUtil.equals(format, RmdOutputFormat.OUTPUT_PPT_PRESENTATION))
-            Desktop.getFrame().prepareShowPptPresentation(); 
+         Desktop.getFrame().prepareShowWordDoc();
       }
    }
    
@@ -288,7 +285,7 @@ public class RmdOutput implements RmdRenderStartedEvent.Handler,
       // emitted updated slide navigation information and then plumbed that
       // information back into the preview window.
       if (shinyDoc_ != null &&
-          event.getSourceFile() == shinyDoc_.getFile() &&
+          event.getSourceFile().equals(shinyDoc_.getFile()) &&
           !shinyDoc_.getFormat().getFormatName().endsWith(
                 RmdOutputFormat.OUTPUT_PRESENTATION_SUFFIX) &&
           (result_ == null || "shiny".equals(result_.getRuntime())))
@@ -355,9 +352,9 @@ public class RmdOutput implements RmdRenderStartedEvent.Handler,
       TextFileType fileType = fileTypeRegistry_.getTextTypeForFile(file);
       String typeId = fileType.getTypeId();
       if (fileType.isR() ||
-          typeId == FileTypeRegistry.HTML.getTypeId() ||
-          typeId == FileTypeRegistry.YAML.getTypeId() ||
-          typeId == FileTypeRegistry.JSON.getTypeId())
+          typeId.equals(FileTypeRegistry.HTML.getTypeId()) ||
+          typeId.equals(FileTypeRegistry.YAML.getTypeId()) ||
+          typeId.equals(FileTypeRegistry.JSON.getTypeId()))
       {
          reRenderPreview();
       }
@@ -368,7 +365,11 @@ public class RmdOutput implements RmdRenderStartedEvent.Handler,
          // included Rmd files always produce a rebuild of the current file
          if (file.getStem().startsWith("_"))
             reRenderPreview();
-     
+         
+         // files in subdirectories are also includes so re-render them also
+         if (!file.getParentPathString().equals(websiteDir))
+            reRenderPreview();
+         
          // ...otherwise leave it alone (requires a knit)
       }
       
@@ -458,14 +459,14 @@ public class RmdOutput implements RmdRenderStartedEvent.Handler,
    }
 
    @Override
-   public void onUserPrefsChanged(UserPrefsChangedEvent e)
+   public void onUiPrefsChanged(UiPrefsChangedEvent e)
    {
       onViewerTypeChanged(prefs_.rmdViewerType().getValue());
    }
    
    // Private methods ---------------------------------------------------------
    
-   private void onViewerTypeChanged(String newViewerType)
+   private void onViewerTypeChanged(int newViewerType)
    {
       if (outputFrame_ != null && 
           outputFrame_.getWindowObject() != null && 
@@ -503,7 +504,7 @@ public class RmdOutput implements RmdRenderStartedEvent.Handler,
          // position (we don't need to do this for the satellite since it
          // caches scroll position when it closes)
          if (result_ != null && 
-             outputFrame_.getViewerType() == UserPrefs.RMD_VIEWER_TYPE_PANE)
+             outputFrame_.getViewerType() == RMD_VIEWER_TYPE_PANE)
          {
             cacheDocPosition(result_, outputFrame_.getScrollPosition(), 
                   outputFrame_.getAnchor());
@@ -544,49 +545,28 @@ public class RmdOutput implements RmdRenderStartedEvent.Handler,
             RmdOutput.TYPE_SHINY, null, null, result.getViewerType()));
    }
    
-   private void displayOfficeDoc(final RmdRenderResult result, 
-                                 final CommandWithArg<String> displayResult)
-   {
-      // in desktop mode, the document can be displayed directly
-      if (Desktop.isDesktop())
-         displayResult.execute(result.getOutputFile());
-      
-      // it's not possible to show Office docs inline in a useful way from
-      // within the browser, so just offer to download the file.
-      else
-      {
-         showDownloadPreviewFileDialog(result, new Command() {
-            @Override
-            public void execute()
-            {
-               displayResult.execute(result.getOutputFile());
-            }  
-         });
-      }
-   }
-   
    private void displayRenderResult(final RmdRenderResult result)
    {
       // don't display anything if user doesn't want to
-      if (prefs_.rmdViewerType().getValue() == UserPrefs.RMD_VIEWER_TYPE_NONE)
+      if (prefs_.rmdViewerType().getValue() == RMD_VIEWER_TYPE_NONE)
          return;
       
       String extension = FileSystemItem.getExtensionFromPath(
                                                 result.getOutputFile()); 
       if (".pdf".equals(extension))
       {
-         String previewer = prefs_.pdfPreviewer().getValue();
-         if (previewer == UserPrefs.PDF_PREVIEWER_RSTUDIO)
+         String previewer = prefs_.pdfPreview().getValue();
+         if (previewer.equals(UIPrefs.PDF_PREVIEW_RSTUDIO))
          {
             pdfViewer_.viewPdfUrl(
                   result.getOutputUrl(), 
                   result.getPreviewSlide() >= 0 ? 
                         result.getPreviewSlide() : null);
          }
-         else if (previewer != UserPrefs.PDF_PREVIEWER_NONE)
+         else if (!previewer.equals(UIPrefs.PDF_PREVIEW_NONE))
          {
             if (Desktop.isDesktop())
-               Desktop.getFrame().showPDF(StringUtil.notNull(result.getOutputFile()),
+               Desktop.getFrame().showPDF(result.getOutputFile(),
                                           result.getPreviewSlide());
             else 
                globalDisplay_.showHtmlFile(result.getOutputFile());
@@ -596,11 +576,21 @@ public class RmdOutput implements RmdRenderStartedEvent.Handler,
                ".rtf".equals(extension) ||
                ".odt".equals(extension))
       {
-         displayOfficeDoc(result, (r) -> globalDisplay_.showWordDoc(r));
-      }
-      else if (".pptx".equals(extension))
-      {
-         displayOfficeDoc(result, (r) -> globalDisplay_.showPptPresentation(r));
+         if (Desktop.isDesktop())
+            globalDisplay_.showWordDoc(result.getOutputFile());
+         
+         // it's not possible to show Word docs inline in a useful way from
+         // within the browser, so just offer to download the file.
+         else
+         {
+            showDownloadPreviewFileDialog(result, new Command() {
+               @Override
+               public void execute()
+               {
+                  globalDisplay_.showWordDoc(result.getOutputFile());  
+               }  
+            });
+         }
       }
       else if (".html".equals(extension) ||
                NOTEBOOK_EXT.equals(extension))
@@ -617,8 +607,8 @@ public class RmdOutput implements RmdRenderStartedEvent.Handler,
       }
       else
       {
-         if (Desktop.hasDesktopFrame())
-            Desktop.getFrame().showFile(StringUtil.notNull(result.getOutputFile()));
+         if (Desktop.isDesktop())
+            Desktop.getFrame().showFile(result.getOutputFile());
          else
          {
             showDownloadPreviewFileDialog(result, new Command() {
@@ -676,27 +666,27 @@ public class RmdOutput implements RmdRenderStartedEvent.Handler,
             result, scrollPosition, anchor);
       
       // get the default viewer type from prefs
-      String viewerType = prefs_.rmdViewerType().getValue();
+      int viewerType = prefs_.rmdViewerType().getValue();
       
       // apply override from result, if any
       if (result.getViewerType() == RmdEditorOptions.PREVIEW_IN_VIEWER)
-         viewerType = UserPrefs.RMD_VIEWER_TYPE_PANE;
+         viewerType = RMD_VIEWER_TYPE_PANE;
       else if (result.getViewerType() == RmdEditorOptions.PREVIEW_IN_WINDOW)
-         viewerType = UserPrefs.RMD_VIEWER_TYPE_WINDOW;
+         viewerType = RMD_VIEWER_TYPE_WINDOW;
       else if (result.getViewerType() == RmdEditorOptions.PREVIEW_IN_NONE)
-         viewerType = UserPrefs.RMD_VIEWER_TYPE_NONE;
+         viewerType = RMD_VIEWER_TYPE_NONE;
 
       // don't host presentations in the viewer pane--ioslides doesn't scale
       // slides well without help
-      if (result.isHtmlPresentation() && viewerType == UserPrefs.RMD_VIEWER_TYPE_PANE)
-         viewerType = UserPrefs.RMD_VIEWER_TYPE_WINDOW;
+      if (result.isHtmlPresentation() && viewerType == RMD_VIEWER_TYPE_PANE)
+         viewerType = RMD_VIEWER_TYPE_WINDOW;
       
-      final String newViewerType = viewerType;
+      final int newViewerType = viewerType;
       
       // if we're about to pop open a window but one of the publish buttons
       // is waiting for a render to complete, skip the preview entirely so 
       // we don't disturb the publish flow with a window popping up
-      if (newViewerType == UserPrefs.RMD_VIEWER_TYPE_WINDOW &&
+      if (newViewerType == RMD_VIEWER_TYPE_WINDOW &&
             RSConnectPublishButton.isAnyRmdRenderPending())
       {
          return;
@@ -717,7 +707,7 @@ public class RmdOutput implements RmdRenderStartedEvent.Handler,
       if (needsReopen || 
             (win != null && 
              result_ != null && 
-             result_.getFormatName() != result.getFormatName()))
+             !result_.getFormatName().equals(result.getFormatName())))
       {
          outputFrame_.closeOutputFrame(false);
          outputFrame_ = null;
@@ -738,10 +728,10 @@ public class RmdOutput implements RmdRenderStartedEvent.Handler,
       }
    }
    
-   private void displayRenderResult(WindowEx win, String viewerType, 
+   private void displayRenderResult(WindowEx win, int viewerType, 
                                     RmdPreviewParams params)
    {
-      if (viewerType == UserPrefs.RMD_VIEWER_TYPE_NONE)
+      if (viewerType == RMD_VIEWER_TYPE_NONE)
          return;
       
       RmdRenderResult result = params.getResult();
@@ -753,7 +743,8 @@ public class RmdOutput implements RmdRenderStartedEvent.Handler,
       // output file as the last one
       boolean isRefresh = win != null &&
                           result_ != null && 
-                          result_.getOutputFile() == result.getOutputFile();
+                          result_.getOutputFile().equals(
+                                result.getOutputFile());
 
       // if this isn't a refresh but there's a window up, cache the scroll
       // position of the old document before we replace it
@@ -837,13 +828,13 @@ public class RmdOutput implements RmdRenderStartedEvent.Handler,
          return result.getOutputFile() + "-" + result.getFormatName();
    }
    
-   private RmdOutputFrame createOutputFrame(String viewerType)
+   private RmdOutputFrame createOutputFrame(int viewerType)
    {
       switch(viewerType)
       {
-      case UserPrefs.RMD_VIEWER_TYPE_WINDOW:
+      case RMD_VIEWER_TYPE_WINDOW:
          return RStudioGinjector.INSTANCE.getRmdOutputFrameSatellite();
-      case UserPrefs.RMD_VIEWER_TYPE_PANE:
+      case RMD_VIEWER_TYPE_PANE:
          return RStudioGinjector.INSTANCE.getRmdOutputFramePane();
       }
       return null;
@@ -851,7 +842,7 @@ public class RmdOutput implements RmdRenderStartedEvent.Handler,
 
    private final GlobalDisplay globalDisplay_;
    private final FileTypeRegistry fileTypeRegistry_;
-   private final UserPrefs prefs_;
+   private final UIPrefs prefs_;
    private final PDFViewer pdfViewer_;
    private final Provider<ViewFilePanel> pViewFilePanel_;
    private final RMarkdownServerOperations server_;
@@ -881,4 +872,8 @@ public class RmdOutput implements RmdRenderStartedEvent.Handler,
    public final static int TYPE_STATIC   = 0;
    public final static int TYPE_SHINY    = 1;
    public final static int TYPE_NOTEBOOK = 2;
+   
+   public final static int RMD_VIEWER_TYPE_WINDOW = 0;
+   public final static int RMD_VIEWER_TYPE_PANE   = 1;
+   public final static int RMD_VIEWER_TYPE_NONE   = 2;
 }

@@ -1,7 +1,7 @@
 /*
  * PrivateCommand.cpp
  *
- * Copyright (C) 2009-20 by RStudio, PBC
+ * Copyright (C) 2009-17 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -15,7 +15,7 @@
 
 #include <core/terminal/PrivateCommand.hpp>
 
-#include <boost/algorithm/string/trim.hpp>
+#include <core/system/System.hpp>
 
 namespace rstudio {
 namespace core {
@@ -44,10 +44,6 @@ const std::string kEol = "\r\n";
  * Command is prefixed with a space, to take advantage of
  * HISTCONTROL=ignorespace (or ignoreboth) as a way to prevent command from
  * showing up in shell history.
- * 
- * In Zsh, we rely on the shell having the HIST_IGNORE_SPACE option set, which we
- * do via -g when we start Zsh. There is no attempt to detect if this setting has
- * been overridden.
  */
 
 PrivateCommand::PrivateCommand(const std::string& command,
@@ -69,18 +65,15 @@ PrivateCommand::PrivateCommand(const std::string& command,
      privateCommandTimeout_(privateCommandTimeoutMs),
      postCommandTimeout_(postCommandTimeoutMs),
      firstCRLF_(std::string::npos),
-     histcontrol_(std::string::npos),
      outputStart_(std::string::npos),
      outputEnd_(std::string::npos),
-     timeout_(false),
-     detectedWrongHistControl_(false)
+     timeout_(false)
 {
    outputBOM_ = core::system::generateShortenedUuid();
    outputEOM_ = core::system::generateShortenedUuid();
 
    std::string commandBefore_ = " echo ";
    commandBefore_ += outputBOM_;
-   commandBefore_ += " && echo $HISTCONTROL";
    std::string commandAfter_ = "echo ";
    commandAfter_ += outputEOM_;
 
@@ -117,9 +110,6 @@ bool PrivateCommand::onTryCapture(core::system::ProcessOperations& ops, bool has
    }
    else
    {
-      if (detectedWrongHistControl_)
-         return false;
-
       if (hasChildProcs)
          return false;
 
@@ -211,42 +201,16 @@ bool PrivateCommand::output(const std::string& output)
       firstCRLF_ += kEol.length();
    }
 
-   // find the echoed BOM
-   if (histcontrol_ == std::string::npos)
-   {
-      std::string bomLine = outputBOM_ + kEol;
-      histcontrol_ = privateCommandOutput_.find(bomLine, firstCRLF_);
-      if (histcontrol_ == std::string::npos)
-      {
-         return true;
-      }
-      histcontrol_ += bomLine.length();
-   }
-
-   // next line has HISTCONTROL value
+   // find the start of output
    if (outputStart_ == std::string::npos)
    {
-      outputStart_ = privateCommandOutput_.find(kEol, histcontrol_);
+      std::string bomLine = outputBOM_ + kEol;
+      outputStart_ = privateCommandOutput_.find(bomLine, firstCRLF_);
       if (outputStart_ == std::string::npos)
       {
          return true;
       }
-
-      std::string histcontrolValue = privateCommandOutput_.substr(
-               histcontrol_, outputStart_ - histcontrol_);
-      boost::algorithm::trim(histcontrolValue);
-      outputStart_ += kEol.length();
-      if (histcontrolValue != "ignorespace" && histcontrolValue != "ignoreboth")
-      {
-         // turn off future private commands for lifetime of this object to prevent
-         // accumulation of "not-quite-private" commands in shell history
-
-         std::string msg = "Private command disabled, unsupported $HISTCONTROL: [";
-         msg += histcontrolValue;
-         msg += "]";
-         LOG_WARNING_MESSAGE(msg);
-         detectedWrongHistControl_ = true;
-      }
+      outputStart_ += bomLine.length();
    }
 
    // find the end of output
@@ -285,7 +249,6 @@ void PrivateCommand::resetParse()
 {
    outputReceivedTime_ = boost::posix_time::not_a_date_time;
    firstCRLF_ = std::string::npos;
-   histcontrol_ = std::string::npos;
    outputStart_ = std::string::npos;
    outputEnd_ = std::string::npos;
    privateCommandOutput_.clear();

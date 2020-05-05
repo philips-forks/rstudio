@@ -1,7 +1,7 @@
 /*
  * Point.java
  *
- * Copyright (C) 2009-18 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -14,28 +14,57 @@
  */
 package org.rstudio.core.client;
 
-import jsinterop.annotations.JsOverlay;
-import jsinterop.annotations.JsPackage;
-import jsinterop.annotations.JsType;
-
-@JsType(isNative = true, namespace = JsPackage.GLOBAL, name = "Object")
 public class Point
 {
-   public int x;
-   public int y;
+   public final int x;
+   public final int y;
    
-   @JsOverlay public final int getX() { return x; }
-   @JsOverlay public final int getY() { return y; }
-   @JsOverlay public static final Point create(int x, int y)
+   public Point(int x, int y)
    {
-      Point point = new Point();
-      point.x = x;
-      point.y = y;
-      return point;
+      super() ;
+      this.x = x ;
+      this.y = y ;
    }
    
-   @JsOverlay
-   public final String toString()
+   public int getX()
+   {
+      return x ;
+   }
+   
+   public int getY()
+   {
+      return y ;
+   }
+
+   @Override
+   public int hashCode()
+   {
+      final int prime = 31 ;
+      int result = 1 ;
+      result = prime * result + x ;
+      result = prime * result + y ;
+      return result ;
+   }
+
+   @Override
+   public boolean equals(Object obj)
+   {
+      if (this == obj)
+         return true ;
+      if (obj == null)
+         return false ;
+      if (getClass() != obj.getClass())
+         return false ;
+      Point other = (Point) obj ;
+      if (x != other.x)
+         return false ;
+      if (y != other.y)
+         return false ;
+      return true ;
+   }
+   
+   @Override
+   public String toString()
    {
       return x + ", " + y;
    }

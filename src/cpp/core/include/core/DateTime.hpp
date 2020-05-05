@@ -1,7 +1,7 @@
 /*
  * DateTime.hpp
  *
- * Copyright (C) 2009-18 by RStudio, PBC
+ * Copyright (C) 2009-12 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -24,7 +24,7 @@ namespace rstudio {
 namespace core {
 namespace date_time {
 
-double secondsSinceEpoch();
+double secondsSinceEpoch();   
 double secondsSinceEpoch(const boost::posix_time::ptime& time);
 double secondsSinceEpoch(std::time_t time);      
    
@@ -34,38 +34,14 @@ double millisecondsSinceEpoch(std::time_t time);
    
 boost::posix_time::ptime timeFromSecondsSinceEpoch(double sec);
 boost::posix_time::ptime timeFromMillisecondsSinceEpoch(int64_t ms);
-inline boost::posix_time::ptime timeFromStdTime(std::time_t t)
-{
-   return boost::posix_time::ptime(boost::gregorian::date(1970,1,1)) +
-         boost::posix_time::seconds(static_cast<long>(t));
-}
 
-template <typename TimeType>
-std::string format(const TimeType& time,
-                   const std::string& format)
-{
-   using namespace boost::posix_time;
-
-   // facet for http date (construct w/ a_ref == 1 so we manage memory)
-   time_facet httpDateFacet(1);
-   httpDateFacet.format(format.c_str());
-
-   // output and return the date
-   std::ostringstream dateStream;
-   dateStream.imbue(std::locale(dateStream.getloc(), &httpDateFacet));
-   dateStream << time;
-   return dateStream.str();
-}
+std::string format(const boost::posix_time::ptime& datetime,
+                   const std::string& format);
 
 std::string millisecondsSinceEpochAsString(double ms);
 
 bool parseUtcTimeFromIsoString(const std::string& timeStr,
                                boost::posix_time::ptime *pOutTime);
-
-extern const std::string kIso8601Format;
-
-bool parseUtcTimeFromIso8601String(const std::string& timeStr,
-                                   boost::posix_time::ptime *pOutTime);
 
 bool parseUtcTimeFromFormatString(const std::string& timeStr,
                                   const std::string& formatStr,

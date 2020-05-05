@@ -1,7 +1,7 @@
 /*
  * EnvironmentContextData.java
  *
- * Copyright (C) 2009-13 by RStudio, PBC
+ * Copyright (C) 2009-13 by RStudio, Inc.
  *
  * Unless you have received this program directly from RStudio pursuant
  * to the terms of a commercial license agreement with RStudio, then
@@ -55,9 +55,5 @@ public class EnvironmentContextData extends JavaScriptObject
    
    public final native String functionEnvName() /*-{
       return this.function_environment_name;
-   }-*/;
-   
-   public final native boolean environmentMonitoring() /*-{
-      return this.environment_monitoring;
    }-*/;
 }
